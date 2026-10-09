@@ -1,0 +1,92 @@
+import { separatedBy } from "std/parser"
+import { Name, keyword } from "./lexical"
+
+export node Expression {
+    node String =
+        value: /"(?:\\.|[^"])*"/
+
+    node Number =
+        value: /\d+(?:\.\d+)?/
+
+    node NameExpression =
+        name: Name
+
+    node Group =
+        "(" value: Expression ")"
+
+    node Member =
+        object: Expression
+        "."
+        property: Name
+
+    node Call =
+        callee: Expression
+        "("
+        arguments: Expression*
+            |> separatedBy(",", trailing=.optional)
+        ")"
+
+    node Unary =
+        operator: ("+" | "-" | "!")
+        argument: Expression
+
+    node Power =
+        left: Expression
+        operator: "**"
+        right: Expression
+
+    node Product =
+        left: Expression
+        operator: ("*" | "/" | "%")
+        right: Expression
+
+    node Sum =
+        left: Expression
+        operator: ("+" | "-")
+        right: Expression
+
+    precedence {
+        Member, Call >
+        Unary >
+        right Power >
+        Product >
+        Sum
+    }
+}
+
+node Parameter =
+    name: Name
+    ("=" default: Expression)?
+
+pattern Parameters =
+    Parameter*
+    |> separatedBy(",", trailing=.optional)
+
+export node Statement {
+    node VariableDeclaration =
+        kind: (keyword("let") | keyword("const"))
+        name: Name
+        ("=" initializer: Expression)?
+
+    node ReturnStatement =
+        keyword("return")
+        value: Expression?
+
+    node FunctionDeclaration =
+        keyword("function")
+        name: Name
+        "(" parameters: Parameters ")"
+        body: Block
+
+    node Expression
+}
+
+node Block =
+    "{"
+    statements: Statement*
+    "}"
+
+export node Program =
+    statements: Statement*
+
+entry Program
