@@ -1,7 +1,7 @@
 //! Backtracking grammar interpreter with Pratt execution for recursive abstract families.
 //! Every attempt owns its captures; failed alternatives cannot leak AST fields/diagnostics.
 use crate::{
-    compiler::{edge_ref, sequence},
+    compiler::edge_term,
     diagnostic::{Diagnostic, Severity, Span},
     ir::*,
     syntax::{Associativity, Quantifier},
@@ -33,6 +33,7 @@ pub struct ParseResult {
 struct Captured {
     value: AstValue,
     span: Span,
+    depth: usize,
 }
 #[derive(Clone)]
 struct Match {
@@ -41,11 +42,19 @@ struct Match {
     fields: BTreeMap<String, Captured>,
     diagnostics: Vec<Diagnostic>,
     marked: BTreeMap<u32, Vec<MarkedValue>>,
+    value_depth: usize,
 }
 #[derive(Clone)]
 struct MarkedValue {
     value: Option<AstValue>,
     fields: BTreeMap<String, Captured>,
+    depth: usize,
+}
+struct OperatorContext<'a> {
+    left: Option<(&'a Term, &'a Match)>,
+    right: Option<&'a Term>,
+    family: &'a str,
+    min_power: usize,
 }
 impl Match {
     fn empty(end: usize) -> Self {
@@ -55,6 +64,7 @@ impl Match {
             fields: BTreeMap::new(),
             diagnostics: vec![],
             marked: BTreeMap::new(),
+            value_depth: 0,
         }
     }
 }
@@ -78,7 +88,7 @@ pub fn parse_named(language: &CompiledLanguage, file: &str, source: &str) -> Par
     let attempt = parser.rule(&language.entry, 0, false, 0);
     if let Some(mut matched) = attempt {
         let end = parser.skip(matched.end);
-        if end == source.len() {
+        if end == source.len() && !parser.resource_limit {
             if let Some(AstValue::Node(node)) = matched.value {
                 return ParseResult {
                     ast: Some(*node),
@@ -227,7 +237,7 @@ impl Runtime<'_> {
         let result = match &rule.body {
             RuleBody::Concrete(term) => self
                 .term(term, start, raw)
-                .map(|m| self.construct(&rule, start, m)),
+                .and_then(|m| self.construct(&rule, start, m)),
             RuleBody::Abstract { bases, operators } => self
                 .abstract_rule(id, bases, operators, start, raw, min_power)
                 .map(|m| self.checks(&rule, start, m)),
@@ -294,8 +304,21 @@ impl Runtime<'_> {
         }
         matched
     }
-    fn construct(&mut self, rule: &Rule, start: usize, matched: Match) -> Match {
+    fn check_value_depth(&mut self, depth: usize, end: usize) -> Option<usize> {
+        if depth > 128 {
+            self.resource_limit = true;
+            self.failure(end, "AST value within resource limit");
+            None
+        } else {
+            Some(depth)
+        }
+    }
+    fn construct(&mut self, rule: &Rule, start: usize, matched: Match) -> Option<Match> {
         let mut matched = self.checks(rule, start, matched);
+        matched.value_depth = self.check_value_depth(
+            matched.fields.values().map(|f| f.depth).max().unwrap_or(0) + 1,
+            matched.end,
+        )?;
         let fields = matched
             .fields
             .clone()
@@ -307,7 +330,7 @@ impl Runtime<'_> {
             fields,
             span: Span::new(self.file, start, matched.end),
         })));
-        matched
+        Some(matched)
     }
     fn abstract_rule(
         &mut self,
@@ -377,60 +400,43 @@ impl Runtime<'_> {
         let RuleBody::Concrete(term) = &rule.body else {
             return None;
         };
-        let terms = sequence(term);
-        let mut values = vec![];
-        let mut result = Match::empty(start);
-        for (index, term) in terms.iter().enumerate() {
-            let matched = if index == 0 && operator.left {
-                let mut m = left?.clone();
-                m.fields.clear();
-                m.diagnostics.clear();
-                self.edge_capture(term, m, start)
-            } else if index + 1 == terms.len() && operator.right && edge_ref(term) == Some(family) {
-                let min = if operator.associativity == Associativity::Right || !operator.left {
-                    operator.binding_power
-                } else {
-                    operator.binding_power.checked_add(1)?
-                };
-                let position = if raw {
-                    result.end
-                } else {
-                    self.skip(result.end)
-                };
-                let mut m = self.rule(family, position, raw, min)?;
-                m.fields.clear();
-                self.edge_capture(term, m, position)
+        let min_power = if operator.associativity == Associativity::Nonassoc
+            || (operator.left && operator.associativity != Associativity::Right)
+        {
+            operator.binding_power.checked_add(1)?
+        } else {
+            operator.binding_power
+        };
+        let context = OperatorContext {
+            left: if operator.left {
+                Some((edge_term(term, false)?, left?))
             } else {
-                self.term(term, result.end, raw)?
-            };
-            result.end = matched.end;
-            if let Some(v) = matched.value {
-                values.push(v);
-            }
-            result.fields.extend(matched.fields);
-            merge_marked(&mut result.marked, matched.marked);
-            result.diagnostics.extend(matched.diagnostics);
-        }
+                None
+            },
+            right: if operator.right {
+                Some(edge_term(term, true)?)
+            } else {
+                None
+            },
+            family,
+            min_power,
+        };
+        let mut result = self.term_with(term, start, raw, Some(&context))?;
         if let Some(left) = left {
             result.diagnostics.splice(0..0, left.diagnostics.clone());
         }
-        result.value = collapse(values);
-        Some(self.construct(&rule, start, result))
-    }
-    fn edge_capture(&self, term: &Term, mut matched: Match, start: usize) -> Match {
-        if let Term::Capture(name, inner) = term {
-            matched = self.edge_capture(inner, matched, start);
-            matched.fields.insert(
-                name.clone(),
-                Captured {
-                    value: matched.value.clone().unwrap_or(AstValue::None),
-                    span: Span::new(self.file, start, matched.end),
-                },
-            );
-        }
-        matched
+        self.construct(&rule, start, result)
     }
     fn term(&mut self, term: &Term, position: usize, raw: bool) -> Option<Match> {
+        self.term_with(term, position, raw, None)
+    }
+    fn term_with(
+        &mut self,
+        term: &Term,
+        position: usize,
+        raw: bool,
+        context: Option<&OperatorContext<'_>>,
+    ) -> Option<Match> {
         self.steps += 1;
         if self.steps > 1_000_000 {
             self.resource_limit = true;
@@ -442,6 +448,24 @@ impl Runtime<'_> {
         } else {
             self.skip(position)
         };
+        if let Some(context) = context {
+            if let Some((leaf, left)) = context.left {
+                if std::ptr::eq(term, leaf) {
+                    let mut matched = left.clone();
+                    matched.fields.clear();
+                    matched.diagnostics.clear();
+                    return Some(matched);
+                }
+            }
+            if context.right.is_some_and(|leaf| std::ptr::eq(term, leaf)) {
+                return self
+                    .rule(context.family, start, raw, context.min_power)
+                    .map(|mut matched| {
+                        matched.fields.clear();
+                        matched
+                    });
+            }
+        }
         match term {
             Term::Literal(text) => {
                 if self.source.get(start..self.limit)?.starts_with(text) {
@@ -470,22 +494,26 @@ impl Runtime<'_> {
             Term::Sequence(terms) => {
                 let mut result = Match::empty(start);
                 let mut values = vec![];
+                let mut depth = 0;
                 for term in terms {
-                    let m = self.term(term, result.end, raw)?;
+                    let m = self.term_with(term, result.end, raw, context)?;
                     result.end = m.end;
                     if let Some(value) = m.value {
+                        depth = depth.max(m.value_depth);
                         values.push(value);
                     }
                     result.fields.extend(m.fields);
                     merge_marked(&mut result.marked, m.marked);
                     result.diagnostics.extend(m.diagnostics);
                 }
+                result.value_depth =
+                    self.check_value_depth(depth + usize::from(values.len() > 1), result.end)?;
                 result.value = collapse(values);
                 Some(result)
             }
             Term::Choice(terms) => {
                 for term in terms {
-                    if let Some(m) = self.term(term, start, raw) {
+                    if let Some(m) = self.term_with(term, start, raw, context) {
                         return Some(m);
                     }
                 }
@@ -494,14 +522,16 @@ impl Runtime<'_> {
             Term::Repeat(term, q) => {
                 let mut result = Match::empty(start);
                 let mut values = vec![];
+                let mut depth = 0;
                 let mut count = 0;
-                while let Some(m) = self.term(term, result.end, raw) {
+                while let Some(m) = self.term_with(term, result.end, raw, context) {
                     if m.end == result.end {
                         break;
                     }
                     result.end = m.end;
                     count += 1;
                     if let Some(value) = m.value {
+                        depth = depth.max(m.value_depth);
                         values.push(value);
                     }
                     result.fields.extend(m.fields);
@@ -514,6 +544,10 @@ impl Runtime<'_> {
                 if *q == Quantifier::Plus && count == 0 {
                     return None;
                 }
+                result.value_depth = self.check_value_depth(
+                    depth + usize::from(*q != Quantifier::Optional),
+                    result.end,
+                )?;
                 result.value = Some(if *q == Quantifier::Optional {
                     values.into_iter().next().unwrap_or(AstValue::None)
                 } else {
@@ -522,13 +556,14 @@ impl Runtime<'_> {
                 Some(result)
             }
             Term::Capture(name, term) => {
-                let mut result = self.term(term, start, raw)?;
+                let mut result = self.term_with(term, start, raw, context)?;
                 let value = result.value.clone().unwrap_or(AstValue::None);
                 result.fields.insert(
                     name.clone(),
                     Captured {
                         value,
                         span: Span::new(self.file, start, result.end),
+                        depth: result.value_depth,
                     },
                 );
                 Some(result)
@@ -589,10 +624,11 @@ impl Runtime<'_> {
                 }
             }
             Term::Mark { id, term } => {
-                let mut matched = self.term(term, start, raw)?;
+                let mut matched = self.term_with(term, start, raw, context)?;
                 matched.marked.entry(*id).or_default().push(MarkedValue {
                     value: matched.value.clone(),
                     fields: matched.fields.clone(),
+                    depth: matched.value_depth,
                 });
                 Some(matched)
             }
@@ -601,16 +637,20 @@ impl Runtime<'_> {
                 term,
                 quantifier,
             } => {
-                let mut matched = self.term(term, start, raw)?;
+                let mut matched = self.term_with(term, start, raw, context)?;
                 let originals = matched.marked.remove(id).unwrap_or_default();
                 matched.fields.clear();
                 let mut values = vec![];
+                let mut depth = 0;
                 for original in originals {
                     if let Some(value) = original.value {
+                        depth = depth.max(original.depth);
                         values.push(value);
                     }
                     matched.fields.extend(original.fields);
                 }
+                matched.value_depth =
+                    self.check_value_depth(depth + usize::from(quantifier.is_some()), matched.end)?;
                 matched.value = if quantifier.is_some() {
                     Some(AstValue::List(values))
                 } else {

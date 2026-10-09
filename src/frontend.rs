@@ -524,7 +524,7 @@ impl Parser {
             } else {
                 let name = self.path()?;
                 let arguments = self.arguments()?;
-                ConstraintKind::Call(name, arguments.into_iter().map(|a| a.value).collect())
+                ConstraintKind::Call(name, arguments)
             };
             body.push(Constraint {
                 kind,

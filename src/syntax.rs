@@ -121,6 +121,6 @@ pub struct Constraint {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ConstraintKind {
-    Call(String, Vec<Expr>),
+    Call(String, Vec<Argument>),
     When(Expr, Vec<Constraint>),
 }

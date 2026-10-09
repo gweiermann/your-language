@@ -72,6 +72,32 @@ fn nonassoc_rejects_chaining() {
     assert!(parse(&language, "1<2").ast.is_some());
     assert!(parse(&language, "1<2<3").has_errors());
 }
+
+#[test]
+fn grammar_grouping_does_not_change_operator_roles_or_associativity() {
+    let language = compile(
+        r#"node E { node N = value: /[0-9]+/ node Sum = left: E (operator: "+" right: E) precedence { Sum } } entry E"#,
+    );
+    let ast = parse(&language, "1+2+3").ast.unwrap();
+    assert_eq!(node(&ast.fields["left"]).kind, "E::Sum");
+    assert_eq!(node(&ast.fields["right"]).kind, "E::N");
+    let captured = compile(
+        r#"node E { node N = value: /[0-9]+/ node Sum = pair: (left: E operator: "+" right: E) precedence { Sum } } entry E"#,
+    );
+    let ast = parse(&captured, "1+2+3").ast.unwrap();
+    assert!(matches!(ast.fields["pair"],AstValue::List(ref v) if v.len()==3));
+    assert_eq!(node(&ast.fields["left"]).kind, "E::Sum");
+}
+
+#[test]
+fn nonassoc_prefix_levels_cannot_chain() {
+    let language = compile(
+        r#"node E { node N = value: /x/ node Group = "(" value: E ")" node Unary = "!" argument: E precedence { nonassoc Unary } } entry E"#,
+    );
+    assert!(parse(&language, "!x").ast.is_some());
+    assert!(parse(&language, "!!x").has_errors());
+    assert!(parse(&language, "!(!x)").ast.is_some());
+}
 #[test]
 fn nested_abstract_family_executes_its_own_precedence() {
     let language=compile("node Arithmetic { node N = value: /[0-9]+/ node Sum = left: Arithmetic \"+\" right: Arithmetic precedence { Sum } } node E { node Arithmetic } entry E");

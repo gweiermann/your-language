@@ -131,6 +131,32 @@ fn cli_json_errors_have_ast_diagnostics_and_file_context() {
     }
 }
 #[test]
+fn oversized_left_growing_ast_returns_json_error_instead_of_crashing() {
+    let artifact = fixture("target/cli-depth-limit.ylc");
+    fs::write(
+        &artifact,
+        compile_language(fixture("documentation/target-syntax/minijs.yl"))
+            .unwrap()
+            .to_bytes()
+            .unwrap(),
+    )
+    .unwrap();
+    let source = fixture("target/cli-depth-limit.js");
+    fs::write(&source, format!("let x = 1{} +", " + 1".repeat(1200))).unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .arg("parse")
+        .arg(artifact)
+        .arg(source)
+        .arg("--json")
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(1));
+    assert!(result.stderr.is_empty());
+    let json: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert!(json["ast"].is_null());
+    assert_eq!(json["diagnostics"][0]["code"], "parse.resource_limit");
+}
+#[test]
 fn minijs_compiles_reloads_and_parses_exact_ast_and_negative_diagnostics() {
     let language = compile_language(fixture("documentation/target-syntax/minijs.yl")).unwrap();
     golden("minijs.normalized", &language);

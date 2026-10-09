@@ -2,6 +2,29 @@ use std::collections::BTreeMap;
 use your_language::{compile_sources, parse, AstValue};
 
 #[test]
+fn filesystem_parent_imports_cycles_and_aliases_are_relocatable() {
+    use std::{fs, path::Path};
+    use your_language::compile_language;
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let language = compile_language(root.join("tests/fixtures/modules/app/entry.yl")).unwrap();
+    assert!(parse(&language, "xx").ast.is_some());
+    let relocated = root.join("target/relocated-modules");
+    fs::create_dir_all(relocated.join("app")).unwrap();
+    fs::copy(
+        root.join("tests/fixtures/modules/app/entry.yl"),
+        relocated.join("app/entry.yl"),
+    )
+    .unwrap();
+    fs::copy(
+        root.join("tests/fixtures/modules/names.yl"),
+        relocated.join("names.yl"),
+    )
+    .unwrap();
+    let moved = compile_language(relocated.join("app/entry.yl")).unwrap();
+    assert_eq!(language.to_bytes().unwrap(), moved.to_bytes().unwrap());
+}
+
+#[test]
 fn exported_parent_allows_qualified_access_but_does_not_export_child_globally() {
     let module = "export node Family { node Child = value: /x/ }";
     let graph = |import: &str| {

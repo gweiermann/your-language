@@ -94,7 +94,9 @@ composition is also parked.
 Unsupported predicates return `yl.parked_constraint_logic`; unknown lexical operators
 report a frontend unexpected-token diagnostic. Applying a predicate to a capture
 which may be absent returns `yl.parked_constraint_optional`, rather than choosing
-an implicit coercion. No scope/relation layer was added.
+an implicit coercion. Typed reusable-constraint parameters remain parked until the
+operand rules are defined; untyped positional/named arguments, defaults, receiver
+substitution and literal diagnostic messages work. No scope/relation layer was added.
 
 ## P4 — Enum case selection with multiple enum parameters
 

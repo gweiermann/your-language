@@ -7,7 +7,7 @@ use crate::{
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 type Result<T> = std::result::Result<T, Diagnostic>;
@@ -27,6 +27,7 @@ struct Symbol {
 #[derive(Default)]
 struct Compiler {
     modules: BTreeMap<String, Module>,
+    dependencies: BTreeMap<(String, String), String>,
     imports: BTreeMap<(String, String), String>,
     symbols: BTreeMap<String, Symbol>,
     exports: BTreeMap<(String, String), String>,
@@ -62,10 +63,20 @@ pub fn compile_sources(
     compiler.compile().map_err(|e| vec![e])
 }
 fn module_id(path: &Path, root: &Path) -> String {
-    path.strip_prefix(root)
-        .unwrap_or(path)
-        .to_string_lossy()
-        .replace('\\', "/")
+    let target: Vec<_> = path.components().collect();
+    let base: Vec<_> = root.components().collect();
+    let common = target.iter().zip(&base).take_while(|(a, b)| a == b).count();
+    if common == 0 {
+        return path.to_string_lossy().replace('\\', "/");
+    }
+    let mut relative = PathBuf::new();
+    for _ in common..base.len() {
+        relative.push("..");
+    }
+    for component in target.iter().skip(common) {
+        relative.push(component.as_os_str());
+    }
+    relative.to_string_lossy().replace('\\', "/")
 }
 fn import_path(module: &str, path: &str) -> String {
     if path == "std/parser" || path == "core/parser" {
@@ -243,14 +254,16 @@ impl Compiler {
             .iter()
             .filter_map(|d| {
                 if let DeclKind::Import { path, .. } = &d.kind {
-                    Some((import_path(id, path), d.span.clone()))
+                    Some((path.clone(), import_path(id, path), d.span.clone()))
                 } else {
                     None
                 }
             })
             .collect();
         self.modules.insert(id.into(), module);
-        for (dependency, span) in dependencies {
+        for (specifier, dependency, span) in dependencies {
+            self.dependencies
+                .insert((id.into(), specifier), dependency.clone());
             self.read_sources(&dependency, sources).map_err(|mut e| {
                 e.secondary.push(*e.primary.clone());
                 e.primary = Box::new(span);
@@ -293,9 +306,13 @@ impl Compiler {
         self.modules.insert(id.clone(), module);
         for (dependency, span) in dependencies {
             if dependency == "core/parser" {
+                self.dependencies
+                    .insert((id.clone(), dependency.clone()), dependency);
                 continue;
             }
             if dependency == "std/parser" {
+                self.dependencies
+                    .insert((id.clone(), dependency.clone()), dependency);
                 self.read_sources("std/parser", &BTreeMap::new())?;
                 continue;
             }
@@ -306,6 +323,8 @@ impl Compiler {
             let dep = std::fs::canonicalize(dep).map_err(|e| {
                 Diagnostic::error("yl.unresolved_import", format!("{dependency}: {e}"), span)
             })?;
+            self.dependencies
+                .insert((id.clone(), dependency), module_id(&dep, root));
             self.read_module(&dep, root)?;
         }
         Ok(())
@@ -526,7 +545,16 @@ impl Compiler {
                     for (name, alias) in names {
                         pending.push((
                             module.clone(),
-                            import_path(module, path),
+                            self.dependencies
+                                .get(&(module.clone(), path.clone()))
+                                .cloned()
+                                .ok_or_else(|| {
+                                    Diagnostic::error(
+                                        "yl.unresolved_import",
+                                        "Module graph has no resolved import edge",
+                                        d.span.clone(),
+                                    )
+                                })?,
                             name.clone(),
                             alias.clone(),
                             d.span.clone(),
@@ -688,13 +716,8 @@ impl Compiler {
                                 &Environment::new(),
                                 0,
                             )?;
-                            let items = sequence(&term);
-                            let left = items
-                                .first()
-                                .is_some_and(|t| edge_ref(t) == Some(id.as_str()));
-                            let right = items
-                                .last()
-                                .is_some_and(|t| edge_ref(t) == Some(id.as_str()));
+                            let left = edge_ref(&term, false) == Some(id.as_str());
+                            let right = edge_ref(&term, true) == Some(id.as_str());
                             if !left && !right {
                                 return Err(Diagnostic::error(
                                     "yl.invalid_precedence_member",
@@ -1384,18 +1407,7 @@ impl Compiler {
                             constraint.span.clone(),
                         ));
                     };
-                    if parameters.len() != values.len() {
-                        return Err(Diagnostic::error(
-                            "yl.invalid_argument",
-                            "Wrong constraint argument count",
-                            constraint.span.clone(),
-                        ));
-                    }
-                    let bound = parameters
-                        .iter()
-                        .zip(values)
-                        .map(|(p, e)| (p.name.clone(), substitute(e, args)))
-                        .collect();
+                    let bound = bind_constraint(parameters, values, args, &constraint.span)?;
                     result.extend(self.lower_checks(
                         &symbol.module,
                         &symbol.scope,
@@ -1424,10 +1436,25 @@ impl Compiler {
                                 ))
                             }
                         };
-                        let [Expr {
+                        let [argument] = values.as_slice() else {
+                            return Err(Diagnostic::error(
+                                "yl.invalid_argument",
+                                "Diagnostic emission takes one positional string",
+                                c.span.clone(),
+                            ));
+                        };
+                        if argument.name.is_some() {
+                            return Err(Diagnostic::error(
+                                "yl.invalid_argument",
+                                "Diagnostic emission takes one positional string",
+                                argument.span.clone(),
+                            ));
+                        }
+                        let message = substitute(&argument.value, args);
+                        let Expr {
                             kind: ExprKind::Literal(message),
                             ..
-                        }] = values.as_slice()
+                        } = &message
                         else {
                             return Err(Diagnostic::error(
                                 "yl.invalid_argument",
@@ -1452,21 +1479,95 @@ impl Compiler {
     }
     fn condition(&self, module: &str, scope: &str, expr: &Expr) -> Result<Condition> {
         match &expr.kind {
+            ExprKind::Group(inner)=>self.condition(module,scope,inner),
             ExprKind::Call(name,arguments) if name.ends_with(".between")=>{
                 let [a,b]=arguments.as_slice() else { return Err(Diagnostic::error("yl.invalid_argument","between requires two captures",expr.span.clone())); };
-                let (ExprKind::Ref(left),ExprKind::Ref(right))=(&a.value.kind,&b.value.kind) else { return Err(Diagnostic::error("yl.invalid_constraint","between requires capture references",expr.span.clone())); };
+                let (ExprKind::Ref(left),ExprKind::Ref(right))=(&ungroup(&a.value).kind,&ungroup(&b.value).kind) else { return Err(Diagnostic::error("yl.invalid_constraint","between requires capture references",expr.span.clone())); };
                 let owner=name.trim_end_matches(".between"); let trivia=if owner=="trivia" { None } else { Some(self.resolve(module,scope,owner,&expr.span)?) };
                 Ok(Condition::Between { trivia,left:left.clone(),right:right.clone() })
             },
             ExprKind::Call(name,arguments) if name.ends_with(".matches")=>{
                 let [arg]=arguments.as_slice() else { return Err(Diagnostic::error("yl.invalid_argument","matches requires one regex",expr.span.clone())); };
-                let ExprKind::Regex(regex)=&arg.value.kind else { return Err(Diagnostic::error("yl.invalid_argument","matches requires a regex",expr.span.clone())); };
+                let ExprKind::Regex(regex)=&ungroup(&arg.value).kind else { return Err(Diagnostic::error("yl.invalid_argument","matches requires a regex",expr.span.clone())); };
                 regex::Regex::new(regex).map_err(|e|Diagnostic::error("yl.invalid_regex",e.to_string(),expr.span.clone()))?;
                 Ok(Condition::Matches { capture:name.trim_end_matches(".matches").into(),regex:regex.clone() })
             },
             _=>Err(Diagnostic::error("yl.parked_constraint_logic","PARKED: boolean/string constraint operators beyond documented between/matches need specified syntax and behavior",expr.span.clone())),
         }
     }
+}
+fn bind_constraint(
+    parameters: &[Parameter],
+    arguments: &[Argument],
+    caller: &BTreeMap<String, Expr>,
+    span: &Span,
+) -> Result<BTreeMap<String, Expr>> {
+    let mut supplied = BTreeMap::new();
+    let mut position = 0;
+    let mut named = false;
+    for argument in arguments {
+        let name = if let Some(name) = &argument.name {
+            named = true;
+            name.clone()
+        } else {
+            if named {
+                return Err(Diagnostic::error(
+                    "yl.invalid_argument",
+                    "Positional argument after named argument",
+                    argument.span.clone(),
+                ));
+            }
+            let parameter = parameters.get(position).ok_or_else(|| {
+                Diagnostic::error(
+                    "yl.invalid_argument",
+                    "Too many constraint arguments",
+                    argument.span.clone(),
+                )
+            })?;
+            position += 1;
+            parameter.name.clone()
+        };
+        if !parameters.iter().any(|p| p.name == name)
+            || supplied
+                .insert(name, substitute(&argument.value, caller))
+                .is_some()
+        {
+            return Err(Diagnostic::error(
+                "yl.invalid_argument",
+                "Unknown or duplicate constraint argument",
+                argument.span.clone(),
+            ));
+        }
+    }
+    let mut bound = BTreeMap::new();
+    for parameter in parameters {
+        if parameter.ty.is_some() {
+            return Err(Diagnostic::error(
+                "yl.parked_constraint_logic",
+                "PARKED: typed constraint operand rules are unspecified",
+                parameter.span.clone(),
+            ));
+        }
+        let value = if let Some(value) = supplied.remove(&parameter.name) {
+            value
+        } else if let Some(default) = &parameter.default {
+            substitute(default, &bound)
+        } else {
+            return Err(Diagnostic::error(
+                "yl.invalid_argument",
+                format!("Missing constraint argument {}", parameter.name),
+                span.clone(),
+            ));
+        };
+        bound.insert(parameter.name.clone(), ungroup(&value).clone());
+    }
+    Ok(bound)
+}
+fn ungroup(mut expr: &Expr) -> &Expr {
+    while let ExprKind::Group(inner) = &expr.kind {
+        expr = inner;
+    }
+    expr
 }
 fn substitute(expr: &Expr, args: &BTreeMap<String, Expr>) -> Expr {
     if let ExprKind::Ref(name) = &expr.kind {
@@ -1475,24 +1576,57 @@ fn substitute(expr: &Expr, args: &BTreeMap<String, Expr>) -> Expr {
         }
     }
     let mut result = expr.clone();
-    if let ExprKind::Call(_, values) = &mut result.kind {
+    if let ExprKind::Group(inner) = &mut result.kind {
+        **inner = substitute(inner, args);
+    }
+    if let ExprKind::Call(name, values) = &mut result.kind {
+        if let Some((receiver, method)) = name.rsplit_once('.') {
+            if let Some(Expr {
+                kind: ExprKind::Ref(actual),
+                ..
+            }) = args.get(receiver)
+            {
+                *name = format!("{actual}.{method}");
+            }
+        }
         for value in values {
             value.value = substitute(&value.value, args);
         }
     }
     result
 }
-pub(crate) fn sequence(term: &Term) -> Vec<&Term> {
-    if let Term::Sequence(items) = term {
-        items.iter().collect()
-    } else {
-        vec![term]
+pub(crate) fn edge_term(term: &Term, right: bool) -> Option<&Term> {
+    match term {
+        Term::Ref(_) => Some(term),
+        Term::Capture(_, term) | Term::Mark { term, .. } | Term::Project { term, .. } => {
+            edge_term(term, right)
+        }
+        Term::Sequence(items) => {
+            let mut candidates = items.iter().filter(|t| !zero_width(t));
+            let edge = if right {
+                candidates.next_back()
+            } else {
+                candidates.next()
+            }?;
+            edge_term(edge, right)
+        }
+        _ => None,
     }
 }
-pub(crate) fn edge_ref(term: &Term) -> Option<&str> {
+fn zero_width(term: &Term) -> bool {
     match term {
+        Term::NotAhead(_) | Term::NotBehind(_) => true,
+        Term::Literal(text) => text.is_empty(),
+        Term::Capture(_, term) | Term::Mark { term, .. } | Term::Project { term, .. } => {
+            zero_width(term)
+        }
+        Term::Sequence(items) => items.iter().all(zero_width),
+        _ => false,
+    }
+}
+fn edge_ref(term: &Term, right: bool) -> Option<&str> {
+    match edge_term(term, right)? {
         Term::Ref(id) => Some(id),
-        Term::Capture(_, t) => edge_ref(t),
         _ => None,
     }
 }
@@ -1569,13 +1703,8 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                             rule.span.clone(),
                         ));
                     };
-                    let terms = sequence(grammar);
-                    let left = terms
-                        .first()
-                        .is_some_and(|term| edge_ref(term) == Some(family.as_str()));
-                    let right = terms
-                        .last()
-                        .is_some_and(|term| edge_ref(term) == Some(family.as_str()));
+                    let left = edge_ref(grammar, false) == Some(family.as_str());
+                    let right = edge_ref(grammar, true) == Some(family.as_str());
                     if operator.binding_power == 0
                         || operator.binding_power > language.rules.len()
                         || (!left && !right)

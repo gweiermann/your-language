@@ -36,6 +36,15 @@ and diagnostics. Recursive abstract families execute precedence plans, handling
 left-growing member/postfix trees, right-growing prefix trees and infix associativity.
 Guards limit nesting/work and return structured diagnostics rather than recurse
 indefinitely. Production optimization is outside this issue.
+AST value depth is also bounded to 128 before cloning/constructing nested values,
+including left-growing operator trees. Exceeding a guard returns
+`parse.resource_limit` with no AST; it cannot be treated as a successful alternative.
+
+Module loading records canonical import edges, including parent-directory paths and
+cycles. Artifact module IDs remain relative to the entry directory so relocating the
+same graph does not change its serialized bytes. Reusable constraints preserve named
+arguments, substitute capture receivers and regexes, and support untyped defaults and
+literal diagnostic-message arguments.
 
 Lookbehind constrains consumption to its left-context boundary, including zero-width
 matches. Regex assertions retain the original source context for anchors and word
