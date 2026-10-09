@@ -103,12 +103,12 @@ The core grammar operators are:
 | Syntax | Meaning |
 | --- | --- |
 | `A B` | sequence |
-| `A | B` | choice |
+| `A \| B` | choice |
 | `A?` | optional |
 | `A*` | zero or more |
 | `A+` | one or more |
 | `name: A` | capture |
-| `A |> pipe(...)` | transform a grammar expression |
+| `A \|> pipe(...)` | transform a grammar expression |
 
 Examples:
 
