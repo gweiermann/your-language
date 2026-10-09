@@ -1,0 +1,125 @@
+use crate::diagnostic::Span;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Expr {
+    pub kind: ExprKind,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum ExprKind {
+    Literal(String),
+    Regex(String),
+    Ref(String),
+    Variant(String),
+    Call(String, Vec<Argument>),
+    Sequence(Vec<Expr>),
+    Choice(Vec<Expr>),
+    Repeat(Box<Expr>, Quantifier),
+    Capture(String, Box<Expr>),
+    Pipe(Box<Expr>, String, Vec<Argument>),
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Quantifier {
+    Optional,
+    Star,
+    Plus,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Argument {
+    pub name: Option<String>,
+    pub value: Expr,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Parameter {
+    pub name: String,
+    pub ty: Option<String>,
+    pub default: Option<Expr>,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Module {
+    pub declarations: Vec<Declaration>,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Declaration {
+    pub export: bool,
+    pub kind: DeclKind,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum DeclKind {
+    Import {
+        names: Vec<(String, String)>,
+        path: String,
+    },
+    Node {
+        name: String,
+        trivia: bool,
+        grammar: Option<Expr>,
+        members: Vec<Declaration>,
+        precedence: Vec<Level>,
+        constraints: Vec<Constraint>,
+    },
+    Pattern {
+        name: String,
+        parameters: Vec<Parameter>,
+        grammar: Expr,
+    },
+    Pipe {
+        name: String,
+        parameters: Vec<Parameter>,
+        arms: Vec<Rewrite>,
+    },
+    Enum {
+        name: String,
+        variants: Vec<String>,
+    },
+    Constraint {
+        name: String,
+        parameters: Vec<Parameter>,
+        body: Vec<Constraint>,
+    },
+    Extend {
+        name: String,
+        constraints: Vec<Constraint>,
+    },
+    Entry(String),
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Level {
+    pub members: Vec<String>,
+    pub associativity: Associativity,
+    pub span: Span,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Associativity {
+    Left,
+    Right,
+    Nonassoc,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Rewrite {
+    pub binding: String,
+    pub quantifier: Option<Quantifier>,
+    pub ty: Option<String>,
+    pub body: RewriteBody,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum RewriteBody {
+    Direct(Expr),
+    Cases(Vec<(Expr, Expr)>),
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Constraint {
+    pub kind: ConstraintKind,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum ConstraintKind {
+    Call(String, Vec<Expr>),
+    When(Expr, Vec<Constraint>),
+}

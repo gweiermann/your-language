@@ -1,0 +1,24 @@
+import { notAhead, notBehind } from "core/parser"
+
+export pipe boundedBy(boundary) {
+    rewrite value => notBehind(boundary) value notAhead(boundary)
+}
+
+export enum Trailing {
+    none
+    optional
+    required
+}
+
+export pipe separatedBy(separator, trailing: Trailing = .none) {
+    rewrite item* {
+        .none => (item (separator item)*)?
+        .optional => (item (separator item)* separator?)?
+        .required => (item (separator item)* separator)?
+    }
+    rewrite item+ {
+        .none => item (separator item)*
+        .optional => item (separator item)* separator?
+        .required => item (separator item)* separator
+    }
+}
