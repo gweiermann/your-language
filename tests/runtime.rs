@@ -116,6 +116,45 @@ fn core_requires_import_and_keyword_boundaries_are_language_local() {
     );
     assert!(parse(&language, "outlet").has_errors());
 }
+
+#[test]
+fn lookbehind_checks_the_left_boundary_with_greedy_and_empty_patterns() {
+    let greedy = compile(
+        r#"import { notBehind } from "core/parser" node P = "aa" notBehind(/a+/) "a" entry P"#,
+    );
+    assert!(parse(&greedy, "aaa").has_errors());
+    let empty =
+        compile(r#"import { notBehind } from "core/parser" node P = notBehind("") "a" entry P"#);
+    assert!(parse(&empty, "a").has_errors());
+    let end = compile(
+        r#"import { notBehind } from "core/parser" node P = "a" notBehind(/a$/) "b" entry P"#,
+    );
+    assert!(parse(&end, "ab").ast.is_some());
+    let boundary = compile(
+        r#"import { notBehind } from "core/parser" node P = "a" notBehind(/a\b/) "b" entry P"#,
+    );
+    assert!(parse(&boundary, "ab").ast.is_some());
+    let alternatives = compile(
+        r#"import { notBehind } from "core/parser" node P = "aa" notBehind(/^a|aa/) "b" entry P"#,
+    );
+    assert!(parse(&alternatives, "aab").has_errors());
+    let lazy = compile(
+        r#"import { notBehind } from "core/parser" node P = "aa" notBehind(/^a+?/) "b" entry P"#,
+    );
+    assert!(parse(&lazy, "aab").has_errors());
+    let flags = compile(
+        r#"import { notBehind } from "core/parser" node P = "aa" notBehind(/(?x)a+ # trailing comment/) "b" entry P"#,
+    );
+    assert!(parse(&flags, "aab").has_errors());
+    let grammar = compile(
+        r#"import { notBehind } from "core/parser" node P = "aa" notBehind("a" /a+/) "a" entry P"#,
+    );
+    assert!(parse(&grammar, "aaa").has_errors());
+    let ahead = compile(
+        r#"import { notAhead, notBehind } from "core/parser" node P = "a" notBehind("a" notAhead(/b/)) "b" entry P"#,
+    );
+    assert!(parse(&ahead, "ab").ast.is_some());
+}
 #[test]
 fn constraints_and_extensions_emit_after_success_only() {
     let language = compile(

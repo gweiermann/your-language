@@ -37,6 +37,11 @@ left-growing member/postfix trees, right-growing prefix trees and infix associat
 Guards limit nesting/work and return structured diagnostics rather than recurse
 indefinitely. Production optimization is outside this issue.
 
+Lookbehind constrains consumption to its left-context boundary, including zero-width
+matches. Regex assertions retain the original source context for anchors and word
+boundaries; greedy, lazy and alternative regex matches are checked at the boundary.
+Nested lookahead may inspect the source beyond that consumption bound.
+
 All source positions are half-open UTF-8 byte ranges. AST nodes carry target-source
 spans. Captures retain matching spans internally for syntax-local constraints.
 Diagnostic categories/severity/file/primary and secondary spans/help are serialized.

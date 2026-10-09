@@ -73,6 +73,7 @@ pub fn parse_named(language: &CompiledLanguage, file: &str, source: &str) -> Par
         depth: 0,
         resource_limit: false,
         steps: 0,
+        limit: source.len(),
     };
     let attempt = parser.rule(&language.entry, 0, false, 0);
     if let Some(mut matched) = attempt {
@@ -122,12 +123,14 @@ struct Runtime<'a> {
     source: &'a str,
     file: &'a str,
     regexes: BTreeMap<String, regex::Regex>,
-    active: BTreeSet<(String, usize, bool, usize)>,
+    active: BTreeSet<(String, usize, bool, usize, usize)>,
     farthest: usize,
     expected: BTreeSet<String>,
     depth: usize,
     resource_limit: bool,
     steps: usize,
+    /// Consumption bound for lookbehind; assertions still inspect the original source.
+    limit: usize,
 }
 impl Runtime<'_> {
     fn failure(&mut self, position: usize, expected: &str) {
@@ -146,6 +149,48 @@ impl Runtime<'_> {
         let re = regex::Regex::new(pattern).ok()?;
         self.regexes.insert(pattern.into(), re.clone());
         Some(re)
+    }
+    fn regex_match(&mut self, pattern: &str, start: usize) -> Option<(usize, String)> {
+        let regex = self.regex(pattern)?;
+        let matched = regex
+            .find_at(self.source, start)
+            .filter(|m| m.start() == start)?;
+        if matched.end() <= self.limit {
+            return Some((matched.end(), matched.as_str().into()));
+        }
+        // A greedy regex may cross the left-context bound. Constrain its end while
+        // retaining the real suffix, so $ and word boundaries see the original source.
+        // HIR printing removes inline flags/comments before safely composing the regex.
+        for end in (start..=self.limit)
+            .rev()
+            .filter(|p| self.source.is_char_boundary(*p))
+        {
+            self.steps += 1;
+            if self.steps > 1_000_000 {
+                self.resource_limit = true;
+                return None;
+            }
+            let bounded = self.regex_ending_at(pattern, end)?;
+            if let Some(matched) = bounded
+                .captures_at(self.source, start)
+                .and_then(|c| c.get(1))
+                .filter(|m| m.start() == start && m.end() == end)
+            {
+                return Some((end, matched.as_str().into()));
+            }
+        }
+        None
+    }
+    fn regex_ending_at(&mut self, pattern: &str, end: usize) -> Option<regex::Regex> {
+        let normalized = regex_syntax::Parser::new().parse(pattern).ok()?.to_string();
+        let suffix = regex::escape(self.source.get(end..)?);
+        match regex::Regex::new(&format!("({normalized})(?:{suffix})\\z")) {
+            Ok(regex) => Some(regex),
+            Err(_) => {
+                self.resource_limit = true;
+                None
+            }
+        }
     }
     fn skip(&mut self, mut position: usize) -> usize {
         let farthest = self.farthest;
@@ -174,7 +219,7 @@ impl Runtime<'_> {
         let rule = self.language.rules.get(id)?.clone();
         let raw = raw || rule.trivia;
         let start = if raw { position } else { self.skip(position) };
-        let key = (id.to_owned(), start, raw, min_power);
+        let key = (id.to_owned(), start, raw, min_power, self.limit);
         if !self.active.insert(key.clone()) {
             return None;
         }
@@ -398,7 +443,7 @@ impl Runtime<'_> {
         };
         match term {
             Term::Literal(text) => {
-                if self.source.get(start..)?.starts_with(text) {
+                if self.source.get(start..self.limit)?.starts_with(text) {
                     let mut matched = Match::empty(start + text.len());
                     matched.value = Some(AstValue::Text(text.clone()));
                     Some(matched)
@@ -408,13 +453,9 @@ impl Runtime<'_> {
                 }
             }
             Term::Regex(pattern) => {
-                let re = self.regex(pattern)?;
-                if let Some(m) = re
-                    .find_at(self.source, start)
-                    .filter(|m| m.start() == start)
-                {
-                    let mut result = Match::empty(m.end());
-                    result.value = Some(AstValue::Text(m.as_str().into()));
+                if let Some((end, value)) = self.regex_match(pattern, start) {
+                    let mut result = Match::empty(end);
+                    result.value = Some(AstValue::Text(value));
                     Some(result)
                 } else {
                     self.failure(start, &format!("/{pattern}/"));
@@ -494,9 +535,15 @@ impl Runtime<'_> {
             Term::NotAhead(term) => {
                 let farthest = self.farthest;
                 let expected = self.expected.clone();
+                let limit = self.limit;
+                self.limit = self.source.len();
                 let matches = self.term(term, start, true).is_some();
+                self.limit = limit;
                 self.farthest = farthest;
                 self.expected = expected;
+                if self.resource_limit {
+                    return None;
+                }
                 if matches {
                     self.failure(start, "negative lookahead");
                     None
@@ -508,17 +555,31 @@ impl Runtime<'_> {
                 let farthest = self.farthest;
                 let expected = self.expected.clone();
                 let mut matches = false;
-                for offset in (0..start).filter(|p| self.source.is_char_boundary(*p)) {
-                    if self
-                        .term(term, offset, true)
-                        .is_some_and(|m| m.end == start)
-                    {
-                        matches = true;
-                        break;
+                let limit = self.limit;
+                self.limit = start;
+                if let Term::Regex(pattern) = term.as_ref() {
+                    // End-constrained regex matching also explores alternatives and
+                    // lazy matches that a forward prefix search would stop too early.
+                    matches = self
+                        .regex_ending_at(pattern, start)
+                        .is_some_and(|r| r.is_match(self.source));
+                } else {
+                    for offset in (0..=start).filter(|p| self.source.is_char_boundary(*p)) {
+                        if self
+                            .term(term, offset, true)
+                            .is_some_and(|m| m.end == start)
+                        {
+                            matches = true;
+                            break;
+                        }
                     }
                 }
+                self.limit = limit;
                 self.farthest = farthest;
                 self.expected = expected;
+                if self.resource_limit {
+                    return None;
+                }
                 if matches {
                     self.failure(start, "negative lookbehind");
                     None
