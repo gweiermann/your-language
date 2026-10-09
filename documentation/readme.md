@@ -1,227 +1,470 @@
-# Your Language — syntax design
+# Your Language — syntax specification
 
-> **Status:** draft design. This document describes the currently agreed syntax. Some semantic details, especially scopes, relation binding, and explicit precedence configuration, are still under design.
+> **Status:** syntax-v0 design checkpoint. This document describes the syntax/parser layer that should be implemented before semantic relations, scopes, binding, and analysis.
 
-See [target-syntax](./target-syntax) for a larger example.
+See [target-syntax](./target-syntax) for the MiniJS validation language.
 
 ## Modules
 
-Declarations are private to a file by default.
-
-Use `export` to expose declarations:
+Declarations are private to their module by default.
 
 ```yl
-export node Identifier =
-    value: /[_a-zA-Z]\w*/;
+export node Name =
+    value: /[_a-zA-Z][_a-zA-Z0-9]*/
 ```
-
-Import exported declarations with JavaScript-style imports:
 
 ```yl
-import { Identifier, Expression } from "./syntax";
+import { Name } from "./name"
+import { Call as FunctionCall } from "./call"
 ```
 
-Re-export syntax may use:
+Only explicitly exported declarations can be imported. Export does not propagate through nesting or membership.
+
+If `Call` is exported but `Expression` is not, another module may import `Call`, but not `Expression`.
+
+YL has no statement semicolons. Construct boundaries are determined by the grammar of YL itself.
+
+Language keywords are contextual where possible, so names such as `node` may still be used as captures:
 
 ```yl
-export { Identifier, Expression };
+node Example =
+    node: Name
 ```
 
-## Nodes
+## Concrete nodes
 
-A `node` defines syntax with AST identity.
+A concrete `node` has AST identity.
 
 ```yl
-export node Identifier =
-    value: /[_a-zA-Z]\w*/;
+node VariableDeclaration =
+    keyword("let")
+    name: Name
+    "="
+    initializer: Expression
 ```
 
-Parsing:
+Only named captures become fields of the resulting AST node.
 
-```text
-hello
-```
+For example, `keyword("let")` and `"="` are consumed but do not become fields.
 
-produces an AST node conceptually similar to:
+## Abstract nodes
 
-```json
-{
-  "type": "Identifier",
-  "value": "hello"
+A node declared with a body and nested node members is abstract:
+
+```yl
+export node Expression {
+    node Number =
+        value: /\d+/
+
+    node NameExpression =
+        name: Name
 }
 ```
 
-Node references are written directly:
+An abstract node does not add an AST wrapper. Parsing `Expression` returns the concrete member that matched.
 
-```yl
-node VariableDeclaration =
-    "let"
-    name: Identifier
-    "="
-    initializer: Expression;
+Nested declarations use qualified names:
+
+```text
+Expression::Number
+Expression::NameExpression
 ```
 
-No function-call syntax is required for ordinary node references.
+### Existing nodes as members
 
-## Captures
-
-Use `name: Pattern` to capture a parsed value into the resulting node:
+An already declared or imported node can be added to an abstract node without redefining it:
 
 ```yl
-node VariableDeclaration =
-    keyword: ("let" | "const")
-    name: Identifier
-    ("=" initializer: Expression)?;
+import { Call } from "./call"
+
+export node Expression {
+    node Call
+}
 ```
 
-The colon is used for type/pattern binding throughout YL.
+The same underlying node can then be addressed as both:
+
+```text
+Call
+Expression::Call
+```
+
+The qualified name is a membership alias, not a copy.
+
+A concrete or abstract node may belong to more than one abstract node.
+
+If an imported abstract node is added:
+
+```yl
+import { Arithmetic } from "./arithmetic"
+
+export node Expression {
+    node Arithmetic
+}
+```
+
+then its members are transitively members of `Expression`, and qualified paths such as `Expression::Arithmetic::Sum` are available.
+
+Member names inside an abstract node must be unique. Conflicts are compile errors.
 
 ## Patterns
 
-A `pattern` defines reusable grammar without introducing its own AST identity.
+A `pattern` is reusable grammar without AST identity.
 
 ```yl
-export pattern Parameters =
+pattern Parameters =
     Parameter*
-    |> separatedBy(",", trailing=.optional);
+    |> separatedBy(",", trailing=.optional)
 ```
 
-It can be referenced like any other grammar construct:
+Using it through a capture:
 
 ```yl
-node FunctionDeclaration =
-    "function"
-    name: Identifier
-    "(" parameters: Parameters ")"
-    body: Block;
+parameters: Parameters
 ```
 
-## Grammar expressions
+captures the value produced by the pattern directly. No `Parameters` AST wrapper is created.
 
-The core grammar operators are:
+Patterns may take parameters:
 
-| Syntax | Meaning |
-| --- | --- |
-| `A B` | sequence |
-| `A \| B` | choice |
-| `A?` | optional |
-| `A*` | zero or more |
-| `A+` | one or more |
-| `name: A` | capture |
-| `A \|> pipe(...)` | transform a grammar expression |
+```yl
+pattern wrapped(value) =
+    "(" value ")"
+```
+
+Parameters are untyped by default.
+
+They may optionally restrict the accepted grammar result type:
+
+```yl
+pattern wrappedExpression(value: Expression) =
+    "(" value ")"
+```
+
+Then `Expression` and its subtypes are accepted, while unrelated grammar result types are rejected.
+
+## Grammar values
+
+Grammar expressions have values independent of AST construction.
+
+Conceptually:
+
+```text
+Node             -> that AST node
+AbstractNode     -> the concrete member node that matched
+Pattern          -> the value of its underlying grammar
+A?               -> Option<A>
+A*               -> List<A>
+A+               -> List<A>
+A | B            -> union of the branch result types
+```
+
+A sequence returns:
+- no value if none of its elements produce a value,
+- the single value directly if exactly one element produces a value,
+- a tuple if multiple elements produce values.
+
+A capture does not change the value of its underlying expression. Inside a concrete node, it additionally stores that value under the capture name.
+
+Concrete node AST construction ignores all uncaptured grammar values.
+
+## Grammar operators
+
+The grammar-expression precedence from strongest to weakest is:
+
+```text
+(...)
+? * +
+|>
+capture :
+sequence
+|
+```
 
 Examples:
 
 ```yl
-node Literal =
-    String | Number | Boolean | Null;
+A | B |> transform()
+```
+
+means:
+
+```text
+A | (B |> transform())
 ```
 
 ```yl
-node Parameter =
-    name: Identifier
-    ("=" default: Expression)?;
+A B |> transform()
+```
+
+means:
+
+```text
+A (B |> transform())
 ```
 
 ```yl
-node Block =
-    "{"
-    statements: Statement*
-    "}";
+value: A |> transform()
 ```
 
-String literals and regular expressions are grammar primitives:
+means:
+
+```text
+value: (A |> transform())
+```
 
 ```yl
-"function"
-/[_a-zA-Z]\w*/
+A* |> transform()
 ```
 
-## Trivia and whitespace
+means:
 
-Whitespace and comments are trivia and are normally accepted between grammar elements automatically.
+```text
+(A*) |> transform()
+```
 
-For example:
+To transform a larger grammar fragment, use parentheses explicitly:
 
 ```yl
-node VariableDeclaration =
-    "let" name: Identifier "=" initializer: Expression;
+(A | B) |> transform()
+(A B) |> transform()
 ```
 
-can match source with different spacing without encoding whitespace operators in the grammar itself.
+Pipes chain left-to-right:
 
-Whitespace-sensitive behavior is expressed through constraints.
+```yl
+A |> first() |> second()
+```
+
+is equivalent to:
+
+```text
+(A |> first()) |> second()
+```
+
+## Pipes and structural rewrite
+
+A `pipe` performs a compile-time structural rewrite of a grammar expression.
+
+```yl
+pipe wrapped(open, close) {
+    rewrite pattern =>
+        open pattern close
+}
+```
+
+Rewrite patterns can destructure grammar structure:
+
+```yl
+pipe separatedBy(
+    separator,
+    trailing: Trailing = .none
+) {
+    rewrite item* {
+        .none =>
+            (item (separator item)*)?
+
+        .optional =>
+            (item (separator item)* separator?)?
+
+        .required =>
+            (item (separator item)* separator)?
+    }
+
+    rewrite item+ {
+        .none =>
+            item (separator item)*
+
+        .optional =>
+            item (separator item)* separator?
+
+        .required =>
+            item (separator item)* separator
+    }
+}
+```
+
+A pipe receives the structured grammar expression on its left, not source text.
+
+A rewrite arm may also restrict the result type it accepts:
+
+```yl
+rewrite value: Expression =>
+    ...
+```
+
+Pipes may preserve or transform the result type of the grammar expression they rewrite.
+
+## Enums and arguments
+
+```yl
+enum Trailing {
+    none
+    optional
+    required
+}
+```
+
+Contextual enum syntax:
+
+```yl
+.optional
+```
+
+Explicit syntax:
+
+```yl
+Trailing::optional
+```
+
+Parameters use `:` for types and `=` for defaults:
+
+```yl
+pipe separatedBy(
+    separator,
+    trailing: Trailing = .none
+) {
+    ...
+}
+```
+
+Named call arguments use `=`:
+
+```yl
+separatedBy(",", trailing=.optional)
+```
+
+## Precedence inside abstract nodes
+
+Recursive expression grammars remain ordinary abstract nodes.
+
+```yl
+node Expression {
+    node Number =
+        value: NumberLiteral
+
+    node Group =
+        "(" value: Expression ")"
+
+    node Member =
+        object: Expression
+        "."
+        property: Name
+
+    node Call =
+        callee: Expression
+        "(" arguments: Expression* |> separatedBy(",") ")"
+
+    node Unary =
+        operator: ("+" | "-" | "!")
+        argument: Expression
+
+    node Power =
+        left: Expression
+        operator: "**"
+        right: Expression
+
+    node Product =
+        left: Expression
+        operator: ("*" | "/")
+        right: Expression
+
+    node Sum =
+        left: Expression
+        operator: ("+" | "-")
+        right: Expression
+
+    precedence {
+        Member, Call >
+        Unary >
+        right Power >
+        Product >
+        Sum
+    }
+}
+```
+
+Within `precedence`:
+- `,` means equal precedence,
+- `>` means the left level binds tighter than the right level,
+- binary recursive nodes are left-associative by default,
+- `right X` makes the level right-associative,
+- `nonassoc X` may be used for a level that must not chain.
+
+The parser infers the structural role from recursive references:
+- recursion on the left edge behaves like postfix/left-recursive syntax,
+- recursion on the right edge behaves like prefix/right-recursive syntax,
+- recursion on both edges behaves like binary/infix syntax,
+- recursive references surrounded by other grammar, such as `"(" Expression ")"`, remain ordinary base alternatives.
+
+Whitespace has no semantic meaning inside the `precedence` declaration. The canonical multiline format keeps `>` at the end of the preceding line.
+
+## Trivia
+
+Trivia is declared with `trivia` and is automatically skipped between ordinary grammar elements.
+
+```yl
+trivia Whitespace =
+    /[ \t\r\n]+/
+```
+
+Trivia can use normal grammar, not only regexes.
+
+Trivia can also be abstract:
+
+```yl
+trivia Comment {
+    trivia Line =
+        /\/\/[^\n]*/
+
+    trivia Block =
+        /\/\*[\s\S]*?\*\//
+}
+```
+
+`Comment`, `Comment::Line`, and `Comment::Block` can be addressed from syntax-level constraints.
+
+Trivia is not automatically skipped while the trivia parser itself is matching.
 
 ## Constraints
 
-Validation logic is grouped under `constraints`.
-
-A node may contain inline `when` constraints:
+Syntax-local validation belongs inside `constraints`.
 
 ```yl
-node Identifier =
-    value: /\w+/
+constraint tight(left, right) {
+    when trivia.between(left, right) {
+        error("Trivia is not allowed here")
+    }
+}
+```
+
+```yl
+node Update =
+    operator: ("++" | "--")
+    argument: Name
 {
     constraints {
-        when value.matches(/^\d/) {
-            error("An identifier cannot start with a number")
+        tight(operator, argument)
+
+        when someLocalCondition {
+            warning("...")
         }
     }
 }
 ```
 
-`when` is only used inside constraint declarations or `constraints { ... }` blocks.
+`when` is only valid inside a `constraint` declaration or a `constraints { ... }` block.
 
-Reusable constraints use the `constraint` declaration:
+Syntax-v0 constraints may inspect current captures, source spans, and trivia. Scope/relation queries belong to the later semantic layer.
 
-```yl
-constraint tight(left, right) {
-    when whitespace.between(left, right) {
-        error("Whitespace is not allowed here")
-    }
-
-    when comment.between(left, right) {
-        error("Comments are not allowed here")
-    }
-}
-```
-
-They can be applied from a node:
-
-```yl
-node Update =
-    operator: UpdateOperator
-    argument: Identifier
-{
-    constraints {
-        tight(operator, argument)
-    }
-}
-```
-
-Diagnostics may use:
-
-```text
-error(...)
-warning(...)
-help(...)
-```
-
-## Extending declarations across files
+## Extending nodes across files
 
 A node has one canonical grammar definition.
 
-Additional constraints and semantic metadata can be added from another file with `extend node`:
+Other modules may add syntax-local constraints or metadata:
 
 ```yl
-// name.yl
-export node Name =
-    value: /\w+/;
-```
-
-```yl
-// name-validation.yl
-import { Name } from "./name";
+import { Name } from "./name"
 
 extend node Name {
     constraints {
@@ -232,256 +475,79 @@ extend node Name {
 }
 ```
 
-The current design does not use `extend node` to modify the node's grammar.
+The syntax-v0 `extend node` form does not modify the grammar itself.
 
-## Pipes
+Additive sections merge. Duplicate singular/named definitions are compile errors. Import order must not change language meaning.
 
-Pipes transform structured grammar expressions.
+## Core and standard libraries
 
-Use `|>` to apply a pipe:
-
-```yl
-Parameter*
-    |> separatedBy(",", trailing=.optional)
-```
-
-A pipe declaration uses structural `rewrite` patterns:
+Callable functionality is imported explicitly, including compiler/runtime primitives.
 
 ```yl
-pipe wrapped(open, close) {
-    rewrite pattern =>
-        open pattern close
-}
+import { notAhead, notBehind } from "core/parser"
 ```
 
-Rewrite patterns may destructure grammar operators:
+`core` contains primitives that cannot be implemented using ordinary YL.
+
+`std` contains helpers implemented in YL on top of core primitives.
+
+For example, a boundary helper can be implemented in the standard library, and a language can define its own keyword policy:
 
 ```yl
-pipe oneOrMoreSeparatedBy(separator) {
-    rewrite item+ =>
-        item (separator item)*
-}
+import { boundedBy } from "std/parser"
+
+pattern IdentifierPart =
+    /[_a-zA-Z0-9]/
+
+pattern keyword(value) =
+    value |> boundedBy(IdentifierPart)
 ```
 
-Pipes operate on the grammar structure rather than textual source syntax.
-
-### `separatedBy`
-
-The standard separated-list helper keeps cardinality on the input grammar expression:
+Then:
 
 ```yl
-Parameter* |> separatedBy(",")
-Parameter+ |> separatedBy(",")
+keyword("let")
+keyword("function")
 ```
 
-Trailing separators are configured as part of `separatedBy`:
+requires identifier boundaries on both sides without making keywords a compiler special case.
+
+## Entrypoint
+
+A language has one entrypoint:
 
 ```yl
-Parameter* |> separatedBy(",", trailing=.optional)
-Parameter+ |> separatedBy(",", trailing=.required)
+entry Program
 ```
 
-The trailing mode is:
+The runtime may expose lower-level rules separately for tooling, but normal parsing begins at the declared entry.
 
-```yl
-enum Trailing {
-    none
-    optional
-    required
-}
-```
+## Forward references
 
-The default is `.none`.
+Declarations are resolved as a module graph, not strictly in source order. A grammar may refer to a declaration defined later in the same resolved language definition.
 
-For a zero-or-more list, `.required` means that a trailing separator is required when the list is non-empty. The empty list remains valid.
+## Syntax-v0 boundary
 
-## Enums
+The first implementation covers the complete syntax-to-AST path:
+- parsing YL itself,
+- module resolution,
+- grammar validation,
+- pipes and rewrite,
+- trivia,
+- precedence,
+- syntax-local constraints,
+- compiling/loading a reusable language definition,
+- parsing source text,
+- AST construction,
+- structured parse diagnostics.
 
-Enum values can be written contextually:
+The semantic layer is intentionally outside this checkpoint:
+- relations,
+- traits,
+- scopes,
+- declarations/references,
+- name resolution,
+- semantic constraints depending on those systems,
+- semantic graph generation.
 
-```yl
-.optional
-.required
-.none
-```
-
-or explicitly:
-
-```yl
-Trailing::optional
-Trailing::required
-Trailing::none
-```
-
-The shorthand form is used when the expected enum type is unambiguous.
-
-## Function and argument syntax
-
-Parameters use `:` for their type and `=` for defaults:
-
-```yl
-pipe example(
-    mode: Mode = .default
-) {
-    ...
-}
-```
-
-Calls use positional arguments or `=` for named arguments:
-
-```yl
-example(.default)
-example(mode=.default)
-```
-
-The general forms are:
-
-```text
-foo(value)
-foo(name=value)
-
-parameter: Type
-parameter: Type = default
-```
-
-## Expressions
-
-Expression grammars use the `expression` declaration.
-
-```yl
-expression Expression {
-    atom Number;
-    atom Name;
-    atom "(" Expression ")";
-
-    postfix Member =
-        "." property: Name;
-
-    postfix Call =
-        "("
-        arguments: Expression* |> separatedBy(",", trailing=.optional)
-        ")";
-
-    prefix Unary =
-        operator: ("+" | "-" | "!");
-
-    infix Product =
-        operator: ("*" | "/");
-
-    infix Sum =
-        operator: ("+" | "-");
-}
-```
-
-Precedence is implicit by declaration order, from tighter binding to looser binding.
-
-In the example above:
-
-```text
-postfix
-prefix
-Product
-Sum
-```
-
-so:
-
-```text
-a + b * c
-```
-
-parses as:
-
-```text
-a + (b * c)
-```
-
-Infix operators are left-associative by default. Unusual associativity can be declared explicitly, for example:
-
-```yl
-infix Power right =
-    operator: "**";
-```
-
-An explicit `precedence { ... }` form is planned for definitions that should not derive precedence from declaration order; its detailed syntax is still draft.
-
-## Relations
-
-Relations attach semantic roles to syntax nodes.
-
-```yl
-relation Variable on Name {
-}
-```
-
-```yl
-relation Function on Name {
-}
-```
-
-Relations can be refined:
-
-```yl
-relation Variable on Name {
-    relation Let {
-        trait variable(mutable=true)
-    }
-
-    relation Const {
-        trait variable(mutable=false)
-    }
-}
-```
-
-Refined relations are referenced with `::`:
-
-```text
-Variable::Let
-Variable::Const
-```
-
-The full binding, scope, and resolution model is still being specified.
-
-## Traits
-
-Traits attach reusable semantic information or behavior.
-
-Example usage:
-
-```yl
-relation Variable on Name {
-    relation Let {
-        trait variable(mutable=true)
-    }
-}
-```
-
-The full trait model is still being specified.
-
-## Compilation model
-
-The first implementation targets a compiled language artifact and a reusable runtime:
-
-```text
-*.yl
-  ↓
-YL compiler
-  ↓
-normalized internal representation
-  ↓
-*.ylc
-```
-
-At runtime:
-
-```text
-*.ylc + source
-      ↓
-Your Language runtime
-      ↓
-AST + diagnostics
-```
-
-The initial compiler/runtime implementation is planned in Rust. The runtime should expose a clean library API suitable for use from other host languages.
-
-Generated native parser source for individual target languages is not part of the first implementation.
+Those features are designed and implemented after the syntax runtime is validated end-to-end.
