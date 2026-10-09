@@ -1,69 +1,33 @@
-import { Name } from './name.yl';
+import { separatedBy } from "std/parser";
+import { Name } from "./name";
 
-decl operands => choose('+', '-', '*', '/');
-decl updateOperands => choose('++', '--');
-decl unaryOperands => choose('+', '-', '!');
+node String =
+    value: /"(?:\\.|[^"])*"/;
 
-nodes Value {
-    node String {
-        // once quote evaluated one path (" or ') it can't be changed
-        const quote => choose('"', "'");
-        describe() => quote
-                   -> value: loop(/./, '\\')
-                   -> quote;
-    }
+node Number =
+    value: /\d+(?:\.\d+)?/;
 
-    node Number {
-        describe() => value: /\d+(\.\d+)/;
-    }
+export expression Expression {
+    atom String;
+    atom Number;
+    atom Name;
+    atom "(" Expression ")";
+
+    postfix Member =
+        "." property: Name;
+
+    postfix Call =
+        "("
+        arguments: Expression*
+            |> separatedBy(",", trailing=.optional)
+        ")";
+
+    prefix Unary =
+        operator: ("+" | "-" | "!");
+
+    infix Product =
+        operator: ("*" | "/");
+
+    infix Sum =
+        operator: ("+" | "-");
 }
-
-nodes Expression {
-    link Value;
-
-    node Member {
-        describe() => object: Expression()
-                   -> "."
-                   -> property: Name();
-    }
-
-    node Call {
-        describe() => callee: Expression()
-                   -> "("
-                   -> arguments: delimited(Expression, whitespaced(","))
-                   -> ")";
-    }
-
-    node Binary {
-        describe() => left: Expression()
-                   -> operator: operands
-                   -> right: Expression();
-    }
-
-    node Update {
-        // keys with $ are just internal captures
-
-        describe() => choose(
-            (prefix: true) => operator: updateOperands()
-                           ~> $ts123: whitespace()
-                           -> argument: Name(),
-
-            (prefix: false) => argument: Name()
-                            ~> $ts123: whitespace()
-                            -> operator: updateOperands()
-        );
-        // example: { type: "UpdateExpressionNode", prefix: "true", operator: "++", argument: {...} }
-
-        // print a warning if there's a whitespace
-        case($ts123) {
-            warn("TS123", "Remove whitespace between '${operand}' and expression);
-        }
-    }
-
-    node Unary {
-        describe() => operator: unaryOperands()
-                   -> argument: Expression();
-    }
-
-}
-

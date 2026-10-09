@@ -1,34 +1,15 @@
-import { Identifier, variable } from './utils/variables';
-import { Name } from './name';
-import { Expression } from './expression';
-import { VariableDeclaration } from './variable';
+import { Expression } from "./expression";
+import { VariableDeclaration } from "./variable";
+import {
+    FunctionDeclaration,
+    ReturnStatement
+} from "./function";
 
+export pattern Statement =
+    VariableDeclaration
+    | FunctionDeclaration
+    | ReturnStatement
+    | Expression;
 
-// Comment
-comments {
-    comment => "//" -!> until() -> newline();
-    comment => "/*" -> until() -> "*/";
-}
-
-// Whitespace
-whitespace {
-    describe() => /\s/s;
-}
-
-// Entrypoint
-entrypoint {
-    link CommandsWithSemicolon;
-    link Commands;
-}
-
-nodeless CommandsWithSemicolon {
-    decl cmds => choose(
-        Expression(),
-        VariableDeclaration
-    );
-    describe() => return: cmds() -> ";";
-}
-
-nodeless Commands {
-    describe() => choose();
-}
+export node Program =
+    statements: Statement*;

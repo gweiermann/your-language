@@ -1,5 +1,2 @@
-import { Identifier } from './utils/variables';
-
-node Name implements Identifier {
-    describe() => value: /[_a-zA-Z]\w/;
-}
+export node Name =
+    value: /\w+/;
