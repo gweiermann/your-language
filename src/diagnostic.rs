@@ -28,7 +28,7 @@ pub struct Diagnostic {
     pub severity: Severity,
     pub code: String,
     pub message: String,
-    pub primary: Span,
+    pub primary: Box<Span>,
     pub secondary: Vec<Span>,
     pub help: Option<String>,
 }
@@ -38,7 +38,7 @@ impl Diagnostic {
             severity: Severity::Error,
             code: code.into(),
             message: message.into(),
-            primary,
+            primary: Box::new(primary),
             secondary: vec![],
             help: None,
         }

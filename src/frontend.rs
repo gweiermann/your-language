@@ -507,6 +507,13 @@ impl Parser {
         })
     }
     fn constraint_block(&mut self) -> Result<Vec<Constraint>> {
+        self.depth += 1;
+        if self.depth > 128 {
+            return Err(self.error(
+                "yl.depth_limit",
+                "Constraint nesting exceeds resource limit",
+            ));
+        }
         self.expect("{")?;
         let mut body = vec![];
         while !self.is("}") {
@@ -526,6 +533,7 @@ impl Parser {
             });
         }
         self.expect("}")?;
+        self.depth -= 1;
         Ok(body)
     }
 }
