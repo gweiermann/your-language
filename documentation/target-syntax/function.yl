@@ -1,32 +1,35 @@
-import { Name } from './name';
-import { Variable } from './variable';
-import { Expression } from './expresion';
-import { Codeblock } from './codeblock';
+import { separatedBy } from "std/parser";
+import { Name } from "./name";
+import { Expression } from "./expression";
+import { VariableDeclaration } from "./variable";
 
+node Parameter =
+    name: Name
+    ("=" default: Expression)?;
 
-relation Function on Name { }
+export pattern Parameters =
+    Parameter*
+    |> separatedBy(",", trailing=.optional);
 
-nodes FunctionDeclaration {
-    fn Parameters() {
-        describe() => "(" -> return: ...Parameter(",") -> ")";
-    }
+pattern BlockStatement =
+    VariableDeclaration
+    | ReturnStatement
+    | Expression;
 
-    node Parameter {
-        describe() => name: Variable::Let()
-                    ~> ("=" -> default: Expression());
-    }
+export node Block =
+    "{"
+    statements: BlockStatement*
+    "}";
 
-    node {
-        // has the type "FunctionDeclarationNode"
-        describe() => "function"
-                    ->> name: Function()
-                    -> parameters: Parameters()
-                    -> block: Codeblock();
-    }
+export relation Function on Name {
+}
 
-    node Lambda {
-        describe() => "function"
-                   -> parameters: Parameters()
-                   -> block: Codeblock();
-    }
-} 
+export node FunctionDeclaration =
+    "function"
+    name: Name
+    "(" parameters: Parameters ")"
+    body: Block;
+
+export node ReturnStatement =
+    "return"
+    value: Expression?;

@@ -1,0 +1,10 @@
+import { Name } from "./name";
+
+extend node Name {
+    constraints {
+        when value.matches(/^\d/) {
+            error("A name cannot start with a number")
+            help("Choose a name that starts with a letter or underscore")
+        }
+    }
+}

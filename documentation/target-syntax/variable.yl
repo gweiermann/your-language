@@ -1,32 +1,17 @@
+import { Name } from "./name";
+import { Expression } from "./expression";
 
-Blockscope scope on Variable {
-    chronological: true;
-};
-
-""" A documentation string, lol :) """
-relations Variable on Name {
-    // without line 19: `relation Variable::Let on Name {...}`
-    trait defaultScope(scope);
-
+export relation Variable on Name {
     relation Let {
-        trait variable(mutable: true);
+        trait variable(mutable=true)
     }
 
     relation Const {
-        trait variable(mutable: false);
+        trait variable(mutable=false)
     }
 }
 
-node VariableDeclaration(Relation<Name> var) {
-    describe() => name: var()
-               ~> ("=" -> default: Expression());
-
-    on(name) {
-        trait variable::declaration(default);
-    }
-
-    case(scope.exists(variable.name: name)) {
-        error("Variable with name '${name.value}' does already exist");
-        help("try another name");
-    }
-}
+export node VariableDeclaration =
+    kind: ("let" | "const")
+    name: Name
+    ("=" initializer: Expression)?;

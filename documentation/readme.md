@@ -1,186 +1,487 @@
-# Documentation
+# Your Language — syntax design
 
-Here is an [example](./target-syntax)
+> **Status:** draft design. This document describes the currently agreed syntax. Some semantic details, especially scopes, relation binding, and explicit precedence configuration, are still under design.
 
-DISCLAMER: This is how I want to implement it. I didn't even begin with the parser. But it's a nice idea though.
+See [target-syntax](./target-syntax) for a larger example.
+
+## Modules
+
+Declarations are private to a file by default.
+
+Use `export` to expose declarations:
+
+```yl
+export node Identifier =
+    value: /[_a-zA-Z]\w*/;
+```
+
+Import exported declarations with JavaScript-style imports:
+
+```yl
+import { Identifier, Expression } from "./syntax";
+```
+
+Re-export syntax may use:
+
+```yl
+export { Identifier, Expression };
+```
 
 ## Nodes
 
-All parts of the languages' code are cleverly extracted as Nodes, that are part of the AST.
-
-## Nodes' description
-
-Define a node that parses e.g. a variable, function or class name:
+A `node` defines syntax with AST identity.
 
 ```yl
-node Identifier {
-    describe() => value: /[_a-zA-Z]\w*/;
-}
+export node Identifier =
+    value: /[_a-zA-Z]\w*/;
 ```
 
-The AST Result for the code `myVeryNiceIdentifier` would be:
+Parsing:
+
+```text
+hello
+```
+
+produces an AST node conceptually similar to:
 
 ```json
 {
-    "type": "IdentifierNode",
-    "value": "myVeryNiceIdentifier"
+  "type": "Identifier",
+  "value": "hello"
 }
 ```
 
-So for better understanding here more generalized:
+Node references are written directly:
 
 ```yl
-node YourNodesName {
-    describe() => /* How should I parse a code segment? */;
-}
+node VariableDeclaration =
+    "let"
+    name: Identifier
+    "="
+    initializer: Expression;
 ```
 
-Read more below about the parsing syntax.
+No function-call syntax is required for ordinary node references.
 
-### Cases
+## Captures
 
-#### Error handling
+Use `name: Pattern` to capture a parsed value into the resulting node:
 
 ```yl
-node Identifier {
-    describe() => value: /\w+/;
-    
-    case(value.matches(/^\d/)) {
-        error("An identifier mustn't start with a number");
+node VariableDeclaration =
+    keyword: ("let" | "const")
+    name: Identifier
+    ("=" initializer: Expression)?;
+```
+
+The colon is used for type/pattern binding throughout YL.
+
+## Patterns
+
+A `pattern` defines reusable grammar without introducing its own AST identity.
+
+```yl
+export pattern Parameters =
+    Parameter*
+    |> separatedBy(",", trailing=.optional);
+```
+
+It can be referenced like any other grammar construct:
+
+```yl
+node FunctionDeclaration =
+    "function"
+    name: Identifier
+    "(" parameters: Parameters ")"
+    body: Block;
+```
+
+## Grammar expressions
+
+The core grammar operators are:
+
+| Syntax | Meaning |
+| --- | --- |
+| `A B` | sequence |
+| `A | B` | choice |
+| `A?` | optional |
+| `A*` | zero or more |
+| `A+` | one or more |
+| `name: A` | capture |
+| `A |> pipe(...)` | transform a grammar expression |
+
+Examples:
+
+```yl
+node Literal =
+    String | Number | Boolean | Null;
+```
+
+```yl
+node Parameter =
+    name: Identifier
+    ("=" default: Expression)?;
+```
+
+```yl
+node Block =
+    "{"
+    statements: Statement*
+    "}";
+```
+
+String literals and regular expressions are grammar primitives:
+
+```yl
+"function"
+/[_a-zA-Z]\w*/
+```
+
+## Trivia and whitespace
+
+Whitespace and comments are trivia and are normally accepted between grammar elements automatically.
+
+For example:
+
+```yl
+node VariableDeclaration =
+    "let" name: Identifier "=" initializer: Expression;
+```
+
+can match source with different spacing without encoding whitespace operators in the grammar itself.
+
+Whitespace-sensitive behavior is expressed through constraints.
+
+## Constraints
+
+Validation logic is grouped under `constraints`.
+
+A node may contain inline `when` constraints:
+
+```yl
+node Identifier =
+    value: /\w+/
+{
+    constraints {
+        when value.matches(/^\d/) {
+            error("An identifier cannot start with a number")
+        }
     }
 }
 ```
 
-To handle errors, Your Language takes advantages of cases. Think them as if statements.
+`when` is only used inside constraint declarations or `constraints { ... }` blocks.
+
+Reusable constraints use the `constraint` declaration:
 
 ```yl
-node Whatever {
+constraint tight(left, right) {
+    when whitespace.between(left, right) {
+        error("Whitespace is not allowed here")
+    }
+
+    when comment.between(left, right) {
+        error("Comments are not allowed here")
+    }
+}
+```
+
+They can be applied from a node:
+
+```yl
+node Update =
+    operator: UpdateOperator
+    argument: Identifier
+{
+    constraints {
+        tight(operator, argument)
+    }
+}
+```
+
+Diagnostics may use:
+
+```text
+error(...)
+warning(...)
+help(...)
+```
+
+## Extending declarations across files
+
+A node has one canonical grammar definition.
+
+Additional constraints and semantic metadata can be added from another file with `extend node`:
+
+```yl
+// name.yl
+export node Name =
+    value: /\w+/;
+```
+
+```yl
+// name-validation.yl
+import { Name } from "./name";
+
+extend node Name {
+    constraints {
+        when value.matches(/^\d/) {
+            error("A name cannot start with a number")
+        }
+    }
+}
+```
+
+The current design does not use `extend node` to modify the node's grammar.
+
+## Pipes
+
+Pipes transform structured grammar expressions.
+
+Use `|>` to apply a pipe:
+
+```yl
+Parameter*
+    |> separatedBy(",", trailing=.optional)
+```
+
+A pipe declaration uses structural `rewrite` patterns:
+
+```yl
+pipe wrapped(open, close) {
+    rewrite pattern =>
+        open pattern close
+}
+```
+
+Rewrite patterns may destructure grammar operators:
+
+```yl
+pipe oneOrMoreSeparatedBy(separator) {
+    rewrite item+ =>
+        item (separator item)*
+}
+```
+
+Pipes operate on the grammar structure rather than textual source syntax.
+
+### `separatedBy`
+
+The standard separated-list helper keeps cardinality on the input grammar expression:
+
+```yl
+Parameter* |> separatedBy(",")
+Parameter+ |> separatedBy(",")
+```
+
+Trailing separators are configured as part of `separatedBy`:
+
+```yl
+Parameter* |> separatedBy(",", trailing=.optional)
+Parameter+ |> separatedBy(",", trailing=.required)
+```
+
+The trailing mode is:
+
+```yl
+enum Trailing {
+    none
+    optional
+    required
+}
+```
+
+The default is `.none`.
+
+For a zero-or-more list, `.required` means that a trailing separator is required when the list is non-empty. The empty list remains valid.
+
+## Enums
+
+Enum values can be written contextually:
+
+```yl
+.optional
+.required
+.none
+```
+
+or explicitly:
+
+```yl
+Trailing::optional
+Trailing::required
+Trailing::none
+```
+
+The shorthand form is used when the expected enum type is unambiguous.
+
+## Function and argument syntax
+
+Parameters use `:` for their type and `=` for defaults:
+
+```yl
+pipe example(
+    mode: Mode = .default
+) {
     ...
-    case (condition) {
-        // throw error, warning, help
-        // or provide more details about the node for analysis purpose 
-    }
 }
 ```
 
-#### More
-
-Like error(...) there's warning(...). The function help(...) provides info to the programmer, how he could fix the
-issue. TODO: how to provide details for analysis?
-
-### Parsing Syntax
-
-The syntax is based on different patterns joined by whitespace operators. So here's an example that parses the
-code `let foo = "bar"`:
+Calls use positional arguments or `=` for named arguments:
 
 ```yl
-node VariableDeclaration {
-    describe() => "let" ->> name: Identifier() -> "=" -> init: Expression();
+example(.default)
+example(mode=.default)
+```
+
+The general forms are:
+
+```text
+foo(value)
+foo(name=value)
+
+parameter: Type
+parameter: Type = default
+```
+
+## Expressions
+
+Expression grammars use the `expression` declaration.
+
+```yl
+expression Expression {
+    atom Number;
+    atom Name;
+    atom "(" Expression ")";
+
+    postfix Member =
+        "." property: Name;
+
+    postfix Call =
+        "("
+        arguments: Expression* |> separatedBy(",", trailing=.optional)
+        ")";
+
+    prefix Unary =
+        operator: ("+" | "-" | "!");
+
+    infix Product =
+        operator: ("*" | "/");
+
+    infix Sum =
+        operator: ("+" | "-");
 }
 ```
 
-The actual parsing is that one:
-`"let" ->> name: Identifier() -> "=" -> init: Expression()`
-And here's a step by step explaination what it does:
+Precedence is implicit by declaration order, from tighter binding to looser binding.
 
-| code                 | description                                                                                             | details             |
-|----------------------|---------------------------------------------------------------------------------------------------------|---------------------|
-| `let`                | Eat the next three chars that must be 'l', 'e', 't'                                                     | StringEater         |
-| `->>`                  | Require a whitespace                                                                                    | Whitespace operands |
-| `name: Identifier()` | Parse an Identifier using the IdentifierNode (declared in examples above) and save its result as "name" | NodeEater           |
-| `->`                  | Allow a whitespace                                                                                      | Whitespace operands |
-| `init: Expression()` | Parse an expression (also defined as a node) and store its value as "init"                              | NodeEater           |
+In the example above:
 
-#### Whitespace operators
+```text
+postfix
+prefix
+Product
+Sum
+```
 
-| whitespace  | following eater required | operator |
-|-------------|--------------------|----------|
-| optional    | yes                 | ->       |
-| required    | yes                 | ->>      |
-| not allowed | yes                 | -!>      |
-| optional    | no                | ~>       |
-| required    | no                | ~>>      |
-| not allowed | no                | ~!>      |
+so:
 
-#### StringEater
+```text
+a + b * c
+```
 
-Define a string that's expected  
-Example:  
-`"let"`
+parses as:
 
-#### RegexEater
+```text
+a + (b * c)
+```
 
-Parses the given regex, encapsulated by /.../ and flags behind the last slash (syntax like in JavaScript)  
-Example:  
-`/[a-z_]+/i`
+Infix operators are left-associative by default. Unusual associativity can be declared explicitly, for example:
 
-#### NodeEater
+```yl
+infix Power right =
+    operator: "**";
+```
 
-Parses with the given node and returns the actual AST result, optionally you can pass arguments (arguments currently
-aren't thought through).  
-Example:  
-`Identifier()`
-
-#### ValueCaputure
-
-You want to save some results of parsers. You do that by writing the key with a colon in front of the eater. It is
-possible to capture whitespaces. Keys with a $ sign in front, won't affect the AST result. These are used as variables
-for things like error checking  
-Example:  
-`mykey: SomethingToParse()`
+An explicit `precedence { ... }` form is planned for definitions that should not derive precedence from declaration order; its detailed syntax is still draft.
 
 ## Relations
 
-Relations are actual aliases on nodes. These are just for analyze purposes.  
-Example:
+Relations attach semantic roles to syntax nodes.
 
 ```yl
-relation Variable on Identifier {}
-relation Function on Identifier {}
-
-node VariableDeclaration {
-    describe() => "let" ->> Variable();
-}
-
-node FunctionDeclaration {
-    describe() => "function ->> Function() -> "()" -> CodeBlock();
+relation Variable on Name {
 }
 ```
 
-Later when I parse Identifier(), my analyser can identify, if it is a **variable** or a **function**.
+```yl
+relation Function on Name {
+}
+```
 
-## Grouping / Namespace
-
-Removes boilerplate code, where you config stuff for all group members.
-
-### Nodes
+Relations can be refined:
 
 ```yl
-nodes Expression {
-    node Binary {
-        ...
+relation Variable on Name {
+    relation Let {
+        trait variable(mutable=true)
     }
-    node Call {
-        ...
+
+    relation Const {
+        trait variable(mutable=false)
     }
 }
 ```
 
-You can parse Binary using `Expression::Binary()` but also try both Binary and Call, if you simply parse
-using `Expression()`
+Refined relations are referenced with `::`:
 
-### Relations
-
-```yl
-relations Variable on Identifier {
-    relation Let { }
-    relation Const { }
-}
+```text
+Variable::Let
+Variable::Const
 ```
 
-Sets the relation base once on top, in the `relation` statements it can be omitted. Traits are also possible in the root
-level.
+The full binding, scope, and resolution model is still being specified.
 
 ## Traits
 
-TODO: fill
+Traits attach reusable semantic information or behavior.
+
+Example usage:
+
+```yl
+relation Variable on Name {
+    relation Let {
+        trait variable(mutable=true)
+    }
+}
+```
+
+The full trait model is still being specified.
+
+## Compilation model
+
+The first implementation targets a compiled language artifact and a reusable runtime:
+
+```text
+*.yl
+  ↓
+YL compiler
+  ↓
+normalized internal representation
+  ↓
+*.ylc
+```
+
+At runtime:
+
+```text
+*.ylc + source
+      ↓
+Your Language runtime
+      ↓
+AST + diagnostics
+```
+
+The initial compiler/runtime implementation is planned in Rust. The runtime should expose a clean library API suitable for use from other host languages.
+
+Generated native parser source for individual target languages is not part of the first implementation.
