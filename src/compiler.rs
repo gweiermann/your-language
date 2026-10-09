@@ -33,6 +33,7 @@ struct Compiler {
     members: BTreeMap<(String, String), String>,
     extensions: Vec<(String, Declaration)>,
     expanding: Vec<String>,
+    next_marker: u32,
 }
 
 pub fn compile_language(entry_file: impl AsRef<Path>) -> CompileResult<CompiledLanguage> {
@@ -198,7 +199,7 @@ impl Compiler {
                     self.validate_expr(symbol, item, locals)?;
                 }
             }
-            ExprKind::Capture(_, inner) | ExprKind::Repeat(inner, _) => {
+            ExprKind::Capture(_, inner) | ExprKind::Repeat(inner, _) | ExprKind::Group(inner) => {
                 self.validate_expr(symbol, inner, locals)?
             }
             ExprKind::Regex(regex) => {
@@ -812,6 +813,7 @@ impl Compiler {
         }
         Ok(match &expr.kind {
             ExprKind::Literal(s) => Term::Literal(s.clone()),
+            ExprKind::Group(inner) => self.lower(module, scope, inner, env, depth + 1)?,
             ExprKind::Regex(s) => {
                 regex::Regex::new(s).map_err(|e| {
                     Diagnostic::error("yl.invalid_regex", e.to_string(), expr.span.clone())
@@ -970,7 +972,21 @@ impl Compiler {
                         expr.span.clone(),
                     )
                 })?;
-                bound.insert(arm.binding.clone(), Value::Grammar(value));
+                let marker = self.next_marker;
+                self.next_marker = self.next_marker.checked_add(1).ok_or_else(|| {
+                    Diagnostic::error(
+                        "yl.resource_limit",
+                        "Too many grammar projections",
+                        expr.span.clone(),
+                    )
+                })?;
+                bound.insert(
+                    arm.binding.clone(),
+                    Value::Grammar(Term::Mark {
+                        id: marker,
+                        term: Box::new(value),
+                    }),
+                );
                 let body = match &arm.body {
                     RewriteBody::Direct(body) => body,
                     RewriteBody::Cases(cases) => {
@@ -1017,7 +1033,15 @@ impl Compiler {
                         })?
                     }
                 };
-                self.expand(&id, &symbol, body, &bound, depth + 1)?
+                let term = self.expand(&id, &symbol, body, &bound, depth + 1)?;
+                if arm.quantifier.is_none() && marker_cardinality(&term, marker) != (1, Some(1)) {
+                    return Err(Diagnostic::error("yl.parked_projection_cardinality","PARKED: scalar-preserving rewrites must identify one original value; selection when a binding is omitted or duplicated is unspecified",arm.span.clone()));
+                }
+                Term::Project {
+                    id: marker,
+                    term: Box::new(term),
+                    quantifier: arm.quantifier,
+                }
             }
             ExprKind::Variant(_) => {
                 return Err(Diagnostic::error(
@@ -1223,7 +1247,18 @@ impl Compiler {
                 self.leaves(id, &mut BTreeSet::new(), &mut actual)?;
                 Ok(actual.iter().all(|id| leaves.contains(id)))
             }
-            Term::Capture(_, t) => self.accepts(t, ty, visiting),
+            Term::Capture(_, t) | Term::Mark { term: t, .. } => self.accepts(t, ty, visiting),
+            Term::Project {
+                id,
+                term,
+                quantifier: None,
+            } => {
+                if let Some(original) = find_marker(term, *id) {
+                    self.accepts(original, ty, visiting)
+                } else {
+                    Ok(false)
+                }
+            }
             Term::Choice(items) => {
                 for t in items {
                     if !self.accepts(t, ty, visiting)? {
@@ -1427,13 +1462,19 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                 }
                 Ok(())
             }
-            Term::Repeat(t, _) | Term::Capture(_, t) | Term::NotAhead(t) | Term::NotBehind(t) => {
-                term(t, language, span, depth + 1)
-            }
+            Term::Repeat(t, _)
+            | Term::Capture(_, t)
+            | Term::NotAhead(t)
+            | Term::NotBehind(t)
+            | Term::Mark { term: t, .. }
+            | Term::Project { term: t, .. } => term(t, language, span, depth + 1),
             _ => Ok(()),
         }
     }
     for rule in language.rules.values() {
+        if let RuleBody::Concrete(t) = &rule.body {
+            validate_projections(t, &mut BTreeSet::new(), &rule.span)?;
+        }
         match &rule.body {
             RuleBody::Concrete(t) => term(t, language, &rule.span, 0)?,
             RuleBody::Abstract { bases, operators } => {
@@ -1448,22 +1489,10 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                 }
             }
         }
-        let captures = match &rule.body {
-            RuleBody::Concrete(t) => captures(t, &rule.span)?,
-            RuleBody::Abstract { bases, operators } => {
-                let mut names = BTreeSet::new();
-                for id in bases.iter().chain(operators.iter().map(|o| &o.rule)) {
-                    if let Some(Rule {
-                        body: RuleBody::Concrete(t),
-                        ..
-                    }) = language.rules.get(id)
-                    {
-                        names.extend(captures(t, &rule.span)?);
-                    }
-                }
-                names
-            }
-        };
+        if let RuleBody::Concrete(t) = &rule.body {
+            captures(t, &rule.span)?;
+        }
+        let (captures, guaranteed) = rule_capture_sets(rule, language, &mut BTreeSet::new());
         for check in &rule.constraints {
             let required = match &check.condition {
                 Condition::Matches { capture, regex } => {
@@ -1498,6 +1527,9 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                         rule.span.clone(),
                     ));
                 }
+                if !guaranteed.contains(name) {
+                    return Err(Diagnostic::error("yl.parked_constraint_optional",format!("PARKED: condition may observe absent capture {name}; missing-capture evaluation is unspecified"),rule.span.clone()));
+                }
             }
         }
     }
@@ -1509,6 +1541,155 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                 Span::default(),
             ));
         }
+    }
+    Ok(())
+}
+
+fn rule_capture_sets(
+    rule: &Rule,
+    language: &CompiledLanguage,
+    visiting: &mut BTreeSet<String>,
+) -> (BTreeSet<String>, BTreeSet<String>) {
+    match &rule.body {
+        RuleBody::Concrete(t) => capture_sets(t),
+        RuleBody::Abstract { bases, operators } => {
+            let mut possible = BTreeSet::new();
+            let mut guaranteed: Option<BTreeSet<String>> = None;
+            for id in bases.iter().chain(operators.iter().map(|o| &o.rule)) {
+                if !visiting.insert(id.clone()) {
+                    continue;
+                }
+                if let Some(rule) = language.rules.get(id) {
+                    let (p, g) = rule_capture_sets(rule, language, visiting);
+                    possible.extend(p);
+                    guaranteed = Some(guaranteed.map_or_else(
+                        || g.clone(),
+                        |prev| prev.intersection(&g).cloned().collect(),
+                    ));
+                }
+                visiting.remove(id);
+            }
+            (possible, guaranteed.unwrap_or_default())
+        }
+    }
+}
+fn capture_sets(term: &Term) -> (BTreeSet<String>, BTreeSet<String>) {
+    match term {
+        Term::Capture(name, term) => {
+            let (mut possible, mut guaranteed) = capture_sets(term);
+            possible.insert(name.clone());
+            if !may_be_none(term) {
+                guaranteed.insert(name.clone());
+            }
+            (possible, guaranteed)
+        }
+        Term::Sequence(items) => items.iter().map(capture_sets).fold(
+            (BTreeSet::new(), BTreeSet::new()),
+            |(mut p, mut g), (a, b)| {
+                p.extend(a);
+                g.extend(b);
+                (p, g)
+            },
+        ),
+        Term::Choice(items) => {
+            let mut p = BTreeSet::new();
+            let mut g: Option<BTreeSet<String>> = None;
+            for (a, b) in items.iter().map(capture_sets) {
+                p.extend(a);
+                g = Some(g.map_or_else(
+                    || b.clone(),
+                    |prev| prev.intersection(&b).cloned().collect(),
+                ));
+            }
+            (p, g.unwrap_or_default())
+        }
+        Term::Repeat(term, q) => {
+            let (p, g) = capture_sets(term);
+            (
+                p,
+                if *q == Quantifier::Plus {
+                    g
+                } else {
+                    BTreeSet::new()
+                },
+            )
+        }
+        Term::Mark { term, .. } => capture_sets(term),
+        Term::Project {
+            id,
+            term,
+            quantifier,
+        } => {
+            let (p, g) = find_marker(term, *id).map(capture_sets).unwrap_or_default();
+            (
+                p,
+                if *quantifier == Some(Quantifier::Star) {
+                    BTreeSet::new()
+                } else {
+                    g
+                },
+            )
+        }
+        _ => Default::default(),
+    }
+}
+fn may_be_none(term: &Term) -> bool {
+    match term {
+        Term::Repeat(_, Quantifier::Optional) | Term::NotAhead(_) | Term::NotBehind(_) => true,
+        Term::Capture(_, term) | Term::Mark { term, .. } => may_be_none(term),
+        Term::Project {
+            id,
+            term,
+            quantifier: None,
+        } => find_marker(term, *id).is_none_or(may_be_none),
+        Term::Choice(items) => items.iter().any(may_be_none),
+        _ => false,
+    }
+}
+
+fn validate_projections(term: &Term, active: &mut BTreeSet<u32>, span: &Span) -> Result<()> {
+    match term {
+        Term::Project {
+            id,
+            term,
+            quantifier,
+        } => {
+            if !active.insert(*id) {
+                return Err(Diagnostic::error(
+                    "yl.artifact",
+                    "Nested projection reuses its enclosing marker",
+                    span.clone(),
+                ));
+            }
+            if quantifier.is_none() && marker_cardinality(term, *id) != (1, Some(1)) {
+                return Err(Diagnostic::error(
+                    "yl.artifact",
+                    "Scalar projection requires exactly one marked value",
+                    span.clone(),
+                ));
+            }
+            validate_projections(term, active, span)?;
+            active.remove(id);
+        }
+        Term::Mark { id, term } => {
+            if !active.contains(id) {
+                return Err(Diagnostic::error(
+                    "yl.artifact",
+                    "Value marker is outside its projection",
+                    span.clone(),
+                ));
+            }
+            validate_projections(term, active, span)?;
+        }
+        Term::Sequence(items) | Term::Choice(items) => {
+            for t in items {
+                validate_projections(t, active, span)?;
+            }
+        }
+        Term::Repeat(t, _) | Term::Capture(_, t) | Term::NotAhead(t) | Term::NotBehind(t) => {
+            validate_projections(t, active, span)?
+        }
+        _ => {}
     }
     Ok(())
 }
@@ -1545,7 +1726,59 @@ fn captures(term: &Term, span: &Span) -> Result<BTreeSet<String>> {
             }
         }
         Term::Repeat(inner, _) => names = captures(inner, span)?,
+        Term::Mark { term, .. } => names = captures(term, span)?,
+        Term::Project { id, term, .. } => {
+            if let Some(original) = find_marker(term, *id) {
+                names = captures(original, span)?;
+            }
+        }
         _ => {}
     }
     Ok(names)
+}
+
+fn find_marker(term: &Term, marker: u32) -> Option<&Term> {
+    match term {
+        Term::Mark { id, term } if *id == marker => Some(term),
+        Term::Sequence(items) | Term::Choice(items) => {
+            items.iter().find_map(|t| find_marker(t, marker))
+        }
+        Term::Repeat(t, _)
+        | Term::Capture(_, t)
+        | Term::Mark { term: t, .. }
+        | Term::Project { term: t, .. } => find_marker(t, marker),
+        _ => None,
+    }
+}
+/// Counts binding uses on all successful paths, without choosing a scalar value.
+fn marker_cardinality(term: &Term, marker: u32) -> (usize, Option<usize>) {
+    match term {
+        Term::Mark { id, .. } if *id == marker => (1, Some(1)),
+        Term::Sequence(items) => items.iter().map(|t| marker_cardinality(t, marker)).fold(
+            (0, Some(0)),
+            |(min, max), (a, b)| {
+                (
+                    min.saturating_add(a),
+                    max.zip(b).and_then(|(x, y)| x.checked_add(y)),
+                )
+            },
+        ),
+        Term::Choice(items) => items
+            .iter()
+            .map(|t| marker_cardinality(t, marker))
+            .reduce(|(a, b), (c, d)| (a.min(c), b.zip(d).map(|(b, d)| b.max(d))))
+            .unwrap_or((0, Some(0))),
+        Term::Repeat(t, q) => {
+            let (min, max) = marker_cardinality(t, marker);
+            match q {
+                Quantifier::Optional => (0, max),
+                Quantifier::Star => (0, if max == Some(0) { Some(0) } else { None }),
+                Quantifier::Plus => (min, if max == Some(0) { Some(0) } else { None }),
+            }
+        }
+        Term::Capture(_, t) | Term::Mark { term: t, .. } | Term::Project { term: t, .. } => {
+            marker_cardinality(t, marker)
+        }
+        _ => (0, Some(0)),
+    }
 }

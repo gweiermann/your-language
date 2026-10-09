@@ -9,21 +9,32 @@
         "Concrete": {
           "Sequence": [
             {
-              "Sequence": [
-                {
-                  "NotBehind": {
-                    "Regex": "[_a-zA-Z0-9]"
-                  }
+              "Project": {
+                "id": 0,
+                "term": {
+                  "Sequence": [
+                    {
+                      "NotBehind": {
+                        "Regex": "[_a-zA-Z0-9]"
+                      }
+                    },
+                    {
+                      "Mark": {
+                        "id": 0,
+                        "term": {
+                          "Literal": "let"
+                        }
+                      }
+                    },
+                    {
+                      "NotAhead": {
+                        "Regex": "[_a-zA-Z0-9]"
+                      }
+                    }
+                  ]
                 },
-                {
-                  "Literal": "let"
-                },
-                {
-                  "NotAhead": {
-                    "Regex": "[_a-zA-Z0-9]"
-                  }
-                }
-              ]
+                "quantifier": null
+              }
             },
             {
               "Capture": [

@@ -40,6 +40,12 @@ struct Match {
     value: Option<AstValue>,
     fields: BTreeMap<String, Captured>,
     diagnostics: Vec<Diagnostic>,
+    marked: BTreeMap<u32, Vec<MarkedValue>>,
+}
+#[derive(Clone)]
+struct MarkedValue {
+    value: Option<AstValue>,
+    fields: BTreeMap<String, Captured>,
 }
 impl Match {
     fn empty(end: usize) -> Self {
@@ -48,6 +54,7 @@ impl Match {
             value: None,
             fields: BTreeMap::new(),
             diagnostics: vec![],
+            marked: BTreeMap::new(),
         }
     }
 }
@@ -355,6 +362,7 @@ impl Runtime<'_> {
                 values.push(v);
             }
             result.fields.extend(matched.fields);
+            merge_marked(&mut result.marked, matched.marked);
             result.diagnostics.extend(matched.diagnostics);
         }
         if let Some(left) = left {
@@ -427,6 +435,7 @@ impl Runtime<'_> {
                         values.push(value);
                     }
                     result.fields.extend(m.fields);
+                    merge_marked(&mut result.marked, m.marked);
                     result.diagnostics.extend(m.diagnostics);
                 }
                 result.value = collapse(values);
@@ -454,6 +463,7 @@ impl Runtime<'_> {
                         values.push(value);
                     }
                     result.fields.extend(m.fields);
+                    merge_marked(&mut result.marked, m.marked);
                     result.diagnostics.extend(m.diagnostics);
                     if *q == Quantifier::Optional {
                         break;
@@ -516,7 +526,45 @@ impl Runtime<'_> {
                     Some(Match::empty(start))
                 }
             }
+            Term::Mark { id, term } => {
+                let mut matched = self.term(term, start, raw)?;
+                matched.marked.entry(*id).or_default().push(MarkedValue {
+                    value: matched.value.clone(),
+                    fields: matched.fields.clone(),
+                });
+                Some(matched)
+            }
+            Term::Project {
+                id,
+                term,
+                quantifier,
+            } => {
+                let mut matched = self.term(term, start, raw)?;
+                let originals = matched.marked.remove(id).unwrap_or_default();
+                matched.fields.clear();
+                let mut values = vec![];
+                for original in originals {
+                    if let Some(value) = original.value {
+                        values.push(value);
+                    }
+                    matched.fields.extend(original.fields);
+                }
+                matched.value = if quantifier.is_some() {
+                    Some(AstValue::List(values))
+                } else {
+                    values.into_iter().next()
+                };
+                Some(matched)
+            }
         }
+    }
+}
+fn merge_marked(
+    target: &mut BTreeMap<u32, Vec<MarkedValue>>,
+    source: BTreeMap<u32, Vec<MarkedValue>>,
+) {
+    for (id, values) in source {
+        target.entry(id).or_default().extend(values);
     }
 }
 fn collapse(mut values: Vec<AstValue>) -> Option<AstValue> {

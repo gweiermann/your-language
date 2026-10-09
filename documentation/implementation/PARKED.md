@@ -42,7 +42,15 @@ Implemented independently: parameter binding, typed pattern arguments, grouped
 expressions, sequence/repetition precedence, structural rewrites and enum cases.
 All six `separatedBy` combinations preserve this blocker in tests.
 
-## P2 — Values of rewritten separated lists
+## P2 — RESOLVED: values of rewritten separated lists
+
+The user clarified on 2026-10-09 that **all pipes preserve their input type**.
+Repeated rewrites collect only Item values and discard separators and other wrapper
+values. This overrides the earlier statement that pipes may transform result types.
+The specification now records the decision. Generic normalized value projections
+implement it without recognizing stdlib helper names. Empty star lists are `[]`;
+tuple-valued items remain individual elements. Scalar wrappers and chained pipes
+have type-preservation tests. The original question is retained below as context.
 
 Sources: specification “Grammar values”, “Pipes and structural rewrite”;
 issue #5 sections 7, 9, 11 and 19.
@@ -77,7 +85,7 @@ empty star-list values and tuple-valued or captured item behavior.
 
 Implemented independently: ordinary node, option, list, union and sequence values;
 capture-only concrete AST fields; transparent patterns; normalized runtime terms.
-No hidden list projection is implemented.
+No stdlib-specific list projection is implemented; generic projection terms are used.
 
 ## P3 — General constraint boolean/string language
 
@@ -103,7 +111,9 @@ composition is also parked.
 **Exact decision needed:** Define condition-expression syntax and evaluation rules
 (operators/precedence, operand types, missing captures, string operations).
 Unsupported predicates return `yl.parked_constraint_logic`; unknown lexical operators
-report a frontend unexpected-token diagnostic. No scope/relation layer was added.
+report a frontend unexpected-token diagnostic. Applying a predicate to a capture
+which may be absent returns `yl.parked_constraint_optional`, rather than choosing
+an implicit coercion. No scope/relation layer was added.
 
 ## P4 — Enum case selection with multiple enum parameters
 
@@ -143,9 +153,9 @@ or explicitly limit syntax-v0 extensions to constraints.
 
 ## Dependent acceptance items
 
-- `separatedBy` matching/value tests: **PARKED** on P1/P2.
+- `separatedBy` matching/value tests: **PARKED** on P1; P2 is resolved.
 - MiniJS compilation, artifact, target AST golden, valid/invalid source runs:
-  **PARKED** on P1/P2. Full MiniJS YL AST golden and source fixtures exist.
+  **PARKED** on P1. Full MiniJS YL AST golden and source fixtures exist.
 - General boolean/string constraints: **PARKED** on P3; documented examples work.
 - Multiple-enum case selection: **PARKED** on P4; single-enum cases work.
 - Extension metadata: **PARKED** on P5; additive constraints work.
@@ -153,3 +163,22 @@ or explicitly limit syntax-v0 extensions to constraints.
 The passing `minijs_acceptance_is_explicitly_parked_not_weakened` test verifies a
 parking diagnostic, **not** MiniJS acceptance. The `syntax-v0` pipeline fixture is
 separate from the unchanged acceptance target.
+
+## P6 — Scalar rewrite omits or duplicates the original binding
+
+The clarified invariant is that every pipe preserves its input type. For a scalar
+wrapper, a single bound value can be forwarded unambiguously. Other cardinalities
+do not specify which scalar value should be returned:
+
+```yl
+pipe twice() { rewrite value => value value }
+pipe omit() { rewrite value => "," }
+```
+
+Returning the first or last match, a default value, or a tuple would either invent
+selection behavior or violate the type rule. These cases return
+`yl.parked_projection_cardinality`; scalar wrappers with one binding on every path
+and repeated-list rewrites are implemented.
+
+**Exact decision needed:** Are scalar rewrites required to use their binding exactly
+once on every successful path, or is there another specified selection/default rule?

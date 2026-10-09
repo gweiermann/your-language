@@ -75,6 +75,13 @@ fn abstract_constraints_do_not_add_wrappers() {
     assert_eq!(result.diagnostics.len(), 1);
 }
 #[test]
+fn transitive_abstract_constraints_see_leaf_captures() {
+    let language=compile("node Inner { node N = value: /x/ } node Outer { node Inner constraints { when value.matches(/x/) { warning(\"x\") } } } entry Outer");
+    let result = parse(&language, "x");
+    assert_eq!(result.ast.unwrap().kind, "Inner::N");
+    assert_eq!(result.diagnostics.len(), 1);
+}
+#[test]
 fn trivia_is_normal_grammar_without_recursive_skip() {
     let language = compile(
         r#"trivia W = /\s+/ trivia Comment { trivia Line = /\/\/[^\n]*/ trivia Block = "/*" /[^*]*/ "*/" } node P = "a" "b" entry P"#,

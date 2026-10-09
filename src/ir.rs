@@ -48,6 +48,17 @@ pub enum Term {
     Capture(String, Box<Term>),
     NotAhead(Box<Term>),
     NotBehind(Box<Term>),
+    /// Marks values of the original grammar, independent of wrapper values.
+    Mark {
+        id: u32,
+        term: Box<Term>,
+    },
+    /// Normalized value projection; runtime does not know any YL pipe names.
+    Project {
+        id: u32,
+        term: Box<Term>,
+        quantifier: Option<Quantifier>,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Check {

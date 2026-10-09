@@ -293,7 +293,20 @@ rewrite value: Expression =>
     ...
 ```
 
-Pipes may preserve or transform the result type of the grammar expression they rewrite.
+Pipes must preserve the result type of the grammar expression they rewrite.
+
+For a scalar rewrite, the bound input contributes its original value; surrounding
+grammar is matched but its values and captures are discarded. A wrapping pipe
+therefore returns the wrapped value directly, without a tuple of delimiters.
+
+For `rewrite item*` and `rewrite item+`, only values of matched `item` occurrences
+are collected, in source order, into the original list type. Separators and other
+wrapper grammar do not contribute values. An empty star list produces `[]`.
+If an item itself produces a tuple or list, that value remains one list element.
+
+This rule applies to all pipes, including chained pipes, and does not depend on the
+pipe's name. It was clarified during syntax-v0 implementation: a pipe cannot change
+the type of its output.
 
 ## Enums and arguments
 

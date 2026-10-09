@@ -488,38 +488,47 @@
                               "operator",
                               {
                                 "kind": {
-                                  "Choice": [
-                                    {
-                                      "kind": {
-                                        "Literal": "+"
-                                      },
-                                      "span": {
-                                        "file": "documentation/target-syntax/minijs.yl",
-                                        "start": 577,
-                                        "end": 580
-                                      }
+                                  "Group": {
+                                    "kind": {
+                                      "Choice": [
+                                        {
+                                          "kind": {
+                                            "Literal": "+"
+                                          },
+                                          "span": {
+                                            "file": "documentation/target-syntax/minijs.yl",
+                                            "start": 577,
+                                            "end": 580
+                                          }
+                                        },
+                                        {
+                                          "kind": {
+                                            "Literal": "-"
+                                          },
+                                          "span": {
+                                            "file": "documentation/target-syntax/minijs.yl",
+                                            "start": 583,
+                                            "end": 586
+                                          }
+                                        },
+                                        {
+                                          "kind": {
+                                            "Literal": "!"
+                                          },
+                                          "span": {
+                                            "file": "documentation/target-syntax/minijs.yl",
+                                            "start": 589,
+                                            "end": 592
+                                          }
+                                        }
+                                      ]
                                     },
-                                    {
-                                      "kind": {
-                                        "Literal": "-"
-                                      },
-                                      "span": {
-                                        "file": "documentation/target-syntax/minijs.yl",
-                                        "start": 583,
-                                        "end": 586
-                                      }
-                                    },
-                                    {
-                                      "kind": {
-                                        "Literal": "!"
-                                      },
-                                      "span": {
-                                        "file": "documentation/target-syntax/minijs.yl",
-                                        "start": 589,
-                                        "end": 592
-                                      }
+                                    "span": {
+                                      "file": "documentation/target-syntax/minijs.yl",
+                                      "start": 577,
+                                      "end": 592
                                     }
-                                  ]
+                                  }
                                 },
                                 "span": {
                                   "file": "documentation/target-syntax/minijs.yl",
@@ -707,38 +716,47 @@
                               "operator",
                               {
                                 "kind": {
-                                  "Choice": [
-                                    {
-                                      "kind": {
-                                        "Literal": "*"
-                                      },
-                                      "span": {
-                                        "file": "documentation/target-syntax/minijs.yl",
-                                        "start": 779,
-                                        "end": 782
-                                      }
+                                  "Group": {
+                                    "kind": {
+                                      "Choice": [
+                                        {
+                                          "kind": {
+                                            "Literal": "*"
+                                          },
+                                          "span": {
+                                            "file": "documentation/target-syntax/minijs.yl",
+                                            "start": 779,
+                                            "end": 782
+                                          }
+                                        },
+                                        {
+                                          "kind": {
+                                            "Literal": "/"
+                                          },
+                                          "span": {
+                                            "file": "documentation/target-syntax/minijs.yl",
+                                            "start": 785,
+                                            "end": 788
+                                          }
+                                        },
+                                        {
+                                          "kind": {
+                                            "Literal": "%"
+                                          },
+                                          "span": {
+                                            "file": "documentation/target-syntax/minijs.yl",
+                                            "start": 791,
+                                            "end": 794
+                                          }
+                                        }
+                                      ]
                                     },
-                                    {
-                                      "kind": {
-                                        "Literal": "/"
-                                      },
-                                      "span": {
-                                        "file": "documentation/target-syntax/minijs.yl",
-                                        "start": 785,
-                                        "end": 788
-                                      }
-                                    },
-                                    {
-                                      "kind": {
-                                        "Literal": "%"
-                                      },
-                                      "span": {
-                                        "file": "documentation/target-syntax/minijs.yl",
-                                        "start": 791,
-                                        "end": 794
-                                      }
+                                    "span": {
+                                      "file": "documentation/target-syntax/minijs.yl",
+                                      "start": 779,
+                                      "end": 794
                                     }
-                                  ]
+                                  }
                                 },
                                 "span": {
                                   "file": "documentation/target-syntax/minijs.yl",
@@ -832,28 +850,37 @@
                               "operator",
                               {
                                 "kind": {
-                                  "Choice": [
-                                    {
-                                      "kind": {
-                                        "Literal": "+"
-                                      },
-                                      "span": {
-                                        "file": "documentation/target-syntax/minijs.yl",
-                                        "start": 882,
-                                        "end": 885
-                                      }
+                                  "Group": {
+                                    "kind": {
+                                      "Choice": [
+                                        {
+                                          "kind": {
+                                            "Literal": "+"
+                                          },
+                                          "span": {
+                                            "file": "documentation/target-syntax/minijs.yl",
+                                            "start": 882,
+                                            "end": 885
+                                          }
+                                        },
+                                        {
+                                          "kind": {
+                                            "Literal": "-"
+                                          },
+                                          "span": {
+                                            "file": "documentation/target-syntax/minijs.yl",
+                                            "start": 888,
+                                            "end": 891
+                                          }
+                                        }
+                                      ]
                                     },
-                                    {
-                                      "kind": {
-                                        "Literal": "-"
-                                      },
-                                      "span": {
-                                        "file": "documentation/target-syntax/minijs.yl",
-                                        "start": 888,
-                                        "end": 891
-                                      }
+                                    "span": {
+                                      "file": "documentation/target-syntax/minijs.yl",
+                                      "start": 882,
+                                      "end": 891
                                     }
-                                  ]
+                                  }
                                 },
                                 "span": {
                                   "file": "documentation/target-syntax/minijs.yl",
@@ -1193,72 +1220,81 @@
                               "kind",
                               {
                                 "kind": {
-                                  "Choice": [
-                                    {
-                                      "kind": {
-                                        "Call": [
-                                          "keyword",
-                                          [
-                                            {
-                                              "name": null,
-                                              "value": {
-                                                "kind": {
-                                                  "Literal": "let"
-                                                },
-                                                "span": {
-                                                  "file": "documentation/target-syntax/minijs.yl",
-                                                  "start": 1260,
-                                                  "end": 1265
+                                  "Group": {
+                                    "kind": {
+                                      "Choice": [
+                                        {
+                                          "kind": {
+                                            "Call": [
+                                              "keyword",
+                                              [
+                                                {
+                                                  "name": null,
+                                                  "value": {
+                                                    "kind": {
+                                                      "Literal": "let"
+                                                    },
+                                                    "span": {
+                                                      "file": "documentation/target-syntax/minijs.yl",
+                                                      "start": 1260,
+                                                      "end": 1265
+                                                    }
+                                                  },
+                                                  "span": {
+                                                    "file": "documentation/target-syntax/minijs.yl",
+                                                    "start": 1260,
+                                                    "end": 1265
+                                                  }
                                                 }
-                                              },
-                                              "span": {
-                                                "file": "documentation/target-syntax/minijs.yl",
-                                                "start": 1260,
-                                                "end": 1265
-                                              }
-                                            }
-                                          ]
-                                        ]
-                                      },
-                                      "span": {
-                                        "file": "documentation/target-syntax/minijs.yl",
-                                        "start": 1252,
-                                        "end": 1266
-                                      }
+                                              ]
+                                            ]
+                                          },
+                                          "span": {
+                                            "file": "documentation/target-syntax/minijs.yl",
+                                            "start": 1252,
+                                            "end": 1266
+                                          }
+                                        },
+                                        {
+                                          "kind": {
+                                            "Call": [
+                                              "keyword",
+                                              [
+                                                {
+                                                  "name": null,
+                                                  "value": {
+                                                    "kind": {
+                                                      "Literal": "const"
+                                                    },
+                                                    "span": {
+                                                      "file": "documentation/target-syntax/minijs.yl",
+                                                      "start": 1277,
+                                                      "end": 1284
+                                                    }
+                                                  },
+                                                  "span": {
+                                                    "file": "documentation/target-syntax/minijs.yl",
+                                                    "start": 1277,
+                                                    "end": 1284
+                                                  }
+                                                }
+                                              ]
+                                            ]
+                                          },
+                                          "span": {
+                                            "file": "documentation/target-syntax/minijs.yl",
+                                            "start": 1269,
+                                            "end": 1285
+                                          }
+                                        }
+                                      ]
                                     },
-                                    {
-                                      "kind": {
-                                        "Call": [
-                                          "keyword",
-                                          [
-                                            {
-                                              "name": null,
-                                              "value": {
-                                                "kind": {
-                                                  "Literal": "const"
-                                                },
-                                                "span": {
-                                                  "file": "documentation/target-syntax/minijs.yl",
-                                                  "start": 1277,
-                                                  "end": 1284
-                                                }
-                                              },
-                                              "span": {
-                                                "file": "documentation/target-syntax/minijs.yl",
-                                                "start": 1277,
-                                                "end": 1284
-                                              }
-                                            }
-                                          ]
-                                        ]
-                                      },
-                                      "span": {
-                                        "file": "documentation/target-syntax/minijs.yl",
-                                        "start": 1269,
-                                        "end": 1285
-                                      }
+                                    "span": {
+                                      "file": "documentation/target-syntax/minijs.yl",
+                                      "start": 1252,
+                                      "end": 1285
                                     }
-                                  ]
+                                  }
                                 },
                                 "span": {
                                   "file": "documentation/target-syntax/minijs.yl",

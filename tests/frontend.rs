@@ -43,7 +43,7 @@ fn operators_bind_as_specified() {
         matches!(grammar("A |> f() |> g()"), ExprKind::Pipe(ref v,_,_) if matches!(v.kind,ExprKind::Pipe(..)))
     );
     assert!(
-        matches!(grammar("(A B) |> f()"), ExprKind::Pipe(ref v,_,_) if matches!(v.kind,ExprKind::Sequence(..)))
+        matches!(grammar("(A B) |> f()"), ExprKind::Pipe(ref v,_,_) if matches!(v.kind,ExprKind::Group(..)))
     );
 }
 #[test]

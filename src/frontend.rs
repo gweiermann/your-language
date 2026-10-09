@@ -470,10 +470,9 @@ impl Parser {
     fn atom(&mut self) -> Result<Expr> {
         let start = self.token().span.clone();
         let kind = if self.take("(") {
-            let mut value = self.expression()?;
+            let value = self.expression()?;
             self.expect(")")?;
-            value.span = self.span_from(&start);
-            return Ok(value);
+            ExprKind::Group(Box::new(value))
         } else if self.take(".") {
             ExprKind::Variant(self.word()?)
         } else {

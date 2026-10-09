@@ -25,6 +25,12 @@ An abstract rule returns the matched concrete node without adding a wrapper.
 Patterns are expanded at compile time, with no AST identity. Runtime terms contain
 no pattern calls, pipes, enum variants, import statements or stdlib source.
 
+All pipes preserve their input type, following the user's implementation-time
+clarification. Lowering marks the original grammar values and emits a generic
+projection around the transformed matcher. Repeated rewrites collect only the
+bound item's values; wrapper captures/values are discarded. Scalar wrappers forward
+the original scalar value. Tuple-valued list items remain individual elements.
+
 The interpreter tries alternatives in declaration order, with transactional captures
 and diagnostics. Recursive abstract families execute precedence plans, handling
 left-growing member/postfix trees, right-growing prefix trees and infix associativity.
@@ -58,17 +64,17 @@ checks for MiniJS node names, keywords or grammar files and no hard-coded list h
 | Issue sections | Status / evidence |
 | --- | --- |
 | 1–6 frontend, modules, nodes/membership | Implemented; spanned parser, graph/visibility diagnostics, alias and cycle tests |
-| 7 grammar values / parameterized patterns | Implemented for ordinary expressions; rewritten separated-list values PARKED P2 |
+| 7 grammar values / parameterized patterns | Implemented, including type-preserving pipe projections; P2 resolved by user |
 | 8 grammar operator precedence | Implemented; choice/sequence/capture/postfix/pipe/grouping/chaining tests |
 | 9 structural rewrites | Implemented for documented structural arms; application/grouping case PARKED P1 |
 | 10 enums/arguments | Implemented for unambiguous expected types; multiple-enum case dispatch PARKED P4 |
-| 11 separatedBy | Ordinary YL source supplied; acceptance PARKED P1/P2 |
+| 11 separatedBy | Ordinary YL source supplied; acceptance PARKED P1 |
 | 12 recursive precedence | Implemented; product/sum, power, member/call, unary, grouping, nonassoc tests |
 | 13–15 trivia/core/std/entry | Implemented; ordinary trivia, explicit core imports, boundedBy and entry checks |
 | 16 constraints | Documented between/matches and reusable constraints implemented; general boolean/string syntax PARKED P3 |
 | 17 extensions | Additive constraints implemented, grammar changes rejected; metadata PARKED P5 |
 | 18 normalized artifact | Implemented; deterministic roundtrip and corrupt-artifact validation tests |
-| 19 MiniJS | Full YL AST snapshot + source fixtures; compilation/source acceptance PARKED P1/P2 |
+| 19 MiniJS | Full YL AST snapshot + source fixtures; compilation/source acceptance PARKED P1 |
 | 20 tests | Unit/integration/CLI/negative/robustness and goldens present; MiniJS target AST/parse diagnostics PARKED |
 | 21 quality | Root tests, format and strict Clippy checks run; CI for Linux/Windows added |
 | 22 definition of done | **Not complete**; MiniJS check returns `yl.parked_application` |

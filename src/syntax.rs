@@ -13,6 +13,7 @@ pub enum ExprKind {
     Ref(String),
     Variant(String),
     Call(String, Vec<Argument>),
+    Group(Box<Expr>),
     Sequence(Vec<Expr>),
     Choice(Vec<Expr>),
     Repeat(Box<Expr>, Quantifier),
