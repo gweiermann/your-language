@@ -74,3 +74,29 @@ fn malformed_target_input_and_recursive_artifacts_do_not_panic() {
     .unwrap();
     assert!(parse(&language, "").has_errors());
 }
+
+#[test]
+fn invalid_precedence_plans_are_rejected_and_never_overflow() {
+    let language=compile_sources("a.yl",&BTreeMap::from([("a.yl".into(),"node E { node N = value: /[0-9]+/ node Sum = left: E \"+\" right: E precedence { Sum } } entry E".into())])).unwrap();
+    let original: serde_json::Value =
+        serde_json::from_slice(&language.to_bytes().unwrap()).unwrap();
+    for power in [0, usize::MAX, 1000] {
+        let mut corrupt = original.clone();
+        corrupt["rules"]["a.yl#E"]["body"]["Abstract"]["operators"][0]["binding_power"] =
+            serde_json::json!(power);
+        let bytes = serde_json::to_vec(&corrupt).unwrap();
+        assert!(
+            load_compiled_language(&bytes).is_err(),
+            "Corrupt binding power {power} was accepted"
+        );
+        // Even callers deserializing the public v0 IR directly cannot trigger arithmetic panics.
+        let unchecked: your_language::CompiledLanguage = serde_json::from_slice(&bytes).unwrap();
+        assert!(std::panic::catch_unwind(|| parse(&unchecked, "1+2")).is_ok());
+    }
+    for field in ["left", "right"] {
+        let mut corrupt = original.clone();
+        corrupt["rules"]["a.yl#E"]["body"]["Abstract"]["operators"][0][field] =
+            serde_json::json!(false);
+        assert!(load_compiled_language(&serde_json::to_vec(&corrupt).unwrap()).is_err());
+    }
+}

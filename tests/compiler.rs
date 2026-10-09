@@ -140,6 +140,10 @@ fn diagnostic_categories() {
         code("pattern unused = Unknown node P = /x/ entry P"),
         "yl.unknown_reference"
     );
+    assert_eq!(
+        code("node E { node N = /x/ precedence { Unknown } } entry E"),
+        "yl.invalid_precedence_member"
+    );
     assert_eq!(code("node P = value: /x/? { constraints { when value.matches(/x/) { error(\"x\") } } } entry P"),"yl.parked_constraint_optional");
 }
 #[test]

@@ -345,7 +345,7 @@ impl Runtime<'_> {
                 let min = if operator.associativity == Associativity::Right || !operator.left {
                     operator.binding_power
                 } else {
-                    operator.binding_power + 1
+                    operator.binding_power.checked_add(1)?
                 };
                 let position = if raw {
                     result.end

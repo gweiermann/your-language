@@ -649,7 +649,12 @@ impl Compiler {
                     let mut listed = BTreeSet::new();
                     for (level_index, level) in precedence.iter().enumerate() {
                         for name in &level.members {
-                            let member = self.member_path(&id, name, &level.span, 0)?;
+                            let member = self.member_path(&id, name, &level.span, 0).map_err(
+                                |mut error| {
+                                    error.code = "yl.invalid_precedence_member".into();
+                                    error
+                                },
+                            )?;
                             if !all_leaves.contains(&member) || !listed.insert(member.clone()) {
                                 return Err(Diagnostic::error(
                                     "yl.invalid_precedence_member",
@@ -1471,7 +1476,7 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
             _ => Ok(()),
         }
     }
-    for rule in language.rules.values() {
+    for (family, rule) in &language.rules {
         if let RuleBody::Concrete(t) = &rule.body {
             validate_projections(t, &mut BTreeSet::new(), &rule.span)?;
         }
@@ -1483,6 +1488,43 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                         return Err(Diagnostic::error(
                             "yl.artifact",
                             "Unknown abstract member",
+                            rule.span.clone(),
+                        ));
+                    }
+                }
+                let mut operator_rules = BTreeSet::new();
+                for operator in operators {
+                    let member = language.rules.get(&operator.rule).ok_or_else(|| {
+                        Diagnostic::error(
+                            "yl.artifact",
+                            "Unknown precedence operator",
+                            rule.span.clone(),
+                        )
+                    })?;
+                    let RuleBody::Concrete(grammar) = &member.body else {
+                        return Err(Diagnostic::error(
+                            "yl.artifact",
+                            "Precedence operator is not a concrete rule",
+                            rule.span.clone(),
+                        ));
+                    };
+                    let terms = sequence(grammar);
+                    let left = terms
+                        .first()
+                        .is_some_and(|term| edge_ref(term) == Some(family.as_str()));
+                    let right = terms
+                        .last()
+                        .is_some_and(|term| edge_ref(term) == Some(family.as_str()));
+                    if operator.binding_power == 0
+                        || operator.binding_power > language.rules.len()
+                        || (!left && !right)
+                        || operator.left != left
+                        || operator.right != right
+                        || !operator_rules.insert(&operator.rule)
+                    {
+                        return Err(Diagnostic::error(
+                            "yl.artifact",
+                            "Invalid precedence binding power, role or duplicate operator",
                             rule.span.clone(),
                         ));
                     }
