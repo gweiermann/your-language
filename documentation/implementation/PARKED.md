@@ -2,45 +2,26 @@
 
 Issue #5 is **not complete**. The original acceptance grammar remains unchanged.
 These questions concern observable YL behavior, not Rust architecture choices.
-The independent compiler/artifact/runtime path has executable tests; MiniJS's
-dependent compile/parse acceptance remains parked rather than given an invented AST.
+The compiler/artifact/runtime path and unchanged MiniJS acceptance have executable tests.
+General constraint operations and metadata remain parked as described below.
 
-## P1 — Application versus juxtaposed grouping
+## P1 — RESOLVED from the documented declaration categories
 
-Sources: specification “Patterns”, “Grammar operators”, “Pipes and structural
-rewrite”; issue #5 sections 2, 7, 8, 11.
+The original parking was too broad. The checked-in MiniJS Parameter rule explicitly
+requires `Name ("=" default: Expression)?` to be a node reference followed by grouped
+grammar. Structural rewrite bindings likewise hold grammar expressions, not callable
+definitions. Treating these as calls would require undocumented callable-node or
+higher-order-grammar semantics.
 
-```yl
-pipe p(separator) {
-    rewrite item+ => item (separator item)*
-}
-node Item = value: /x/
-node P = items: Item+ |> p(",")
-entry P
-```
+Resolution now classifies name-plus-parentheses after module collection. Nodes and
+bound grammar expressions form a sequence with the group; documented pattern/core
+calls remain calls. Postfix/pipes attach to the group and a capture before the node
+captures the reference. Explicit parentheses around the whole sequence retain their
+larger-fragment meaning. No whitespace distinction or MiniJS name checks are used.
 
-The same tokens admit two parses:
-
-1. `Sequence(item, Repeat(Sequence(separator, item), Star))` — intended list grammar.
-2. `Repeat(Call(item, [Sequence(separator, item)]), Star)` — grammar-value application.
-
-The language permits grammar-expression arguments, untyped grammar parameters,
-grouped grammar, and whitespace without semantic significance. It does not give a
-syntactic discriminator or explicitly state that resolution selects between these
-forms. Whitespace-based call recognition would violate sections 2/8. Expansion of
-application to a bound grammar parameter returns `yl.parked_application`.
-Applying a node reference also fails validation; its potential grouping meaning
-is not silently selected.
-
-**Exact decision needed:** May declaration resolution disambiguate a pattern call
-from a reference followed by grouped grammar using the callee's category? Are
-grammar parameters callable, or can they only stand in for grammar expressions?
-If resolution selects juxtaposition, confirm that postfix operators/pipes attach to
-the group, and a preceding capture attaches only to the reference.
-
-Implemented independently: parameter binding, typed pattern arguments, grouped
-expressions, sequence/repetition precedence, structural rewrites and enum cases.
-All six `separatedBy` combinations preserve this blocker in tests.
+The unchanged MiniJS target now compiles, serializes, reloads and parses its valid
+program. All six separatedBy modes have matching and flat-list tests; imported,
+qualified, forward-reference and capture/group/pipe cases have focused tests.
 
 ## P2 — RESOLVED: values of rewritten separated lists
 
@@ -151,18 +132,17 @@ annotations or section names would add syntax. Other extension sections return
 **Exact decision needed:** Define metadata/section syntax and conflict identity,
 or explicitly limit syntax-v0 extensions to constraints.
 
-## Dependent acceptance items
+## Acceptance status
 
-- `separatedBy` matching/value tests: **PARKED** on P1; P2 is resolved.
-- MiniJS compilation, artifact, target AST golden, valid/invalid source runs:
-  **PARKED** on P1. Full MiniJS YL AST golden and source fixtures exist.
-- General boolean/string constraints: **PARKED** on P3; documented examples work.
+- MiniJS and separatedBy compilation, artifact/reload, AST and negative diagnostics:
+  **PASSING**. Full frontend/normalized/runtime snapshots are committed.
+- General boolean/string constraints and absent-capture evaluation: **PARKED** on P3.
 - Multiple-enum case selection: **PARKED** on P4; single-enum cases work.
 - Extension metadata: **PARKED** on P5; additive constraints work.
+- Scalar binding omission/duplication: **PARKED** on P6; single-value wrappers work.
 
-The passing `minijs_acceptance_is_explicitly_parked_not_weakened` test verifies a
-parking diagnostic, **not** MiniJS acceptance. The `syntax-v0` pipeline fixture is
-separate from the unchanged acceptance target.
+Issue #5 remains incomplete because P3/P5 affect required acceptance items. The
+independent fixture remains additional coverage, rather than a MiniJS substitute.
 
 ## P6 — Scalar rewrite omits or duplicates the original binding
 

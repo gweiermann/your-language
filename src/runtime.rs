@@ -397,7 +397,8 @@ impl Runtime<'_> {
                 } else {
                     self.skip(result.end)
                 };
-                let m = self.rule(family, position, raw, min)?;
+                let mut m = self.rule(family, position, raw, min)?;
+                m.fields.clear();
                 self.edge_capture(term, m, position)
             } else {
                 self.term(term, result.end, raw)?

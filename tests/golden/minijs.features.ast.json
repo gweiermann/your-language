@@ -1,0 +1,342 @@
+{
+  "ast": {
+    "type": "Program",
+    "fields": {
+      "statements": [
+        {
+          "type": "Statement::VariableDeclaration",
+          "fields": {
+            "initializer": {
+              "type": "Expression::String",
+              "fields": {
+                "value": "\"hello\\\"world\""
+              },
+              "span": {
+                "file": "features.js",
+                "start": 60,
+                "end": 74
+              }
+            },
+            "kind": "let",
+            "name": {
+              "type": "Name",
+              "fields": {
+                "value": "text"
+              },
+              "span": {
+                "file": "features.js",
+                "start": 53,
+                "end": 57
+              }
+            }
+          },
+          "span": {
+            "file": "features.js",
+            "start": 49,
+            "end": 74
+          }
+        },
+        {
+          "type": "Statement::VariableDeclaration",
+          "fields": {
+            "initializer": {
+              "type": "Expression::Member",
+              "fields": {
+                "object": {
+                  "type": "Expression::Call",
+                  "fields": {
+                    "arguments": [
+                      {
+                        "type": "Expression::Number",
+                        "fields": {
+                          "value": "1"
+                        },
+                        "span": {
+                          "file": "features.js",
+                          "start": 97,
+                          "end": 98
+                        }
+                      }
+                    ],
+                    "callee": {
+                      "type": "Expression::Member",
+                      "fields": {
+                        "object": {
+                          "type": "Expression::NameExpression",
+                          "fields": {
+                            "name": {
+                              "type": "Name",
+                              "fields": {
+                                "value": "foo"
+                              },
+                              "span": {
+                                "file": "features.js",
+                                "start": 89,
+                                "end": 92
+                              }
+                            }
+                          },
+                          "span": {
+                            "file": "features.js",
+                            "start": 89,
+                            "end": 92
+                          }
+                        },
+                        "property": {
+                          "type": "Name",
+                          "fields": {
+                            "value": "bar"
+                          },
+                          "span": {
+                            "file": "features.js",
+                            "start": 93,
+                            "end": 96
+                          }
+                        }
+                      },
+                      "span": {
+                        "file": "features.js",
+                        "start": 89,
+                        "end": 96
+                      }
+                    }
+                  },
+                  "span": {
+                    "file": "features.js",
+                    "start": 89,
+                    "end": 99
+                  }
+                },
+                "property": {
+                  "type": "Name",
+                  "fields": {
+                    "value": "baz"
+                  },
+                  "span": {
+                    "file": "features.js",
+                    "start": 100,
+                    "end": 103
+                  }
+                }
+              },
+              "span": {
+                "file": "features.js",
+                "start": 89,
+                "end": 103
+              }
+            },
+            "kind": "const",
+            "name": {
+              "type": "Name",
+              "fields": {
+                "value": "value"
+              },
+              "span": {
+                "file": "features.js",
+                "start": 81,
+                "end": 86
+              }
+            }
+          },
+          "span": {
+            "file": "features.js",
+            "start": 75,
+            "end": 103
+          }
+        },
+        {
+          "type": "Statement::VariableDeclaration",
+          "fields": {
+            "initializer": {
+              "type": "Expression::Unary",
+              "fields": {
+                "argument": {
+                  "type": "Expression::Unary",
+                  "fields": {
+                    "argument": {
+                      "type": "Expression::Unary",
+                      "fields": {
+                        "argument": {
+                          "type": "Expression::NameExpression",
+                          "fields": {
+                            "name": {
+                              "type": "Name",
+                              "fields": {
+                                "value": "x"
+                              },
+                              "span": {
+                                "file": "features.js",
+                                "start": 122,
+                                "end": 123
+                              }
+                            }
+                          },
+                          "span": {
+                            "file": "features.js",
+                            "start": 122,
+                            "end": 123
+                          }
+                        },
+                        "operator": "!"
+                      },
+                      "span": {
+                        "file": "features.js",
+                        "start": 121,
+                        "end": 123
+                      }
+                    },
+                    "operator": "!"
+                  },
+                  "span": {
+                    "file": "features.js",
+                    "start": 120,
+                    "end": 123
+                  }
+                },
+                "operator": "!"
+              },
+              "span": {
+                "file": "features.js",
+                "start": 119,
+                "end": 123
+              }
+            },
+            "kind": "let",
+            "name": {
+              "type": "Name",
+              "fields": {
+                "value": "negative"
+              },
+              "span": {
+                "file": "features.js",
+                "start": 108,
+                "end": 116
+              }
+            }
+          },
+          "span": {
+            "file": "features.js",
+            "start": 104,
+            "end": 123
+          }
+        },
+        {
+          "type": "Statement::FunctionDeclaration",
+          "fields": {
+            "body": {
+              "type": "Block",
+              "fields": {
+                "statements": [
+                  {
+                    "type": "Statement::ReturnStatement",
+                    "fields": {
+                      "value": null
+                    },
+                    "span": {
+                      "file": "features.js",
+                      "start": 182,
+                      "end": 189
+                    }
+                  }
+                ]
+              },
+              "span": {
+                "file": "features.js",
+                "start": 157,
+                "end": 190
+              }
+            },
+            "name": {
+              "type": "Name",
+              "fields": {
+                "value": "defaults"
+              },
+              "span": {
+                "file": "features.js",
+                "start": 133,
+                "end": 141
+              }
+            },
+            "parameters": [
+              {
+                "type": "Parameter",
+                "fields": {
+                  "default": {
+                    "type": "Expression::Number",
+                    "fields": {
+                      "value": "1"
+                    },
+                    "span": {
+                      "file": "features.js",
+                      "start": 146,
+                      "end": 147
+                    }
+                  },
+                  "name": {
+                    "type": "Name",
+                    "fields": {
+                      "value": "a"
+                    },
+                    "span": {
+                      "file": "features.js",
+                      "start": 142,
+                      "end": 143
+                    }
+                  }
+                },
+                "span": {
+                  "file": "features.js",
+                  "start": 142,
+                  "end": 147
+                }
+              },
+              {
+                "type": "Parameter",
+                "fields": {
+                  "default": {
+                    "type": "Expression::Number",
+                    "fields": {
+                      "value": "2"
+                    },
+                    "span": {
+                      "file": "features.js",
+                      "start": 153,
+                      "end": 154
+                    }
+                  },
+                  "name": {
+                    "type": "Name",
+                    "fields": {
+                      "value": "b"
+                    },
+                    "span": {
+                      "file": "features.js",
+                      "start": 149,
+                      "end": 150
+                    }
+                  }
+                },
+                "span": {
+                  "file": "features.js",
+                  "start": 149,
+                  "end": 154
+                }
+              }
+            ]
+          },
+          "span": {
+            "file": "features.js",
+            "start": 124,
+            "end": 190
+          }
+        }
+      ]
+    },
+    "span": {
+      "file": "features.js",
+      "start": 49,
+      "end": 190
+    }
+  },
+  "diagnostics": []
+}

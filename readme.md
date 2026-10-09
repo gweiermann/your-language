@@ -28,7 +28,7 @@ The Rust library exposes compilation, deterministic `.ylc` serialization/reloadi
 and parsing with ASTs and structured diagnostics. The `yl` CLI supports `check`,
 `compile`, and `parse --json`.
 
-**Syntax-v0 / issue #5 is not complete.** MiniJS compilation is parked on documented
+**Syntax-v0 / issue #5 is not complete.** MiniJS compilation and parsing pass; general constraints and metadata still have documented
 language-design questions. See [implementation status](./documentation/implementation)
 and the [exact PARKED decisions](./documentation/implementation/PARKED.md).
 

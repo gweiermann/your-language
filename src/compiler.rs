@@ -816,6 +816,13 @@ impl Compiler {
                 expr.span.clone(),
             ));
         }
+        if let Some((head, tail)) = self.juxtaposition(module, scope, expr, env)? {
+            let sequence = Expr {
+                kind: ExprKind::Sequence(vec![head, tail]),
+                span: expr.span.clone(),
+            };
+            return self.lower(module, scope, &sequence, env, depth + 1);
+        }
         Ok(match &expr.kind {
             ExprKind::Literal(s) => Term::Literal(s.clone()),
             ExprKind::Group(inner) => self.lower(module, scope, inner, env, depth + 1)?,
@@ -866,7 +873,11 @@ impl Compiler {
             }
             ExprKind::Call(name, args) => {
                 if env.contains_key(name) {
-                    return Err(Diagnostic::error("yl.parked_application", "PARKED: a grammar parameter followed by parentheses is ambiguous between application and sequence; see documentation/implementation/PARKED.md",expr.span.clone()));
+                    return Err(Diagnostic::error(
+                        "yl.invalid_argument",
+                        "Grammar/enum bindings are not callable declarations",
+                        expr.span.clone(),
+                    ));
                 }
                 let id = self.resolve(module, scope, name, &expr.span)?;
                 if id.starts_with("core/parser#") {
@@ -900,7 +911,7 @@ impl Compiler {
                     else {
                         return Err(Diagnostic::error(
                             "yl.invalid_argument",
-                            "Expected parameterized pattern (reference followed by grouping is PARKED; see documentation/implementation/PARKED.md)",
+                            "Expected parameterized pattern",
                             expr.span.clone(),
                         ));
                     };
@@ -1055,6 +1066,56 @@ impl Compiler {
                     expr.span.clone(),
                 ))
             }
+        })
+    }
+    /// Resolve name-plus-parentheses after forward references/imports are known.
+    /// Bindings and nodes denote grammar; parameterized definitions denote calls.
+    /// Explicit Group nodes prevent postfix/capture reassociation across parentheses.
+    fn juxtaposition(
+        &self,
+        module: &str,
+        scope: &str,
+        expr: &Expr,
+        env: &Environment,
+    ) -> Result<Option<(Expr, Expr)>> {
+        let make = |kind| Expr {
+            kind,
+            span: expr.span.clone(),
+        };
+        Ok(match &expr.kind {
+            ExprKind::Call(name, args) if args.len() == 1 && args[0].name.is_none() => {
+                let grammar = if let Some(value) = env.get(name) {
+                    matches!(value, Value::Grammar(_))
+                } else {
+                    let id = self.resolve(module, scope, name, &expr.span)?;
+                    self.symbols
+                        .get(&id)
+                        .is_some_and(|s| matches!(s.declaration.kind, DeclKind::Node { .. }))
+                };
+                if grammar {
+                    Some((
+                        make(ExprKind::Ref(name.clone())),
+                        make(ExprKind::Group(Box::new(args[0].value.clone()))),
+                    ))
+                } else {
+                    None
+                }
+            }
+            ExprKind::Repeat(inner, q) => self
+                .juxtaposition(module, scope, inner, env)?
+                .map(|(head, tail)| (head, make(ExprKind::Repeat(Box::new(tail), *q)))),
+            ExprKind::Pipe(inner, name, args) => self
+                .juxtaposition(module, scope, inner, env)?
+                .map(|(head, tail)| {
+                    (
+                        head,
+                        make(ExprKind::Pipe(Box::new(tail), name.clone(), args.clone())),
+                    )
+                }),
+            ExprKind::Capture(name, inner) => self
+                .juxtaposition(module, scope, inner, env)?
+                .map(|(head, tail)| (make(ExprKind::Capture(name.clone(), Box::new(head))), tail)),
+            _ => None,
         })
     }
     fn expand(

@@ -39,7 +39,19 @@ fn precedence_associativity_postfix_prefix_and_grouping() {
     let language = expression();
     let ast = parse(&language, "a + b * c").ast.unwrap();
     assert_eq!(ast.kind, "E::Sum");
+    assert_eq!(
+        ast.fields.keys().map(String::as_str).collect::<Vec<_>>(),
+        vec!["left", "operator", "right"]
+    );
     assert_eq!(node(&ast.fields["right"]).kind, "E::Product");
+    assert_eq!(
+        node(&ast.fields["right"])
+            .fields
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        vec!["left", "operator", "right"]
+    );
     let ast = parse(&language, "2 ** 3 ** 2").ast.unwrap();
     assert_eq!(node(&ast.fields["right"]).kind, "E::Power");
     let ast = parse(&language, "a + b + c").ast.unwrap();

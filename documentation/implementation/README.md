@@ -1,7 +1,7 @@
 # Syntax-v0 implementation status
 
 Issue #5 is **incomplete**, with explicit [PARKED design questions](./PARKED.md).
-MiniJS has not passed the compile/reload/parse definition of done. The generic layers
+MiniJS passes the compile/reload/parse flow. Required general constraints and metadata remain parked. The generic layers
 below work independently and are covered by tests through the public API.
 
 ## Architecture
@@ -61,7 +61,7 @@ not a promised long-term binary/serialization compatibility contract.
 
 `stdlib/parser.yl` is embedded as ordinary YL for `std/parser`; `boundedBy` uses
 explicit imports of `core/parser` lookaround. `separatedBy` is shipped as the
-documented ordinary YL pipe, but expansion is parked. The compiler/runtime has no
+documented ordinary YL pipe, expanded through the same generic resolution/lowering path. The compiler/runtime has no
 checks for MiniJS node names, keywords or grammar files and no hard-coded list helper.
 
 ## Acceptance status
@@ -71,18 +71,18 @@ checks for MiniJS node names, keywords or grammar files and no hard-coded list h
 | 1–6 frontend, modules, nodes/membership | Implemented; spanned parser, graph/visibility diagnostics, alias and cycle tests |
 | 7 grammar values / parameterized patterns | Implemented, including type-preserving pipe projections; P2 resolved by user |
 | 8 grammar operator precedence | Implemented; choice/sequence/capture/postfix/pipe/grouping/chaining tests |
-| 9 structural rewrites | Implemented for documented structural arms; application/grouping case PARKED P1 |
+| 9 structural rewrites | Implemented for documented structural arms; application/grouping resolved from declaration categories |
 | 10 enums/arguments | Implemented for unambiguous expected types; multiple-enum case dispatch PARKED P4 |
-| 11 separatedBy | Ordinary YL source supplied; acceptance PARKED P1 |
+| 11 separatedBy | Implemented in ordinary YL; all six modes and flat values tested |
 | 12 recursive precedence | Implemented; product/sum, power, member/call, unary, grouping, nonassoc tests |
 | 13–15 trivia/core/std/entry | Implemented; ordinary trivia, explicit core imports, boundedBy and entry checks |
 | 16 constraints | Documented between/matches and reusable constraints implemented; general boolean/string syntax PARKED P3 |
 | 17 extensions | Additive constraints implemented, grammar changes rejected; metadata PARKED P5 |
 | 18 normalized artifact | Implemented; deterministic roundtrip and corrupt-artifact validation tests |
-| 19 MiniJS | Full YL AST snapshot + source fixtures; compilation/source acceptance PARKED P1 |
-| 20 tests | Unit/integration/CLI/negative/robustness and goldens present; MiniJS target AST/parse diagnostics PARKED |
+| 19 MiniJS | Frontend/normalized/runtime snapshots, valid and negative fixtures; public API and CLI flow passing |
+| 20 tests | Unit/integration/CLI/negative/robustness and goldens present, including MiniJS AST/diagnostics |
 | 21 quality | Root tests, format and strict Clippy checks run; CI for Linux/Windows added |
-| 22 definition of done | **Not complete**; MiniJS check returns `yl.parked_application` |
+| 22 definition of done | MiniJS flow passes; issue remains incomplete on P3/P5 |
 
 No semantic-layer features, parser generation, JIT, incremental parsing, FFI or LSP
 were added. Conflicting legacy crates were removed.
@@ -126,11 +126,16 @@ explicit: `UPDATE_GOLDENS=1 cargo test --test integration` (PowerShell:
 `$env:UPDATE_GOLDENS='1'`). Review snapshots before committing. Tracked text uses LF
 so source-span snapshots are identical on Linux and Windows.
 
+`yl parse ... --json` emits the AST/diagnostics object on stdout for source parse
+failures, artifact errors and file I/O errors alike. Error exits are nonzero; file
+errors retain their path in the diagnostic's primary span. Other commands report
+their structured errors on stderr.
+
 The requested acceptance command:
 
 ```sh
 yl check documentation/target-syntax/minijs.yl
 ```
 
-currently fails with the recorded parking diagnostic. Do not substitute the
-independent fixture and describe that as passing MiniJS acceptance.
+passes. The full check/compile/parse sequence is covered by integration tests. The
+independent fixture provides additional generic-layer coverage.

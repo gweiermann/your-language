@@ -242,6 +242,14 @@ is equivalent to:
 (A |> first()) |> second()
 ```
 
+Node references and grammar parameters followed by parentheses denote a reference
+followed by grouped grammar, as in `Name ("=" default: Expression)?` and
+`item (separator item)*`. Declaration resolution distinguishes these from calls to
+parameterized patterns. Postfix operators and pipes apply to the group, while a
+capture before the reference captures that reference. Parenthesize the whole
+sequence to capture or transform the larger fragment. Whitespace has no role in
+this distinction.
+
 ## Pipes and structural rewrite
 
 A `pipe` performs a compile-time structural rewrite of a grammar expression.
