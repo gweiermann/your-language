@@ -1,0 +1,1804 @@
+{
+  "declarations": [
+    {
+      "export": false,
+      "kind": {
+        "Import": {
+          "names": [
+            [
+              "separatedBy",
+              "separatedBy"
+            ]
+          ],
+          "path": "std/parser"
+        }
+      },
+      "span": {
+        "file": "documentation/target-syntax/minijs.yl",
+        "start": 0,
+        "end": 40
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Import": {
+          "names": [
+            [
+              "Name",
+              "Name"
+            ],
+            [
+              "keyword",
+              "keyword"
+            ]
+          ],
+          "path": "./lexical"
+        }
+      },
+      "span": {
+        "file": "documentation/target-syntax/minijs.yl",
+        "start": 41,
+        "end": 82
+      }
+    },
+    {
+      "export": true,
+      "kind": {
+        "Node": {
+          "name": "Expression",
+          "trivia": false,
+          "grammar": null,
+          "members": [
+            {
+              "export": false,
+              "kind": {
+                "Node": {
+                  "name": "String",
+                  "trivia": false,
+                  "grammar": {
+                    "kind": {
+                      "Capture": [
+                        "value",
+                        {
+                          "kind": {
+                            "Regex": "\"(?:\\\\.|[^\"])*\""
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 142,
+                            "end": 159
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/minijs.yl",
+                      "start": 135,
+                      "end": 159
+                    }
+                  },
+                  "members": [],
+                  "precedence": [],
+                  "constraints": []
+                }
+              },
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 113,
+                "end": 159
+              }
+            },
+            {
+              "export": false,
+              "kind": {
+                "Node": {
+                  "name": "Number",
+                  "trivia": false,
+                  "grammar": {
+                    "kind": {
+                      "Capture": [
+                        "value",
+                        {
+                          "kind": {
+                            "Regex": "\\d+(?:\\.\\d+)?"
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 194,
+                            "end": 209
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/minijs.yl",
+                      "start": 187,
+                      "end": 209
+                    }
+                  },
+                  "members": [],
+                  "precedence": [],
+                  "constraints": []
+                }
+              },
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 165,
+                "end": 209
+              }
+            },
+            {
+              "export": false,
+              "kind": {
+                "Node": {
+                  "name": "NameExpression",
+                  "trivia": false,
+                  "grammar": {
+                    "kind": {
+                      "Capture": [
+                        "name",
+                        {
+                          "kind": {
+                            "Ref": "Name"
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 251,
+                            "end": 255
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/minijs.yl",
+                      "start": 245,
+                      "end": 255
+                    }
+                  },
+                  "members": [],
+                  "precedence": [],
+                  "constraints": []
+                }
+              },
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 215,
+                "end": 255
+              }
+            },
+            {
+              "export": false,
+              "kind": {
+                "Node": {
+                  "name": "Group",
+                  "trivia": false,
+                  "grammar": {
+                    "kind": {
+                      "Sequence": [
+                        {
+                          "kind": {
+                            "Literal": "("
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 282,
+                            "end": 285
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Capture": [
+                              "value",
+                              {
+                                "kind": {
+                                  "Ref": "Expression"
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 293,
+                                  "end": 303
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 286,
+                            "end": 303
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Literal": ")"
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 304,
+                            "end": 307
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/minijs.yl",
+                      "start": 282,
+                      "end": 307
+                    }
+                  },
+                  "members": [],
+                  "precedence": [],
+                  "constraints": []
+                }
+              },
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 261,
+                "end": 307
+              }
+            },
+            {
+              "export": false,
+              "kind": {
+                "Node": {
+                  "name": "Member",
+                  "trivia": false,
+                  "grammar": {
+                    "kind": {
+                      "Sequence": [
+                        {
+                          "kind": {
+                            "Capture": [
+                              "object",
+                              {
+                                "kind": {
+                                  "Ref": "Expression"
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 343,
+                                  "end": 353
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 335,
+                            "end": 353
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Literal": "."
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 362,
+                            "end": 365
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Capture": [
+                              "property",
+                              {
+                                "kind": {
+                                  "Ref": "Name"
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 384,
+                                  "end": 388
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 374,
+                            "end": 388
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/minijs.yl",
+                      "start": 335,
+                      "end": 388
+                    }
+                  },
+                  "members": [],
+                  "precedence": [],
+                  "constraints": []
+                }
+              },
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 313,
+                "end": 388
+              }
+            },
+            {
+              "export": false,
+              "kind": {
+                "Node": {
+                  "name": "Call",
+                  "trivia": false,
+                  "grammar": {
+                    "kind": {
+                      "Sequence": [
+                        {
+                          "kind": {
+                            "Capture": [
+                              "callee",
+                              {
+                                "kind": {
+                                  "Ref": "Expression"
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 422,
+                                  "end": 432
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 414,
+                            "end": 432
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Literal": "("
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 441,
+                            "end": 444
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Capture": [
+                              "arguments",
+                              {
+                                "kind": {
+                                  "Pipe": [
+                                    {
+                                      "kind": {
+                                        "Repeat": [
+                                          {
+                                            "kind": {
+                                              "Ref": "Expression"
+                                            },
+                                            "span": {
+                                              "file": "documentation/target-syntax/minijs.yl",
+                                              "start": 464,
+                                              "end": 474
+                                            }
+                                          },
+                                          "Star"
+                                        ]
+                                      },
+                                      "span": {
+                                        "file": "documentation/target-syntax/minijs.yl",
+                                        "start": 464,
+                                        "end": 475
+                                      }
+                                    },
+                                    "separatedBy",
+                                    [
+                                      {
+                                        "name": null,
+                                        "value": {
+                                          "kind": {
+                                            "Literal": ","
+                                          },
+                                          "span": {
+                                            "file": "documentation/target-syntax/minijs.yl",
+                                            "start": 503,
+                                            "end": 506
+                                          }
+                                        },
+                                        "span": {
+                                          "file": "documentation/target-syntax/minijs.yl",
+                                          "start": 503,
+                                          "end": 506
+                                        }
+                                      },
+                                      {
+                                        "name": "trailing",
+                                        "value": {
+                                          "kind": {
+                                            "Variant": "optional"
+                                          },
+                                          "span": {
+                                            "file": "documentation/target-syntax/minijs.yl",
+                                            "start": 517,
+                                            "end": 526
+                                          }
+                                        },
+                                        "span": {
+                                          "file": "documentation/target-syntax/minijs.yl",
+                                          "start": 508,
+                                          "end": 526
+                                        }
+                                      }
+                                    ]
+                                  ]
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 464,
+                                  "end": 527
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 453,
+                            "end": 527
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Literal": ")"
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 536,
+                            "end": 539
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/minijs.yl",
+                      "start": 414,
+                      "end": 539
+                    }
+                  },
+                  "members": [],
+                  "precedence": [],
+                  "constraints": []
+                }
+              },
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 394,
+                "end": 539
+              }
+            },
+            {
+              "export": false,
+              "kind": {
+                "Node": {
+                  "name": "Unary",
+                  "trivia": false,
+                  "grammar": {
+                    "kind": {
+                      "Sequence": [
+                        {
+                          "kind": {
+                            "Capture": [
+                              "operator",
+                              {
+                                "kind": {
+                                  "Choice": [
+                                    {
+                                      "kind": {
+                                        "Literal": "+"
+                                      },
+                                      "span": {
+                                        "file": "documentation/target-syntax/minijs.yl",
+                                        "start": 577,
+                                        "end": 580
+                                      }
+                                    },
+                                    {
+                                      "kind": {
+                                        "Literal": "-"
+                                      },
+                                      "span": {
+                                        "file": "documentation/target-syntax/minijs.yl",
+                                        "start": 583,
+                                        "end": 586
+                                      }
+                                    },
+                                    {
+                                      "kind": {
+                                        "Literal": "!"
+                                      },
+                                      "span": {
+                                        "file": "documentation/target-syntax/minijs.yl",
+                                        "start": 589,
+                                        "end": 592
+                                      }
+                                    }
+                                  ]
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 576,
+                                  "end": 593
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 566,
+                            "end": 593
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Capture": [
+                              "argument",
+                              {
+                                "kind": {
+                                  "Ref": "Expression"
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 612,
+                                  "end": 622
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 602,
+                            "end": 622
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/minijs.yl",
+                      "start": 566,
+                      "end": 622
+                    }
+                  },
+                  "members": [],
+                  "precedence": [],
+                  "constraints": []
+                }
+              },
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 545,
+                "end": 622
+              }
+            },
+            {
+              "export": false,
+              "kind": {
+                "Node": {
+                  "name": "Power",
+                  "trivia": false,
+                  "grammar": {
+                    "kind": {
+                      "Sequence": [
+                        {
+                          "kind": {
+                            "Capture": [
+                              "left",
+                              {
+                                "kind": {
+                                  "Ref": "Expression"
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 655,
+                                  "end": 665
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 649,
+                            "end": 665
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Capture": [
+                              "operator",
+                              {
+                                "kind": {
+                                  "Literal": "**"
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 684,
+                                  "end": 688
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 674,
+                            "end": 688
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Capture": [
+                              "right",
+                              {
+                                "kind": {
+                                  "Ref": "Expression"
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 704,
+                                  "end": 714
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 697,
+                            "end": 714
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/minijs.yl",
+                      "start": 649,
+                      "end": 714
+                    }
+                  },
+                  "members": [],
+                  "precedence": [],
+                  "constraints": []
+                }
+              },
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 628,
+                "end": 714
+              }
+            },
+            {
+              "export": false,
+              "kind": {
+                "Node": {
+                  "name": "Product",
+                  "trivia": false,
+                  "grammar": {
+                    "kind": {
+                      "Sequence": [
+                        {
+                          "kind": {
+                            "Capture": [
+                              "left",
+                              {
+                                "kind": {
+                                  "Ref": "Expression"
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 749,
+                                  "end": 759
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 743,
+                            "end": 759
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Capture": [
+                              "operator",
+                              {
+                                "kind": {
+                                  "Choice": [
+                                    {
+                                      "kind": {
+                                        "Literal": "*"
+                                      },
+                                      "span": {
+                                        "file": "documentation/target-syntax/minijs.yl",
+                                        "start": 779,
+                                        "end": 782
+                                      }
+                                    },
+                                    {
+                                      "kind": {
+                                        "Literal": "/"
+                                      },
+                                      "span": {
+                                        "file": "documentation/target-syntax/minijs.yl",
+                                        "start": 785,
+                                        "end": 788
+                                      }
+                                    },
+                                    {
+                                      "kind": {
+                                        "Literal": "%"
+                                      },
+                                      "span": {
+                                        "file": "documentation/target-syntax/minijs.yl",
+                                        "start": 791,
+                                        "end": 794
+                                      }
+                                    }
+                                  ]
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 778,
+                                  "end": 795
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 768,
+                            "end": 795
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Capture": [
+                              "right",
+                              {
+                                "kind": {
+                                  "Ref": "Expression"
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 811,
+                                  "end": 821
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 804,
+                            "end": 821
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/minijs.yl",
+                      "start": 743,
+                      "end": 821
+                    }
+                  },
+                  "members": [],
+                  "precedence": [],
+                  "constraints": []
+                }
+              },
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 720,
+                "end": 821
+              }
+            },
+            {
+              "export": false,
+              "kind": {
+                "Node": {
+                  "name": "Sum",
+                  "trivia": false,
+                  "grammar": {
+                    "kind": {
+                      "Sequence": [
+                        {
+                          "kind": {
+                            "Capture": [
+                              "left",
+                              {
+                                "kind": {
+                                  "Ref": "Expression"
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 852,
+                                  "end": 862
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 846,
+                            "end": 862
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Capture": [
+                              "operator",
+                              {
+                                "kind": {
+                                  "Choice": [
+                                    {
+                                      "kind": {
+                                        "Literal": "+"
+                                      },
+                                      "span": {
+                                        "file": "documentation/target-syntax/minijs.yl",
+                                        "start": 882,
+                                        "end": 885
+                                      }
+                                    },
+                                    {
+                                      "kind": {
+                                        "Literal": "-"
+                                      },
+                                      "span": {
+                                        "file": "documentation/target-syntax/minijs.yl",
+                                        "start": 888,
+                                        "end": 891
+                                      }
+                                    }
+                                  ]
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 881,
+                                  "end": 892
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 871,
+                            "end": 892
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Capture": [
+                              "right",
+                              {
+                                "kind": {
+                                  "Ref": "Expression"
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 908,
+                                  "end": 918
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 901,
+                            "end": 918
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/minijs.yl",
+                      "start": 846,
+                      "end": 918
+                    }
+                  },
+                  "members": [],
+                  "precedence": [],
+                  "constraints": []
+                }
+              },
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 827,
+                "end": 918
+              }
+            }
+          ],
+          "precedence": [
+            {
+              "members": [
+                "Member",
+                "Call"
+              ],
+              "associativity": "Left",
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 945,
+                "end": 957
+              }
+            },
+            {
+              "members": [
+                "Unary"
+              ],
+              "associativity": "Left",
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 968,
+                "end": 973
+              }
+            },
+            {
+              "members": [
+                "Power"
+              ],
+              "associativity": "Right",
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 984,
+                "end": 995
+              }
+            },
+            {
+              "members": [
+                "Product"
+              ],
+              "associativity": "Left",
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 1006,
+                "end": 1013
+              }
+            },
+            {
+              "members": [
+                "Sum"
+              ],
+              "associativity": "Left",
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 1024,
+                "end": 1027
+              }
+            }
+          ],
+          "constraints": []
+        }
+      },
+      "span": {
+        "file": "documentation/target-syntax/minijs.yl",
+        "start": 84,
+        "end": 1035
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Node": {
+          "name": "Parameter",
+          "trivia": false,
+          "grammar": {
+            "kind": {
+              "Capture": [
+                "name",
+                {
+                  "kind": {
+                    "Repeat": [
+                      {
+                        "kind": {
+                          "Call": [
+                            "Name",
+                            [
+                              {
+                                "name": null,
+                                "value": {
+                                  "kind": {
+                                    "Sequence": [
+                                      {
+                                        "kind": {
+                                          "Literal": "="
+                                        },
+                                        "span": {
+                                          "file": "documentation/target-syntax/minijs.yl",
+                                          "start": 1074,
+                                          "end": 1077
+                                        }
+                                      },
+                                      {
+                                        "kind": {
+                                          "Capture": [
+                                            "default",
+                                            {
+                                              "kind": {
+                                                "Ref": "Expression"
+                                              },
+                                              "span": {
+                                                "file": "documentation/target-syntax/minijs.yl",
+                                                "start": 1087,
+                                                "end": 1097
+                                              }
+                                            }
+                                          ]
+                                        },
+                                        "span": {
+                                          "file": "documentation/target-syntax/minijs.yl",
+                                          "start": 1078,
+                                          "end": 1097
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "span": {
+                                    "file": "documentation/target-syntax/minijs.yl",
+                                    "start": 1074,
+                                    "end": 1097
+                                  }
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 1074,
+                                  "end": 1097
+                                }
+                              }
+                            ]
+                          ]
+                        },
+                        "span": {
+                          "file": "documentation/target-syntax/minijs.yl",
+                          "start": 1064,
+                          "end": 1098
+                        }
+                      },
+                      "Optional"
+                    ]
+                  },
+                  "span": {
+                    "file": "documentation/target-syntax/minijs.yl",
+                    "start": 1064,
+                    "end": 1099
+                  }
+                }
+              ]
+            },
+            "span": {
+              "file": "documentation/target-syntax/minijs.yl",
+              "start": 1058,
+              "end": 1099
+            }
+          },
+          "members": [],
+          "precedence": [],
+          "constraints": []
+        }
+      },
+      "span": {
+        "file": "documentation/target-syntax/minijs.yl",
+        "start": 1037,
+        "end": 1099
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Pattern": {
+          "name": "Parameters",
+          "parameters": [],
+          "grammar": {
+            "kind": {
+              "Pipe": [
+                {
+                  "kind": {
+                    "Repeat": [
+                      {
+                        "kind": {
+                          "Ref": "Parameter"
+                        },
+                        "span": {
+                          "file": "documentation/target-syntax/minijs.yl",
+                          "start": 1126,
+                          "end": 1135
+                        }
+                      },
+                      "Star"
+                    ]
+                  },
+                  "span": {
+                    "file": "documentation/target-syntax/minijs.yl",
+                    "start": 1126,
+                    "end": 1136
+                  }
+                },
+                "separatedBy",
+                [
+                  {
+                    "name": null,
+                    "value": {
+                      "kind": {
+                        "Literal": ","
+                      },
+                      "span": {
+                        "file": "documentation/target-syntax/minijs.yl",
+                        "start": 1156,
+                        "end": 1159
+                      }
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/minijs.yl",
+                      "start": 1156,
+                      "end": 1159
+                    }
+                  },
+                  {
+                    "name": "trailing",
+                    "value": {
+                      "kind": {
+                        "Variant": "optional"
+                      },
+                      "span": {
+                        "file": "documentation/target-syntax/minijs.yl",
+                        "start": 1170,
+                        "end": 1179
+                      }
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/minijs.yl",
+                      "start": 1161,
+                      "end": 1179
+                    }
+                  }
+                ]
+              ]
+            },
+            "span": {
+              "file": "documentation/target-syntax/minijs.yl",
+              "start": 1126,
+              "end": 1180
+            }
+          }
+        }
+      },
+      "span": {
+        "file": "documentation/target-syntax/minijs.yl",
+        "start": 1101,
+        "end": 1180
+      }
+    },
+    {
+      "export": true,
+      "kind": {
+        "Node": {
+          "name": "Statement",
+          "trivia": false,
+          "grammar": null,
+          "members": [
+            {
+              "export": false,
+              "kind": {
+                "Node": {
+                  "name": "VariableDeclaration",
+                  "trivia": false,
+                  "grammar": {
+                    "kind": {
+                      "Sequence": [
+                        {
+                          "kind": {
+                            "Capture": [
+                              "kind",
+                              {
+                                "kind": {
+                                  "Choice": [
+                                    {
+                                      "kind": {
+                                        "Call": [
+                                          "keyword",
+                                          [
+                                            {
+                                              "name": null,
+                                              "value": {
+                                                "kind": {
+                                                  "Literal": "let"
+                                                },
+                                                "span": {
+                                                  "file": "documentation/target-syntax/minijs.yl",
+                                                  "start": 1260,
+                                                  "end": 1265
+                                                }
+                                              },
+                                              "span": {
+                                                "file": "documentation/target-syntax/minijs.yl",
+                                                "start": 1260,
+                                                "end": 1265
+                                              }
+                                            }
+                                          ]
+                                        ]
+                                      },
+                                      "span": {
+                                        "file": "documentation/target-syntax/minijs.yl",
+                                        "start": 1252,
+                                        "end": 1266
+                                      }
+                                    },
+                                    {
+                                      "kind": {
+                                        "Call": [
+                                          "keyword",
+                                          [
+                                            {
+                                              "name": null,
+                                              "value": {
+                                                "kind": {
+                                                  "Literal": "const"
+                                                },
+                                                "span": {
+                                                  "file": "documentation/target-syntax/minijs.yl",
+                                                  "start": 1277,
+                                                  "end": 1284
+                                                }
+                                              },
+                                              "span": {
+                                                "file": "documentation/target-syntax/minijs.yl",
+                                                "start": 1277,
+                                                "end": 1284
+                                              }
+                                            }
+                                          ]
+                                        ]
+                                      },
+                                      "span": {
+                                        "file": "documentation/target-syntax/minijs.yl",
+                                        "start": 1269,
+                                        "end": 1285
+                                      }
+                                    }
+                                  ]
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 1251,
+                                  "end": 1286
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 1245,
+                            "end": 1286
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Capture": [
+                              "name",
+                              {
+                                "kind": {
+                                  "Repeat": [
+                                    {
+                                      "kind": {
+                                        "Call": [
+                                          "Name",
+                                          [
+                                            {
+                                              "name": null,
+                                              "value": {
+                                                "kind": {
+                                                  "Sequence": [
+                                                    {
+                                                      "kind": {
+                                                        "Literal": "="
+                                                      },
+                                                      "span": {
+                                                        "file": "documentation/target-syntax/minijs.yl",
+                                                        "start": 1315,
+                                                        "end": 1318
+                                                      }
+                                                    },
+                                                    {
+                                                      "kind": {
+                                                        "Capture": [
+                                                          "initializer",
+                                                          {
+                                                            "kind": {
+                                                              "Ref": "Expression"
+                                                            },
+                                                            "span": {
+                                                              "file": "documentation/target-syntax/minijs.yl",
+                                                              "start": 1332,
+                                                              "end": 1342
+                                                            }
+                                                          }
+                                                        ]
+                                                      },
+                                                      "span": {
+                                                        "file": "documentation/target-syntax/minijs.yl",
+                                                        "start": 1319,
+                                                        "end": 1342
+                                                      }
+                                                    }
+                                                  ]
+                                                },
+                                                "span": {
+                                                  "file": "documentation/target-syntax/minijs.yl",
+                                                  "start": 1315,
+                                                  "end": 1342
+                                                }
+                                              },
+                                              "span": {
+                                                "file": "documentation/target-syntax/minijs.yl",
+                                                "start": 1315,
+                                                "end": 1342
+                                              }
+                                            }
+                                          ]
+                                        ]
+                                      },
+                                      "span": {
+                                        "file": "documentation/target-syntax/minijs.yl",
+                                        "start": 1301,
+                                        "end": 1343
+                                      }
+                                    },
+                                    "Optional"
+                                  ]
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 1301,
+                                  "end": 1344
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 1295,
+                            "end": 1344
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/minijs.yl",
+                      "start": 1245,
+                      "end": 1344
+                    }
+                  },
+                  "members": [],
+                  "precedence": [],
+                  "constraints": []
+                }
+              },
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 1210,
+                "end": 1344
+              }
+            },
+            {
+              "export": false,
+              "kind": {
+                "Node": {
+                  "name": "ReturnStatement",
+                  "trivia": false,
+                  "grammar": {
+                    "kind": {
+                      "Sequence": [
+                        {
+                          "kind": {
+                            "Call": [
+                              "keyword",
+                              [
+                                {
+                                  "name": null,
+                                  "value": {
+                                    "kind": {
+                                      "Literal": "return"
+                                    },
+                                    "span": {
+                                      "file": "documentation/target-syntax/minijs.yl",
+                                      "start": 1389,
+                                      "end": 1397
+                                    }
+                                  },
+                                  "span": {
+                                    "file": "documentation/target-syntax/minijs.yl",
+                                    "start": 1389,
+                                    "end": 1397
+                                  }
+                                }
+                              ]
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 1381,
+                            "end": 1398
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Capture": [
+                              "value",
+                              {
+                                "kind": {
+                                  "Repeat": [
+                                    {
+                                      "kind": {
+                                        "Ref": "Expression"
+                                      },
+                                      "span": {
+                                        "file": "documentation/target-syntax/minijs.yl",
+                                        "start": 1414,
+                                        "end": 1424
+                                      }
+                                    },
+                                    "Optional"
+                                  ]
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 1414,
+                                  "end": 1425
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 1407,
+                            "end": 1425
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/minijs.yl",
+                      "start": 1381,
+                      "end": 1425
+                    }
+                  },
+                  "members": [],
+                  "precedence": [],
+                  "constraints": []
+                }
+              },
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 1350,
+                "end": 1425
+              }
+            },
+            {
+              "export": false,
+              "kind": {
+                "Node": {
+                  "name": "FunctionDeclaration",
+                  "trivia": false,
+                  "grammar": {
+                    "kind": {
+                      "Sequence": [
+                        {
+                          "kind": {
+                            "Call": [
+                              "keyword",
+                              [
+                                {
+                                  "name": null,
+                                  "value": {
+                                    "kind": {
+                                      "Literal": "function"
+                                    },
+                                    "span": {
+                                      "file": "documentation/target-syntax/minijs.yl",
+                                      "start": 1474,
+                                      "end": 1484
+                                    }
+                                  },
+                                  "span": {
+                                    "file": "documentation/target-syntax/minijs.yl",
+                                    "start": 1474,
+                                    "end": 1484
+                                  }
+                                }
+                              ]
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 1466,
+                            "end": 1485
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Capture": [
+                              "name",
+                              {
+                                "kind": {
+                                  "Ref": "Name"
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 1500,
+                                  "end": 1504
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 1494,
+                            "end": 1504
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Literal": "("
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 1513,
+                            "end": 1516
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Capture": [
+                              "parameters",
+                              {
+                                "kind": {
+                                  "Ref": "Parameters"
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 1529,
+                                  "end": 1539
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 1517,
+                            "end": 1539
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Literal": ")"
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 1540,
+                            "end": 1543
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Capture": [
+                              "body",
+                              {
+                                "kind": {
+                                  "Ref": "Block"
+                                },
+                                "span": {
+                                  "file": "documentation/target-syntax/minijs.yl",
+                                  "start": 1558,
+                                  "end": 1563
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "documentation/target-syntax/minijs.yl",
+                            "start": 1552,
+                            "end": 1563
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/minijs.yl",
+                      "start": 1466,
+                      "end": 1563
+                    }
+                  },
+                  "members": [],
+                  "precedence": [],
+                  "constraints": []
+                }
+              },
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 1431,
+                "end": 1563
+              }
+            },
+            {
+              "export": false,
+              "kind": {
+                "Node": {
+                  "name": "Expression",
+                  "trivia": false,
+                  "grammar": null,
+                  "members": [],
+                  "precedence": [],
+                  "constraints": []
+                }
+              },
+              "span": {
+                "file": "documentation/target-syntax/minijs.yl",
+                "start": 1569,
+                "end": 1584
+              }
+            }
+          ],
+          "precedence": [],
+          "constraints": []
+        }
+      },
+      "span": {
+        "file": "documentation/target-syntax/minijs.yl",
+        "start": 1182,
+        "end": 1586
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Node": {
+          "name": "Block",
+          "trivia": false,
+          "grammar": {
+            "kind": {
+              "Sequence": [
+                {
+                  "kind": {
+                    "Literal": "{"
+                  },
+                  "span": {
+                    "file": "documentation/target-syntax/minijs.yl",
+                    "start": 1605,
+                    "end": 1608
+                  }
+                },
+                {
+                  "kind": {
+                    "Capture": [
+                      "statements",
+                      {
+                        "kind": {
+                          "Repeat": [
+                            {
+                              "kind": {
+                                "Ref": "Statement"
+                              },
+                              "span": {
+                                "file": "documentation/target-syntax/minijs.yl",
+                                "start": 1625,
+                                "end": 1634
+                              }
+                            },
+                            "Star"
+                          ]
+                        },
+                        "span": {
+                          "file": "documentation/target-syntax/minijs.yl",
+                          "start": 1625,
+                          "end": 1635
+                        }
+                      }
+                    ]
+                  },
+                  "span": {
+                    "file": "documentation/target-syntax/minijs.yl",
+                    "start": 1613,
+                    "end": 1635
+                  }
+                },
+                {
+                  "kind": {
+                    "Literal": "}"
+                  },
+                  "span": {
+                    "file": "documentation/target-syntax/minijs.yl",
+                    "start": 1640,
+                    "end": 1643
+                  }
+                }
+              ]
+            },
+            "span": {
+              "file": "documentation/target-syntax/minijs.yl",
+              "start": 1605,
+              "end": 1643
+            }
+          },
+          "members": [],
+          "precedence": [],
+          "constraints": []
+        }
+      },
+      "span": {
+        "file": "documentation/target-syntax/minijs.yl",
+        "start": 1588,
+        "end": 1643
+      }
+    },
+    {
+      "export": true,
+      "kind": {
+        "Node": {
+          "name": "Program",
+          "trivia": false,
+          "grammar": {
+            "kind": {
+              "Capture": [
+                "statements",
+                {
+                  "kind": {
+                    "Repeat": [
+                      {
+                        "kind": {
+                          "Ref": "Statement"
+                        },
+                        "span": {
+                          "file": "documentation/target-syntax/minijs.yl",
+                          "start": 1683,
+                          "end": 1692
+                        }
+                      },
+                      "Star"
+                    ]
+                  },
+                  "span": {
+                    "file": "documentation/target-syntax/minijs.yl",
+                    "start": 1683,
+                    "end": 1693
+                  }
+                }
+              ]
+            },
+            "span": {
+              "file": "documentation/target-syntax/minijs.yl",
+              "start": 1671,
+              "end": 1693
+            }
+          },
+          "members": [],
+          "precedence": [],
+          "constraints": []
+        }
+      },
+      "span": {
+        "file": "documentation/target-syntax/minijs.yl",
+        "start": 1645,
+        "end": 1693
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Entry": "Program"
+      },
+      "span": {
+        "file": "documentation/target-syntax/minijs.yl",
+        "start": 1695,
+        "end": 1708
+      }
+    }
+  ],
+  "span": {
+    "file": "documentation/target-syntax/minijs.yl",
+    "start": 0,
+    "end": 1709
+  }
+}

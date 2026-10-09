@@ -893,7 +893,7 @@ impl Compiler {
                     else {
                         return Err(Diagnostic::error(
                             "yl.invalid_argument",
-                            "Expected parameterized pattern",
+                            "Expected parameterized pattern (reference followed by grouping is PARKED; see documentation/implementation/PARKED.md)",
                             expr.span.clone(),
                         ));
                     };
@@ -1351,7 +1351,6 @@ impl Compiler {
     }
     fn condition(&self, module: &str, scope: &str, expr: &Expr) -> Result<Condition> {
         match &expr.kind {
-            ExprKind::Ref(name) if name=="true"=>Ok(Condition::Always),
             ExprKind::Call(name,arguments) if name.ends_with(".between")=>{
                 let [a,b]=arguments.as_slice() else { return Err(Diagnostic::error("yl.invalid_argument","between requires two captures",expr.span.clone())); };
                 let (ExprKind::Ref(left),ExprKind::Ref(right))=(&a.value.kind,&b.value.kind) else { return Err(Diagnostic::error("yl.invalid_constraint","between requires capture references",expr.span.clone())); };

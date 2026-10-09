@@ -1,0 +1,14 @@
+[
+  {
+    "severity": "error",
+    "code": "yl.parked_application",
+    "message": "PARKED: a grammar parameter followed by parentheses is ambiguous between application and sequence; see documentation/implementation/PARKED.md",
+    "primary": {
+      "file": "std/parser",
+      "start": 365,
+      "end": 386
+    },
+    "secondary": [],
+    "help": null
+  }
+]

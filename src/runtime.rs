@@ -207,8 +207,18 @@ impl Runtime<'_> {
                         if start >= end {
                             false
                         } else if let Some(id) = trivia {
-                            self.rule(id, start, true, 0)
-                                .is_some_and(|m| m.end <= end && m.end > start)
+                            let mut found = false;
+                            for offset in (start..end).filter(|p| self.source.is_char_boundary(*p))
+                            {
+                                if self
+                                    .rule(id, offset, true, 0)
+                                    .is_some_and(|m| m.end <= end && m.end > offset)
+                                {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            found
                         } else {
                             self.skip(start) > start
                         }

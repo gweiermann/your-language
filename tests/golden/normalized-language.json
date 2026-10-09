@@ -1,0 +1,450 @@
+{
+  "version": 1,
+  "entry": "language.yl#Program",
+  "rules": {
+    "language.yl#Declaration": {
+      "name": "Declaration",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Sequence": [
+            {
+              "Sequence": [
+                {
+                  "NotBehind": {
+                    "Regex": "[_a-zA-Z0-9]"
+                  }
+                },
+                {
+                  "Literal": "let"
+                },
+                {
+                  "NotAhead": {
+                    "Regex": "[_a-zA-Z0-9]"
+                  }
+                }
+              ]
+            },
+            {
+              "Capture": [
+                "name",
+                {
+                  "Ref": "lexical.yl#Name"
+                }
+              ]
+            },
+            {
+              "Literal": "="
+            },
+            {
+              "Capture": [
+                "initializer",
+                {
+                  "Ref": "language.yl#Expression"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 546,
+        "end": 618
+      }
+    },
+    "language.yl#Expression": {
+      "name": "Expression",
+      "trivia": false,
+      "body": {
+        "Abstract": {
+          "bases": [
+            "language.yl#Expression::Number",
+            "language.yl#Expression::NameExpression",
+            "language.yl#Expression::Group"
+          ],
+          "operators": [
+            {
+              "rule": "language.yl#Expression::Member",
+              "binding_power": 5,
+              "associativity": "Left",
+              "left": true,
+              "right": false
+            },
+            {
+              "rule": "language.yl#Expression::Unary",
+              "binding_power": 4,
+              "associativity": "Left",
+              "left": false,
+              "right": true
+            },
+            {
+              "rule": "language.yl#Expression::Power",
+              "binding_power": 3,
+              "associativity": "Right",
+              "left": true,
+              "right": true
+            },
+            {
+              "rule": "language.yl#Expression::Product",
+              "binding_power": 2,
+              "associativity": "Left",
+              "left": true,
+              "right": true
+            },
+            {
+              "rule": "language.yl#Expression::Sum",
+              "binding_power": 1,
+              "associativity": "Left",
+              "left": true,
+              "right": true
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 43,
+        "end": 544
+      }
+    },
+    "language.yl#Expression::Group": {
+      "name": "Expression::Group",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Sequence": [
+            {
+              "Literal": "("
+            },
+            {
+              "Capture": [
+                "value",
+                {
+                  "Ref": "language.yl#Expression"
+                }
+              ]
+            },
+            {
+              "Literal": ")"
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 133,
+        "end": 171
+      }
+    },
+    "language.yl#Expression::Member": {
+      "name": "Expression::Member",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Sequence": [
+            {
+              "Capture": [
+                "object",
+                {
+                  "Ref": "language.yl#Expression"
+                }
+              ]
+            },
+            {
+              "Literal": "."
+            },
+            {
+              "Capture": [
+                "property",
+                {
+                  "Ref": "lexical.yl#Name"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 176,
+        "end": 227
+      }
+    },
+    "language.yl#Expression::NameExpression": {
+      "name": "Expression::NameExpression",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Capture": [
+            "name",
+            {
+              "Ref": "lexical.yl#Name"
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 96,
+        "end": 128
+      }
+    },
+    "language.yl#Expression::Number": {
+      "name": "Expression::Number",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Capture": [
+            "value",
+            {
+              "Regex": "\\d+"
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 65,
+        "end": 91
+      }
+    },
+    "language.yl#Expression::Power": {
+      "name": "Expression::Power",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Sequence": [
+            {
+              "Capture": [
+                "left",
+                {
+                  "Ref": "language.yl#Expression"
+                }
+              ]
+            },
+            {
+              "Capture": [
+                "operator",
+                {
+                  "Literal": "**"
+                }
+              ]
+            },
+            {
+              "Capture": [
+                "right",
+                {
+                  "Ref": "language.yl#Expression"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 284,
+        "end": 346
+      }
+    },
+    "language.yl#Expression::Product": {
+      "name": "Expression::Product",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Sequence": [
+            {
+              "Capture": [
+                "left",
+                {
+                  "Ref": "language.yl#Expression"
+                }
+              ]
+            },
+            {
+              "Capture": [
+                "operator",
+                {
+                  "Literal": "*"
+                }
+              ]
+            },
+            {
+              "Capture": [
+                "right",
+                {
+                  "Ref": "language.yl#Expression"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 351,
+        "end": 414
+      }
+    },
+    "language.yl#Expression::Sum": {
+      "name": "Expression::Sum",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Sequence": [
+            {
+              "Capture": [
+                "left",
+                {
+                  "Ref": "language.yl#Expression"
+                }
+              ]
+            },
+            {
+              "Capture": [
+                "operator",
+                {
+                  "Literal": "+"
+                }
+              ]
+            },
+            {
+              "Capture": [
+                "right",
+                {
+                  "Ref": "language.yl#Expression"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 419,
+        "end": 478
+      }
+    },
+    "language.yl#Expression::Unary": {
+      "name": "Expression::Unary",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Sequence": [
+            {
+              "Capture": [
+                "operator",
+                {
+                  "Literal": "!"
+                }
+              ]
+            },
+            {
+              "Capture": [
+                "argument",
+                {
+                  "Ref": "language.yl#Expression"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 232,
+        "end": 279
+      }
+    },
+    "language.yl#Program": {
+      "name": "Program",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Capture": [
+            "declarations",
+            {
+              "Repeat": [
+                {
+                  "Ref": "language.yl#Declaration"
+                },
+                "Star"
+              ]
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 619,
+        "end": 660
+      }
+    },
+    "lexical.yl#Comment": {
+      "name": "Comment",
+      "trivia": true,
+      "body": {
+        "Concrete": {
+          "Regex": "//[^\\n]*"
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "lexical.yl",
+        "start": 72,
+        "end": 101
+      }
+    },
+    "lexical.yl#Name": {
+      "name": "Name",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Capture": [
+            "value",
+            {
+              "Regex": "[_a-zA-Z][_a-zA-Z0-9]*"
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "lexical.yl",
+        "start": 209,
+        "end": 259
+      }
+    },
+    "lexical.yl#Whitespace": {
+      "name": "Whitespace",
+      "trivia": true,
+      "body": {
+        "Concrete": {
+          "Regex": "[ \\t\\r\\n]+"
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "lexical.yl",
+        "start": 39,
+        "end": 71
+      }
+    }
+  },
+  "trivia": [
+    "lexical.yl#Comment",
+    "lexical.yl#Whitespace"
+  ]
+}
