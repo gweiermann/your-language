@@ -143,6 +143,25 @@ struct Runtime<'a> {
     limit: usize,
 }
 impl Runtime<'_> {
+    /// A continuation that can be omitted does not introduce an EOF requirement.
+    /// Keep failures after a consumed prefix: an unfinished operator/iteration
+    /// still needs its operand/item, even when backtracking accepts the prefix.
+    fn continuation(
+        &mut self,
+        position: usize,
+        raw: bool,
+        attempt: impl FnOnce(&mut Self) -> Option<Match>,
+    ) -> Option<Match> {
+        let start = if raw { position } else { self.skip(position) };
+        let saved = (start == self.source.len()).then(|| (self.farthest, self.expected.clone()));
+        let result = attempt(self);
+        if let Some((farthest, expected)) = saved {
+            self.farthest = farthest;
+            self.expected = expected;
+        }
+        result
+    }
+
     fn failure(&mut self, position: usize, expected: &str) {
         if position > self.farthest {
             self.farthest = position;
@@ -422,7 +441,9 @@ impl Runtime<'_> {
                 if nonassoc == Some(op.binding_power) {
                     continue;
                 }
-                if let Some(m) = self.operator(id, op, position, raw, Some(&left)) {
+                if let Some(m) = self.continuation(left.end, raw, |parser| {
+                    parser.operator(id, op, position, raw, Some(&left))
+                }) {
                     if m.end > left.end {
                         next = Some((op, m));
                         break;
@@ -575,7 +596,15 @@ impl Runtime<'_> {
                 let mut values = vec![];
                 let mut depth = 0;
                 let mut count = 0;
-                while let Some(m) = self.term_with(term, result.end, raw, context) {
+                loop {
+                    let attempt = if *q == Quantifier::Plus && count == 0 {
+                        self.term_with(term, result.end, raw, context)
+                    } else {
+                        self.continuation(result.end, raw, |parser| {
+                            parser.term_with(term, result.end, raw, context)
+                        })
+                    };
+                    let Some(m) = attempt else { break };
                     if m.end == result.end {
                         break;
                     }
