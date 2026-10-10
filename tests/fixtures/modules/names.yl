@@ -1,0 +1,2 @@
+import { P } from "./app/entry"
+export node Name = value: /x/

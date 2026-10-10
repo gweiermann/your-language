@@ -1,0 +1,38 @@
+{
+  "ast": {
+    "type": "Program",
+    "fields": {
+      "items": [
+        "x",
+        "x",
+        "x"
+      ],
+      "name": "Alice"
+    },
+    "span": {
+      "file": "decisions.txt",
+      "start": 0,
+      "end": 9
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "parse.constraint",
+      "message": "Capitalized name.",
+      "primary": {
+        "file": "decisions.txt",
+        "start": 0,
+        "end": 9
+      },
+      "secondary": [
+        {
+          "file": "language.yl",
+          "start": 404,
+          "end": 432
+        }
+      ],
+      "help": null
+    }
+  ]
+}

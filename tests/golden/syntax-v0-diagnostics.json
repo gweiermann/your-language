@@ -1,0 +1,17 @@
+{
+  "ast": null,
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "parse.unexpected_token",
+      "message": "Expected \"!\" or \"(\" or /[_a-zA-Z][_a-zA-Z0-9]*/ or /\\d+/",
+      "primary": {
+        "file": "invalid.txt",
+        "start": 12,
+        "end": 13
+      },
+      "secondary": [],
+      "help": null
+    }
+  ]
+}

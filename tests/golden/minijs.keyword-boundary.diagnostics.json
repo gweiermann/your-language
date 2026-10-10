@@ -1,0 +1,17 @@
+{
+  "ast": null,
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "parse.unexpected_token",
+      "message": "Expected \"!\" or \"%\" or \"(\" or \"*\" or \"**\" or \"+\" or \"-\" or \".\" or \"/\" or \"const\" or \"function\" or \"let\" or \"return\" or /\"(?:\\\\.|[^\"])*\"/ or /[_a-zA-Z][_a-zA-Z0-9]*/ or /\\d+(?:\\.\\d+)?/ or end of input",
+      "primary": {
+        "file": "keyword-boundary.js",
+        "start": 5,
+        "end": 6
+      },
+      "secondary": [],
+      "help": null
+    }
+  ]
+}

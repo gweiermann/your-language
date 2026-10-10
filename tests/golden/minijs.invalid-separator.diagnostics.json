@@ -1,0 +1,17 @@
+{
+  "ast": null,
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "parse.unexpected_token",
+      "message": "Expected \"!\" or \"(\" or \")\" or \"+\" or \"-\" or /\"(?:\\\\.|[^\"])*\"/ or /[_a-zA-Z][_a-zA-Z0-9]*/ or /\\d+(?:\\.\\d+)?/",
+      "primary": {
+        "file": "invalid-separator.js",
+        "start": 16,
+        "end": 17
+      },
+      "secondary": [],
+      "help": null
+    }
+  ]
+}

@@ -1,10 +1,18 @@
 [package]
 name = "your-language"
 version = "0.1.0"
-authors = ["Gerrit <gerrit.weiermann@gmx.de>"]
-edition = "2018"
+edition = "2021"
+rust-version = "1.85"
+
+[lib]
+name = "your_language"
+
+[[bin]]
+name = "yl"
+path = "src/main.rs"
 
 [dependencies]
-fsm = { path = "./fsm" }
-serde_json = "1.0"
-logos = "0.12.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+regex = "1"
+regex-syntax = "0.8"

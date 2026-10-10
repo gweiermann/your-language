@@ -1,0 +1,417 @@
+{
+  "ast": {
+    "type": "Program",
+    "fields": {
+      "statements": [
+        {
+          "type": "Statement::VariableDeclaration",
+          "fields": {
+            "initializer": {
+              "type": "Expression::Sum",
+              "fields": {
+                "left": {
+                  "type": "Expression::Number",
+                  "fields": {
+                    "value": "1"
+                  },
+                  "span": {
+                    "file": "program.js",
+                    "start": 8,
+                    "end": 9
+                  }
+                },
+                "operator": "+",
+                "right": {
+                  "type": "Expression::Product",
+                  "fields": {
+                    "left": {
+                      "type": "Expression::Number",
+                      "fields": {
+                        "value": "2"
+                      },
+                      "span": {
+                        "file": "program.js",
+                        "start": 12,
+                        "end": 13
+                      }
+                    },
+                    "operator": "*",
+                    "right": {
+                      "type": "Expression::Number",
+                      "fields": {
+                        "value": "3"
+                      },
+                      "span": {
+                        "file": "program.js",
+                        "start": 16,
+                        "end": 17
+                      }
+                    }
+                  },
+                  "span": {
+                    "file": "program.js",
+                    "start": 12,
+                    "end": 17
+                  }
+                }
+              },
+              "span": {
+                "file": "program.js",
+                "start": 8,
+                "end": 17
+              }
+            },
+            "kind": "let",
+            "name": {
+              "type": "Name",
+              "fields": {
+                "value": "x"
+              },
+              "span": {
+                "file": "program.js",
+                "start": 4,
+                "end": 5
+              }
+            }
+          },
+          "span": {
+            "file": "program.js",
+            "start": 0,
+            "end": 17
+          }
+        },
+        {
+          "type": "Statement::VariableDeclaration",
+          "fields": {
+            "initializer": {
+              "type": "Expression::Call",
+              "fields": {
+                "arguments": [
+                  {
+                    "type": "Expression::NameExpression",
+                    "fields": {
+                      "name": {
+                        "type": "Name",
+                        "fields": {
+                          "value": "x"
+                        },
+                        "span": {
+                          "file": "program.js",
+                          "start": 37,
+                          "end": 38
+                        }
+                      }
+                    },
+                    "span": {
+                      "file": "program.js",
+                      "start": 37,
+                      "end": 38
+                    }
+                  },
+                  {
+                    "type": "Expression::Number",
+                    "fields": {
+                      "value": "4"
+                    },
+                    "span": {
+                      "file": "program.js",
+                      "start": 40,
+                      "end": 41
+                    }
+                  }
+                ],
+                "callee": {
+                  "type": "Expression::Member",
+                  "fields": {
+                    "object": {
+                      "type": "Expression::NameExpression",
+                      "fields": {
+                        "name": {
+                          "type": "Name",
+                          "fields": {
+                            "value": "foo"
+                          },
+                          "span": {
+                            "file": "program.js",
+                            "start": 29,
+                            "end": 32
+                          }
+                        }
+                      },
+                      "span": {
+                        "file": "program.js",
+                        "start": 29,
+                        "end": 32
+                      }
+                    },
+                    "property": {
+                      "type": "Name",
+                      "fields": {
+                        "value": "bar"
+                      },
+                      "span": {
+                        "file": "program.js",
+                        "start": 33,
+                        "end": 36
+                      }
+                    }
+                  },
+                  "span": {
+                    "file": "program.js",
+                    "start": 29,
+                    "end": 36
+                  }
+                }
+              },
+              "span": {
+                "file": "program.js",
+                "start": 29,
+                "end": 43
+              }
+            },
+            "kind": "const",
+            "name": {
+              "type": "Name",
+              "fields": {
+                "value": "y"
+              },
+              "span": {
+                "file": "program.js",
+                "start": 25,
+                "end": 26
+              }
+            }
+          },
+          "span": {
+            "file": "program.js",
+            "start": 19,
+            "end": 43
+          }
+        },
+        {
+          "type": "Statement::FunctionDeclaration",
+          "fields": {
+            "body": {
+              "type": "Block",
+              "fields": {
+                "statements": [
+                  {
+                    "type": "Statement::ReturnStatement",
+                    "fields": {
+                      "value": {
+                        "type": "Expression::Sum",
+                        "fields": {
+                          "left": {
+                            "type": "Expression::NameExpression",
+                            "fields": {
+                              "name": {
+                                "type": "Name",
+                                "fields": {
+                                  "value": "a"
+                                },
+                                "span": {
+                                  "file": "program.js",
+                                  "start": 78,
+                                  "end": 79
+                                }
+                              }
+                            },
+                            "span": {
+                              "file": "program.js",
+                              "start": 78,
+                              "end": 79
+                            }
+                          },
+                          "operator": "+",
+                          "right": {
+                            "type": "Expression::NameExpression",
+                            "fields": {
+                              "name": {
+                                "type": "Name",
+                                "fields": {
+                                  "value": "b"
+                                },
+                                "span": {
+                                  "file": "program.js",
+                                  "start": 82,
+                                  "end": 83
+                                }
+                              }
+                            },
+                            "span": {
+                              "file": "program.js",
+                              "start": 82,
+                              "end": 83
+                            }
+                          }
+                        },
+                        "span": {
+                          "file": "program.js",
+                          "start": 78,
+                          "end": 83
+                        }
+                      }
+                    },
+                    "span": {
+                      "file": "program.js",
+                      "start": 71,
+                      "end": 83
+                    }
+                  }
+                ]
+              },
+              "span": {
+                "file": "program.js",
+                "start": 65,
+                "end": 85
+              }
+            },
+            "name": {
+              "type": "Name",
+              "fields": {
+                "value": "add"
+              },
+              "span": {
+                "file": "program.js",
+                "start": 54,
+                "end": 57
+              }
+            },
+            "parameters": [
+              {
+                "type": "Parameter",
+                "fields": {
+                  "name": {
+                    "type": "Name",
+                    "fields": {
+                      "value": "a"
+                    },
+                    "span": {
+                      "file": "program.js",
+                      "start": 58,
+                      "end": 59
+                    }
+                  }
+                },
+                "span": {
+                  "file": "program.js",
+                  "start": 58,
+                  "end": 59
+                }
+              },
+              {
+                "type": "Parameter",
+                "fields": {
+                  "name": {
+                    "type": "Name",
+                    "fields": {
+                      "value": "b"
+                    },
+                    "span": {
+                      "file": "program.js",
+                      "start": 61,
+                      "end": 62
+                    }
+                  }
+                },
+                "span": {
+                  "file": "program.js",
+                  "start": 61,
+                  "end": 62
+                }
+              }
+            ]
+          },
+          "span": {
+            "file": "program.js",
+            "start": 45,
+            "end": 85
+          }
+        },
+        {
+          "type": "Statement::VariableDeclaration",
+          "fields": {
+            "initializer": {
+              "type": "Expression::Power",
+              "fields": {
+                "left": {
+                  "type": "Expression::Number",
+                  "fields": {
+                    "value": "2"
+                  },
+                  "span": {
+                    "file": "program.js",
+                    "start": 95,
+                    "end": 96
+                  }
+                },
+                "operator": "**",
+                "right": {
+                  "type": "Expression::Power",
+                  "fields": {
+                    "left": {
+                      "type": "Expression::Number",
+                      "fields": {
+                        "value": "3"
+                      },
+                      "span": {
+                        "file": "program.js",
+                        "start": 100,
+                        "end": 101
+                      }
+                    },
+                    "operator": "**",
+                    "right": {
+                      "type": "Expression::Number",
+                      "fields": {
+                        "value": "2"
+                      },
+                      "span": {
+                        "file": "program.js",
+                        "start": 105,
+                        "end": 106
+                      }
+                    }
+                  },
+                  "span": {
+                    "file": "program.js",
+                    "start": 100,
+                    "end": 106
+                  }
+                }
+              },
+              "span": {
+                "file": "program.js",
+                "start": 95,
+                "end": 106
+              }
+            },
+            "kind": "let",
+            "name": {
+              "type": "Name",
+              "fields": {
+                "value": "z"
+              },
+              "span": {
+                "file": "program.js",
+                "start": 91,
+                "end": 92
+              }
+            }
+          },
+          "span": {
+            "file": "program.js",
+            "start": 87,
+            "end": 106
+          }
+        }
+      ]
+    },
+    "span": {
+      "file": "program.js",
+      "start": 0,
+      "end": 106
+    }
+  },
+  "diagnostics": []
+}

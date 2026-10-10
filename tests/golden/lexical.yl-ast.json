@@ -1,0 +1,258 @@
+{
+  "declarations": [
+    {
+      "export": false,
+      "kind": {
+        "Import": {
+          "names": [
+            [
+              "boundedBy",
+              "boundedBy"
+            ]
+          ],
+          "path": "std/parser"
+        }
+      },
+      "span": {
+        "file": "documentation/target-syntax/lexical.yl",
+        "start": 0,
+        "end": 38
+      }
+    },
+    {
+      "export": true,
+      "kind": {
+        "Node": {
+          "name": "Whitespace",
+          "trivia": true,
+          "grammar": {
+            "kind": {
+              "Regex": "[ \\t\\r\\n]+"
+            },
+            "span": {
+              "file": "documentation/target-syntax/lexical.yl",
+              "start": 71,
+              "end": 83
+            }
+          },
+          "members": [],
+          "precedence": [],
+          "constraints": []
+        }
+      },
+      "span": {
+        "file": "documentation/target-syntax/lexical.yl",
+        "start": 40,
+        "end": 83
+      }
+    },
+    {
+      "export": true,
+      "kind": {
+        "Node": {
+          "name": "Comment",
+          "trivia": true,
+          "grammar": null,
+          "members": [
+            {
+              "export": false,
+              "kind": {
+                "Node": {
+                  "name": "Line",
+                  "trivia": true,
+                  "grammar": {
+                    "kind": {
+                      "Regex": "//[^\\n]*"
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/lexical.yl",
+                      "start": 135,
+                      "end": 147
+                    }
+                  },
+                  "members": [],
+                  "precedence": [],
+                  "constraints": []
+                }
+              },
+              "span": {
+                "file": "documentation/target-syntax/lexical.yl",
+                "start": 113,
+                "end": 147
+              }
+            },
+            {
+              "export": false,
+              "kind": {
+                "Node": {
+                  "name": "Block",
+                  "trivia": true,
+                  "grammar": {
+                    "kind": {
+                      "Regex": "/\\*[\\s\\S]*?\\*/"
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/lexical.yl",
+                      "start": 176,
+                      "end": 194
+                    }
+                  },
+                  "members": [],
+                  "precedence": [],
+                  "constraints": []
+                }
+              },
+              "span": {
+                "file": "documentation/target-syntax/lexical.yl",
+                "start": 153,
+                "end": 194
+              }
+            }
+          ],
+          "precedence": [],
+          "constraints": []
+        }
+      },
+      "span": {
+        "file": "documentation/target-syntax/lexical.yl",
+        "start": 85,
+        "end": 196
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Pattern": {
+          "name": "IdentifierPart",
+          "parameters": [],
+          "grammar": {
+            "kind": {
+              "Regex": "[_a-zA-Z0-9]"
+            },
+            "span": {
+              "file": "documentation/target-syntax/lexical.yl",
+              "start": 227,
+              "end": 241
+            }
+          }
+        }
+      },
+      "span": {
+        "file": "documentation/target-syntax/lexical.yl",
+        "start": 198,
+        "end": 241
+      }
+    },
+    {
+      "export": true,
+      "kind": {
+        "Pattern": {
+          "name": "keyword",
+          "parameters": [
+            {
+              "name": "value",
+              "ty": null,
+              "default": null,
+              "span": {
+                "file": "documentation/target-syntax/lexical.yl",
+                "start": 266,
+                "end": 271
+              }
+            }
+          ],
+          "grammar": {
+            "kind": {
+              "Pipe": [
+                {
+                  "kind": {
+                    "Ref": "value"
+                  },
+                  "span": {
+                    "file": "documentation/target-syntax/lexical.yl",
+                    "start": 279,
+                    "end": 284
+                  }
+                },
+                "boundedBy",
+                [
+                  {
+                    "name": null,
+                    "value": {
+                      "kind": {
+                        "Ref": "IdentifierPart"
+                      },
+                      "span": {
+                        "file": "documentation/target-syntax/lexical.yl",
+                        "start": 298,
+                        "end": 312
+                      }
+                    },
+                    "span": {
+                      "file": "documentation/target-syntax/lexical.yl",
+                      "start": 298,
+                      "end": 312
+                    }
+                  }
+                ]
+              ]
+            },
+            "span": {
+              "file": "documentation/target-syntax/lexical.yl",
+              "start": 279,
+              "end": 313
+            }
+          }
+        }
+      },
+      "span": {
+        "file": "documentation/target-syntax/lexical.yl",
+        "start": 243,
+        "end": 313
+      }
+    },
+    {
+      "export": true,
+      "kind": {
+        "Node": {
+          "name": "Name",
+          "trivia": false,
+          "grammar": {
+            "kind": {
+              "Capture": [
+                "value",
+                {
+                  "kind": {
+                    "Regex": "[_a-zA-Z][_a-zA-Z0-9]*"
+                  },
+                  "span": {
+                    "file": "documentation/target-syntax/lexical.yl",
+                    "start": 345,
+                    "end": 369
+                  }
+                }
+              ]
+            },
+            "span": {
+              "file": "documentation/target-syntax/lexical.yl",
+              "start": 338,
+              "end": 369
+            }
+          },
+          "members": [],
+          "precedence": [],
+          "constraints": []
+        }
+      },
+      "span": {
+        "file": "documentation/target-syntax/lexical.yl",
+        "start": 315,
+        "end": 369
+      }
+    }
+  ],
+  "span": {
+    "file": "documentation/target-syntax/lexical.yl",
+    "start": 0,
+    "end": 370
+  }
+}

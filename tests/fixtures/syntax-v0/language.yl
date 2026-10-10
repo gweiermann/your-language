@@ -1,0 +1,19 @@
+import { keyword, Name, Whitespace, Comment } from "./lexical"
+
+node Expression {
+    node Number = value: /\d+/
+    node NameExpression = name: Name
+    node Group = "(" value: Expression ")"
+    node Member = object: Expression "." property: Name
+    node Unary = operator: "!" argument: Expression
+    node Power = left: Expression operator: "**" right: Expression
+    node Product = left: Expression operator: "*" right: Expression
+    node Sum = left: Expression operator: "+" right: Expression
+    precedence { Member > Unary > right Power > Product > Sum }
+}
+
+node Declaration = keyword("let") name: Name "=" initializer: Expression
+node Program = declarations: Declaration*
+entry Program {
+    trivia Whitespace, Comment
+}

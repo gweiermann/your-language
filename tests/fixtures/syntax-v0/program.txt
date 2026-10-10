@@ -1,0 +1,5 @@
+// Independent pipeline fixture; the checked-in MiniJS target is not changed.
+let x = 1 + 2 * 3
+let y = 2 ** 3 ** 2
+let z = foo.bar.baz
+let w = !!!x

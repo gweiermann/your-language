@@ -1,0 +1,326 @@
+{
+  "ast": {
+    "type": "Program",
+    "fields": {
+      "declarations": [
+        {
+          "type": "Declaration",
+          "fields": {
+            "initializer": {
+              "type": "Expression::Sum",
+              "fields": {
+                "left": {
+                  "type": "Expression::Number",
+                  "fields": {
+                    "value": "1"
+                  },
+                  "span": {
+                    "file": "program.txt",
+                    "start": 86,
+                    "end": 87
+                  }
+                },
+                "operator": "+",
+                "right": {
+                  "type": "Expression::Product",
+                  "fields": {
+                    "left": {
+                      "type": "Expression::Number",
+                      "fields": {
+                        "value": "2"
+                      },
+                      "span": {
+                        "file": "program.txt",
+                        "start": 90,
+                        "end": 91
+                      }
+                    },
+                    "operator": "*",
+                    "right": {
+                      "type": "Expression::Number",
+                      "fields": {
+                        "value": "3"
+                      },
+                      "span": {
+                        "file": "program.txt",
+                        "start": 94,
+                        "end": 95
+                      }
+                    }
+                  },
+                  "span": {
+                    "file": "program.txt",
+                    "start": 90,
+                    "end": 95
+                  }
+                }
+              },
+              "span": {
+                "file": "program.txt",
+                "start": 86,
+                "end": 95
+              }
+            },
+            "name": {
+              "type": "Name",
+              "fields": {
+                "value": "x"
+              },
+              "span": {
+                "file": "program.txt",
+                "start": 82,
+                "end": 83
+              }
+            }
+          },
+          "span": {
+            "file": "program.txt",
+            "start": 78,
+            "end": 95
+          }
+        },
+        {
+          "type": "Declaration",
+          "fields": {
+            "initializer": {
+              "type": "Expression::Power",
+              "fields": {
+                "left": {
+                  "type": "Expression::Number",
+                  "fields": {
+                    "value": "2"
+                  },
+                  "span": {
+                    "file": "program.txt",
+                    "start": 104,
+                    "end": 105
+                  }
+                },
+                "operator": "**",
+                "right": {
+                  "type": "Expression::Power",
+                  "fields": {
+                    "left": {
+                      "type": "Expression::Number",
+                      "fields": {
+                        "value": "3"
+                      },
+                      "span": {
+                        "file": "program.txt",
+                        "start": 109,
+                        "end": 110
+                      }
+                    },
+                    "operator": "**",
+                    "right": {
+                      "type": "Expression::Number",
+                      "fields": {
+                        "value": "2"
+                      },
+                      "span": {
+                        "file": "program.txt",
+                        "start": 114,
+                        "end": 115
+                      }
+                    }
+                  },
+                  "span": {
+                    "file": "program.txt",
+                    "start": 109,
+                    "end": 115
+                  }
+                }
+              },
+              "span": {
+                "file": "program.txt",
+                "start": 104,
+                "end": 115
+              }
+            },
+            "name": {
+              "type": "Name",
+              "fields": {
+                "value": "y"
+              },
+              "span": {
+                "file": "program.txt",
+                "start": 100,
+                "end": 101
+              }
+            }
+          },
+          "span": {
+            "file": "program.txt",
+            "start": 96,
+            "end": 115
+          }
+        },
+        {
+          "type": "Declaration",
+          "fields": {
+            "initializer": {
+              "type": "Expression::Member",
+              "fields": {
+                "object": {
+                  "type": "Expression::Member",
+                  "fields": {
+                    "object": {
+                      "type": "Expression::NameExpression",
+                      "fields": {
+                        "name": {
+                          "type": "Name",
+                          "fields": {
+                            "value": "foo"
+                          },
+                          "span": {
+                            "file": "program.txt",
+                            "start": 124,
+                            "end": 127
+                          }
+                        }
+                      },
+                      "span": {
+                        "file": "program.txt",
+                        "start": 124,
+                        "end": 127
+                      }
+                    },
+                    "property": {
+                      "type": "Name",
+                      "fields": {
+                        "value": "bar"
+                      },
+                      "span": {
+                        "file": "program.txt",
+                        "start": 128,
+                        "end": 131
+                      }
+                    }
+                  },
+                  "span": {
+                    "file": "program.txt",
+                    "start": 124,
+                    "end": 131
+                  }
+                },
+                "property": {
+                  "type": "Name",
+                  "fields": {
+                    "value": "baz"
+                  },
+                  "span": {
+                    "file": "program.txt",
+                    "start": 132,
+                    "end": 135
+                  }
+                }
+              },
+              "span": {
+                "file": "program.txt",
+                "start": 124,
+                "end": 135
+              }
+            },
+            "name": {
+              "type": "Name",
+              "fields": {
+                "value": "z"
+              },
+              "span": {
+                "file": "program.txt",
+                "start": 120,
+                "end": 121
+              }
+            }
+          },
+          "span": {
+            "file": "program.txt",
+            "start": 116,
+            "end": 135
+          }
+        },
+        {
+          "type": "Declaration",
+          "fields": {
+            "initializer": {
+              "type": "Expression::Unary",
+              "fields": {
+                "argument": {
+                  "type": "Expression::Unary",
+                  "fields": {
+                    "argument": {
+                      "type": "Expression::Unary",
+                      "fields": {
+                        "argument": {
+                          "type": "Expression::NameExpression",
+                          "fields": {
+                            "name": {
+                              "type": "Name",
+                              "fields": {
+                                "value": "x"
+                              },
+                              "span": {
+                                "file": "program.txt",
+                                "start": 147,
+                                "end": 148
+                              }
+                            }
+                          },
+                          "span": {
+                            "file": "program.txt",
+                            "start": 147,
+                            "end": 148
+                          }
+                        },
+                        "operator": "!"
+                      },
+                      "span": {
+                        "file": "program.txt",
+                        "start": 146,
+                        "end": 148
+                      }
+                    },
+                    "operator": "!"
+                  },
+                  "span": {
+                    "file": "program.txt",
+                    "start": 145,
+                    "end": 148
+                  }
+                },
+                "operator": "!"
+              },
+              "span": {
+                "file": "program.txt",
+                "start": 144,
+                "end": 148
+              }
+            },
+            "name": {
+              "type": "Name",
+              "fields": {
+                "value": "w"
+              },
+              "span": {
+                "file": "program.txt",
+                "start": 140,
+                "end": 141
+              }
+            }
+          },
+          "span": {
+            "file": "program.txt",
+            "start": 136,
+            "end": 148
+          }
+        }
+      ]
+    },
+    "span": {
+      "file": "program.txt",
+      "start": 78,
+      "end": 148
+    }
+  },
+  "diagnostics": []
+}

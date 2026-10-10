@@ -242,6 +242,14 @@ is equivalent to:
 (A |> first()) |> second()
 ```
 
+Node references and grammar parameters followed by parentheses denote a reference
+followed by grouped grammar, as in `Name ("=" default: Expression)?` and
+`item (separator item)*`. Declaration resolution distinguishes these from calls to
+parameterized patterns. Postfix operators and pipes apply to the group, while a
+capture before the reference captures that reference. Parenthesize the whole
+sequence to capture or transform the larger fragment. Whitespace has no role in
+this distinction.
+
 ## Pipes and structural rewrite
 
 A `pipe` performs a compile-time structural rewrite of a grammar expression.
@@ -293,7 +301,20 @@ rewrite value: Expression =>
     ...
 ```
 
-Pipes may preserve or transform the result type of the grammar expression they rewrite.
+Pipes must preserve the result type of the grammar expression they rewrite.
+
+For a scalar rewrite, the bound input contributes its original value; surrounding
+grammar is matched but its values and captures are discarded. A wrapping pipe
+therefore returns the wrapped value directly, without a tuple of delimiters.
+
+For `rewrite item*` and `rewrite item+`, only values of matched `item` occurrences
+are collected, in source order, into the original list type. Separators and other
+wrapper grammar do not contribute values. An empty star list produces `[]`.
+If an item itself produces a tuple or list, that value remains one list element.
+
+This rule applies to all pipes, including chained pipes, and does not depend on the
+pipe's name. It was clarified during syntax-v0 implementation: a pipe cannot change
+the type of its output.
 
 ## Enums and arguments
 
@@ -401,7 +422,10 @@ Whitespace has no semantic meaning inside the `precedence` declaration. The cano
 
 ## Trivia
 
-Trivia is declared with `trivia` and is automatically skipped between ordinary grammar elements.
+Trivia is declared with `trivia`. Declarations define matchers; they do not activate
+automatic skipping. The entry block explicitly selects the trivia skipped between
+ordinary grammar elements. Importing a helper or trivia declaration alone does
+not change the language's trivia policy.
 
 ```yl
 trivia Whitespace =
@@ -457,11 +481,52 @@ node Update =
 
 Syntax-v0 constraints may inspect current captures, source spans, and trivia. Scope/relation queries belong to the later semantic layer.
 
+### Boolean conditions and absence
+
+Condition operators use JavaScript-style spelling, without general truthiness or
+implicit coercions. From strongest to weakest: parentheses, `!`, `==`/`!=`, `&&`,
+`||`. Binary operators associate left. Equality compares scalar strings, booleans,
+and variants of the same enum; `absent` can be compared with optional values.
+
+```yl
+when name.isPresent() && name.matches(/^[A-Z]/) {
+    warning("Capitalized name")
+}
+when name?.matches(/^[A-Z]/) {
+    warning("Capitalized name")
+}
+when name?.matches(/^[A-Z]/) == false {
+    help("Present but not capitalized")
+}
+when name?.matches(/^[A-Z]/) == absent {
+    help("Missing name")
+}
+```
+
+`isPresent()` distinguishes absent captures from present values (including empty
+strings/lists). `.matches` tests the captured string value; for node captures it tests the captured
+source text. An ordinary method call
+on a possibly absent capture is a definition error unless its presence is proved
+by an earlier short-circuit guard. `?.matches` returns `absent` for an absent
+receiver, otherwise a boolean. A `when` accepts boolean or optional boolean and
+emits only for `true`; no `== true` is required.
+
+`!absent` is `absent`. `false && rhs` and `absent && rhs` skip `rhs` and preserve
+the left value; `true && rhs` returns `rhs`. `true || rhs` skips `rhs`, while
+`false || rhs` and `absent || rhs` return `rhs`. Equality always returns a boolean.
+
+Separate `when` clauses are independent and evaluated in source order. Emitting a
+diagnostic does not establish presence or stop subsequent checks. Nested `when`
+clauses run only if their enclosing conditions are true. Reusable constraints
+accept positional/named arguments and defaults; declared node parameters require
+captures of that node type or its members, and enum parameters resolve contextual
+variants using their declared enum type.
+
 ## Extending nodes across files
 
 A node has one canonical grammar definition.
 
-Other modules may add syntax-local constraints or metadata:
+Other modules may add syntax-local constraints. Metadata is deferred beyond syntax-v0:
 
 ```yl
 import { Name } from "./name"
@@ -517,10 +582,22 @@ requires identifier boundaries on both sides without making keywords a compiler 
 A language has one entrypoint:
 
 ```yl
-entry Program
+entry Program {
+    trivia Whitespace, Comment
+}
 ```
 
 The runtime may expose lower-level rules separately for tooling, but normal parsing begins at the declared entry.
+
+Selected trivia must be accessible through normal module/import/export rules and
+must name trivia declarations. Selecting an abstract trivia family activates its
+members through the family's matcher; members need not be individually listed.
+Imported trivia is not activated unless selected. Selection follows the written
+list order; repeated references to the same matcher are idempotent.
+
+`entry Program` (or an empty entry block) selects no automatic trivia. The node's
+grammar and all required declarations are still resolved through ordinary imports.
+
 
 ## Forward references
 
@@ -551,3 +628,41 @@ The semantic layer is intentionally outside this checkpoint:
 - semantic graph generation.
 
 Those features are designed and implemented after the syntax runtime is validated end-to-end.
+
+## Explicit enum selection in structural rewrites
+
+A rewrite can select one enum parameter or a tuple of enum parameters:
+
+```yl
+rewrite value match (first, second) {
+    (.a, .a) => "(" value ")"
+    (.a, .b) => { error("This combination is not allowed.") }
+    _ => { warning("Pipe not applied.") value }
+}
+```
+
+For one selector, use `rewrite value match first { ... }`. The documented
+`rewrite value { .a => ... .b => ... }` shorthand remains valid with exactly
+one enum parameter. Multiple enum parameters require explicit selection.
+
+Cases are checked in source order and the first matching case wins. `_` matches
+any value, either as a tuple component (`(.a, _)`) or the entire selector tuple.
+Matching must be exhaustive. A completely shadowed case is a definition error.
+Case blocks contain diagnostic statements followed by a replacement grammar.
+An `error` rejects the pipe application and does not require a replacement;
+`warning` or `help` continues with the replacement. Returning the bound grammar
+unchanged is the identity transformation.
+
+These diagnostics occur when compiling the language. Their primary location is
+at the pipe caller's selected enum argument, with other selected arguments and
+the diagnostic definition as secondary spans. Forwarded arguments preserve their
+original caller spans. Defaulted arguments point to the application and are
+identified in diagnostic help text.
+
+Every pipe preserves its input type and cardinality. Required scalars must produce
+exactly one original value, optional scalars zero or one, `*` lists zero or more,
+and `+` lists one or more. List duplication collects original items in source
+order, preserving tuple/list-valued element boundaries. Omitting an optional
+input produces `absent`; omitting a star list produces an empty list. Omitting a
+required scalar/nonempty list, or duplicating an optional scalar so that both can
+produce values, is a definition error at the pipe application.
