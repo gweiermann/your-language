@@ -18,8 +18,8 @@ pub fn sources() -> BTreeMap<String, String> {
             include_str!("definition/function.yl").into(),
         ),
         (
-            "definition/statements.yl".into(),
-            include_str!("definition/statements.yl").into(),
+            "definition/let.yl".into(),
+            include_str!("definition/let.yl").into(),
         ),
     ])
 }

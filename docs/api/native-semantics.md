@@ -132,7 +132,7 @@ This API does not yet provide a CLI semantic session, host bindings, generated b
 The complete example separates language modules in
 `examples/semantics/definition/` from source samples in
 `examples/semantics/programs/`. `definition/language.yl` composes lexical helpers,
-expressions, functions, and statements from their own modules. A shared Rust
+expressions, functions, and variable declarations from their own modules. A shared Rust
 source-map loader provides all five modules to the compiler, including the normal
 recursive imports between expressions and function bodies. The consumer requires
 no `.ylc` file or separate compilation command.

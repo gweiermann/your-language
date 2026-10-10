@@ -2,7 +2,7 @@ import { lexicalScope } from "std/semantics"
 import { Whitespace } from "./lexical"
 import { ExpressionDeclaration } from "./expression"
 import { FunctionDeclaration, FunctionBody } from "./function"
-import { TopLevelDeclaration } from "./statements"
+import { TopLevelDeclaration } from "./let"
 
 node Program =
     statements: (FunctionDeclaration | TopLevelDeclaration)*

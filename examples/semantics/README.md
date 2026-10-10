@@ -7,7 +7,7 @@ definition/
   lexical.yl       Names and whitespace
   expression.yl    References, numbers, and expression alternatives
   function.yl      Parameters, scoped bodies, and function forms
-  statements.yl    Variable declarations and their ordering
+  let.yl           Variable declarations and their ordering
   language.yl      Program, outer ordering, and entry
 programs/
   program.txt           Valid bindings, functions, and closures
@@ -18,7 +18,7 @@ programs/
 
 Start with [the entry module](./definition/language.yl), then follow the
 [expression](./definition/expression.yl), [function](./definition/function.yl),
-[statement](./definition/statements.yl), and [lexical](./definition/lexical.yl)
+[variable declaration](./definition/let.yl), and [lexical](./definition/lexical.yl)
 definitions. Declarations used across modules are explicitly exported and imported.
 
 Expressions can contain functions whose bodies contain statements with expression

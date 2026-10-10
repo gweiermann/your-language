@@ -2,7 +2,7 @@ import { lexicalScope, declare, variable, function } from "std/semantics"
 import { separatedBy } from "std/parser"
 import { Name } from "./lexical"
 import { Expression } from "./expression"
-import { LetDeclaration } from "./statements"
+import { LetDeclaration } from "./let"
 
 node Parameter =
     name: Name

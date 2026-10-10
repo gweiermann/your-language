@@ -97,7 +97,7 @@
                 {
                   "Repeat": [
                     {
-                      "Ref": "definition/statements.yl#LetDeclaration"
+                      "Ref": "definition/let.yl#LetDeclaration"
                     },
                     "Star"
                   ]
@@ -127,8 +127,8 @@
       "constraints": [],
       "span": {
         "file": "definition/function.yl",
-        "start": 327,
-        "end": 433
+        "start": 320,
+        "end": 426
       }
     },
     "definition/function.yl#FunctionDeclaration": {
@@ -230,8 +230,8 @@
       "constraints": [],
       "span": {
         "file": "definition/function.yl",
-        "start": 673,
-        "end": 875
+        "start": 666,
+        "end": 868
       }
     },
     "definition/function.yl#FunctionExpression": {
@@ -325,8 +325,8 @@
       "constraints": [],
       "span": {
         "file": "definition/function.yl",
-        "start": 597,
-        "end": 671
+        "start": 590,
+        "end": 664
       }
     },
     "definition/function.yl#Parameter": {
@@ -345,8 +345,8 @@
       "constraints": [],
       "span": {
         "file": "definition/function.yl",
-        "start": 237,
-        "end": 325
+        "start": 230,
+        "end": 318
       }
     },
     "definition/language.yl#Program": {
@@ -365,9 +365,9 @@
                     },
                     {
                       "Meaning": {
-                        "definition": "definition/statements.yl#TopLevelDeclaration",
+                        "definition": "definition/let.yl#TopLevelDeclaration",
                         "term": {
-                          "Ref": "definition/statements.yl#LetDeclaration"
+                          "Ref": "definition/let.yl#LetDeclaration"
                         }
                       }
                     }
@@ -382,46 +382,11 @@
       "constraints": [],
       "span": {
         "file": "definition/language.yl",
-        "start": 252,
-        "end": 532
+        "start": 245,
+        "end": 525
       }
     },
-    "definition/lexical.yl#Name": {
-      "name": "Name",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "value",
-            {
-              "Regex": "[a-z]+"
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "definition/lexical.yl",
-        "start": 0,
-        "end": 38
-      }
-    },
-    "definition/lexical.yl#Whitespace": {
-      "name": "Whitespace",
-      "trivia": true,
-      "body": {
-        "Concrete": {
-          "Regex": "\\s+"
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "definition/lexical.yl",
-        "start": 40,
-        "end": 76
-      }
-    },
-    "definition/statements.yl#LetDeclaration": {
+    "definition/let.yl#LetDeclaration": {
       "name": "LetDeclaration",
       "trivia": false,
       "body": {
@@ -457,9 +422,44 @@
       },
       "constraints": [],
       "span": {
-        "file": "definition/statements.yl",
+        "file": "definition/let.yl",
         "start": 137,
         "end": 412
+      }
+    },
+    "definition/lexical.yl#Name": {
+      "name": "Name",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Capture": [
+            "value",
+            {
+              "Regex": "[a-z]+"
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "definition/lexical.yl",
+        "start": 0,
+        "end": 38
+      }
+    },
+    "definition/lexical.yl#Whitespace": {
+      "name": "Whitespace",
+      "trivia": true,
+      "body": {
+        "Concrete": {
+          "Regex": "\\s+"
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "definition/lexical.yl",
+        "start": 40,
+        "end": 76
       }
     }
   },
@@ -521,15 +521,15 @@
               "arguments": {},
               "span": {
                 "file": "definition/function.yl",
-                "start": 573,
-                "end": 587
+                "start": 566,
+                "end": 580
               }
             }
           ],
           "span": {
             "file": "definition/function.yl",
-            "start": 573,
-            "end": 587
+            "start": 566,
+            "end": 580
           }
         }
       ],
@@ -578,15 +578,15 @@
               },
               "span": {
                 "file": "definition/function.yl",
-                "start": 814,
-                "end": 857
+                "start": 807,
+                "end": 850
               }
             }
           ],
           "span": {
             "file": "definition/function.yl",
-            "start": 785,
-            "end": 867
+            "start": 778,
+            "end": 860
           }
         }
       ],
@@ -635,15 +635,15 @@
               },
               "span": {
                 "file": "definition/function.yl",
-                "start": 294,
-                "end": 317
+                "start": 287,
+                "end": 310
               }
             }
           ],
           "span": {
             "file": "definition/function.yl",
-            "start": 294,
-            "end": 317
+            "start": 287,
+            "end": 310
           }
         }
       ],
@@ -664,15 +664,15 @@
               "arguments": {},
               "span": {
                 "file": "definition/language.yl",
-                "start": 353,
-                "end": 367
+                "start": 346,
+                "end": 360
               }
             }
           ],
           "span": {
             "file": "definition/language.yl",
-            "start": 353,
-            "end": 367
+            "start": 346,
+            "end": 360
           }
         }
       ],
@@ -690,8 +690,8 @@
           ],
           "span": {
             "file": "definition/language.yl",
-            "start": 402,
-            "end": 445
+            "start": 395,
+            "end": 438
           }
         },
         {
@@ -701,7 +701,7 @@
               "group": null
             },
             {
-              "definition": "definition/statements.yl#TopLevelDeclaration",
+              "definition": "definition/let.yl#TopLevelDeclaration",
               "group": null
             },
             {
@@ -711,13 +711,13 @@
           ],
           "span": {
             "file": "definition/language.yl",
-            "start": 458,
-            "end": 514
+            "start": 451,
+            "end": 507
           }
         }
       ]
     },
-    "definition/statements.yl#LetDeclaration": {
+    "definition/let.yl#LetDeclaration": {
       "groups": [
         {
           "name": "Register",
@@ -759,14 +759,14 @@
                 }
               },
               "span": {
-                "file": "definition/statements.yl",
+                "file": "definition/let.yl",
                 "start": 288,
                 "end": 311
               }
             }
           ],
           "span": {
-            "file": "definition/statements.yl",
+            "file": "definition/let.yl",
             "start": 259,
             "end": 321
           }
@@ -780,19 +780,19 @@
               "group": null
             },
             {
-              "definition": "definition/statements.yl#LetDeclaration",
+              "definition": "definition/let.yl#LetDeclaration",
               "group": null
             }
           ],
           "span": {
-            "file": "definition/statements.yl",
+            "file": "definition/let.yl",
             "start": 356,
             "end": 394
           }
         }
       ]
     },
-    "definition/statements.yl#TopLevelDeclaration": {
+    "definition/let.yl#TopLevelDeclaration": {
       "groups": [],
       "precedence": []
     }
