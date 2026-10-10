@@ -126,3 +126,17 @@ Its explicit policy is one namespace per scope, errors for duplicate names in th
 Scope, declaration, and reference attachments point to record IDs. Reference attachments reuse declaration records, preserving symbol identity independently of spelling. Records use separate identity-symbol metadata keys and text identifier keys. Unresolved references point to the name capture; duplicate declarations also retain the previous declaration's source span.
 
 This API does not yet provide a CLI semantic session, host bindings, generated backends, type analysis, flow analysis, or ownership analysis.
+
+## Running the Rust consumer
+
+```sh
+cargo run --example semantic_analysis
+cargo run --example semantic_analysis -- initializer
+cargo run --example semantic_analysis -- duplicate
+cargo run --example semantic_analysis -- --json
+cargo run --example semantic_analysis -- unresolved --json
+```
+
+The default output reports success briefly, or renders semantic diagnostics to stderr with the same source underlines as the CLI. `--json` writes the complete analysis result to stdout and suppresses human diagnostics. Error outcomes exit with code 1 in either mode. Color follows stderr's terminal status; `CLICOLOR_FORCE=1` forces color and `NO_COLOR` takes precedence to disable it.
+
+Rust consumers can reuse `diagnostic_render::print_diagnostics`, providing a source lookup function for diagnostic spans, or call `render_diagnostics` with an explicit color setting to obtain a string. Rendering does not change structured diagnostic data or source offsets.

@@ -7,9 +7,13 @@ cargo run --example semantic_analysis
 cargo run --example semantic_analysis -- unresolved
 cargo run --example semantic_analysis -- duplicate
 cargo run --example semantic_analysis -- initializer
+cargo run --example semantic_analysis -- --json
+cargo run --example semantic_analysis -- initializer --json
 ```
 
-The negative examples exit with code 1 and return structured source diagnostics. Successful analysis returns an AST, retained syntax occurrences, and reference attachments pointing to declaration records.
+The default output is a brief success summary or source diagnostics with underlines. Errors go to stderr and exit with code 1. Color follows the terminal; `CLICOLOR_FORCE=1` forces it, while `NO_COLOR` disables it.
+
+Pass `--json` to write the complete analysis result to stdout, including the AST, retained syntax occurrences, semantic records, reference attachments, and structured diagnostics. JSON mode does not also print human diagnostics.
 
 `FunctionContents` establishes a lexical scope without adding an AST wrapper. Function names register in their surrounding scope; parameters and locals use the function context. Reusable `Reference` nodes perform lookup inside ordinary expressions and deferred function bodies.
 

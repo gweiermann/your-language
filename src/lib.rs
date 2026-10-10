@@ -1,6 +1,7 @@
 //! Declarative language compiler and grammar interpreter. Source offsets are UTF-8 bytes.
 mod compiler;
 pub mod diagnostic;
+pub mod diagnostic_render;
 pub mod frontend;
 pub mod ir;
 pub use compiler::{compile_language, compile_sources};
