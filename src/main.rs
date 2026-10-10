@@ -42,14 +42,34 @@ fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
             })?;
             let source = fs::read_to_string(&args[2]).map_err(|e| io(&args[2], e))?;
             let result = parse_named(&language, &args[2], &source);
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&result).map_err(|e| vec![Diagnostic::error(
-                    "yl.json",
-                    e.to_string(),
-                    Span::default()
-                )])?
-            );
+            if args.get(3).is_some_and(|argument| argument == "--json") {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&result).map_err(|e| vec![Diagnostic::error(
+                        "yl.json",
+                        e.to_string(),
+                        Span::default()
+                    )])?
+                );
+            } else {
+                render_diagnostics(&result.diagnostics, |span| {
+                    if span.file == args[2] {
+                        Some(source.clone())
+                    } else {
+                        fs::read_to_string(&span.file).ok()
+                    }
+                });
+                if let Some(ast) = &result.ast {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(ast).map_err(|e| vec![Diagnostic::error(
+                            "yl.json",
+                            e.to_string(),
+                            Span::default()
+                        )])?
+                    );
+                }
+            }
             Ok(!result.has_errors())
         }
         _ => Err(usage()),
@@ -71,6 +91,10 @@ fn main() -> ExitCode {
                     &diagnostics,
                     args.get(1).map(String::as_str).unwrap_or("."),
                 );
+                return ExitCode::FAILURE;
+            }
+            if !machine && args.first().is_some_and(|command| command == "parse") {
+                render_diagnostics(&diagnostics, |span| fs::read_to_string(&span.file).ok());
                 return ExitCode::FAILURE;
             }
             let serialized = if machine {
@@ -102,8 +126,14 @@ struct DiagnosticLine {
     ranges: Vec<(usize, usize)>,
 }
 fn render_definition_diagnostics(diagnostics: &[Diagnostic], entry: &str) {
-    use your_language::diagnostic::Severity;
     let root = Path::new(entry).parent().unwrap_or(Path::new("."));
+    render_diagnostics(diagnostics, |span| {
+        fs::read_to_string(root.join(&span.file)).ok()
+    });
+}
+
+fn render_diagnostics(diagnostics: &[Diagnostic], source_for: impl Fn(&Span) -> Option<String>) {
+    use your_language::diagnostic::Severity;
     for diagnostic in diagnostics {
         eprintln!(
             "{:?}[{}]: {}",
@@ -111,8 +141,7 @@ fn render_definition_diagnostics(diagnostics: &[Diagnostic], entry: &str) {
         );
         let mut lines: Vec<DiagnosticLine> = vec![];
         for span in std::iter::once(diagnostic.primary.as_ref()).chain(&diagnostic.secondary) {
-            let path = root.join(&span.file);
-            let Ok(source) = fs::read_to_string(path) else {
+            let Some(source) = source_for(span) else {
                 continue;
             };
             if span.start > span.end
@@ -141,10 +170,13 @@ fn render_definition_diagnostics(diagnostics: &[Diagnostic], entry: &str) {
                 lines.push(DiagnosticLine {
                     file: span.file.clone(),
                     line,
-                    text: source[line_start..line_end].into(),
+                    text: source[line_start..line_end].trim_end_matches('\r').into(),
                     ranges: vec![(column, length)],
                 });
             }
+        }
+        if lines.is_empty() && !diagnostic.primary.file.is_empty() {
+            eprintln!("  --> {}", diagnostic.primary.file);
         }
         for DiagnosticLine {
             file,
@@ -162,15 +194,16 @@ fn render_definition_diagnostics(diagnostics: &[Diagnostic], entry: &str) {
                 }
             }
             let underline: String = markers.into_iter().collect();
+            let gutter = " ".repeat(2 + line.to_string().len());
             if std::io::stderr().is_terminal() {
                 let color = if diagnostic.severity == Severity::Error {
                     31
                 } else {
                     33
                 };
-                eprintln!("    | \x1b[{color}m{}\x1b[0m", underline.trim_end());
+                eprintln!("{gutter} | \x1b[{color}m{}\x1b[0m", underline.trim_end());
             } else {
-                eprintln!("    | {}", underline.trim_end());
+                eprintln!("{gutter} | {}", underline.trim_end());
             }
         }
         if let Some(help) = &diagnostic.help {

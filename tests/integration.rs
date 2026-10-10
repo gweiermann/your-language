@@ -371,3 +371,112 @@ fn cli_pipe_diagnostics_underline_caller_arguments_before_definition() {
     let definition = text.find("error(\"This combination").unwrap();
     assert!(caller < definition, "{text}");
 }
+
+#[test]
+fn cli_source_underlines_align_with_the_marked_columns() {
+    let output = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .arg("check")
+        .arg(fixture("tests/fixtures/decisions/invalid-combination.yl"))
+        .output()
+        .unwrap();
+    let text = String::from_utf8(output.stderr).unwrap();
+    let lines: Vec<_> = text.lines().collect();
+    for (index, line) in lines.iter().enumerate() {
+        if line.contains("node Program") {
+            let underline = lines[index + 1];
+            assert_eq!(underline.find('^'), line.find(".a"));
+            assert_eq!(
+                underline.rfind('^'),
+                line.find(".b").map(|column| column + 1)
+            );
+        }
+        if line.contains("error(\"This combination") {
+            assert_eq!(lines[index + 1].find('^'), line.find("error("));
+        }
+    }
+}
+
+#[test]
+fn cli_parse_renders_source_errors_without_json_and_preserves_machine_mode() {
+    let artifact = fixture("target/cli-human-parse.ylc");
+    fs::write(
+        &artifact,
+        compile_language(fixture("documentation/target-syntax/minijs.yl"))
+            .unwrap()
+            .to_bytes()
+            .unwrap(),
+    )
+    .unwrap();
+    let input = fixture("tests/fixtures/minijs/unexpected-token.js");
+    let human = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .arg("parse")
+        .arg(&artifact)
+        .arg(&input)
+        .output()
+        .unwrap();
+    assert!(!human.status.success());
+    let diagnostic = String::from_utf8(human.stderr).unwrap();
+    assert!(
+        diagnostic.contains("Error[parse.unexpected_token]"),
+        "{diagnostic}"
+    );
+    assert!(diagnostic.contains('@'), "{diagnostic}");
+    assert!(diagnostic.contains('^'), "{diagnostic}");
+    assert!(human.stdout.is_empty());
+    let machine = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .arg("parse")
+        .arg(artifact)
+        .arg(input)
+        .arg("--json")
+        .output()
+        .unwrap();
+    assert!(!machine.status.success());
+    assert!(machine.stderr.is_empty());
+    let result: serde_json::Value = serde_json::from_slice(&machine.stdout).unwrap();
+    assert_eq!(result["diagnostics"][0]["code"], "parse.unexpected_token");
+}
+
+#[test]
+fn cli_parse_handles_relative_paths_eof_and_retains_ast_for_constraint_errors() {
+    let artifact = fixture("target/cli-human-relative.ylc");
+    fs::write(
+        &artifact,
+        compile_language(fixture("documentation/target-syntax/minijs.yl"))
+            .unwrap()
+            .to_bytes()
+            .unwrap(),
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .args([
+            "parse",
+            "target/cli-human-relative.ylc",
+            "tests/fixtures/minijs/malformed-expression.js",
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let diagnostic = String::from_utf8(output.stderr).unwrap();
+    assert!(
+        diagnostic.contains("malformed-expression.js:2"),
+        "{diagnostic}"
+    );
+    assert!(diagnostic.contains('^'));
+    let constrained=compile_sources("checks.yl",&BTreeMap::from([("checks.yl".into(),r#"node P = value: /x/ { constraints { when true { error("Rejected value") } } } entry P"#.into())])).unwrap();
+    fs::write(&artifact, constrained.to_bytes().unwrap()).unwrap();
+    let input = fixture("target/cli-human-constrained.txt");
+    fs::write(&input, "x").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .arg("parse")
+        .arg(artifact)
+        .arg(input)
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8(output.stderr)
+        .unwrap()
+        .contains("Rejected value"));
+    let ast: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(ast["type"], "P");
+}

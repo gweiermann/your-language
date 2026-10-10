@@ -160,3 +160,11 @@ cargo run -- check tests/fixtures/decisions/invalid-combination.yl
 This intentionally fails with `yl.pipe_case`, underlining the `.a` and `.b`
 arguments at the caller. For target-source JSON diagnostics, compile MiniJS and
 parse `tests/fixtures/minijs/malformed-expression.js` instead of `program.js`.
+
+`yl parse <language.ylc> <source>` renders source diagnostics to stderr (red
+underlines for errors in terminals) and prints the AST as JSON to stdout when
+one is available. Constraint errors retain their AST and exit nonzero. Add
+`--json` for the full `{ast, diagnostics}` object on stdout with no human renderer.
+Source and underline gutters share the line-number width, including multi-digit
+line numbers. Runtime diagnostics resolve target paths directly; definition
+checks resolve module spans relative to the entry directory.
