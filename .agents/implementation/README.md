@@ -153,7 +153,7 @@ the public Rust `parse` API and ParseResult are unchanged.
 The requested acceptance command:
 
 ```sh
-yl check documentation/target-syntax/minijs.yl
+yl check examples/mini-js/minijs.yl
 ```
 
 passes. The full check/compile/parse sequence is covered by integration tests. The
@@ -174,7 +174,7 @@ multi-digit line numbers. Runtime diagnostics resolve target paths directly;
 definition checks resolve module spans relative to the entry directory.
 
 ```sh
-cargo run --quiet -- compile documentation/target-syntax/minijs.yl -o target/minijs.ylc
+cargo run --quiet -- compile examples/mini-js/minijs.yl -o target/minijs.ylc
 cargo run --quiet -- language target/minijs.ylc ast tests/fixtures/minijs/program.js
 cargo run --quiet -- language target/minijs.ylc check tests/fixtures/minijs/unexpected-token.js
 cargo run --quiet -- language target/minijs.ylc check tests/fixtures/minijs/unexpected-token.js --json
