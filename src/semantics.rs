@@ -220,6 +220,7 @@ pub(crate) struct AnalysisState {
     pub globals: BTreeMap<String, SemanticValue>,
     pub graph: SemanticGraph,
     pub diagnostics: Vec<Diagnostic>,
+    pub hook_failed: bool,
 }
 pub struct OperationContext<'a> {
     pub occurrence: &'a Occurrence,

@@ -34,12 +34,16 @@ fn invoke(
         operation_span: &instance.call.span,
         state,
     };
-    match hook {
+    let result = match hook {
         Hook::Before => instance.native.before(&mut context),
         Hook::Enter => instance.native.enter(&mut context).map(|()| None),
         Hook::Leave => instance.native.leave(&mut context).map(|()| None),
         Hook::After => instance.native.after(&mut context).map(|()| None),
+    };
+    if result.is_err() {
+        context.state.hook_failed = true;
     }
+    result
 }
 fn within(owner: usize, region: usize, parents: &BTreeMap<usize, Option<usize>>) -> bool {
     let mut current = Some(owner);
@@ -92,6 +96,15 @@ fn enter(
             state,
             Hook::Enter,
         ) {
+            tasks[task].instances[instance].ready = false;
+            if let Err(cleanup) = invoke(
+                &mut tasks[task].instances[instance],
+                owner,
+                state,
+                Hook::Leave,
+            ) {
+                state.diagnostics.push(cleanup);
+            }
             leave(&active[..entered], tasks, state);
             return Err(diagnostic);
         }
@@ -362,6 +375,15 @@ pub(super) fn execute(
                     &mut state,
                     Hook::Enter,
                 ) {
+                    tasks[task_id].instances[operation_id].ready = false;
+                    if let Err(cleanup) = invoke(
+                        &mut tasks[task_id].instances[operation_id],
+                        owner,
+                        &mut state,
+                        Hook::Leave,
+                    ) {
+                        state.diagnostics.push(cleanup);
+                    }
                     state.diagnostics.push(diagnostic);
                     failed = true;
                     break;
@@ -371,6 +393,7 @@ pub(super) fn execute(
         }
         leave(&active, &mut tasks, &mut state);
         tasks[task_id].done = true;
+        failed |= state.hook_failed;
         if failed {
             break;
         }
@@ -384,6 +407,10 @@ pub(super) fn execute(
             }
             finish(occurrence, &mut tasks, &parents, &mut state);
             finalized.insert(occurrence.id);
+        }
+        if state.hook_failed {
+            failed = true;
+            break;
         }
     }
     if failed {
