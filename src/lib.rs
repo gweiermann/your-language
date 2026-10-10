@@ -10,4 +10,5 @@ mod runtime;
 pub use artifact::load_compiled_language;
 pub use runtime::{parse, parse_named, AstNode, AstValue, ParseResult};
 mod lexer;
+pub mod semantics;
 pub mod syntax;
