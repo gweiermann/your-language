@@ -22,7 +22,7 @@ The CLI equivalent is `yl compile <entry.yl> -o <language.ylc>`, followed by a `
 
 ## Representation
 
-Artifacts are versioned pretty JSON with deterministic ordered rule maps. The current format uses version `1`. It includes the entry rule, selected trivia, normalized rules, precedence plans, syntax-local checks, and definition spans. It does not include the original module source. Compile-time warning/help records are excluded from serialization.
+Artifacts are versioned pretty JSON with deterministic ordered rule maps. Syntax-only languages retain version `1`; experimental languages with native meanings use version `2`. It includes the entry rule, selected trivia, normalized rules, precedence plans, syntax-local checks, and definition spans. It does not include the original module source. Compile-time warning/help records are excluded from serialization.
 
 Rule bodies distinguish concrete grammar from abstract node families. Terms include literals, regexes, references, sequences, choices, repetitions, captures, negative lookaround, and generic value marking/projection. Marking and projection implement type-preserving rewrite results without teaching the runtime individual pipe names.
 
@@ -39,3 +39,7 @@ Module IDs are relative to the entry directory. Relocating the same definition g
 ## Compatibility
 
 The version field allows incompatible artifact changes to be rejected rather than interpreted accidentally. Long-term artifact compatibility and a binary ABI are not promised. Recompile language definitions with the runtime version used by the host when updating tooling.
+
+## Native meanings
+
+[Native semantic artifacts](/api/native-semantics) also retain operation contracts and scheduling boundaries. Use `SemanticEngine::load` to verify registered library compatibility and `analyze` to execute them. Artifact files remain optional: registry-aware compile and analyze can run entirely in memory. Existing parse APIs and CLI tools perform syntax analysis only.

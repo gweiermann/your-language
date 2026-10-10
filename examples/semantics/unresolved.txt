@@ -1,0 +1,2 @@
+let f = function() { let local = 1; return local; };
+let result = local;

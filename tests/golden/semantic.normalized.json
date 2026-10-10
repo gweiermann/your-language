@@ -1,0 +1,800 @@
+{
+  "version": 2,
+  "entry": "language.yl#Program",
+  "rules": {
+    "language.yl#Expression": {
+      "name": "Expression",
+      "trivia": false,
+      "body": {
+        "Abstract": {
+          "bases": [
+            "language.yl#FunctionExpression",
+            "language.yl#Reference",
+            "language.yl#Expression::Number"
+          ],
+          "operators": []
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 338,
+        "end": 442
+      }
+    },
+    "language.yl#Expression::Number": {
+      "name": "Expression::Number",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Capture": [
+            "value",
+            {
+              "Regex": "[0-9]+"
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 410,
+        "end": 439
+      }
+    },
+    "language.yl#ExpressionDeclaration": {
+      "name": "ExpressionDeclaration",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Capture": [
+            "value",
+            {
+              "Ref": "language.yl#Expression"
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 444,
+        "end": 490
+      }
+    },
+    "language.yl#FunctionBody": {
+      "name": "FunctionBody",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Sequence": [
+            {
+              "Literal": "{"
+            },
+            {
+              "Capture": [
+                "locals",
+                {
+                  "Repeat": [
+                    {
+                      "Ref": "language.yl#LetDeclaration"
+                    },
+                    "Star"
+                  ]
+                }
+              ]
+            },
+            {
+              "Literal": "return"
+            },
+            {
+              "Capture": [
+                "result",
+                {
+                  "Ref": "language.yl#Expression"
+                }
+              ]
+            },
+            {
+              "Literal": ";"
+            },
+            {
+              "Literal": "}"
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 718,
+        "end": 801
+      }
+    },
+    "language.yl#FunctionDeclaration": {
+      "name": "FunctionDeclaration",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Sequence": [
+            {
+              "Literal": "function"
+            },
+            {
+              "Capture": [
+                "name",
+                {
+                  "Ref": "language.yl#Name"
+                }
+              ]
+            },
+            {
+              "Capture": [
+                "contents",
+                {
+                  "Meaning": {
+                    "definition": "language.yl#FunctionContents",
+                    "term": {
+                      "Sequence": [
+                        {
+                          "Literal": "("
+                        },
+                        {
+                          "Capture": [
+                            "parameters",
+                            {
+                              "Project": {
+                                "id": 0,
+                                "term": {
+                                  "Repeat": [
+                                    {
+                                      "Sequence": [
+                                        {
+                                          "Mark": {
+                                            "id": 0,
+                                            "term": {
+                                              "Ref": "language.yl#Parameter"
+                                            }
+                                          }
+                                        },
+                                        {
+                                          "Repeat": [
+                                            {
+                                              "Sequence": [
+                                                {
+                                                  "Literal": ","
+                                                },
+                                                {
+                                                  "Mark": {
+                                                    "id": 0,
+                                                    "term": {
+                                                      "Ref": "language.yl#Parameter"
+                                                    }
+                                                  }
+                                                }
+                                              ]
+                                            },
+                                            "Star"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    "Optional"
+                                  ]
+                                },
+                                "quantifier": "Star"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "Literal": ")"
+                        },
+                        {
+                          "Capture": [
+                            "body",
+                            {
+                              "Ref": "language.yl#FunctionBody"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 1004,
+        "end": 1165
+      }
+    },
+    "language.yl#FunctionExpression": {
+      "name": "FunctionExpression",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Sequence": [
+            {
+              "Literal": "function"
+            },
+            {
+              "Capture": [
+                "contents",
+                {
+                  "Meaning": {
+                    "definition": "language.yl#FunctionContents",
+                    "term": {
+                      "Sequence": [
+                        {
+                          "Literal": "("
+                        },
+                        {
+                          "Capture": [
+                            "parameters",
+                            {
+                              "Project": {
+                                "id": 1,
+                                "term": {
+                                  "Repeat": [
+                                    {
+                                      "Sequence": [
+                                        {
+                                          "Mark": {
+                                            "id": 1,
+                                            "term": {
+                                              "Ref": "language.yl#Parameter"
+                                            }
+                                          }
+                                        },
+                                        {
+                                          "Repeat": [
+                                            {
+                                              "Sequence": [
+                                                {
+                                                  "Literal": ","
+                                                },
+                                                {
+                                                  "Mark": {
+                                                    "id": 1,
+                                                    "term": {
+                                                      "Ref": "language.yl#Parameter"
+                                                    }
+                                                  }
+                                                }
+                                              ]
+                                            },
+                                            "Star"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    "Optional"
+                                  ]
+                                },
+                                "quantifier": "Star"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "Literal": ")"
+                        },
+                        {
+                          "Capture": [
+                            "body",
+                            {
+                              "Ref": "language.yl#FunctionBody"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 939,
+        "end": 1002
+      }
+    },
+    "language.yl#LetDeclaration": {
+      "name": "LetDeclaration",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Sequence": [
+            {
+              "Literal": "let"
+            },
+            {
+              "Capture": [
+                "name",
+                {
+                  "Ref": "language.yl#Name"
+                }
+              ]
+            },
+            {
+              "Literal": "="
+            },
+            {
+              "Capture": [
+                "initializer",
+                {
+                  "Ref": "language.yl#ExpressionDeclaration"
+                }
+              ]
+            },
+            {
+              "Literal": ";"
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 492,
+        "end": 716
+      }
+    },
+    "language.yl#Name": {
+      "name": "Name",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Capture": [
+            "value",
+            {
+              "Regex": "[a-z]+"
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 124,
+        "end": 151
+      }
+    },
+    "language.yl#Parameter": {
+      "name": "Parameter",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Capture": [
+            "name",
+            {
+              "Ref": "language.yl#Name"
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 262,
+        "end": 336
+      }
+    },
+    "language.yl#Program": {
+      "name": "Program",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Capture": [
+            "statements",
+            {
+              "Repeat": [
+                {
+                  "Choice": [
+                    {
+                      "Ref": "language.yl#FunctionDeclaration"
+                    },
+                    {
+                      "Meaning": {
+                        "definition": "language.yl#TopLevelDeclaration",
+                        "term": {
+                          "Ref": "language.yl#LetDeclaration"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "Star"
+              ]
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 1213,
+        "end": 1496
+      }
+    },
+    "language.yl#Reference": {
+      "name": "Reference",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Capture": [
+            "name",
+            {
+              "Ref": "language.yl#Name"
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 182,
+        "end": 260
+      }
+    },
+    "language.yl#Whitespace": {
+      "name": "Whitespace",
+      "trivia": true,
+      "body": {
+        "Concrete": {
+          "Regex": "\\s+"
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "language.yl",
+        "start": 153,
+        "end": 178
+      }
+    }
+  },
+  "trivia": [
+    "language.yl#Whitespace"
+  ],
+  "meanings": {
+    "language.yl#FunctionContents": {
+      "groups": [
+        {
+          "name": null,
+          "calls": [
+            {
+              "operation": "std/semantics#lexicalScope",
+              "contract": {
+                "id": "std/semantics#lexicalScope",
+                "parameters": [],
+                "provides_context": true
+              },
+              "arguments": {},
+              "span": {
+                "file": "language.yl",
+                "start": 918,
+                "end": 932
+              }
+            }
+          ],
+          "span": {
+            "file": "language.yl",
+            "start": 918,
+            "end": 932
+          }
+        }
+      ],
+      "precedence": []
+    },
+    "language.yl#FunctionDeclaration": {
+      "groups": [
+        {
+          "name": "Register",
+          "calls": [
+            {
+              "operation": "std/semantics#declare",
+              "contract": {
+                "id": "std/semantics#declare",
+                "parameters": [
+                  {
+                    "name": "kind",
+                    "kind": "Symbol",
+                    "default": null
+                  },
+                  {
+                    "name": "name",
+                    "kind": "Capture",
+                    "default": null
+                  },
+                  {
+                    "name": "reassignable",
+                    "kind": "Bool",
+                    "default": {
+                      "Bool": true
+                    }
+                  }
+                ],
+                "provides_context": false
+              },
+              "arguments": {
+                "kind": {
+                  "Symbol": "std/semantics#function"
+                },
+                "name": {
+                  "Capture": "name"
+                },
+                "reassignable": {
+                  "Bool": false
+                }
+              },
+              "span": {
+                "file": "language.yl",
+                "start": 1115,
+                "end": 1158
+              }
+            }
+          ],
+          "span": {
+            "file": "language.yl",
+            "start": 1098,
+            "end": 1160
+          }
+        }
+      ],
+      "precedence": []
+    },
+    "language.yl#LetDeclaration": {
+      "groups": [
+        {
+          "name": "Register",
+          "calls": [
+            {
+              "operation": "std/semantics#declare",
+              "contract": {
+                "id": "std/semantics#declare",
+                "parameters": [
+                  {
+                    "name": "kind",
+                    "kind": "Symbol",
+                    "default": null
+                  },
+                  {
+                    "name": "name",
+                    "kind": "Capture",
+                    "default": null
+                  },
+                  {
+                    "name": "reassignable",
+                    "kind": "Bool",
+                    "default": {
+                      "Bool": true
+                    }
+                  }
+                ],
+                "provides_context": false
+              },
+              "arguments": {
+                "kind": {
+                  "Symbol": "std/semantics#variable"
+                },
+                "name": {
+                  "Capture": "name"
+                },
+                "reassignable": {
+                  "Bool": true
+                }
+              },
+              "span": {
+                "file": "language.yl",
+                "start": 618,
+                "end": 641
+              }
+            }
+          ],
+          "span": {
+            "file": "language.yl",
+            "start": 601,
+            "end": 643
+          }
+        }
+      ],
+      "precedence": [
+        {
+          "selectors": [
+            {
+              "definition": "language.yl#ExpressionDeclaration",
+              "group": null
+            },
+            {
+              "definition": "language.yl#LetDeclaration",
+              "group": null
+            }
+          ],
+          "span": {
+            "file": "language.yl",
+            "start": 666,
+            "end": 704
+          }
+        }
+      ]
+    },
+    "language.yl#Parameter": {
+      "groups": [
+        {
+          "name": null,
+          "calls": [
+            {
+              "operation": "std/semantics#declare",
+              "contract": {
+                "id": "std/semantics#declare",
+                "parameters": [
+                  {
+                    "name": "kind",
+                    "kind": "Symbol",
+                    "default": null
+                  },
+                  {
+                    "name": "name",
+                    "kind": "Capture",
+                    "default": null
+                  },
+                  {
+                    "name": "reassignable",
+                    "kind": "Bool",
+                    "default": {
+                      "Bool": true
+                    }
+                  }
+                ],
+                "provides_context": false
+              },
+              "arguments": {
+                "kind": {
+                  "Symbol": "std/semantics#variable"
+                },
+                "name": {
+                  "Capture": "name"
+                },
+                "reassignable": {
+                  "Bool": true
+                }
+              },
+              "span": {
+                "file": "language.yl",
+                "start": 308,
+                "end": 331
+              }
+            }
+          ],
+          "span": {
+            "file": "language.yl",
+            "start": 308,
+            "end": 331
+          }
+        }
+      ],
+      "precedence": []
+    },
+    "language.yl#Program": {
+      "groups": [
+        {
+          "name": null,
+          "calls": [
+            {
+              "operation": "std/semantics#lexicalScope",
+              "contract": {
+                "id": "std/semantics#lexicalScope",
+                "parameters": [],
+                "provides_context": true
+              },
+              "arguments": {},
+              "span": {
+                "file": "language.yl",
+                "start": 1312,
+                "end": 1326
+              }
+            }
+          ],
+          "span": {
+            "file": "language.yl",
+            "start": 1312,
+            "end": 1326
+          }
+        }
+      ],
+      "precedence": [
+        {
+          "selectors": [
+            {
+              "definition": "language.yl#FunctionDeclaration",
+              "group": null
+            },
+            {
+              "definition": "language.yl#ExpressionDeclaration",
+              "group": null
+            }
+          ],
+          "span": {
+            "file": "language.yl",
+            "start": 1362,
+            "end": 1405
+          }
+        },
+        {
+          "selectors": [
+            {
+              "definition": "language.yl#FunctionDeclaration",
+              "group": null
+            },
+            {
+              "definition": "language.yl#TopLevelDeclaration",
+              "group": null
+            },
+            {
+              "definition": "language.yl#FunctionBody",
+              "group": null
+            }
+          ],
+          "span": {
+            "file": "language.yl",
+            "start": 1419,
+            "end": 1475
+          }
+        }
+      ]
+    },
+    "language.yl#Reference": {
+      "groups": [
+        {
+          "name": "Resolve",
+          "calls": [
+            {
+              "operation": "std/semantics#use",
+              "contract": {
+                "id": "std/semantics#use",
+                "parameters": [
+                  {
+                    "name": "name",
+                    "kind": "Capture",
+                    "default": null
+                  }
+                ],
+                "provides_context": false
+              },
+              "arguments": {
+                "name": {
+                  "Capture": "name"
+                }
+              },
+              "span": {
+                "file": "language.yl",
+                "start": 244,
+                "end": 253
+              }
+            }
+          ],
+          "span": {
+            "file": "language.yl",
+            "start": 228,
+            "end": 255
+          }
+        }
+      ],
+      "precedence": []
+    },
+    "language.yl#TopLevelDeclaration": {
+      "groups": [],
+      "precedence": []
+    }
+  }
+}

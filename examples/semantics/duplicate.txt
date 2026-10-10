@@ -1,0 +1,2 @@
+let duplicate = 1;
+let duplicate = 2;
