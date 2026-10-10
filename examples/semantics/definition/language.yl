@@ -1,84 +1,8 @@
-import { lexicalScope, declare, variable, function, use } from "std/semantics"
-import { separatedBy } from "std/parser"
-import { Name, Whitespace } from "./lexical"
-
-node Reference =
-    name: Name
-{
-    meanings {
-        group Resolve {
-            use(name)
-        }
-    }
-}
-
-node Parameter =
-    name: Name
-{
-    meanings {
-        declare(variable, name)
-    }
-}
-
-node Expression {
-    node FunctionExpression
-
-    node Reference
-
-    node Number =
-        value: /[0-9]+/
-}
-
-node ExpressionDeclaration =
-    value: Expression
-
-node LetDeclaration =
-    "let" name: Name "="
-    initializer: ExpressionDeclaration ";"
-{
-    meanings {
-        group Register {
-            declare(variable, name)
-        }
-
-        precedence {
-            ExpressionDeclaration > LetDeclaration
-        }
-    }
-}
-
-node FunctionBody =
-    "{"
-    locals: LetDeclaration*
-    "return" result: Expression ";"
-    "}"
-
-pattern FunctionContents =
-    "("
-    parameters: Parameter* |> separatedBy(",")
-    ")"
-    body: FunctionBody
-{
-    meanings {
-        lexicalScope()
-    }
-}
-
-node FunctionExpression =
-    "function" contents: FunctionContents
-
-node FunctionDeclaration =
-    "function" name: Name contents: FunctionContents
-{
-    meanings {
-        group Register {
-            declare(function, name, reassignable=false)
-        }
-    }
-}
-
-pattern TopLevelDeclaration =
-    LetDeclaration
+import { lexicalScope } from "std/semantics"
+import { Whitespace } from "./lexical"
+import { ExpressionDeclaration } from "./expression"
+import { FunctionDeclaration, FunctionBody } from "./function"
+import { TopLevelDeclaration } from "./statements"
 
 node Program =
     statements: (FunctionDeclaration | TopLevelDeclaration)*

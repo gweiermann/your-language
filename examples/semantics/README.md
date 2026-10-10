@@ -5,7 +5,10 @@ The language definition and its input programs are separate:
 ```text
 definition/
   lexical.yl       Names and whitespace
-  language.yl      Syntax, meanings, ordering, and entry
+  expression.yl    References, numbers, and expression alternatives
+  function.yl      Parameters, scoped bodies, and function forms
+  statements.yl    Variable declarations and their ordering
+  language.yl      Program, outer ordering, and entry
 programs/
   program.txt           Valid bindings, functions, and closures
   unresolved.txt        A function-local name used outside its scope
@@ -13,10 +16,15 @@ programs/
   initializer-error.txt A declaration referring to its own initializer
 ```
 
-Start with [the language definition](./definition/language.yl). It imports
-[lexical helpers](./definition/lexical.yl) through normal YL modules. The Rust
-consumer and integration tests share `definition.rs`, which supplies both modules
-to the in-memory compiler. No artifact file is required.
+Start with [the entry module](./definition/language.yl), then follow the
+[expression](./definition/expression.yl), [function](./definition/function.yl),
+[statement](./definition/statements.yl), and [lexical](./definition/lexical.yl)
+definitions. Declarations used across modules are explicitly exported and imported.
+
+Expressions can contain functions whose bodies contain statements with expression
+initializers. These relationships form normal import cycles. The Rust consumer
+and integration tests share `definition.rs`, which supplies all five modules to
+the in-memory compiler. No artifact file is required.
 
 This Rust consumer compiles the language and analyzes source entirely in memory:
 

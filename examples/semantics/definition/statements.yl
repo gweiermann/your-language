@@ -1,0 +1,21 @@
+import { declare, variable } from "std/semantics"
+import { Name } from "./lexical"
+import { ExpressionDeclaration } from "./expression"
+
+export node LetDeclaration =
+    "let" name: Name "="
+    initializer: ExpressionDeclaration ";"
+{
+    meanings {
+        group Register {
+            declare(variable, name)
+        }
+
+        precedence {
+            ExpressionDeclaration > LetDeclaration
+        }
+    }
+}
+
+export pattern TopLevelDeclaration =
+    LetDeclaration

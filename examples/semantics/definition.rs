@@ -9,5 +9,17 @@ pub fn sources() -> BTreeMap<String, String> {
             "definition/lexical.yl".into(),
             include_str!("definition/lexical.yl").into(),
         ),
+        (
+            "definition/expression.yl".into(),
+            include_str!("definition/expression.yl").into(),
+        ),
+        (
+            "definition/function.yl".into(),
+            include_str!("definition/function.yl").into(),
+        ),
+        (
+            "definition/statements.yl".into(),
+            include_str!("definition/statements.yl").into(),
+        ),
     ])
 }
