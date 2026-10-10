@@ -44,4 +44,4 @@ npm run docs:build
 npm run docs:preview
 ```
 
-The build output is `docs/.vitepress/dist/`. `VITEPRESS_BASE` can override the site's base path when deploying beneath a subdirectory, for example `/your-language/` on GitHub Pages.
+The build output is `docs/.vitepress/dist/`. Local builds use `/`; the GitHub Pages workflow sets `VITEPRESS_BASE=/your-language/` automatically. The published documentation is available at [gweiermann.github.io/your-language](https://gweiermann.github.io/your-language/).
