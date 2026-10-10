@@ -1,8 +1,10 @@
 //! An in-memory consumer of the experimental native semantic interface.
-use std::collections::BTreeMap;
 use your_language::{
     diagnostic::Severity, diagnostic_render::print_diagnostics, semantics::SemanticEngine,
 };
+
+#[path = "semantics/definition.rs"]
+mod definition;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut choice = "program";
@@ -20,22 +22,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     let (file, source) = match choice {
-        "program" => ("program.txt", include_str!("semantics/program.txt")),
-        "unresolved" => ("unresolved.txt", include_str!("semantics/unresolved.txt")),
-        "duplicate" => ("duplicate.txt", include_str!("semantics/duplicate.txt")),
+        "program" => (
+            "programs/program.txt",
+            include_str!("semantics/programs/program.txt"),
+        ),
+        "unresolved" => (
+            "programs/unresolved.txt",
+            include_str!("semantics/programs/unresolved.txt"),
+        ),
+        "duplicate" => (
+            "programs/duplicate.txt",
+            include_str!("semantics/programs/duplicate.txt"),
+        ),
         "initializer" => (
-            "initializer-error.txt",
-            include_str!("semantics/initializer-error.txt"),
+            "programs/initializer-error.txt",
+            include_str!("semantics/programs/initializer-error.txt"),
         ),
         _ => return Err("Choose program, unresolved, duplicate, or initializer".into()),
     };
     let engine = SemanticEngine::default();
-    let sources = BTreeMap::from([(
-        "language.yl".into(),
-        include_str!("semantics/language.yl").into(),
-    )]);
+    let sources = definition::sources();
     // No artifact files, reload, or repeated library registration are required.
-    let analysis = match engine.compile_and_analyze("language.yl", &sources, file, source) {
+    let analysis = match engine.compile_and_analyze(definition::ENTRY, &sources, file, source) {
         Ok(analysis) => analysis,
         Err(diagnostics) => {
             if json {

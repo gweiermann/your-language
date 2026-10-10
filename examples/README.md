@@ -10,3 +10,8 @@ The syntax examples contain complete language definitions and source files for t
 | [MiniJS](./mini-js/) | Modular expression and statement grammar with precedence and list pipes | [MiniJS walkthrough](../docs/tutorials/mini-js.md) |
 
 All commands are run from the repository root. Output `.ylc` files can be written to any existing directory.
+
+The native semantic demo separates its [language modules](./semantics/definition/language.yl)
+from [input programs](./semantics/programs/program.txt). Its Rust consumer loads
+the definition directly in memory; the syntax examples use the CLI commands in
+their linked guides.

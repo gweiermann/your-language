@@ -6,6 +6,9 @@ use your_language::{
     syntax::DeclKind,
 };
 
+#[path = "../examples/semantics/definition.rs"]
+mod definition;
+
 fn sources(source: &str) -> BTreeMap<String, String> {
     BTreeMap::from([("language.yl".into(), source.into())])
 }
@@ -154,21 +157,22 @@ entry Program"#;
 
 #[test]
 fn checked_in_semantic_language_resolves_functions_and_reports_negative_inputs() {
-    let source = include_str!("../examples/semantics/language.yl");
     let engine = SemanticEngine::new(lexical::registry());
-    let language = engine.compile("language.yl", &sources(source)).unwrap();
+    let language = engine
+        .compile(definition::ENTRY, &definition::sources())
+        .unwrap();
     let language = load_compiled_language(&language.to_bytes().unwrap()).unwrap();
     let valid = engine.analyze(
         &language,
         "valid.txt",
-        include_str!("../examples/semantics/program.txt"),
+        include_str!("../examples/semantics/programs/program.txt"),
     );
     assert!(valid.diagnostics.is_empty(), "{:?}", valid.diagnostics);
     assert!(valid.ast.is_some());
     let unresolved = engine.analyze(
         &language,
         "unresolved.txt",
-        include_str!("../examples/semantics/unresolved.txt"),
+        include_str!("../examples/semantics/programs/unresolved.txt"),
     );
     assert_eq!(
         unresolved.diagnostics.len(),
@@ -184,7 +188,7 @@ fn checked_in_semantic_language_resolves_functions_and_reports_negative_inputs()
     let duplicate = engine.analyze(
         &language,
         "duplicate.txt",
-        include_str!("../examples/semantics/duplicate.txt"),
+        include_str!("../examples/semantics/programs/duplicate.txt"),
     );
     assert!(duplicate
         .diagnostics

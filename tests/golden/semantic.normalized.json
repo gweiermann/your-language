@@ -1,28 +1,28 @@
 {
   "version": 2,
-  "entry": "language.yl#Program",
+  "entry": "definition/language.yl#Program",
   "rules": {
-    "language.yl#Expression": {
+    "definition/language.yl#Expression": {
       "name": "Expression",
       "trivia": false,
       "body": {
         "Abstract": {
           "bases": [
-            "language.yl#FunctionExpression",
-            "language.yl#Reference",
-            "language.yl#Expression::Number"
+            "definition/language.yl#FunctionExpression",
+            "definition/language.yl#Reference",
+            "definition/language.yl#Expression::Number"
           ],
           "operators": []
         }
       },
       "constraints": [],
       "span": {
-        "file": "language.yl",
-        "start": 326,
-        "end": 426
+        "file": "definition/language.yl",
+        "start": 370,
+        "end": 480
       }
     },
-    "language.yl#Expression::Number": {
+    "definition/language.yl#Expression::Number": {
       "name": "Expression::Number",
       "trivia": false,
       "body": {
@@ -37,12 +37,12 @@
       },
       "constraints": [],
       "span": {
-        "file": "language.yl",
-        "start": 395,
-        "end": 424
+        "file": "definition/language.yl",
+        "start": 441,
+        "end": 478
       }
     },
-    "language.yl#ExpressionDeclaration": {
+    "definition/language.yl#ExpressionDeclaration": {
       "name": "ExpressionDeclaration",
       "trivia": false,
       "body": {
@@ -50,19 +50,19 @@
           "Capture": [
             "value",
             {
-              "Ref": "language.yl#Expression"
+              "Ref": "definition/language.yl#Expression"
             }
           ]
         }
       },
       "constraints": [],
       "span": {
-        "file": "language.yl",
-        "start": 427,
-        "end": 473
+        "file": "definition/language.yl",
+        "start": 482,
+        "end": 532
       }
     },
-    "language.yl#FunctionBody": {
+    "definition/language.yl#FunctionBody": {
       "name": "FunctionBody",
       "trivia": false,
       "body": {
@@ -77,7 +77,7 @@
                 {
                   "Repeat": [
                     {
-                      "Ref": "language.yl#LetDeclaration"
+                      "Ref": "definition/language.yl#LetDeclaration"
                     },
                     "Star"
                   ]
@@ -91,7 +91,7 @@
               "Capture": [
                 "result",
                 {
-                  "Ref": "language.yl#Expression"
+                  "Ref": "definition/language.yl#Expression"
                 }
               ]
             },
@@ -106,12 +106,12 @@
       },
       "constraints": [],
       "span": {
-        "file": "language.yl",
-        "start": 694,
-        "end": 777
+        "file": "definition/language.yl",
+        "start": 804,
+        "end": 903
       }
     },
-    "language.yl#FunctionDeclaration": {
+    "definition/language.yl#FunctionDeclaration": {
       "name": "FunctionDeclaration",
       "trivia": false,
       "body": {
@@ -124,7 +124,7 @@
               "Capture": [
                 "name",
                 {
-                  "Ref": "language.yl#Name"
+                  "Ref": "definition/lexical.yl#Name"
                 }
               ]
             },
@@ -133,7 +133,7 @@
                 "contents",
                 {
                   "Meaning": {
-                    "definition": "language.yl#FunctionContents",
+                    "definition": "definition/language.yl#FunctionContents",
                     "term": {
                       "Sequence": [
                         {
@@ -153,7 +153,7 @@
                                           "Mark": {
                                             "id": 0,
                                             "term": {
-                                              "Ref": "language.yl#Parameter"
+                                              "Ref": "definition/language.yl#Parameter"
                                             }
                                           }
                                         },
@@ -168,7 +168,7 @@
                                                   "Mark": {
                                                     "id": 0,
                                                     "term": {
-                                                      "Ref": "language.yl#Parameter"
+                                                      "Ref": "definition/language.yl#Parameter"
                                                     }
                                                   }
                                                 }
@@ -194,7 +194,7 @@
                           "Capture": [
                             "body",
                             {
-                              "Ref": "language.yl#FunctionBody"
+                              "Ref": "definition/language.yl#FunctionBody"
                             }
                           ]
                         }
@@ -209,12 +209,12 @@
       },
       "constraints": [],
       "span": {
-        "file": "language.yl",
-        "start": 975,
-        "end": 1134
+        "file": "definition/language.yl",
+        "start": 1136,
+        "end": 1331
       }
     },
-    "language.yl#FunctionExpression": {
+    "definition/language.yl#FunctionExpression": {
       "name": "FunctionExpression",
       "trivia": false,
       "body": {
@@ -228,7 +228,7 @@
                 "contents",
                 {
                   "Meaning": {
-                    "definition": "language.yl#FunctionContents",
+                    "definition": "definition/language.yl#FunctionContents",
                     "term": {
                       "Sequence": [
                         {
@@ -248,7 +248,7 @@
                                           "Mark": {
                                             "id": 1,
                                             "term": {
-                                              "Ref": "language.yl#Parameter"
+                                              "Ref": "definition/language.yl#Parameter"
                                             }
                                           }
                                         },
@@ -263,7 +263,7 @@
                                                   "Mark": {
                                                     "id": 1,
                                                     "term": {
-                                                      "Ref": "language.yl#Parameter"
+                                                      "Ref": "definition/language.yl#Parameter"
                                                     }
                                                   }
                                                 }
@@ -289,7 +289,7 @@
                           "Capture": [
                             "body",
                             {
-                              "Ref": "language.yl#FunctionBody"
+                              "Ref": "definition/language.yl#FunctionBody"
                             }
                           ]
                         }
@@ -304,12 +304,12 @@
       },
       "constraints": [],
       "span": {
-        "file": "language.yl",
-        "start": 911,
-        "end": 974
+        "file": "definition/language.yl",
+        "start": 1067,
+        "end": 1134
       }
     },
-    "language.yl#LetDeclaration": {
+    "definition/language.yl#LetDeclaration": {
       "name": "LetDeclaration",
       "trivia": false,
       "body": {
@@ -322,7 +322,7 @@
               "Capture": [
                 "name",
                 {
-                  "Ref": "language.yl#Name"
+                  "Ref": "definition/lexical.yl#Name"
                 }
               ]
             },
@@ -333,7 +333,7 @@
               "Capture": [
                 "initializer",
                 {
-                  "Ref": "language.yl#ExpressionDeclaration"
+                  "Ref": "definition/language.yl#ExpressionDeclaration"
                 }
               ]
             },
@@ -345,12 +345,89 @@
       },
       "constraints": [],
       "span": {
-        "file": "language.yl",
-        "start": 474,
-        "end": 693
+        "file": "definition/language.yl",
+        "start": 534,
+        "end": 802
       }
     },
-    "language.yl#Name": {
+    "definition/language.yl#Parameter": {
+      "name": "Parameter",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Capture": [
+            "name",
+            {
+              "Ref": "definition/lexical.yl#Name"
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "definition/language.yl",
+        "start": 280,
+        "end": 368
+      }
+    },
+    "definition/language.yl#Program": {
+      "name": "Program",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Capture": [
+            "statements",
+            {
+              "Repeat": [
+                {
+                  "Choice": [
+                    {
+                      "Ref": "definition/language.yl#FunctionDeclaration"
+                    },
+                    {
+                      "Meaning": {
+                        "definition": "definition/language.yl#TopLevelDeclaration",
+                        "term": {
+                          "Ref": "definition/language.yl#LetDeclaration"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "Star"
+              ]
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "definition/language.yl",
+        "start": 1383,
+        "end": 1663
+      }
+    },
+    "definition/language.yl#Reference": {
+      "name": "Reference",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Capture": [
+            "name",
+            {
+              "Ref": "definition/lexical.yl#Name"
+            }
+          ]
+        }
+      },
+      "constraints": [],
+      "span": {
+        "file": "definition/language.yl",
+        "start": 166,
+        "end": 278
+      }
+    },
+    "definition/lexical.yl#Name": {
       "name": "Name",
       "trivia": false,
       "body": {
@@ -365,89 +442,12 @@
       },
       "constraints": [],
       "span": {
-        "file": "language.yl",
-        "start": 121,
-        "end": 148
+        "file": "definition/lexical.yl",
+        "start": 0,
+        "end": 38
       }
     },
-    "language.yl#Parameter": {
-      "name": "Parameter",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "name",
-            {
-              "Ref": "language.yl#Name"
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "language.yl",
-        "start": 253,
-        "end": 325
-      }
-    },
-    "language.yl#Program": {
-      "name": "Program",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "statements",
-            {
-              "Repeat": [
-                {
-                  "Choice": [
-                    {
-                      "Ref": "language.yl#FunctionDeclaration"
-                    },
-                    {
-                      "Meaning": {
-                        "definition": "language.yl#TopLevelDeclaration",
-                        "term": {
-                          "Ref": "language.yl#LetDeclaration"
-                        }
-                      }
-                    }
-                  ]
-                },
-                "Star"
-              ]
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "language.yl",
-        "start": 1180,
-        "end": 1455
-      }
-    },
-    "language.yl#Reference": {
-      "name": "Reference",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "name",
-            {
-              "Ref": "language.yl#Name"
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "language.yl",
-        "start": 176,
-        "end": 252
-      }
-    },
-    "language.yl#Whitespace": {
+    "definition/lexical.yl#Whitespace": {
       "name": "Whitespace",
       "trivia": true,
       "body": {
@@ -457,17 +457,17 @@
       },
       "constraints": [],
       "span": {
-        "file": "language.yl",
-        "start": 149,
-        "end": 174
+        "file": "definition/lexical.yl",
+        "start": 40,
+        "end": 76
       }
     }
   },
   "trivia": [
-    "language.yl#Whitespace"
+    "definition/lexical.yl#Whitespace"
   ],
   "meanings": {
-    "language.yl#FunctionContents": {
+    "definition/language.yl#FunctionContents": {
       "groups": [
         {
           "name": null,
@@ -481,22 +481,22 @@
               },
               "arguments": {},
               "span": {
-                "file": "language.yl",
-                "start": 892,
-                "end": 906
+                "file": "definition/language.yl",
+                "start": 1043,
+                "end": 1057
               }
             }
           ],
           "span": {
-            "file": "language.yl",
-            "start": 892,
-            "end": 906
+            "file": "definition/language.yl",
+            "start": 1043,
+            "end": 1057
           }
         }
       ],
       "precedence": []
     },
-    "language.yl#FunctionDeclaration": {
+    "definition/language.yl#FunctionDeclaration": {
       "groups": [
         {
           "name": "Register",
@@ -538,22 +538,22 @@
                 }
               },
               "span": {
-                "file": "language.yl",
-                "start": 1085,
-                "end": 1128
+                "file": "definition/language.yl",
+                "start": 1270,
+                "end": 1313
               }
             }
           ],
           "span": {
-            "file": "language.yl",
-            "start": 1068,
-            "end": 1130
+            "file": "definition/language.yl",
+            "start": 1241,
+            "end": 1323
           }
         }
       ],
       "precedence": []
     },
-    "language.yl#LetDeclaration": {
+    "definition/language.yl#LetDeclaration": {
       "groups": [
         {
           "name": "Register",
@@ -595,16 +595,16 @@
                 }
               },
               "span": {
-                "file": "language.yl",
-                "start": 598,
-                "end": 621
+                "file": "definition/language.yl",
+                "start": 678,
+                "end": 701
               }
             }
           ],
           "span": {
-            "file": "language.yl",
-            "start": 581,
-            "end": 623
+            "file": "definition/language.yl",
+            "start": 649,
+            "end": 711
           }
         }
       ],
@@ -612,23 +612,23 @@
         {
           "selectors": [
             {
-              "definition": "language.yl#ExpressionDeclaration",
+              "definition": "definition/language.yl#ExpressionDeclaration",
               "group": null
             },
             {
-              "definition": "language.yl#LetDeclaration",
+              "definition": "definition/language.yl#LetDeclaration",
               "group": null
             }
           ],
           "span": {
-            "file": "language.yl",
-            "start": 645,
-            "end": 683
+            "file": "definition/language.yl",
+            "start": 746,
+            "end": 784
           }
         }
       ]
     },
-    "language.yl#Parameter": {
+    "definition/language.yl#Parameter": {
       "groups": [
         {
           "name": null,
@@ -670,22 +670,22 @@
                 }
               },
               "span": {
-                "file": "language.yl",
-                "start": 298,
-                "end": 321
+                "file": "definition/language.yl",
+                "start": 337,
+                "end": 360
               }
             }
           ],
           "span": {
-            "file": "language.yl",
-            "start": 298,
-            "end": 321
+            "file": "definition/language.yl",
+            "start": 337,
+            "end": 360
           }
         }
       ],
       "precedence": []
     },
-    "language.yl#Program": {
+    "definition/language.yl#Program": {
       "groups": [
         {
           "name": null,
@@ -699,16 +699,16 @@
               },
               "arguments": {},
               "span": {
-                "file": "language.yl",
-                "start": 1277,
-                "end": 1291
+                "file": "definition/language.yl",
+                "start": 1484,
+                "end": 1498
               }
             }
           ],
           "span": {
-            "file": "language.yl",
-            "start": 1277,
-            "end": 1291
+            "file": "definition/language.yl",
+            "start": 1484,
+            "end": 1498
           }
         }
       ],
@@ -716,44 +716,44 @@
         {
           "selectors": [
             {
-              "definition": "language.yl#FunctionDeclaration",
+              "definition": "definition/language.yl#FunctionDeclaration",
               "group": null
             },
             {
-              "definition": "language.yl#ExpressionDeclaration",
+              "definition": "definition/language.yl#ExpressionDeclaration",
               "group": null
             }
           ],
           "span": {
-            "file": "language.yl",
-            "start": 1325,
-            "end": 1368
+            "file": "definition/language.yl",
+            "start": 1533,
+            "end": 1576
           }
         },
         {
           "selectors": [
             {
-              "definition": "language.yl#FunctionDeclaration",
+              "definition": "definition/language.yl#FunctionDeclaration",
               "group": null
             },
             {
-              "definition": "language.yl#TopLevelDeclaration",
+              "definition": "definition/language.yl#TopLevelDeclaration",
               "group": null
             },
             {
-              "definition": "language.yl#FunctionBody",
+              "definition": "definition/language.yl#FunctionBody",
               "group": null
             }
           ],
           "span": {
-            "file": "language.yl",
-            "start": 1381,
-            "end": 1437
+            "file": "definition/language.yl",
+            "start": 1589,
+            "end": 1645
           }
         }
       ]
     },
-    "language.yl#Reference": {
+    "definition/language.yl#Reference": {
       "groups": [
         {
           "name": "Resolve",
@@ -777,22 +777,22 @@
                 }
               },
               "span": {
-                "file": "language.yl",
-                "start": 237,
-                "end": 246
+                "file": "definition/language.yl",
+                "start": 251,
+                "end": 260
               }
             }
           ],
           "span": {
-            "file": "language.yl",
-            "start": 221,
-            "end": 248
+            "file": "definition/language.yl",
+            "start": 223,
+            "end": 270
           }
         }
       ],
       "precedence": []
     },
-    "language.yl#TopLevelDeclaration": {
+    "definition/language.yl#TopLevelDeclaration": {
       "groups": [],
       "precedence": []
     }

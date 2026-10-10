@@ -111,15 +111,15 @@
                   "value": "read"
                 },
                 "span": {
-                  "file": "program.txt",
-                  "start": 28,
-                  "end": 32
+                  "file": "programs/program.txt",
+                  "start": 29,
+                  "end": 33
                 }
               },
               "span": {
-                "file": "program.txt",
-                "start": 28,
-                "end": 32
+                "file": "programs/program.txt",
+                "start": 29,
+                "end": 33
               },
               "text": "read"
             }
@@ -187,15 +187,15 @@
                   "value": "later"
                 },
                 "span": {
-                  "file": "program.txt",
-                  "start": 71,
-                  "end": 76
+                  "file": "programs/program.txt",
+                  "start": 77,
+                  "end": 82
                 }
               },
               "span": {
-                "file": "program.txt",
-                "start": 71,
-                "end": 76
+                "file": "programs/program.txt",
+                "start": 77,
+                "end": 82
               },
               "text": "later"
             }
@@ -242,15 +242,15 @@
                   "value": "identity"
                 },
                 "span": {
-                  "file": "program.txt",
-                  "start": 62,
-                  "end": 70
+                  "file": "programs/program.txt",
+                  "start": 68,
+                  "end": 76
                 }
               },
               "span": {
-                "file": "program.txt",
-                "start": 62,
-                "end": 70
+                "file": "programs/program.txt",
+                "start": 68,
+                "end": 76
               },
               "text": "identity"
             }
@@ -297,13 +297,13 @@
                   "value": "caller"
                 },
                 "span": {
-                  "file": "program.txt",
+                  "file": "programs/program.txt",
                   "start": 4,
                   "end": 10
                 }
               },
               "span": {
-                "file": "program.txt",
+                "file": "programs/program.txt",
                 "start": 4,
                 "end": 10
               },
@@ -365,15 +365,15 @@
                   "value": "f"
                 },
                 "span": {
-                  "file": "program.txt",
-                  "start": 100,
-                  "end": 101
+                  "file": "programs/program.txt",
+                  "start": 111,
+                  "end": 112
                 }
               },
               "span": {
-                "file": "program.txt",
-                "start": 100,
-                "end": 101
+                "file": "programs/program.txt",
+                "start": 111,
+                "end": 112
               },
               "text": "f"
             }
@@ -462,15 +462,15 @@
                   "value": "later"
                 },
                 "span": {
-                  "file": "program.txt",
-                  "start": 254,
-                  "end": 259
+                  "file": "programs/program.txt",
+                  "start": 290,
+                  "end": 295
                 }
               },
               "span": {
-                "file": "program.txt",
-                "start": 254,
-                "end": 259
+                "file": "programs/program.txt",
+                "start": 290,
+                "end": 295
               },
               "text": "later"
             }
@@ -517,15 +517,15 @@
                   "value": "later"
                 },
                 "span": {
-                  "file": "program.txt",
-                  "start": 159,
-                  "end": 164
+                  "file": "programs/program.txt",
+                  "start": 179,
+                  "end": 184
                 }
               },
               "span": {
-                "file": "program.txt",
-                "start": 159,
-                "end": 164
+                "file": "programs/program.txt",
+                "start": 179,
+                "end": 184
               },
               "text": "later"
             }
@@ -572,15 +572,15 @@
                   "value": "local"
                 },
                 "span": {
-                  "file": "program.txt",
-                  "start": 134,
-                  "end": 139
+                  "file": "programs/program.txt",
+                  "start": 150,
+                  "end": 155
                 }
               },
               "span": {
-                "file": "program.txt",
-                "start": 134,
-                "end": 139
+                "file": "programs/program.txt",
+                "start": 150,
+                "end": 155
               },
               "text": "local"
             }
@@ -627,15 +627,15 @@
                   "value": "inner"
                 },
                 "span": {
-                  "file": "program.txt",
-                  "start": 218,
-                  "end": 223
+                  "file": "programs/program.txt",
+                  "start": 248,
+                  "end": 253
                 }
               },
               "span": {
-                "file": "program.txt",
-                "start": 218,
-                "end": 223
+                "file": "programs/program.txt",
+                "start": 248,
+                "end": 253
               },
               "text": "inner"
             }
@@ -682,15 +682,15 @@
                   "value": "capture"
                 },
                 "span": {
-                  "file": "program.txt",
-                  "start": 191,
-                  "end": 198
+                  "file": "programs/program.txt",
+                  "start": 217,
+                  "end": 224
                 }
               },
               "span": {
-                "file": "program.txt",
-                "start": 191,
-                "end": 198
+                "file": "programs/program.txt",
+                "start": 217,
+                "end": 224
               },
               "text": "capture"
             }

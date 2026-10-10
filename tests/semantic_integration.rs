@@ -1,24 +1,30 @@
 use std::collections::BTreeMap;
 use your_language::{diagnostic::Severity, semantics::SemanticEngine};
 
-fn sources() -> BTreeMap<String, String> {
-    BTreeMap::from([(
-        "language.yl".into(),
-        include_str!("../examples/semantics/language.yl").into(),
-    )])
-}
+#[path = "../examples/semantics/definition.rs"]
+mod definition;
 
 #[test]
 fn native_consumer_compiles_and_analyzes_in_memory_and_survives_optional_reload() {
     let engine = SemanticEngine::default();
-    let source = include_str!("../examples/semantics/program.txt");
+    let source = include_str!("../examples/semantics/programs/program.txt");
     let direct = engine
-        .compile_and_analyze("language.yl", &sources(), "program.txt", source)
+        .compile_and_analyze(
+            definition::ENTRY,
+            &definition::sources(),
+            "programs/program.txt",
+            source,
+        )
         .unwrap();
     assert!(direct.diagnostics.is_empty(), "{:?}", direct.diagnostics);
-    let language = engine.compile("language.yl", &sources()).unwrap();
+    let language = engine
+        .compile(definition::ENTRY, &definition::sources())
+        .unwrap();
     let loaded = engine.load(&language.to_bytes().unwrap()).unwrap();
-    assert_eq!(direct, engine.analyze(&loaded, "program.txt", source));
+    assert_eq!(
+        direct,
+        engine.analyze(&loaded, "programs/program.txt", source)
+    );
     let empty = SemanticEngine::new(Default::default());
     assert_eq!(
         empty.load(&language.to_bytes().unwrap()).unwrap_err()[0].code,
@@ -44,7 +50,9 @@ fn native_consumer_compiles_and_analyzes_in_memory_and_survives_optional_reload(
 #[test]
 fn native_analyses_are_isolated_across_repeated_and_parallel_calls() {
     let engine = SemanticEngine::default();
-    let language = engine.compile("language.yl", &sources()).unwrap();
+    let language = engine
+        .compile(definition::ENTRY, &definition::sources())
+        .unwrap();
     let first = engine.analyze(&language, "source", "let x = 1; let result = x;");
     assert!(first.diagnostics.is_empty());
     let second = engine.analyze(&language, "source", "let result = x;");
@@ -64,16 +72,18 @@ fn native_analyses_are_isolated_across_repeated_and_parallel_calls() {
 #[test]
 fn semantic_examples_have_specific_source_diagnostics_and_declaration_origins() {
     let engine = SemanticEngine::default();
-    let language = engine.compile("language.yl", &sources()).unwrap();
+    let language = engine
+        .compile(definition::ENTRY, &definition::sources())
+        .unwrap();
     for (file, source, code) in [
         (
-            "unresolved.txt",
-            include_str!("../examples/semantics/unresolved.txt"),
+            "programs/unresolved.txt",
+            include_str!("../examples/semantics/programs/unresolved.txt"),
             "semantic.unresolved_reference",
         ),
         (
-            "duplicate.txt",
-            include_str!("../examples/semantics/duplicate.txt"),
+            "programs/duplicate.txt",
+            include_str!("../examples/semantics/programs/duplicate.txt"),
             "semantic.duplicate_declaration",
         ),
     ] {

@@ -1,5 +1,23 @@
 # Native lexical analysis
 
+The language definition and its input programs are separate:
+
+```text
+definition/
+  lexical.yl       Names and whitespace
+  language.yl      Syntax, meanings, ordering, and entry
+programs/
+  program.txt           Valid bindings, functions, and closures
+  unresolved.txt        A function-local name used outside its scope
+  duplicate.txt         Two declarations with the same name
+  initializer-error.txt A declaration referring to its own initializer
+```
+
+Start with [the language definition](./definition/language.yl). It imports
+[lexical helpers](./definition/lexical.yl) through normal YL modules. The Rust
+consumer and integration tests share `definition.rs`, which supplies both modules
+to the in-memory compiler. No artifact file is required.
+
 This Rust consumer compiles the language and analyzes source entirely in memory:
 
 ```sh
@@ -14,6 +32,10 @@ cargo run --example semantic_analysis -- initializer --json
 The default output is a brief success summary or source diagnostics with underlines. Errors go to stderr and exit with code 1. Color follows the terminal; `CLICOLOR_FORCE=1` forces it, while `NO_COLOR` disables it.
 
 Pass `--json` to write the complete analysis result to stdout, including the AST, retained syntax occurrences, semantic records, reference attachments, and structured diagnostics. JSON mode does not also print human diagnostics.
+
+The default [program](./programs/program.txt) places one declaration or function
+per block, making the forward references and scope boundaries visible. Diagnostics
+name their input under `programs/`, matching the files in this example directory.
 
 `FunctionContents` establishes a lexical scope without adding an AST wrapper. Function names register in their surrounding scope; parameters and locals use the function context. Reusable `Reference` nodes perform lookup inside ordinary expressions and deferred function bodies.
 

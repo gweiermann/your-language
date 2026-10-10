@@ -129,6 +129,13 @@ This API does not yet provide a CLI semantic session, host bindings, generated b
 
 ## Running the Rust consumer
 
+The complete example separates language modules in
+`examples/semantics/definition/` from source samples in
+`examples/semantics/programs/`. `definition/language.yl` imports the name and
+whitespace declarations from `definition/lexical.yl`. A shared Rust source-map
+loader provides those modules to the compiler, so the consumer requires no `.ylc`
+file or separate compilation command.
+
 ```sh
 cargo run --example semantic_analysis
 cargo run --example semantic_analysis -- initializer
