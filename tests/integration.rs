@@ -68,30 +68,29 @@ fn cli_check_compile_parse_and_error_exit_codes() {
         .status
         .success());
     let parsed = Command::new(executable)
-        .arg("parse")
+        .arg("language")
         .arg(&output)
+        .arg("ast")
         .arg(fixture("tests/fixtures/syntax-v0/program.txt"))
-        .arg("--json")
         .output()
         .unwrap();
     assert!(parsed.status.success());
     let json: serde_json::Value = serde_json::from_slice(&parsed.stdout).unwrap();
-    assert_eq!(json["ast"]["type"], "Program");
-    assert_eq!(json["diagnostics"], serde_json::json!([]));
+    assert_eq!(json["type"], "Program");
     let failed = Command::new(executable)
-        .arg("parse")
+        .arg("language")
         .arg(&output)
+        .arg("check")
         .arg(fixture("tests/fixtures/minijs/unexpected-token.js"))
         .arg("--json")
         .output()
         .unwrap();
     assert!(!failed.status.success());
     let json: serde_json::Value = serde_json::from_slice(&failed.stdout).unwrap();
-    assert!(json["ast"].is_null());
-    assert_eq!(json["diagnostics"][0]["code"], "parse.unexpected_token");
+    assert_eq!(json[0]["code"], "parse.unexpected_token");
 }
 #[test]
-fn cli_json_errors_have_ast_diagnostics_and_file_context() {
+fn cli_json_checks_have_diagnostics_and_file_context() {
     let executable = env!("CARGO_BIN_EXE_yl");
     let program = fixture("tests/fixtures/syntax-v0/program.txt");
     let corrupt = fixture("target/cli-corrupt.ylc");
@@ -113,8 +112,9 @@ fn cli_json_errors_have_ast_diagnostics_and_file_context() {
         (&valid, &absent_source, "yl.io", &absent_source),
     ] {
         let failed = Command::new(executable)
-            .arg("parse")
+            .arg("language")
             .arg(artifact)
+            .arg("check")
             .arg(source)
             .arg("--json")
             .output()
@@ -122,12 +122,8 @@ fn cli_json_errors_have_ast_diagnostics_and_file_context() {
         assert!(!failed.status.success());
         assert!(failed.stderr.is_empty());
         let json: serde_json::Value = serde_json::from_slice(&failed.stdout).unwrap();
-        assert!(json["ast"].is_null());
-        assert_eq!(json["diagnostics"][0]["code"], code);
-        assert_eq!(
-            json["diagnostics"][0]["primary"]["file"],
-            file.to_string_lossy().as_ref()
-        );
+        assert_eq!(json[0]["code"], code);
+        assert_eq!(json[0]["primary"]["file"], file.to_string_lossy().as_ref());
     }
 }
 #[test]
@@ -144,8 +140,9 @@ fn oversized_left_growing_ast_returns_json_error_instead_of_crashing() {
     let source = fixture("target/cli-depth-limit.js");
     fs::write(&source, format!("let x = 1{} +", " + 1".repeat(1200))).unwrap();
     let result = Command::new(env!("CARGO_BIN_EXE_yl"))
-        .arg("parse")
+        .arg("language")
         .arg(artifact)
+        .arg("check")
         .arg(source)
         .arg("--json")
         .output()
@@ -153,8 +150,7 @@ fn oversized_left_growing_ast_returns_json_error_instead_of_crashing() {
     assert_eq!(result.status.code(), Some(1));
     assert!(result.stderr.is_empty());
     let json: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
-    assert!(json["ast"].is_null());
-    assert_eq!(json["diagnostics"][0]["code"], "parse.resource_limit");
+    assert_eq!(json[0]["code"], "parse.resource_limit");
 }
 #[test]
 fn minijs_compiles_reloads_and_parses_exact_ast_and_negative_diagnostics() {
@@ -271,15 +267,16 @@ fn minijs_compiles_reloads_and_parses_exact_ast_and_negative_diagnostics() {
         .status
         .success());
     let result = Command::new(cli)
-        .arg("parse")
+        .arg("language")
         .arg(&output)
+        .arg("check")
         .arg(fixture("tests/fixtures/minijs/program.js"))
         .arg("--json")
         .output()
         .unwrap();
     assert!(result.status.success());
     let json: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
-    assert_eq!(json["diagnostics"], serde_json::json!([]));
+    assert_eq!(json, serde_json::json!([]));
 }
 #[test]
 fn all_separated_by_modes_match_the_documented_language_and_flat_list_values() {
@@ -397,7 +394,7 @@ fn cli_source_underlines_align_with_the_marked_columns() {
 }
 
 #[test]
-fn cli_parse_renders_source_errors_without_json_and_preserves_machine_mode() {
+fn cli_language_check_renders_source_errors_and_preserves_json_mode() {
     let artifact = fixture("target/cli-human-parse.ylc");
     fs::write(
         &artifact,
@@ -409,8 +406,9 @@ fn cli_parse_renders_source_errors_without_json_and_preserves_machine_mode() {
     .unwrap();
     let input = fixture("tests/fixtures/minijs/unexpected-token.js");
     let human = Command::new(env!("CARGO_BIN_EXE_yl"))
-        .arg("parse")
+        .arg("language")
         .arg(&artifact)
+        .arg("check")
         .arg(&input)
         .output()
         .unwrap();
@@ -424,8 +422,9 @@ fn cli_parse_renders_source_errors_without_json_and_preserves_machine_mode() {
     assert!(diagnostic.contains('^'), "{diagnostic}");
     assert!(human.stdout.is_empty());
     let machine = Command::new(env!("CARGO_BIN_EXE_yl"))
-        .arg("parse")
+        .arg("language")
         .arg(artifact)
+        .arg("check")
         .arg(input)
         .arg("--json")
         .output()
@@ -433,11 +432,11 @@ fn cli_parse_renders_source_errors_without_json_and_preserves_machine_mode() {
     assert!(!machine.status.success());
     assert!(machine.stderr.is_empty());
     let result: serde_json::Value = serde_json::from_slice(&machine.stdout).unwrap();
-    assert_eq!(result["diagnostics"][0]["code"], "parse.unexpected_token");
+    assert_eq!(result[0]["code"], "parse.unexpected_token");
 }
 
 #[test]
-fn cli_parse_handles_relative_paths_eof_and_retains_ast_for_constraint_errors() {
+fn cli_language_tools_handle_relative_paths_eof_and_constraint_errors() {
     let artifact = fixture("target/cli-human-relative.ylc");
     fs::write(
         &artifact,
@@ -450,8 +449,9 @@ fn cli_parse_handles_relative_paths_eof_and_retains_ast_for_constraint_errors() 
     let output = Command::new(env!("CARGO_BIN_EXE_yl"))
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .args([
-            "parse",
+            "language",
             "target/cli-human-relative.ylc",
+            "check",
             "tests/fixtures/minijs/malformed-expression.js",
         ])
         .output()
@@ -468,15 +468,111 @@ fn cli_parse_handles_relative_paths_eof_and_retains_ast_for_constraint_errors() 
     let input = fixture("target/cli-human-constrained.txt");
     fs::write(&input, "x").unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_yl"))
-        .arg("parse")
+        .arg("language")
         .arg(artifact)
+        .arg("ast")
         .arg(input)
         .output()
         .unwrap();
     assert!(!output.status.success());
-    assert!(String::from_utf8(output.stderr)
-        .unwrap()
-        .contains("Rejected value"));
+    let diagnostics: serde_json::Value = serde_json::from_slice(&output.stderr).unwrap();
+    assert_eq!(diagnostics[0]["message"], "Rejected value");
     let ast: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(ast["type"], "P");
+}
+
+#[test]
+fn language_tools_separate_ast_generation_from_diagnostic_checks() {
+    let artifact = fixture("target/cli-language-tools.ylc");
+    fs::write(
+        &artifact,
+        compile_language(fixture("documentation/target-syntax/minijs.yl"))
+            .unwrap()
+            .to_bytes()
+            .unwrap(),
+    )
+    .unwrap();
+    let source = fixture("tests/fixtures/minijs/program.js");
+    let executable = env!("CARGO_BIN_EXE_yl");
+    let check = Command::new(executable)
+        .arg("language")
+        .arg(&artifact)
+        .arg("check")
+        .arg(&source)
+        .output()
+        .unwrap();
+    assert!(check.status.success());
+    assert!(check.stdout.is_empty());
+    assert!(check.stderr.is_empty());
+    let json = Command::new(executable)
+        .arg("language")
+        .arg(&artifact)
+        .arg("check")
+        .arg(&source)
+        .arg("--json")
+        .output()
+        .unwrap();
+    assert!(json.status.success());
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&json.stdout).unwrap(),
+        serde_json::json!([])
+    );
+    let ast = Command::new(executable)
+        .arg("language")
+        .arg(&artifact)
+        .arg("ast")
+        .arg(source)
+        .output()
+        .unwrap();
+    assert!(ast.status.success());
+    assert!(ast.stderr.is_empty());
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&ast.stdout).unwrap()["type"],
+        "Program"
+    );
+}
+
+#[test]
+fn language_ast_failures_are_json_and_checks_never_emit_an_ast() {
+    let artifact = fixture("target/cli-language-output-errors.ylc");
+    let language = compile_sources(
+        "checks.yl",
+        &BTreeMap::from([(
+            "checks.yl".into(),
+            r#"node P = /x/ { constraints { when true { error("Rejected") } } } entry P"#.into(),
+        )]),
+    )
+    .unwrap();
+    fs::write(&artifact, language.to_bytes().unwrap()).unwrap();
+    let source = fixture("target/cli-language-output-errors.txt");
+    fs::write(&source, "x").unwrap();
+    let check = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .arg("language")
+        .arg(&artifact)
+        .arg("check")
+        .arg(&source)
+        .output()
+        .unwrap();
+    assert!(!check.status.success());
+    assert!(check.stdout.is_empty());
+    assert!(String::from_utf8(check.stderr)
+        .unwrap()
+        .contains("Rejected"));
+    fs::write(&source, "@").unwrap();
+    let ast = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .arg("language")
+        .arg(&artifact)
+        .arg("ast")
+        .arg(&source)
+        .output()
+        .unwrap();
+    assert!(!ast.status.success());
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&ast.stdout).unwrap(),
+        serde_json::Value::Null
+    );
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&ast.stderr).unwrap()[0]["code"],
+        "parse.unexpected_token"
+    );
 }

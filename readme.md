@@ -45,3 +45,15 @@ cargo run -- parse independent.ylc tests/fixtures/syntax-v0/program.txt --json
 The independent fixture exercises the complete API/CLI pipeline; it does not replace
 the checked-in MiniJS acceptance language. Native parser generation and the semantic
 layer are outside this implementation.
+
+## CLI tools
+
+```sh
+cargo run -- compile documentation/target-syntax/minijs.yl -o target/minijs.ylc
+cargo run -- language target/minijs.ylc ast tests/fixtures/minijs/program.js
+cargo run -- language target/minijs.ylc check tests/fixtures/minijs/unexpected-token.js
+cargo run -- language target/minijs.ylc check tests/fixtures/minijs/unexpected-token.js --json
+```
+
+`ast` produces AST JSON. `check` reports diagnostics with terminal source
+underlines; `--json` selects a diagnostic array. A clean human check is silent.

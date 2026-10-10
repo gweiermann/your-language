@@ -2,12 +2,12 @@ use std::{env, fs, io::IsTerminal, path::Path, process::ExitCode};
 use your_language::{
     compile_language,
     diagnostic::{Diagnostic, Span},
-    load_compiled_language, parse_named, ParseResult,
+    load_compiled_language, parse_named,
 };
 
 fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
     let usage = || {
-        vec![Diagnostic::error("yl.cli","Usage: yl check <entry.yl> | yl compile <entry.yl> -o <language.ylc> | yl parse <language.ylc> <source> [--json]",Span::default())]
+        vec![Diagnostic::error("yl.cli","Usage: yl check <entry.yl> | yl compile <entry.yl> -o <language.ylc> | yl language <language.ylc> ast <source> | yl language <language.ylc> check <source> [--json]",Span::default())]
     };
     let io = |path: &str, e: std::io::Error| {
         vec![Diagnostic::error(
@@ -30,7 +30,10 @@ fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
             println!("Compiled {}", args[3]);
             Ok(true)
         }
-        Some("parse") if args.len() == 3 || (args.len() == 4 && args[3] == "--json") => {
+        Some("language")
+            if args.len() == 4 && matches!(args[2].as_str(), "ast" | "check")
+                || args.len() == 5 && args[2] == "check" && args[4] == "--json" =>
+        {
             let bytes = fs::read(&args[1]).map_err(|e| io(&args[1], e))?;
             let language = load_compiled_language(&bytes).map_err(|mut errors| {
                 for error in &mut errors {
@@ -40,50 +43,54 @@ fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
                 }
                 errors
             })?;
-            let source = fs::read_to_string(&args[2]).map_err(|e| io(&args[2], e))?;
-            let result = parse_named(&language, &args[2], &source);
-            if args.get(3).is_some_and(|argument| argument == "--json") {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&result).map_err(|e| vec![Diagnostic::error(
-                        "yl.json",
-                        e.to_string(),
-                        Span::default()
-                    )])?
-                );
+            let source = fs::read_to_string(&args[3]).map_err(|e| io(&args[3], e))?;
+            let result = parse_named(&language, &args[3], &source);
+            if args[2] == "ast" {
+                println!("{}", json(&result.ast)?);
+                if !result.diagnostics.is_empty() {
+                    eprintln!("{}", json(&result.diagnostics)?);
+                }
+            } else if args.get(4).is_some_and(|flag| flag == "--json") {
+                println!("{}", json(&result.diagnostics)?);
             } else {
                 render_diagnostics(&result.diagnostics, |span| {
-                    if span.file == args[2] {
+                    if span.file == args[3] {
                         Some(source.clone())
                     } else {
                         fs::read_to_string(&span.file).ok()
                     }
                 });
-                if let Some(ast) = &result.ast {
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(ast).map_err(|e| vec![Diagnostic::error(
-                            "yl.json",
-                            e.to_string(),
-                            Span::default()
-                        )])?
-                    );
-                }
             }
             Ok(!result.has_errors())
         }
         _ => Err(usage()),
     }
 }
+fn json(value: &impl serde::Serialize) -> Result<String, Vec<Diagnostic>> {
+    serde_json::to_string_pretty(value)
+        .map_err(|e| vec![Diagnostic::error("yl.json", e.to_string(), Span::default())])
+}
 fn main() -> ExitCode {
     let args: Vec<_> = env::args().skip(1).collect();
-    let machine =
-        args.first().is_some_and(|a| a == "parse") && args.get(3).is_some_and(|a| a == "--json");
+    let diagnostic_json = args.first().is_some_and(|a| a == "language")
+        && args.get(2).is_some_and(|a| a == "check")
+        && args.get(4).is_some_and(|a| a == "--json");
+    let ast_json =
+        args.first().is_some_and(|a| a == "language") && args.get(2).is_some_and(|a| a == "ast");
     match run(&args) {
         Ok(true) => ExitCode::SUCCESS,
         Ok(false) => ExitCode::FAILURE,
         Err(diagnostics) => {
-            if args
+            if diagnostic_json || ast_json {
+                if ast_json {
+                    println!("null");
+                }
+                match json(&diagnostics) {
+                    Ok(output) if diagnostic_json => println!("{output}"),
+                    Ok(output) => eprintln!("{output}"),
+                    Err(_) => eprintln!("Unable to serialize diagnostics"),
+                }
+            } else if args
                 .first()
                 .is_some_and(|command| command == "check" || command == "compile")
             {
@@ -91,24 +98,8 @@ fn main() -> ExitCode {
                     &diagnostics,
                     args.get(1).map(String::as_str).unwrap_or("."),
                 );
-                return ExitCode::FAILURE;
-            }
-            if !machine && args.first().is_some_and(|command| command == "parse") {
-                render_diagnostics(&diagnostics, |span| fs::read_to_string(&span.file).ok());
-                return ExitCode::FAILURE;
-            }
-            let serialized = if machine {
-                serde_json::to_string_pretty(&ParseResult {
-                    ast: None,
-                    diagnostics,
-                })
             } else {
-                serde_json::to_string_pretty(&diagnostics)
-            };
-            match serialized {
-                Ok(json) if machine => println!("{json}"),
-                Ok(json) => eprintln!("{json}"),
-                Err(_) => eprintln!("Unable to serialize diagnostics"),
+                render_diagnostics(&diagnostics, |span| fs::read_to_string(&span.file).ok());
             }
             ExitCode::FAILURE
         }

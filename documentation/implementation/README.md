@@ -16,7 +16,7 @@ UTF-8 YL files
   artifact.rs            -> versioned JSON .ylc / validation on reload
   runtime.rs             -> generic grammar interpreter / Pratt expression families
                          -> AST + structured diagnostics
-  main.rs                -> yl check / compile / parse --json
+  main.rs                -> yl check / compile / language <ylc> ast|check
 ```
 
 Rules use deterministic module-qualified IDs. Concrete AST names retain their
@@ -128,7 +128,7 @@ cargo install --path . --locked
 
 yl check tests/fixtures/syntax-v0/language.yl
 yl compile tests/fixtures/syntax-v0/language.yl -o independent.ylc
-yl parse independent.ylc tests/fixtures/syntax-v0/program.txt --json
+yl language independent.ylc ast tests/fixtures/syntax-v0/program.txt
 ```
 
 The equivalent `cargo run -- <command>` works without installation. Tests invoke
@@ -137,10 +137,18 @@ explicit: `UPDATE_GOLDENS=1 cargo test --test integration` (PowerShell:
 `$env:UPDATE_GOLDENS='1'`). Review snapshots before committing. Tracked text uses LF
 so source-span snapshots are identical on Linux and Windows.
 
-`yl parse ... --json` emits the AST/diagnostics object on stdout for source parse
-failures, artifact errors and file I/O errors alike. Error exits are nonzero; file
-errors retain their path in the diagnostic's primary span. Definition checks/compilation render source snippets on stderr with caller-first
-underlines (colored in terminals). Other non-machine errors use structured JSON on stderr.
+`yl language <language.ylc> ast <source>` emits only the AST JSON on stdout.
+It prints `null` when no AST can be built and writes diagnostic arrays as JSON to
+stderr. ASTs remain available when syntax-local constraints emit errors.
+
+`yl language <language.ylc> check <source>` emits only human-readable diagnostics
+to stderr, with source snippets and colored underlines in terminals. A successful
+check without diagnostics is silent. Add `--json` to emit a diagnostic array on
+stdout, including `[]` for a clean check. No AST is included in check output.
+Artifact and file I/O errors follow the selected tool's output format. Errors exit
+nonzero; warnings/help alone do not. Definition commands remain `yl check` and
+`yl compile`. The old combined CLI `parse` command is replaced by these tools;
+the public Rust `parse` API and ParseResult are unchanged.
 
 The requested acceptance command:
 
@@ -161,10 +169,13 @@ This intentionally fails with `yl.pipe_case`, underlining the `.a` and `.b`
 arguments at the caller. For target-source JSON diagnostics, compile MiniJS and
 parse `tests/fixtures/minijs/malformed-expression.js` instead of `program.js`.
 
-`yl parse <language.ylc> <source>` renders source diagnostics to stderr (red
-underlines for errors in terminals) and prints the AST as JSON to stdout when
-one is available. Constraint errors retain their AST and exit nonzero. Add
-`--json` for the full `{ast, diagnostics}` object on stdout with no human renderer.
-Source and underline gutters share the line-number width, including multi-digit
-line numbers. Runtime diagnostics resolve target paths directly; definition
-checks resolve module spans relative to the entry directory.
+The human renderer shares source/underline line-number widths, including
+multi-digit line numbers. Runtime diagnostics resolve target paths directly;
+definition checks resolve module spans relative to the entry directory.
+
+```sh
+cargo run --quiet -- compile documentation/target-syntax/minijs.yl -o target/minijs.ylc
+cargo run --quiet -- language target/minijs.ylc ast tests/fixtures/minijs/program.js
+cargo run --quiet -- language target/minijs.ylc check tests/fixtures/minijs/unexpected-token.js
+cargo run --quiet -- language target/minijs.ylc check tests/fixtures/minijs/unexpected-token.js --json
+```

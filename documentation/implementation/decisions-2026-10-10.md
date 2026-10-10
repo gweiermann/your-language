@@ -48,3 +48,12 @@ skipping. An entry without a trivia section skips nothing automatically. Selecte
 trivia uses normal imports/exports and may name abstract families. Imported helper
 modules and unselected trivia must not affect skipping. This replaces the original
 specification's implicit activation of all trivia in the loaded module graph.
+
+## Language-context CLI tools
+
+The author approved `yl language <language.ylc> ast <source>` and
+`yl language <language.ylc> check <source> [--json]`, replacing the combined CLI
+parse command. AST generation is JSON-only; checks emit diagnostics without an
+AST, in human-readable form by default or a JSON array with `--json`. Clean human
+checks are silent. Definition check/compile commands and the public Rust API stay
+separate and unchanged.
