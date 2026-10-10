@@ -1,9 +1,11 @@
 # PARKED language-design decisions — issue #5
 
-Issue #5 is **not complete**. The original acceptance grammar remains unchanged.
+The recorded design blockers were resolved with the language author on 2026-10-10.
+The original acceptance grammar remains unchanged. See [agreed decisions](./decisions-2026-10-10.md).
 These questions concern observable YL behavior, not Rust architecture choices.
 The compiler/artifact/runtime path and unchanged MiniJS acceptance have executable tests.
-General constraint operations and metadata remain parked as described below.
+P3, P4 and P6 now have explicit implementation rules. P5 metadata was explicitly
+deferred beyond syntax-v0. The original questions below are historical context.
 
 ## P1 — RESOLVED from the documented declaration categories
 
@@ -68,7 +70,7 @@ Implemented independently: ordinary node, option, list, union and sequence value
 capture-only concrete AST fields; transparent patterns; normalized runtime terms.
 No stdlib-specific list projection is implemented; generic projection terms are used.
 
-## P3 — General constraint boolean/string language
+## P3 — RESOLVED: general constraint boolean/string language
 
 Sources: specification “Constraints”; issue #5 section 16.
 
@@ -98,7 +100,7 @@ an implicit coercion. Typed reusable-constraint parameters remain parked until t
 operand rules are defined; untyped positional/named arguments, defaults, receiver
 substitution and literal diagnostic messages work. No scope/relation layer was added.
 
-## P4 — Enum case selection with multiple enum parameters
+## P4 — RESOLVED: enum case selection with multiple enum parameters
 
 Sources: specification “Pipes and structural rewrite”, “Enums and arguments”.
 
@@ -115,7 +117,7 @@ parameters return `yl.parked_enum_dispatch` when expansion would require a choic
 
 **Exact decision needed:** Specify a selector rule or selector syntax.
 
-## P5 — Extension metadata and singular/named sections
+## P5 — DEFERRED by author: extension metadata and singular/named sections
 
 Sources: specification “Extending nodes across files”; issue #5 section 17.
 
@@ -136,17 +138,17 @@ or explicitly limit syntax-v0 extensions to constraints.
 
 ## Acceptance status
 
-- MiniJS and separatedBy compilation, artifact/reload, AST and negative diagnostics:
-  **PASSING**. Full frontend/normalized/runtime snapshots are committed.
-- General boolean/string constraints and absent-capture evaluation: **PARKED** on P3.
-- Multiple-enum case selection: **PARKED** on P4; single-enum cases work.
-- Extension metadata: **PARKED** on P5; additive constraints work.
-- Scalar binding omission/duplication: **PARKED** on P6; single-value wrappers work.
+- MiniJS compile/artifact/reload/parse, exact AST and negative diagnostics: passing.
+- P3: boolean/string conditions, optional chaining, presence guards and reusable constraints implemented.
+- P4: explicit single/tuple selection, exhaustive wildcard cases and caller diagnostics implemented.
+- P5: metadata explicitly deferred by the author; additive constraints implemented.
+- P6: type/cardinality-preserving projections implemented and checked at applications/reload.
 
-Issue #5 remains incomplete because P3/P5 affect required acceptance items. The
-independent fixture remains additional coverage, rather than a MiniJS substitute.
+There are no unresolved design questions in this list. Metadata is a deliberate
+scope deferral, rather than an implemented feature. The original issue text still
+mentions it; this PR documents that approved deviation instead of claiming it exists.
 
-## P6 — Scalar rewrite omits or duplicates the original binding
+## P6 — RESOLVED: scalar rewrite omits or duplicates the original binding
 
 The clarified invariant is that every pipe preserves its input type. For a scalar
 wrapper, a single bound value can be forwarded unambiguously. Other cardinalities

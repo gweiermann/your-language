@@ -1,0 +1,25 @@
+[
+  {
+    "severity": "error",
+    "code": "yl.pipe_case",
+    "message": "This combination is not allowed.",
+    "primary": {
+      "file": "language.yl",
+      "start": 337,
+      "end": 339
+    },
+    "secondary": [
+      {
+        "file": "language.yl",
+        "start": 341,
+        "end": 343
+      },
+      {
+        "file": "language.yl",
+        "start": 156,
+        "end": 197
+      }
+    ],
+    "help": null
+  }
+]

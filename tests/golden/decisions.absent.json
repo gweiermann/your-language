@@ -1,0 +1,34 @@
+{
+  "ast": {
+    "type": "Program",
+    "fields": {
+      "items": [],
+      "name": null
+    },
+    "span": {
+      "file": "decisions.txt",
+      "start": 0,
+      "end": 1
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "help",
+      "code": "parse.constraint",
+      "message": "Missing name.",
+      "primary": {
+        "file": "decisions.txt",
+        "start": 0,
+        "end": 1
+      },
+      "secondary": [
+        {
+          "file": "language.yl",
+          "start": 550,
+          "end": 571
+        }
+      ],
+      "help": null
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 # Syntax-v0 implementation status
 
-Issue #5 is **incomplete**, with explicit [PARKED design questions](./PARKED.md).
-MiniJS passes the compile/reload/parse flow. Required general constraints and metadata remain parked. The generic layers
-below work independently and are covered by tests through the public API.
+The syntax-v0 implementation covers the agreed scope, with [author-approved design
+decisions](./decisions-2026-10-10.md). Metadata is explicitly deferred beyond
+syntax-v0. MiniJS passes the compile/reload/parse flow through the public API.
 
 ## Architecture
 
@@ -23,7 +23,7 @@ Rules use deterministic module-qualified IDs. Concrete AST names retain their
 declaration's qualified name; imported membership paths are aliases to that rule.
 An abstract rule returns the matched concrete node without adding a wrapper.
 Patterns are expanded at compile time, with no AST identity. Runtime terms contain
-no pattern calls, pipes, enum variants, import statements or stdlib source.
+no pattern calls, pipes, contextual enum syntax, import statements or stdlib source.
 
 All pipes preserve their input type, following the user's implementation-time
 clarification. Lowering marks the original grammar values and emits a generic
@@ -43,7 +43,7 @@ including left-growing operator trees. Exceeding a guard returns
 Module loading records canonical import edges, including parent-directory paths and
 cycles. Artifact module IDs remain relative to the entry directory so relocating the
 same graph does not change its serialized bytes. Reusable constraints preserve named
-arguments, substitute capture receivers and regexes, and support untyped defaults and
+arguments, substitute capture receivers and regexes, and support defaults, declared node/enum parameter types and
 literal diagnostic-message arguments.
 
 Lookbehind constrains consumption to its left-context boundary, including zero-width
@@ -81,17 +81,17 @@ checks for MiniJS node names, keywords or grammar files and no hard-coded list h
 | 7 grammar values / parameterized patterns | Implemented, including type-preserving pipe projections; P2 resolved by user |
 | 8 grammar operator precedence | Implemented; choice/sequence/capture/postfix/pipe/grouping/chaining tests |
 | 9 structural rewrites | Implemented for documented structural arms; application/grouping resolved from declaration categories |
-| 10 enums/arguments | Implemented for unambiguous expected types; multiple-enum case dispatch PARKED P4 |
+| 10 enums/arguments | Implemented for unambiguous expected types; explicit single/tuple selectors, exhaustive wildcard cases and caller diagnostics |
 | 11 separatedBy | Implemented in ordinary YL; all six modes and flat values tested |
 | 12 recursive precedence | Implemented; product/sum, power, member/call, unary, grouping, nonassoc tests |
 | 13–15 trivia/core/std/entry | Implemented; ordinary trivia, explicit core imports, boundedBy and entry checks |
-| 16 constraints | Documented between/matches and reusable constraints implemented; general boolean/string syntax PARKED P3 |
-| 17 extensions | Additive constraints implemented, grammar changes rejected; metadata PARKED P5 |
+| 16 constraints | Boolean/string conditions, presence guards, optional chaining, absence and reusable constraints implemented |
+| 17 extensions | Additive constraints implemented, grammar changes rejected; metadata explicitly deferred by the author |
 | 18 normalized artifact | Implemented; deterministic roundtrip and corrupt-artifact validation tests |
 | 19 MiniJS | Frontend/normalized/runtime snapshots, valid and negative fixtures; public API and CLI flow passing |
 | 20 tests | Unit/integration/CLI/negative/robustness and goldens present, including MiniJS AST/diagnostics |
 | 21 quality | Root tests, format and strict Clippy checks run; CI for Linux/Windows added |
-| 22 definition of done | MiniJS flow passes; issue remains incomplete on P3/P5 |
+| 22 definition of done | MiniJS flow passes; all recorded design questions resolved, metadata intentionally deferred |
 
 No semantic-layer features, parser generation, JIT, incremental parsing, FFI or LSP
 were added. Conflicting legacy crates were removed.
@@ -111,7 +111,9 @@ let result = parse_named(&language, "input.txt", "source text");
 `compile_sources` accepts a map of module IDs to source for in-memory hosts.
 `frontend::parse_yl` exposes the spanned frontend AST for inspection.
 `parse` defaults the target file name to `<source>`; `parse_named` sets it explicitly.
-Compile/load failures return diagnostic vectors. Parse failures set `ast` to null.
+Compile/load failures return diagnostic vectors. Non-fatal compilation diagnostics
+are available through `CompiledLanguage::diagnostics()` and printed by the CLI.
+They are not runtime checks and are not serialized into `.ylc`. Parse failures set `ast` to null.
 Syntax-local constraint errors retain the AST plus their diagnostics.
 
 ## Running tests and CLI
@@ -137,8 +139,8 @@ so source-span snapshots are identical on Linux and Windows.
 
 `yl parse ... --json` emits the AST/diagnostics object on stdout for source parse
 failures, artifact errors and file I/O errors alike. Error exits are nonzero; file
-errors retain their path in the diagnostic's primary span. Other commands report
-their structured errors on stderr.
+errors retain their path in the diagnostic's primary span. Definition checks/compilation render source snippets on stderr with caller-first
+underlines (colored in terminals). Other non-machine errors use structured JSON on stderr.
 
 The requested acceptance command:
 

@@ -478,11 +478,51 @@ node Update =
 
 Syntax-v0 constraints may inspect current captures, source spans, and trivia. Scope/relation queries belong to the later semantic layer.
 
+### Boolean conditions and absence
+
+Condition operators use JavaScript-style spelling, without general truthiness or
+implicit coercions. From strongest to weakest: parentheses, `!`, `==`/`!=`, `&&`,
+`||`. Binary operators associate left. Equality compares scalar strings, booleans,
+and variants of the same enum; `absent` can be compared with optional values.
+
+```yl
+when name.isPresent() && name.matches(/^[A-Z]/) {
+    warning("Capitalized name")
+}
+when name?.matches(/^[A-Z]/) {
+    warning("Capitalized name")
+}
+when name?.matches(/^[A-Z]/) == false {
+    help("Present but not capitalized")
+}
+when name?.matches(/^[A-Z]/) == absent {
+    help("Missing name")
+}
+```
+
+`isPresent()` distinguishes absent captures from present values (including empty
+strings/lists). `.matches` inspects captured source text. An ordinary method call
+on a possibly absent capture is a definition error unless its presence is proved
+by an earlier short-circuit guard. `?.matches` returns `absent` for an absent
+receiver, otherwise a boolean. A `when` accepts boolean or optional boolean and
+emits only for `true`; no `== true` is required.
+
+`!absent` is `absent`. `false && rhs` and `absent && rhs` skip `rhs` and preserve
+the left value; `true && rhs` returns `rhs`. `true || rhs` skips `rhs`, while
+`false || rhs` and `absent || rhs` return `rhs`. Equality always returns a boolean.
+
+Separate `when` clauses are independent and evaluated in source order. Emitting a
+diagnostic does not establish presence or stop subsequent checks. Nested `when`
+clauses run only if their enclosing conditions are true. Reusable constraints
+accept positional/named arguments and defaults; declared node parameters require
+captures of that node type or its members, and enum parameters resolve contextual
+variants using their declared enum type.
+
 ## Extending nodes across files
 
 A node has one canonical grammar definition.
 
-Other modules may add syntax-local constraints or metadata:
+Other modules may add syntax-local constraints. Metadata is deferred beyond syntax-v0:
 
 ```yl
 import { Name } from "./name"
@@ -572,3 +612,41 @@ The semantic layer is intentionally outside this checkpoint:
 - semantic graph generation.
 
 Those features are designed and implemented after the syntax runtime is validated end-to-end.
+
+## Explicit enum selection in structural rewrites
+
+A rewrite can select one enum parameter or a tuple of enum parameters:
+
+```yl
+rewrite value match (first, second) {
+    (.a, .a) => "(" value ")"
+    (.a, .b) => { error("This combination is not allowed.") }
+    _ => { warning("Pipe not applied.") value }
+}
+```
+
+For one selector, use `rewrite value match first { ... }`. The documented
+`rewrite value { .a => ... .b => ... }` shorthand remains valid with exactly
+one enum parameter. Multiple enum parameters require explicit selection.
+
+Cases are checked in source order and the first matching case wins. `_` matches
+any value, either as a tuple component (`(.a, _)`) or the entire selector tuple.
+Matching must be exhaustive. A completely shadowed case is a definition error.
+Case blocks contain diagnostic statements followed by a replacement grammar.
+An `error` rejects the pipe application and does not require a replacement;
+`warning` or `help` continues with the replacement. Returning the bound grammar
+unchanged is the identity transformation.
+
+These diagnostics occur when compiling the language. Their primary location is
+at the pipe caller's selected enum argument, with other selected arguments and
+the diagnostic definition as secondary spans. Forwarded arguments preserve their
+original caller spans. Defaulted arguments point to the application and are
+identified in diagnostic help text.
+
+Every pipe preserves its input type and cardinality. Required scalars must produce
+exactly one original value, optional scalars zero or one, `*` lists zero or more,
+and `+` lists one or more. List duplication collects original items in source
+order, preserving tuple/list-valued element boundaries. Omitting an optional
+input produces `absent`; omitting a star list produces an empty list. Omitting a
+required scalar/nonempty list, or duplicating an optional scalar so that both can
+produce values, is a definition error at the pipe application.

@@ -1,0 +1,25 @@
+[
+  {
+    "severity": "warning",
+    "code": "yl.pipe_case",
+    "message": "Pipe not applied; preserving input.",
+    "primary": {
+      "file": "language.yl",
+      "start": 337,
+      "end": 339
+    },
+    "secondary": [
+      {
+        "file": "language.yl",
+        "start": 341,
+        "end": 343
+      },
+      {
+        "file": "language.yl",
+        "start": 215,
+        "end": 261
+      }
+    ],
+    "help": null
+  }
+]

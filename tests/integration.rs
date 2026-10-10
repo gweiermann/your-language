@@ -326,3 +326,52 @@ fn all_separated_by_modes_match_the_documented_language_and_flat_list_values() {
         }
     }
 }
+
+#[test]
+fn agreed_decisions_have_frontend_normalized_runtime_and_diagnostic_goldens() {
+    let relative = "tests/fixtures/decisions/language.yl";
+    let source = fs::read_to_string(fixture(relative)).unwrap();
+    golden("decisions.yl-ast", &parse_yl(relative, &source).unwrap());
+    let language = compile_language(fixture(relative)).unwrap();
+    golden("decisions.normalized", &language);
+    golden("decisions.compile-diagnostics", &language.diagnostics());
+    let language = load_compiled_language(&language.to_bytes().unwrap()).unwrap();
+    golden(
+        "decisions.ast",
+        &parse_named(&language, "decisions.txt", "Alice:xxx"),
+    );
+    golden(
+        "decisions.absent",
+        &parse_named(&language, "decisions.txt", ":"),
+    );
+    let invalid = source.replace("wrap(.b, .a)", "wrap(.a, .b)");
+    golden(
+        "decisions.error",
+        &compile_sources(
+            "language.yl",
+            &BTreeMap::from([("language.yl".into(), invalid)]),
+        )
+        .unwrap_err(),
+    );
+}
+
+#[test]
+fn cli_pipe_diagnostics_underline_caller_arguments_before_definition() {
+    let source = fs::read_to_string(fixture("tests/fixtures/decisions/language.yl"))
+        .unwrap()
+        .replace("wrap(.b, .a)", "wrap(.a, .b)");
+    let entry = fixture("target/caller-diagnostic.yl");
+    fs::write(&entry, source).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .arg("check")
+        .arg(entry)
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let text = String::from_utf8(output.stderr).unwrap();
+    assert!(text.contains("This combination is not allowed."));
+    assert!(text.contains("^^  ^^"));
+    let caller = text.find("node Program").unwrap();
+    let definition = text.find("error(\"This combination").unwrap();
+    assert!(caller < definition, "{text}");
+}

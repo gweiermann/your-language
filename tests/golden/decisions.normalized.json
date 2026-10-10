@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "entry": "language.yl#Program",
+  "rules": {
+    "language.yl#Program": {
+      "name": "Program",
+      "trivia": false,
+      "body": {
+        "Concrete": {
+          "Sequence": [
+            {
+              "Capture": [
+                "name",
+                {
+                  "Repeat": [
+                    {
+                      "Regex": "[A-Za-z]+"
+                    },
+                    "Optional"
+                  ]
+                }
+              ]
+            },
+            {
+              "Literal": ":"
+            },
+            {
+              "Capture": [
+                "items",
+                {
+                  "Project": {
+                    "id": 0,
+                    "term": {
+                      "Mark": {
+                        "id": 0,
+                        "term": {
+                          "Repeat": [
+                            {
+                              "Regex": "x"
+                            },
+                            "Star"
+                          ]
+                        }
+                      }
+                    },
+                    "quantifier": "Star",
+                    "collect_lists": true
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "constraints": [
+        {
+          "condition": {
+            "OptionalMatches": {
+              "capture": "name",
+              "regex": "^[A-Z]"
+            }
+          },
+          "emissions": [
+            {
+              "severity": "warning",
+              "message": "Capitalized name.",
+              "span": {
+                "file": "language.yl",
+                "start": 404,
+                "end": 432
+              }
+            }
+          ]
+        },
+        {
+          "condition": {
+            "Not": {
+              "OptionalMatches": {
+                "capture": "name",
+                "regex": "^[A-Z]"
+              }
+            }
+          },
+          "emissions": [
+            {
+              "severity": "help",
+              "message": "Lowercase name.",
+              "span": {
+                "file": "language.yl",
+                "start": 475,
+                "end": 498
+              }
+            }
+          ]
+        },
+        {
+          "condition": {
+            "Equal": [
+              {
+                "OptionalMatches": {
+                  "capture": "name",
+                  "regex": "^[A-Z]"
+                }
+              },
+              "Absent"
+            ]
+          },
+          "emissions": [
+            {
+              "severity": "help",
+              "message": "Missing name.",
+              "span": {
+                "file": "language.yl",
+                "start": 550,
+                "end": 571
+              }
+            }
+          ]
+        },
+        {
+          "condition": {
+            "And": [
+              {
+                "Present": "name"
+              },
+              {
+                "Matches": {
+                  "capture": "name",
+                  "regex": "^X"
+                }
+              }
+            ]
+          },
+          "emissions": [
+            {
+              "severity": "warning",
+              "message": "X name.",
+              "span": {
+                "file": "language.yl",
+                "start": 628,
+                "end": 646
+              }
+            }
+          ]
+        }
+      ],
+      "span": {
+        "file": "language.yl",
+        "start": 279,
+        "end": 656
+      }
+    }
+  },
+  "trivia": []
+}

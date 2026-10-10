@@ -1,0 +1,820 @@
+{
+  "declarations": [
+    {
+      "export": false,
+      "kind": {
+        "Enum": {
+          "name": "Mode",
+          "variants": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "span": {
+        "file": "tests/fixtures/decisions/language.yl",
+        "start": 0,
+        "end": 17
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Pipe": {
+          "name": "wrap",
+          "parameters": [
+            {
+              "name": "first",
+              "ty": "Mode",
+              "default": null,
+              "span": {
+                "file": "tests/fixtures/decisions/language.yl",
+                "start": 29,
+                "end": 40
+              }
+            },
+            {
+              "name": "second",
+              "ty": "Mode",
+              "default": null,
+              "span": {
+                "file": "tests/fixtures/decisions/language.yl",
+                "start": 42,
+                "end": 54
+              }
+            }
+          ],
+          "arms": [
+            {
+              "binding": "value",
+              "quantifier": null,
+              "ty": null,
+              "body": {
+                "Match": {
+                  "selectors": [
+                    {
+                      "kind": {
+                        "Ref": "first"
+                      },
+                      "span": {
+                        "file": "tests/fixtures/decisions/language.yl",
+                        "start": 83,
+                        "end": 88
+                      }
+                    },
+                    {
+                      "kind": {
+                        "Ref": "second"
+                      },
+                      "span": {
+                        "file": "tests/fixtures/decisions/language.yl",
+                        "start": 90,
+                        "end": 96
+                      }
+                    }
+                  ],
+                  "cases": [
+                    {
+                      "patterns": [
+                        {
+                          "kind": {
+                            "Variant": "a"
+                          },
+                          "span": {
+                            "file": "tests/fixtures/decisions/language.yl",
+                            "start": 109,
+                            "end": 111
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Variant": "a"
+                          },
+                          "span": {
+                            "file": "tests/fixtures/decisions/language.yl",
+                            "start": 113,
+                            "end": 115
+                          }
+                        }
+                      ],
+                      "replacement": {
+                        "kind": {
+                          "Sequence": [
+                            {
+                              "kind": {
+                                "Literal": "("
+                              },
+                              "span": {
+                                "file": "tests/fixtures/decisions/language.yl",
+                                "start": 120,
+                                "end": 123
+                              }
+                            },
+                            {
+                              "kind": {
+                                "Ref": "value"
+                              },
+                              "span": {
+                                "file": "tests/fixtures/decisions/language.yl",
+                                "start": 124,
+                                "end": 129
+                              }
+                            },
+                            {
+                              "kind": {
+                                "Literal": ")"
+                              },
+                              "span": {
+                                "file": "tests/fixtures/decisions/language.yl",
+                                "start": 130,
+                                "end": 133
+                              }
+                            }
+                          ]
+                        },
+                        "span": {
+                          "file": "tests/fixtures/decisions/language.yl",
+                          "start": 120,
+                          "end": 133
+                        }
+                      },
+                      "diagnostics": [],
+                      "span": {
+                        "file": "tests/fixtures/decisions/language.yl",
+                        "start": 108,
+                        "end": 133
+                      }
+                    },
+                    {
+                      "patterns": [
+                        {
+                          "kind": {
+                            "Variant": "a"
+                          },
+                          "span": {
+                            "file": "tests/fixtures/decisions/language.yl",
+                            "start": 143,
+                            "end": 145
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Variant": "b"
+                          },
+                          "span": {
+                            "file": "tests/fixtures/decisions/language.yl",
+                            "start": 147,
+                            "end": 149
+                          }
+                        }
+                      ],
+                      "replacement": null,
+                      "diagnostics": [
+                        {
+                          "kind": {
+                            "Call": [
+                              "error",
+                              [
+                                {
+                                  "name": null,
+                                  "value": {
+                                    "kind": {
+                                      "Literal": "This combination is not allowed."
+                                    },
+                                    "span": {
+                                      "file": "tests/fixtures/decisions/language.yl",
+                                      "start": 162,
+                                      "end": 196
+                                    }
+                                  },
+                                  "span": {
+                                    "file": "tests/fixtures/decisions/language.yl",
+                                    "start": 162,
+                                    "end": 196
+                                  }
+                                }
+                              ]
+                            ]
+                          },
+                          "span": {
+                            "file": "tests/fixtures/decisions/language.yl",
+                            "start": 156,
+                            "end": 197
+                          }
+                        }
+                      ],
+                      "span": {
+                        "file": "tests/fixtures/decisions/language.yl",
+                        "start": 142,
+                        "end": 199
+                      }
+                    },
+                    {
+                      "patterns": [
+                        null
+                      ],
+                      "replacement": {
+                        "kind": {
+                          "Ref": "value"
+                        },
+                        "span": {
+                          "file": "tests/fixtures/decisions/language.yl",
+                          "start": 262,
+                          "end": 267
+                        }
+                      },
+                      "diagnostics": [
+                        {
+                          "kind": {
+                            "Call": [
+                              "warning",
+                              [
+                                {
+                                  "name": null,
+                                  "value": {
+                                    "kind": {
+                                      "Literal": "Pipe not applied; preserving input."
+                                    },
+                                    "span": {
+                                      "file": "tests/fixtures/decisions/language.yl",
+                                      "start": 223,
+                                      "end": 260
+                                    }
+                                  },
+                                  "span": {
+                                    "file": "tests/fixtures/decisions/language.yl",
+                                    "start": 223,
+                                    "end": 260
+                                  }
+                                }
+                              ]
+                            ]
+                          },
+                          "span": {
+                            "file": "tests/fixtures/decisions/language.yl",
+                            "start": 215,
+                            "end": 261
+                          }
+                        }
+                      ],
+                      "span": {
+                        "file": "tests/fixtures/decisions/language.yl",
+                        "start": 208,
+                        "end": 269
+                      }
+                    }
+                  ]
+                }
+              },
+              "span": {
+                "file": "tests/fixtures/decisions/language.yl",
+                "start": 62,
+                "end": 275
+              }
+            }
+          ]
+        }
+      },
+      "span": {
+        "file": "tests/fixtures/decisions/language.yl",
+        "start": 19,
+        "end": 277
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Node": {
+          "name": "Program",
+          "trivia": false,
+          "grammar": {
+            "kind": {
+              "Sequence": [
+                {
+                  "kind": {
+                    "Capture": [
+                      "name",
+                      {
+                        "kind": {
+                          "Repeat": [
+                            {
+                              "kind": {
+                                "Regex": "[A-Za-z]+"
+                              },
+                              "span": {
+                                "file": "tests/fixtures/decisions/language.yl",
+                                "start": 300,
+                                "end": 311
+                              }
+                            },
+                            "Optional"
+                          ]
+                        },
+                        "span": {
+                          "file": "tests/fixtures/decisions/language.yl",
+                          "start": 300,
+                          "end": 312
+                        }
+                      }
+                    ]
+                  },
+                  "span": {
+                    "file": "tests/fixtures/decisions/language.yl",
+                    "start": 294,
+                    "end": 312
+                  }
+                },
+                {
+                  "kind": {
+                    "Literal": ":"
+                  },
+                  "span": {
+                    "file": "tests/fixtures/decisions/language.yl",
+                    "start": 313,
+                    "end": 316
+                  }
+                },
+                {
+                  "kind": {
+                    "Capture": [
+                      "items",
+                      {
+                        "kind": {
+                          "Pipe": [
+                            {
+                              "kind": {
+                                "Repeat": [
+                                  {
+                                    "kind": {
+                                      "Regex": "x"
+                                    },
+                                    "span": {
+                                      "file": "tests/fixtures/decisions/language.yl",
+                                      "start": 324,
+                                      "end": 327
+                                    }
+                                  },
+                                  "Star"
+                                ]
+                              },
+                              "span": {
+                                "file": "tests/fixtures/decisions/language.yl",
+                                "start": 324,
+                                "end": 328
+                              }
+                            },
+                            "wrap",
+                            [
+                              {
+                                "name": null,
+                                "value": {
+                                  "kind": {
+                                    "Variant": "b"
+                                  },
+                                  "span": {
+                                    "file": "tests/fixtures/decisions/language.yl",
+                                    "start": 337,
+                                    "end": 339
+                                  }
+                                },
+                                "span": {
+                                  "file": "tests/fixtures/decisions/language.yl",
+                                  "start": 337,
+                                  "end": 339
+                                }
+                              },
+                              {
+                                "name": null,
+                                "value": {
+                                  "kind": {
+                                    "Variant": "a"
+                                  },
+                                  "span": {
+                                    "file": "tests/fixtures/decisions/language.yl",
+                                    "start": 341,
+                                    "end": 343
+                                  }
+                                },
+                                "span": {
+                                  "file": "tests/fixtures/decisions/language.yl",
+                                  "start": 341,
+                                  "end": 343
+                                }
+                              }
+                            ]
+                          ]
+                        },
+                        "span": {
+                          "file": "tests/fixtures/decisions/language.yl",
+                          "start": 324,
+                          "end": 344
+                        }
+                      }
+                    ]
+                  },
+                  "span": {
+                    "file": "tests/fixtures/decisions/language.yl",
+                    "start": 317,
+                    "end": 344
+                  }
+                }
+              ]
+            },
+            "span": {
+              "file": "tests/fixtures/decisions/language.yl",
+              "start": 294,
+              "end": 344
+            }
+          },
+          "members": [],
+          "precedence": [],
+          "constraints": [
+            {
+              "kind": {
+                "When": [
+                  {
+                    "kind": {
+                      "Call": [
+                        "name?.matches",
+                        [
+                          {
+                            "name": null,
+                            "value": {
+                              "kind": {
+                                "Regex": "^[A-Z]"
+                              },
+                              "span": {
+                                "file": "tests/fixtures/decisions/language.yl",
+                                "start": 392,
+                                "end": 400
+                              }
+                            },
+                            "span": {
+                              "file": "tests/fixtures/decisions/language.yl",
+                              "start": 392,
+                              "end": 400
+                            }
+                          }
+                        ]
+                      ]
+                    },
+                    "span": {
+                      "file": "tests/fixtures/decisions/language.yl",
+                      "start": 378,
+                      "end": 401
+                    }
+                  },
+                  [
+                    {
+                      "kind": {
+                        "Call": [
+                          "warning",
+                          [
+                            {
+                              "name": null,
+                              "value": {
+                                "kind": {
+                                  "Literal": "Capitalized name."
+                                },
+                                "span": {
+                                  "file": "tests/fixtures/decisions/language.yl",
+                                  "start": 412,
+                                  "end": 431
+                                }
+                              },
+                              "span": {
+                                "file": "tests/fixtures/decisions/language.yl",
+                                "start": 412,
+                                "end": 431
+                              }
+                            }
+                          ]
+                        ]
+                      },
+                      "span": {
+                        "file": "tests/fixtures/decisions/language.yl",
+                        "start": 404,
+                        "end": 432
+                      }
+                    }
+                  ]
+                ]
+              },
+              "span": {
+                "file": "tests/fixtures/decisions/language.yl",
+                "start": 373,
+                "end": 434
+              }
+            },
+            {
+              "kind": {
+                "When": [
+                  {
+                    "kind": {
+                      "Not": {
+                        "kind": {
+                          "Call": [
+                            "name?.matches",
+                            [
+                              {
+                                "name": null,
+                                "value": {
+                                  "kind": {
+                                    "Regex": "^[A-Z]"
+                                  },
+                                  "span": {
+                                    "file": "tests/fixtures/decisions/language.yl",
+                                    "start": 463,
+                                    "end": 471
+                                  }
+                                },
+                                "span": {
+                                  "file": "tests/fixtures/decisions/language.yl",
+                                  "start": 463,
+                                  "end": 471
+                                }
+                              }
+                            ]
+                          ]
+                        },
+                        "span": {
+                          "file": "tests/fixtures/decisions/language.yl",
+                          "start": 449,
+                          "end": 472
+                        }
+                      }
+                    },
+                    "span": {
+                      "file": "tests/fixtures/decisions/language.yl",
+                      "start": 448,
+                      "end": 472
+                    }
+                  },
+                  [
+                    {
+                      "kind": {
+                        "Call": [
+                          "help",
+                          [
+                            {
+                              "name": null,
+                              "value": {
+                                "kind": {
+                                  "Literal": "Lowercase name."
+                                },
+                                "span": {
+                                  "file": "tests/fixtures/decisions/language.yl",
+                                  "start": 480,
+                                  "end": 497
+                                }
+                              },
+                              "span": {
+                                "file": "tests/fixtures/decisions/language.yl",
+                                "start": 480,
+                                "end": 497
+                              }
+                            }
+                          ]
+                        ]
+                      },
+                      "span": {
+                        "file": "tests/fixtures/decisions/language.yl",
+                        "start": 475,
+                        "end": 498
+                      }
+                    }
+                  ]
+                ]
+              },
+              "span": {
+                "file": "tests/fixtures/decisions/language.yl",
+                "start": 443,
+                "end": 500
+              }
+            },
+            {
+              "kind": {
+                "When": [
+                  {
+                    "kind": {
+                      "Binary": [
+                        "==",
+                        {
+                          "kind": {
+                            "Call": [
+                              "name?.matches",
+                              [
+                                {
+                                  "name": null,
+                                  "value": {
+                                    "kind": {
+                                      "Regex": "^[A-Z]"
+                                    },
+                                    "span": {
+                                      "file": "tests/fixtures/decisions/language.yl",
+                                      "start": 528,
+                                      "end": 536
+                                    }
+                                  },
+                                  "span": {
+                                    "file": "tests/fixtures/decisions/language.yl",
+                                    "start": 528,
+                                    "end": 536
+                                  }
+                                }
+                              ]
+                            ]
+                          },
+                          "span": {
+                            "file": "tests/fixtures/decisions/language.yl",
+                            "start": 514,
+                            "end": 537
+                          }
+                        },
+                        {
+                          "kind": "Absent",
+                          "span": {
+                            "file": "tests/fixtures/decisions/language.yl",
+                            "start": 541,
+                            "end": 547
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "file": "tests/fixtures/decisions/language.yl",
+                      "start": 514,
+                      "end": 547
+                    }
+                  },
+                  [
+                    {
+                      "kind": {
+                        "Call": [
+                          "help",
+                          [
+                            {
+                              "name": null,
+                              "value": {
+                                "kind": {
+                                  "Literal": "Missing name."
+                                },
+                                "span": {
+                                  "file": "tests/fixtures/decisions/language.yl",
+                                  "start": 555,
+                                  "end": 570
+                                }
+                              },
+                              "span": {
+                                "file": "tests/fixtures/decisions/language.yl",
+                                "start": 555,
+                                "end": 570
+                              }
+                            }
+                          ]
+                        ]
+                      },
+                      "span": {
+                        "file": "tests/fixtures/decisions/language.yl",
+                        "start": 550,
+                        "end": 571
+                      }
+                    }
+                  ]
+                ]
+              },
+              "span": {
+                "file": "tests/fixtures/decisions/language.yl",
+                "start": 509,
+                "end": 573
+              }
+            },
+            {
+              "kind": {
+                "When": [
+                  {
+                    "kind": {
+                      "Binary": [
+                        "&&",
+                        {
+                          "kind": {
+                            "Call": [
+                              "name.isPresent",
+                              []
+                            ]
+                          },
+                          "span": {
+                            "file": "tests/fixtures/decisions/language.yl",
+                            "start": 587,
+                            "end": 603
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Call": [
+                              "name.matches",
+                              [
+                                {
+                                  "name": null,
+                                  "value": {
+                                    "kind": {
+                                      "Regex": "^X"
+                                    },
+                                    "span": {
+                                      "file": "tests/fixtures/decisions/language.yl",
+                                      "start": 620,
+                                      "end": 624
+                                    }
+                                  },
+                                  "span": {
+                                    "file": "tests/fixtures/decisions/language.yl",
+                                    "start": 620,
+                                    "end": 624
+                                  }
+                                }
+                              ]
+                            ]
+                          },
+                          "span": {
+                            "file": "tests/fixtures/decisions/language.yl",
+                            "start": 607,
+                            "end": 625
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "file": "tests/fixtures/decisions/language.yl",
+                      "start": 587,
+                      "end": 625
+                    }
+                  },
+                  [
+                    {
+                      "kind": {
+                        "Call": [
+                          "warning",
+                          [
+                            {
+                              "name": null,
+                              "value": {
+                                "kind": {
+                                  "Literal": "X name."
+                                },
+                                "span": {
+                                  "file": "tests/fixtures/decisions/language.yl",
+                                  "start": 636,
+                                  "end": 645
+                                }
+                              },
+                              "span": {
+                                "file": "tests/fixtures/decisions/language.yl",
+                                "start": 636,
+                                "end": 645
+                              }
+                            }
+                          ]
+                        ]
+                      },
+                      "span": {
+                        "file": "tests/fixtures/decisions/language.yl",
+                        "start": 628,
+                        "end": 646
+                      }
+                    }
+                  ]
+                ]
+              },
+              "span": {
+                "file": "tests/fixtures/decisions/language.yl",
+                "start": 582,
+                "end": 648
+              }
+            }
+          ]
+        }
+      },
+      "span": {
+        "file": "tests/fixtures/decisions/language.yl",
+        "start": 279,
+        "end": 656
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Entry": "Program"
+      },
+      "span": {
+        "file": "tests/fixtures/decisions/language.yl",
+        "start": 658,
+        "end": 671
+      }
+    }
+  ],
+  "span": {
+    "file": "tests/fixtures/decisions/language.yl",
+    "start": 0,
+    "end": 672
+  }
+}
