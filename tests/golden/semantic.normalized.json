@@ -18,8 +18,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 338,
-        "end": 442
+        "start": 326,
+        "end": 426
       }
     },
     "language.yl#Expression::Number": {
@@ -38,8 +38,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 410,
-        "end": 439
+        "start": 395,
+        "end": 424
       }
     },
     "language.yl#ExpressionDeclaration": {
@@ -58,8 +58,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 444,
-        "end": 490
+        "start": 427,
+        "end": 473
       }
     },
     "language.yl#FunctionBody": {
@@ -107,8 +107,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 718,
-        "end": 801
+        "start": 694,
+        "end": 777
       }
     },
     "language.yl#FunctionDeclaration": {
@@ -210,8 +210,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 1004,
-        "end": 1165
+        "start": 975,
+        "end": 1134
       }
     },
     "language.yl#FunctionExpression": {
@@ -305,8 +305,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 939,
-        "end": 1002
+        "start": 911,
+        "end": 974
       }
     },
     "language.yl#LetDeclaration": {
@@ -346,8 +346,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 492,
-        "end": 716
+        "start": 474,
+        "end": 693
       }
     },
     "language.yl#Name": {
@@ -366,8 +366,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 124,
-        "end": 151
+        "start": 121,
+        "end": 148
       }
     },
     "language.yl#Parameter": {
@@ -386,8 +386,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 262,
-        "end": 336
+        "start": 253,
+        "end": 325
       }
     },
     "language.yl#Program": {
@@ -423,8 +423,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 1213,
-        "end": 1496
+        "start": 1180,
+        "end": 1455
       }
     },
     "language.yl#Reference": {
@@ -443,8 +443,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 182,
-        "end": 260
+        "start": 176,
+        "end": 252
       }
     },
     "language.yl#Whitespace": {
@@ -458,8 +458,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 153,
-        "end": 178
+        "start": 149,
+        "end": 174
       }
     }
   },
@@ -482,15 +482,15 @@
               "arguments": {},
               "span": {
                 "file": "language.yl",
-                "start": 918,
-                "end": 932
+                "start": 892,
+                "end": 906
               }
             }
           ],
           "span": {
             "file": "language.yl",
-            "start": 918,
-            "end": 932
+            "start": 892,
+            "end": 906
           }
         }
       ],
@@ -539,15 +539,15 @@
               },
               "span": {
                 "file": "language.yl",
-                "start": 1115,
-                "end": 1158
+                "start": 1085,
+                "end": 1128
               }
             }
           ],
           "span": {
             "file": "language.yl",
-            "start": 1098,
-            "end": 1160
+            "start": 1068,
+            "end": 1130
           }
         }
       ],
@@ -596,15 +596,15 @@
               },
               "span": {
                 "file": "language.yl",
-                "start": 618,
-                "end": 641
+                "start": 598,
+                "end": 621
               }
             }
           ],
           "span": {
             "file": "language.yl",
-            "start": 601,
-            "end": 643
+            "start": 581,
+            "end": 623
           }
         }
       ],
@@ -622,8 +622,8 @@
           ],
           "span": {
             "file": "language.yl",
-            "start": 666,
-            "end": 704
+            "start": 645,
+            "end": 683
           }
         }
       ]
@@ -671,15 +671,15 @@
               },
               "span": {
                 "file": "language.yl",
-                "start": 308,
-                "end": 331
+                "start": 298,
+                "end": 321
               }
             }
           ],
           "span": {
             "file": "language.yl",
-            "start": 308,
-            "end": 331
+            "start": 298,
+            "end": 321
           }
         }
       ],
@@ -700,15 +700,15 @@
               "arguments": {},
               "span": {
                 "file": "language.yl",
-                "start": 1312,
-                "end": 1326
+                "start": 1277,
+                "end": 1291
               }
             }
           ],
           "span": {
             "file": "language.yl",
-            "start": 1312,
-            "end": 1326
+            "start": 1277,
+            "end": 1291
           }
         }
       ],
@@ -726,8 +726,8 @@
           ],
           "span": {
             "file": "language.yl",
-            "start": 1362,
-            "end": 1405
+            "start": 1325,
+            "end": 1368
           }
         },
         {
@@ -747,8 +747,8 @@
           ],
           "span": {
             "file": "language.yl",
-            "start": 1419,
-            "end": 1475
+            "start": 1381,
+            "end": 1437
           }
         }
       ]
@@ -778,15 +778,15 @@
               },
               "span": {
                 "file": "language.yl",
-                "start": 244,
-                "end": 253
+                "start": 237,
+                "end": 246
               }
             }
           ],
           "span": {
             "file": "language.yl",
-            "start": 228,
-            "end": 255
+            "start": 221,
+            "end": 248
           }
         }
       ],
