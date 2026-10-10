@@ -1,0 +1,43 @@
+import { lexicalScope, declare, variable, function } from "std/semantics"
+import { separatedBy } from "std/parser"
+import { Name } from "./lexical"
+import { Expression } from "./expression"
+import { LetDeclaration } from "./let"
+
+node Parameter =
+    name: Name
+{
+    meanings {
+        declare(variable, name)
+    }
+}
+
+export node FunctionBody =
+    "{"
+    locals: LetDeclaration*
+    "return" result: Expression ";"
+    "}"
+
+pattern FunctionContents =
+    "("
+    parameters: Parameter* |> separatedBy(",")
+    ")"
+    body: FunctionBody
+{
+    meanings {
+        lexicalScope()
+    }
+}
+
+export node FunctionExpression =
+    "function" contents: FunctionContents
+
+export node FunctionDeclaration =
+    "function" name: Name contents: FunctionContents
+{
+    meanings {
+        group Register {
+            declare(function, name, reassignable=false)
+        }
+    }
+}

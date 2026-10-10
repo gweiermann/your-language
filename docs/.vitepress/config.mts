@@ -44,6 +44,7 @@ export default defineConfig({
       { text: 'API reference', items: [
         { text: 'CLI commands', link: '/api/cli' },
         { text: 'Rust API', link: '/api/rust' },
+        { text: 'Native semantic operations', link: '/api/native-semantics' },
         { text: 'AST representation', link: '/api/ast' },
         { text: 'Diagnostics and spans', link: '/api/diagnostics' },
         { text: 'Compiled artifacts', link: '/api/artifacts' },

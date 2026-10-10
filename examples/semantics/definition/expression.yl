@@ -1,0 +1,25 @@
+import { use } from "std/semantics"
+import { Name } from "./lexical"
+import { FunctionExpression } from "./function"
+
+node Reference =
+    name: Name
+{
+    meanings {
+        group Resolve {
+            use(name)
+        }
+    }
+}
+
+export node Expression {
+    node FunctionExpression
+
+    node Reference
+
+    node Number =
+        value: /[0-9]+/
+}
+
+export node ExpressionDeclaration =
+    value: Expression

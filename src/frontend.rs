@@ -170,12 +170,20 @@ impl Parser {
             let mut members = vec![];
             let mut precedence = vec![];
             let mut constraints = vec![];
+            let mut meanings = None;
             if self.take("=") {
                 grammar = Some(self.expression()?);
             }
             if self.take("{") {
                 while !self.is("}") {
-                    if self.take("constraints") {
+                    if self.take("meanings") {
+                        if meanings.is_some() {
+                            return Err(
+                                self.error("yl.duplicate_member", "Duplicate meanings section")
+                            );
+                        }
+                        meanings = Some(self.meanings()?);
+                    } else if self.take("constraints") {
                         constraints.extend(self.constraint_block()?);
                     } else if self.take("precedence") {
                         if !precedence.is_empty() {
@@ -220,16 +228,26 @@ impl Parser {
                 members,
                 precedence,
                 constraints,
+                meanings,
             }
         } else if self.take("pattern") {
             let name = self.word()?;
             let parameters = self.parameters()?;
             self.expect("=")?;
             let grammar = self.expression()?;
+            let meanings = if self.take("{") {
+                self.expect("meanings")?;
+                let meanings = self.meanings()?;
+                self.expect("}")?;
+                Some(meanings)
+            } else {
+                None
+            };
             DeclKind::Pattern {
                 name,
                 parameters,
                 grammar,
+                meanings,
             }
         } else if self.take("pipe") {
             let name = self.word()?;
@@ -349,6 +367,69 @@ impl Parser {
         Ok(Expr {
             kind: ExprKind::Ref(name),
             span: self.span_from(&start),
+        })
+    }
+    fn meaning_call(&mut self) -> Result<MeaningSyntaxCall> {
+        let start = self.token().span.clone();
+        let name = self.path()?;
+        let arguments = self.arguments()?;
+        Ok(MeaningSyntaxCall {
+            name,
+            arguments,
+            span: self.span_from(&start),
+        })
+    }
+    fn meanings(&mut self) -> Result<Meanings> {
+        let start = self.token().span.clone();
+        self.expect("{")?;
+        let mut groups = vec![];
+        let mut precedence = vec![];
+        while !self.is("}") {
+            let start = self.token().span.clone();
+            if self.take("group") {
+                let name = self.word()?;
+                self.expect("{")?;
+                let mut calls = vec![];
+                while !self.is("}") {
+                    calls.push(self.meaning_call()?);
+                }
+                self.expect("}")?;
+                groups.push(MeaningSyntaxGroup {
+                    name: Some(name),
+                    calls,
+                    span: self.span_from(&start),
+                });
+            } else if self.take("precedence") {
+                self.expect("{")?;
+                while !self.is("}") {
+                    let start = self.token().span.clone();
+                    let mut selectors = vec![self.selector()?];
+                    self.expect(">")?;
+                    selectors.push(self.selector()?);
+                    while self.take(">") {
+                        selectors.push(self.selector()?);
+                    }
+                    precedence.push(MeaningSyntaxChain {
+                        selectors,
+                        span: self.span_from(&start),
+                    });
+                }
+                self.expect("}")?;
+            } else {
+                let call = self.meaning_call()?;
+                groups.push(MeaningSyntaxGroup {
+                    name: None,
+                    span: call.span.clone(),
+                    calls: vec![call],
+                });
+            }
+        }
+        self.expect("}")?;
+        let span = self.span_from(&start);
+        Ok(Meanings {
+            groups,
+            precedence,
+            span,
         })
     }
     fn rewrite_cases(&mut self) -> Result<Vec<RewriteCase>> {

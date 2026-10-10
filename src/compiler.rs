@@ -3,6 +3,10 @@ use crate::{
     diagnostic::{CompileResult, Diagnostic, Severity, Span},
     frontend::parse_yl,
     ir::*,
+    semantics::{
+        MeaningCall, MeaningChain, MeaningDefinition, MeaningGroup, MeaningSelector, MeaningValue,
+        OperationRegistry, ParameterKind,
+    },
     syntax::*,
 };
 use std::{
@@ -26,6 +30,8 @@ struct Symbol {
 }
 #[derive(Default)]
 struct Compiler {
+    registry: OperationRegistry,
+    selected_patterns: BTreeSet<String>,
     modules: BTreeMap<String, Module>,
     dependencies: BTreeMap<(String, String), String>,
     imports: BTreeMap<(String, String), String>,
@@ -59,7 +65,18 @@ pub fn compile_sources(
     entry: &str,
     sources: &BTreeMap<String, String>,
 ) -> CompileResult<CompiledLanguage> {
-    let mut compiler = Compiler::default();
+    compile_sources_with_registry(entry, sources, &OperationRegistry::new())
+}
+/// Compile a module graph with explicitly registered native operation libraries.
+pub fn compile_sources_with_registry(
+    entry: &str,
+    sources: &BTreeMap<String, String>,
+    registry: &OperationRegistry,
+) -> CompileResult<CompiledLanguage> {
+    let mut compiler = Compiler {
+        registry: registry.clone(),
+        ..Compiler::default()
+    };
     compiler.read_sources(entry, sources).map_err(|e| vec![e])?;
     compiler.compile().map_err(|e| vec![e])
 }
@@ -344,8 +361,16 @@ impl Compiler {
             .collect();
         self.modules.insert(id.into(), module);
         for (specifier, dependency, span) in dependencies {
+            let dependency = if self.registry.contains_module(&specifier) {
+                specifier.clone()
+            } else {
+                dependency
+            };
             self.dependencies
                 .insert((id.into(), specifier), dependency.clone());
+            if self.registry.contains_module(&dependency) {
+                continue;
+            }
             self.read_sources(&dependency, sources).map_err(|mut e| {
                 e.secondary.push(*e.primary.clone());
                 e.primary = Box::new(span);
@@ -387,6 +412,11 @@ impl Compiler {
             .collect();
         self.modules.insert(id.clone(), module);
         for (dependency, span) in dependencies {
+            if self.registry.contains_module(&dependency) {
+                self.dependencies
+                    .insert((id.clone(), dependency.clone()), dependency);
+                continue;
+            }
             if dependency == "core/parser" {
                 self.dependencies
                     .insert((id.clone(), dependency.clone()), dependency);
@@ -648,7 +678,19 @@ impl Compiler {
         // Root imports first; qualified imports can depend on those memberships.
         pending.sort_by_key(|(_, _, name, _, _)| name.matches("::").count());
         for (module, from, name, alias, span) in pending {
-            let id = if from == "core/parser" {
+            let id = if self.registry.contains_module(&from) {
+                self.registry
+                    .operation_id(&from, &name)
+                    .or_else(|| self.registry.symbol_id(&from, &name))
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "yl.non_exported_import",
+                            format!("{from} does not export {name}"),
+                            span.clone(),
+                        )
+                    })?
+                    .to_owned()
+            } else if from == "core/parser" {
                 if !["notAhead", "notBehind"].contains(&name.as_str()) {
                     return Err(Diagnostic::error(
                         "yl.unknown_reference",
@@ -747,8 +789,38 @@ impl Compiler {
             entry,
             rules: BTreeMap::new(),
             trivia,
+            meanings: BTreeMap::new(),
             diagnostics: vec![],
         };
+        for (id, symbol) in &self.symbols {
+            let meanings = match &symbol.declaration.kind {
+                DeclKind::Node { meanings, .. } | DeclKind::Pattern { meanings, .. } => meanings,
+                _ => continue,
+            };
+            if let Some(meanings) = meanings {
+                language
+                    .meanings
+                    .insert(id.clone(), self.lower_meanings(symbol, meanings)?);
+            }
+        }
+        let selected_patterns: Vec<_> = language
+            .meanings
+            .values()
+            .flat_map(|definition| &definition.precedence)
+            .flat_map(|chain| &chain.selectors)
+            .filter(|selector| {
+                self.symbols
+                    .get(&selector.definition)
+                    .is_some_and(|symbol| {
+                        matches!(symbol.declaration.kind, DeclKind::Pattern { .. })
+                    })
+            })
+            .map(|selector| selector.definition.clone())
+            .collect();
+        for id in selected_patterns {
+            self.selected_patterns.insert(id.clone());
+            language.meanings.entry(id).or_default();
+        }
         for (id, symbol) in self.symbols.clone() {
             if let DeclKind::Node {
                 trivia,
@@ -894,6 +966,16 @@ impl Compiler {
             ));
         }
         language.diagnostics = std::mem::take(&mut self.diagnostics);
+        for (id, rule) in &language.rules {
+            if let Some(meanings) = language.meanings.get(id) {
+                let captures = rule_capture_sets(rule, &language, &mut BTreeSet::new()).0;
+                validate_meaning_captures(meanings, &captures).map_err(|mut error| {
+                    error.code = "yl.unknown_capture".into();
+                    error
+                })?;
+            }
+        }
+        language.version = if language.meanings.is_empty() { 1 } else { 2 };
         validate_language(&language)?;
         Ok(language)
     }
@@ -1526,7 +1608,231 @@ impl Compiler {
         self.expanding.push(id.into());
         let result = self.lower(&symbol.module, &symbol.name, expr, env, depth);
         self.expanding.pop();
-        result
+        result.and_then(|term| {
+            if let DeclKind::Pattern {
+                meanings: Some(meanings),
+                ..
+            } = &symbol.declaration.kind
+            {
+                validate_meaning_captures(
+                    &self.lower_meanings(symbol, meanings)?,
+                    &capture_sets(&term).0,
+                )
+                .map_err(|mut error| {
+                    error.code = "yl.unknown_capture".into();
+                    error
+                })?;
+                Ok(Term::Meaning {
+                    definition: id.into(),
+                    term: Box::new(term),
+                })
+            } else if self.selected_patterns.contains(id) {
+                Ok(Term::Meaning {
+                    definition: id.into(),
+                    term: Box::new(term),
+                })
+            } else {
+                Ok(term)
+            }
+        })
+    }
+    fn lower_meanings(&self, symbol: &Symbol, meanings: &Meanings) -> Result<MeaningDefinition> {
+        let mut groups = vec![];
+        let mut names = BTreeSet::new();
+        for group in &meanings.groups {
+            if group
+                .name
+                .as_ref()
+                .is_some_and(|name| !names.insert(name.clone()))
+            {
+                return Err(Diagnostic::error(
+                    "yl.duplicate_meaning_group",
+                    "Duplicate meaning group",
+                    group.span.clone(),
+                ));
+            }
+            let mut calls = vec![];
+            for call in &group.calls {
+                let id = self.resolve(&symbol.module, &symbol.name, &call.name, &call.span)?;
+                let contract = self
+                    .registry
+                    .signature(&id)
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "yl.unknown_operation",
+                            format!("{} is not a registered semantic operation", call.name),
+                            call.span.clone(),
+                        )
+                    })?
+                    .clone();
+                let mut arguments = BTreeMap::new();
+                let mut position = 0;
+                let mut named = false;
+                for argument in &call.arguments {
+                    let parameter = if let Some(name) = &argument.name {
+                        named = true;
+                        contract
+                            .parameters
+                            .iter()
+                            .find(|parameter| &parameter.name == name)
+                    } else {
+                        if named {
+                            return Err(Diagnostic::error(
+                                "yl.invalid_argument",
+                                "Positional operation argument follows a named argument",
+                                argument.span.clone(),
+                            ));
+                        }
+                        let parameter = contract.parameters.get(position);
+                        position += 1;
+                        parameter
+                    }
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "yl.invalid_argument",
+                            "Unknown or excess operation argument",
+                            argument.span.clone(),
+                        )
+                    })?;
+                    let value = match (&parameter.kind, &argument.value.kind) {
+                        (ParameterKind::Capture, ExprKind::Ref(name)) => {
+                            MeaningValue::Capture(name.clone())
+                        }
+                        (ParameterKind::Text, ExprKind::Literal(text)) => {
+                            MeaningValue::Text(text.clone())
+                        }
+                        (ParameterKind::Bool, ExprKind::Bool(value)) => MeaningValue::Bool(*value),
+                        (ParameterKind::Bool, ExprKind::Ref(value))
+                            if matches!(value.as_str(), "true" | "false") =>
+                        {
+                            MeaningValue::Bool(value == "true")
+                        }
+                        (ParameterKind::Symbol, ExprKind::Ref(name)) => {
+                            let id = self.resolve(
+                                &symbol.module,
+                                &symbol.name,
+                                name,
+                                &argument.value.span,
+                            )?;
+                            if !self.registry.symbols.values().any(|symbol| symbol == &id) {
+                                return Err(Diagnostic::error(
+                                    "yl.invalid_argument",
+                                    "Expected a registered semantic symbol",
+                                    argument.span.clone(),
+                                ));
+                            }
+                            MeaningValue::Symbol(id)
+                        }
+                        _ => {
+                            return Err(Diagnostic::error(
+                                "yl.invalid_argument",
+                                format!(
+                                    "Incompatible value for operation parameter {}",
+                                    parameter.name
+                                ),
+                                argument.span.clone(),
+                            ))
+                        }
+                    };
+                    if arguments.insert(parameter.name.clone(), value).is_some() {
+                        return Err(Diagnostic::error(
+                            "yl.invalid_argument",
+                            "Duplicate operation argument",
+                            argument.span.clone(),
+                        ));
+                    }
+                }
+                for parameter in &contract.parameters {
+                    if !arguments.contains_key(&parameter.name) {
+                        let value = parameter.default.clone().ok_or_else(|| {
+                            Diagnostic::error(
+                                "yl.invalid_argument",
+                                format!("Missing operation argument {}", parameter.name),
+                                call.span.clone(),
+                            )
+                        })?;
+                        arguments.insert(parameter.name.clone(), value);
+                    }
+                }
+                calls.push(MeaningCall {
+                    operation: id,
+                    contract,
+                    arguments,
+                    span: call.span.clone(),
+                });
+            }
+            groups.push(MeaningGroup {
+                name: group.name.clone(),
+                calls,
+                span: group.span.clone(),
+            });
+        }
+        let mut precedence = vec![];
+        for chain in &meanings.precedence {
+            let mut selectors = vec![];
+            for selector in &chain.selectors {
+                let ExprKind::Ref(name) = &selector.kind else {
+                    return Err(Diagnostic::error(
+                        "yl.invalid_meaning_selector",
+                        "Expected a definition selector",
+                        selector.span.clone(),
+                    ));
+                };
+                if name == "_" {
+                    return Err(Diagnostic::error(
+                        "yl.invalid_meaning_selector",
+                        "Wildcard meaning selectors are not supported",
+                        selector.span.clone(),
+                    ));
+                }
+                let (definition, group) = name
+                    .split_once("::meanings::")
+                    .map_or((name.as_str(), None), |(definition, group)| {
+                        (definition, Some(group.to_owned()))
+                    });
+                let definition =
+                    self.resolve(&symbol.module, &symbol.name, definition, &selector.span)?;
+                let target = self.symbols.get(&definition).ok_or_else(|| {
+                    Diagnostic::error(
+                        "yl.invalid_meaning_selector",
+                        "Meaning selectors require a node or pattern",
+                        selector.span.clone(),
+                    )
+                })?;
+                let target_meanings = match &target.declaration.kind {
+                    DeclKind::Node { meanings, .. } | DeclKind::Pattern { meanings, .. } => {
+                        meanings
+                    }
+                    _ => {
+                        return Err(Diagnostic::error(
+                            "yl.invalid_meaning_selector",
+                            "Meaning selectors require a node or pattern",
+                            selector.span.clone(),
+                        ))
+                    }
+                };
+                if let Some(group) = &group {
+                    if !target_meanings.as_ref().is_some_and(|meanings| {
+                        meanings
+                            .groups
+                            .iter()
+                            .any(|candidate| candidate.name.as_ref() == Some(group))
+                    }) {
+                        return Err(Diagnostic::error(
+                            "yl.unknown_meaning_group",
+                            format!("Unknown meaning group {group}"),
+                            selector.span.clone(),
+                        ));
+                    }
+                }
+                selectors.push(MeaningSelector { definition, group });
+            }
+            precedence.push(MeaningChain {
+                selectors,
+                span: chain.span.clone(),
+            });
+        }
+        Ok(MeaningDefinition { groups, precedence })
     }
     #[allow(clippy::too_many_arguments)]
     fn bind(
@@ -1717,7 +2023,9 @@ impl Compiler {
                 self.leaves(id, &mut BTreeSet::new(), &mut actual)?;
                 Ok(actual.iter().all(|id| leaves.contains(id)))
             }
-            Term::Capture(_, t) | Term::Mark { term: t, .. } => self.accepts(t, ty, visiting),
+            Term::Capture(_, t) | Term::Meaning { term: t, .. } | Term::Mark { term: t, .. } => {
+                self.accepts(t, ty, visiting)
+            }
             Term::Project {
                 id,
                 term,
@@ -2179,9 +2487,10 @@ fn substitute(expr: &Expr, args: &BTreeMap<String, Expr>) -> Expr {
 pub(crate) fn edge_term(term: &Term, right: bool) -> Option<&Term> {
     match term {
         Term::Ref(_) => Some(term),
-        Term::Capture(_, term) | Term::Mark { term, .. } | Term::Project { term, .. } => {
-            edge_term(term, right)
-        }
+        Term::Capture(_, term)
+        | Term::Meaning { term, .. }
+        | Term::Mark { term, .. }
+        | Term::Project { term, .. } => edge_term(term, right),
         Term::Sequence(items) => {
             let mut candidates = items.iter().filter(|t| !zero_width(t));
             let edge = if right {
@@ -2198,9 +2507,10 @@ fn zero_width(term: &Term) -> bool {
     match term {
         Term::NotAhead(_) | Term::NotBehind(_) => true,
         Term::Literal(text) => text.is_empty(),
-        Term::Capture(_, term) | Term::Mark { term, .. } | Term::Project { term, .. } => {
-            zero_width(term)
-        }
+        Term::Capture(_, term)
+        | Term::Meaning { term, .. }
+        | Term::Mark { term, .. }
+        | Term::Project { term, .. } => zero_width(term),
         Term::Sequence(items) => items.iter().all(zero_width),
         _ => false,
     }
@@ -2213,7 +2523,10 @@ fn edge_ref(term: &Term, right: bool) -> Option<&str> {
 }
 
 pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
-    if language.version != 1 || !language.rules.contains_key(&language.entry) {
+    if !matches!(language.version, 1 | 2)
+        || (language.version == 1 && !language.meanings.is_empty())
+        || !language.rules.contains_key(&language.entry)
+    {
         return Err(Diagnostic::error(
             "yl.artifact",
             "Invalid artifact version or entry rule",
@@ -2229,6 +2542,20 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
             ));
         }
         match t {
+            Term::Meaning {
+                definition,
+                term: inner,
+            } => {
+                let meanings = language.meanings.get(definition).ok_or_else(|| {
+                    Diagnostic::error(
+                        "yl.artifact",
+                        format!("Unknown meaning boundary {definition}"),
+                        span.clone(),
+                    )
+                })?;
+                validate_meaning_captures(meanings, &capture_sets(inner).0)?;
+                term(inner, language, span, depth + 1)
+            }
             Term::Ref(id) if !language.rules.contains_key(id) => Err(Diagnostic::error(
                 "yl.artifact",
                 format!("Unknown rule {id}"),
@@ -2306,6 +2633,9 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
             captures(t, &rule.span)?;
         }
         let (captures, guaranteed) = rule_capture_sets(rule, language, &mut BTreeSet::new());
+        if let Some(meanings) = language.meanings.get(family) {
+            validate_meaning_captures(meanings, &captures)?;
+        }
         for check in &rule.constraints {
             let ty = validate_condition(
                 &check.condition,
@@ -2331,6 +2661,144 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                 "Invalid trivia rule",
                 Span::default(),
             ));
+        }
+    }
+    for (owner, meanings) in &language.meanings {
+        if owner.is_empty() {
+            return Err(Diagnostic::error(
+                "yl.artifact",
+                "Empty meaning definition identity",
+                Span::default(),
+            ));
+        }
+        let mut groups = BTreeSet::new();
+        for group in &meanings.groups {
+            if group
+                .name
+                .as_ref()
+                .is_some_and(|name| !groups.insert(name.clone()))
+                || group.name.as_ref().is_some_and(String::is_empty)
+            {
+                return Err(Diagnostic::error(
+                    "yl.artifact",
+                    "Duplicate or empty meaning group",
+                    group.span.clone(),
+                ));
+            }
+            for call in &group.calls {
+                if call.operation.is_empty() || call.operation != call.contract.id {
+                    return Err(Diagnostic::error(
+                        "yl.artifact",
+                        "Meaning operation identity does not match its contract",
+                        call.span.clone(),
+                    ));
+                }
+                let mut parameters = BTreeSet::new();
+                for parameter in &call.contract.parameters {
+                    if parameter.name.is_empty() || !parameters.insert(parameter.name.clone()) {
+                        return Err(Diagnostic::error(
+                            "yl.artifact",
+                            "Invalid operation parameter names",
+                            call.span.clone(),
+                        ));
+                    }
+                    if parameter
+                        .default
+                        .as_ref()
+                        .is_some_and(|value| !meaning_value_matches(value, &parameter.kind))
+                    {
+                        return Err(Diagnostic::error(
+                            "yl.artifact",
+                            "Operation parameter default has an incompatible type",
+                            call.span.clone(),
+                        ));
+                    }
+                    if !call
+                        .arguments
+                        .get(&parameter.name)
+                        .is_some_and(|value| meaning_value_matches(value, &parameter.kind))
+                    {
+                        return Err(Diagnostic::error(
+                            "yl.artifact",
+                            "Missing or incompatible meaning argument",
+                            call.span.clone(),
+                        ));
+                    }
+                }
+                if call.arguments.len() != parameters.len() {
+                    return Err(Diagnostic::error(
+                        "yl.artifact",
+                        "Unknown meaning argument",
+                        call.span.clone(),
+                    ));
+                }
+            }
+        }
+        for chain in &meanings.precedence {
+            if chain.selectors.len() < 2 {
+                return Err(Diagnostic::error(
+                    "yl.artifact",
+                    "Meaning precedence requires at least two selectors",
+                    chain.span.clone(),
+                ));
+            }
+            for selector in &chain.selectors {
+                let target = language.meanings.get(&selector.definition);
+                if selector.definition != "*"
+                    && !language.rules.contains_key(&selector.definition)
+                    && target.is_none()
+                {
+                    return Err(Diagnostic::error(
+                        "yl.artifact",
+                        "Unknown meaning precedence definition",
+                        chain.span.clone(),
+                    ));
+                }
+                if selector.group.as_ref().is_some_and(|name| {
+                    !target.is_some_and(|definition| {
+                        definition
+                            .groups
+                            .iter()
+                            .any(|group| group.name.as_ref() == Some(name))
+                    })
+                }) {
+                    return Err(Diagnostic::error(
+                        "yl.artifact",
+                        "Unknown selected meaning group",
+                        chain.span.clone(),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn meaning_value_matches(value: &MeaningValue, kind: &ParameterKind) -> bool {
+    match (value, kind) {
+        (MeaningValue::Capture(name), ParameterKind::Capture)
+        | (MeaningValue::Symbol(name), ParameterKind::Symbol) => !name.is_empty(),
+        (MeaningValue::Text(_), ParameterKind::Text)
+        | (MeaningValue::Bool(_), ParameterKind::Bool) => true,
+        _ => false,
+    }
+}
+
+fn validate_meaning_captures(
+    meanings: &MeaningDefinition,
+    captures: &BTreeSet<String>,
+) -> Result<()> {
+    for call in meanings.groups.iter().flat_map(|group| &group.calls) {
+        for value in call.arguments.values() {
+            if let MeaningValue::Capture(name) = value {
+                if !captures.contains(name) {
+                    return Err(Diagnostic::error(
+                        "yl.artifact",
+                        format!("Meaning argument references unavailable capture {name}"),
+                        call.span.clone(),
+                    ));
+                }
+            }
         }
     }
     Ok(())
@@ -2584,7 +3052,7 @@ fn capture_sets(term: &Term) -> (BTreeSet<String>, BTreeSet<String>) {
                 },
             )
         }
-        Term::Mark { term, .. } => capture_sets(term),
+        Term::Mark { term, .. } | Term::Meaning { term, .. } => capture_sets(term),
         Term::Project {
             id,
             term,
@@ -2607,7 +3075,9 @@ fn capture_sets(term: &Term) -> (BTreeSet<String>, BTreeSet<String>) {
 fn may_be_none(term: &Term) -> bool {
     match term {
         Term::Repeat(_, Quantifier::Optional) | Term::NotAhead(_) | Term::NotBehind(_) => true,
-        Term::Capture(_, term) | Term::Mark { term, .. } => may_be_none(term),
+        Term::Capture(_, term) | Term::Meaning { term, .. } | Term::Mark { term, .. } => {
+            may_be_none(term)
+        }
         Term::Project {
             id,
             term,
@@ -2662,9 +3132,11 @@ fn validate_projections(term: &Term, active: &mut BTreeSet<u32>, span: &Span) ->
                 validate_projections(t, active, span)?;
             }
         }
-        Term::Repeat(t, _) | Term::Capture(_, t) | Term::NotAhead(t) | Term::NotBehind(t) => {
-            validate_projections(t, active, span)?
-        }
+        Term::Repeat(t, _)
+        | Term::Meaning { term: t, .. }
+        | Term::Capture(_, t)
+        | Term::NotAhead(t)
+        | Term::NotBehind(t) => validate_projections(t, active, span)?,
         _ => {}
     }
     Ok(())
@@ -2702,7 +3174,7 @@ fn captures(term: &Term, span: &Span) -> Result<BTreeSet<String>> {
             }
         }
         Term::Repeat(inner, _) => names = captures(inner, span)?,
-        Term::Mark { term, .. } => names = captures(term, span)?,
+        Term::Mark { term, .. } | Term::Meaning { term, .. } => names = captures(term, span)?,
         Term::Project { id, term, .. } => {
             if let Some(original) = find_marker(term, *id) {
                 names = captures(original, span)?;
@@ -2721,6 +3193,7 @@ fn find_marker(term: &Term, marker: u32) -> Option<&Term> {
         }
         Term::Repeat(t, _)
         | Term::Capture(_, t)
+        | Term::Meaning { term: t, .. }
         | Term::Mark { term: t, .. }
         | Term::Project { term: t, .. } => find_marker(t, marker),
         _ => None,
@@ -2757,9 +3230,10 @@ fn marker_value_cardinality(term: &Term, marker: u32, flatten: bool) -> (usize, 
                 Quantifier::Plus => (min, if max == Some(0) { Some(0) } else { None }),
             }
         }
-        Term::Capture(_, t) | Term::Mark { term: t, .. } | Term::Project { term: t, .. } => {
-            marker_value_cardinality(t, marker, flatten)
-        }
+        Term::Capture(_, t)
+        | Term::Meaning { term: t, .. }
+        | Term::Mark { term: t, .. }
+        | Term::Project { term: t, .. } => marker_value_cardinality(t, marker, flatten),
         _ => (0, Some(0)),
     }
 }
@@ -2767,7 +3241,9 @@ fn marker_value_cardinality(term: &Term, marker: u32, flatten: bool) -> (usize, 
 fn value_shape(term: &Term) -> Option<Quantifier> {
     match term {
         Term::Repeat(_, q) => Some(*q),
-        Term::Capture(_, t) | Term::Mark { term: t, .. } => value_shape(t),
+        Term::Capture(_, t) | Term::Meaning { term: t, .. } | Term::Mark { term: t, .. } => {
+            value_shape(t)
+        }
         Term::Project { quantifier, .. } => *quantifier,
         _ => None,
     }
@@ -2793,9 +3269,10 @@ fn capture_terms<'a>(
             Term::Sequence(items) | Term::Choice(items) => {
                 items.iter().flat_map(|t| walk(t, name)).collect()
             }
-            Term::Capture(_, inner) | Term::Repeat(inner, _) | Term::Mark { term: inner, .. } => {
-                walk(inner, name)
-            }
+            Term::Capture(_, inner)
+            | Term::Repeat(inner, _)
+            | Term::Meaning { term: inner, .. }
+            | Term::Mark { term: inner, .. } => walk(inner, name),
             Term::Project { id, term, .. } => find_marker(term, *id)
                 .map(|t| walk(t, name))
                 .unwrap_or_default(),
@@ -2860,7 +3337,7 @@ fn node_term(
             visiting.remove(expected);
             result
         }
-        Term::Capture(_, t) | Term::Mark { term: t, .. } => {
+        Term::Capture(_, t) | Term::Meaning { term: t, .. } | Term::Mark { term: t, .. } => {
             node_term(t, expected, language, visiting)
         }
         Term::Choice(items) => items
@@ -2906,4 +3383,76 @@ fn validate_case_emission(emission: &Constraint) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod semantic_artifact_tests {
+    use super::*;
+    use crate::semantics::{MeaningCall, MeaningGroup, OperationParameter, OperationSignature};
+
+    fn artifact() -> CompiledLanguage {
+        let sources = BTreeMap::from([(
+            "test.yl".into(),
+            "node Program = name: /[a-z]+/ entry Program".into(),
+        )]);
+        let mut language = compile_sources("test.yl", &sources).unwrap();
+        language.version = 2;
+        let span = Span::new("test.yl", 0, 1);
+        language.meanings.insert(
+            "test.yl#Program".into(),
+            MeaningDefinition {
+                groups: vec![MeaningGroup {
+                    name: Some("Register".into()),
+                    span: span.clone(),
+                    calls: vec![MeaningCall {
+                        operation: "native#register".into(),
+                        contract: OperationSignature {
+                            id: "native#register".into(),
+                            provides_context: false,
+                            parameters: vec![OperationParameter {
+                                name: "name".into(),
+                                kind: ParameterKind::Capture,
+                                default: None,
+                            }],
+                        },
+                        arguments: BTreeMap::from([(
+                            "name".into(),
+                            MeaningValue::Capture("name".into()),
+                        )]),
+                        span,
+                    }],
+                }],
+                precedence: vec![],
+            },
+        );
+        language
+    }
+    #[test]
+    fn semantic_contracts_roundtrip_and_reject_mismatched_artifacts() {
+        let mut language = artifact();
+        crate::load_compiled_language(&language.to_bytes().unwrap()).unwrap();
+        language.meanings.get_mut("test.yl#Program").unwrap().groups[0].calls[0]
+            .contract
+            .id = "other".into();
+        assert_eq!(
+            crate::load_compiled_language(&language.to_bytes().unwrap()).unwrap_err()[0].code,
+            "yl.artifact"
+        );
+    }
+    #[test]
+    fn semantic_artifacts_reject_invalid_arguments_and_missing_captures() {
+        let mut language = artifact();
+        language.meanings.get_mut("test.yl#Program").unwrap().groups[0].calls[0]
+            .arguments
+            .insert("name".into(), MeaningValue::Capture("missing".into()));
+        assert!(
+            crate::load_compiled_language(&language.to_bytes().unwrap()).unwrap_err()[0]
+                .message
+                .contains("unavailable capture")
+        );
+        language.meanings.get_mut("test.yl#Program").unwrap().groups[0].calls[0]
+            .arguments
+            .insert("name".into(), MeaningValue::Bool(true));
+        assert!(crate::load_compiled_language(&language.to_bytes().unwrap()).is_err());
+    }
 }

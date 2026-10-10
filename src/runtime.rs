@@ -33,22 +33,27 @@ pub struct ParseResult {
 struct Captured {
     value: AstValue,
     span: Span,
+    origin: Span,
     depth: usize,
 }
 #[derive(Clone)]
 struct Match {
     end: usize,
     value: Option<AstValue>,
+    origin: Option<Span>,
     fields: BTreeMap<String, Captured>,
     diagnostics: Vec<Diagnostic>,
     marked: BTreeMap<u32, Vec<MarkedValue>>,
     value_depth: usize,
+    occurrences: Vec<crate::semantics::Occurrence>,
 }
 #[derive(Clone)]
 struct MarkedValue {
     value: Option<AstValue>,
+    origin: Option<Span>,
     fields: BTreeMap<String, Captured>,
     depth: usize,
+    occurrences: Vec<crate::semantics::Occurrence>,
 }
 struct OperatorContext<'a> {
     left: Option<(&'a Term, &'a Match)>,
@@ -61,10 +66,12 @@ impl Match {
         Self {
             end,
             value: None,
+            origin: None,
             fields: BTreeMap::new(),
             diagnostics: vec![],
             marked: BTreeMap::new(),
             value_depth: 0,
+            occurrences: vec![],
         }
     }
 }
@@ -72,6 +79,13 @@ pub fn parse(language: &CompiledLanguage, source: &str) -> ParseResult {
     parse_named(language, "<source>", source)
 }
 pub fn parse_named(language: &CompiledLanguage, file: &str, source: &str) -> ParseResult {
+    parse_occurrences(language, file, source).0
+}
+pub(crate) fn parse_occurrences(
+    language: &CompiledLanguage,
+    file: &str,
+    source: &str,
+) -> (ParseResult, Vec<crate::semantics::Occurrence>) {
     let mut parser = Runtime {
         language,
         source,
@@ -84,16 +98,31 @@ pub fn parse_named(language: &CompiledLanguage, file: &str, source: &str) -> Par
         resource_limit: false,
         steps: 0,
         limit: source.len(),
+        trace: !language.meanings.is_empty(),
     };
     let attempt = parser.rule(&language.entry, 0, false, 0);
     if let Some(mut matched) = attempt {
         let end = parser.skip(matched.end);
         if end == source.len() && !parser.resource_limit {
             if let Some(AstValue::Node(node)) = matched.value {
-                return ParseResult {
-                    ast: Some(*node),
-                    diagnostics: matched.diagnostics,
-                };
+                let mut next = 0;
+                fn identify(occurrence: &mut crate::semantics::Occurrence, next: &mut usize) {
+                    occurrence.id = *next;
+                    *next += 1;
+                    for child in &mut occurrence.children {
+                        identify(child, next);
+                    }
+                }
+                for occurrence in &mut matched.occurrences {
+                    identify(occurrence, &mut next);
+                }
+                return (
+                    ParseResult {
+                        ast: Some(*node),
+                        diagnostics: matched.diagnostics,
+                    },
+                    matched.occurrences,
+                );
             }
         } else {
             parser.failure(end, "end of input");
@@ -119,17 +148,21 @@ pub fn parse_named(language: &CompiledLanguage, file: &str, source: &str) -> Par
             ),
         )
     };
-    ParseResult {
-        ast: None,
-        diagnostics: vec![Diagnostic::error(
-            code,
-            message,
-            Span::new(file, start, end),
-        )],
-    }
+    (
+        ParseResult {
+            ast: None,
+            diagnostics: vec![Diagnostic::error(
+                code,
+                message,
+                Span::new(file, start, end),
+            )],
+        },
+        vec![],
+    )
 }
 struct Runtime<'a> {
     language: &'a CompiledLanguage,
+    trace: bool,
     source: &'a str,
     file: &'a str,
     regexes: BTreeMap<String, regex::Regex>,
@@ -256,10 +289,14 @@ impl Runtime<'_> {
         let result = match &rule.body {
             RuleBody::Concrete(term) => self
                 .term(term, start, raw)
-                .and_then(|m| self.construct(&rule, start, m)),
+                .and_then(|m| self.construct(id, &rule, start, m)),
             RuleBody::Abstract { bases, operators } => self
                 .abstract_rule(id, bases, operators, start, raw, min_power)
-                .map(|m| self.checks(&rule, start, m)),
+                .map(|m| {
+                    let mut m = self.checks(&rule, start, m);
+                    self.trace_occurrence(id, start, &mut m);
+                    m
+                }),
         };
         self.depth -= 1;
         self.active.remove(&key);
@@ -383,18 +420,51 @@ impl Runtime<'_> {
             Some(depth)
         }
     }
-    fn construct(&mut self, rule: &Rule, start: usize, matched: Match) -> Option<Match> {
+    fn trace_occurrence(&self, definition: &str, start: usize, matched: &mut Match) {
+        if !self.trace {
+            return;
+        }
+        let captures = matched
+            .fields
+            .iter()
+            .map(|(name, capture)| {
+                (
+                    name.clone(),
+                    crate::semantics::SourceCapture {
+                        value: capture.value.clone(),
+                        span: capture.origin.clone(),
+                        text: self
+                            .source
+                            .get(capture.origin.start..capture.origin.end)
+                            .unwrap_or_default()
+                            .into(),
+                    },
+                )
+            })
+            .collect();
+        let occurrence = crate::semantics::Occurrence {
+            id: 0,
+            definition: definition.into(),
+            span: Span::new(self.file, start, matched.end),
+            captures,
+            children: std::mem::take(&mut matched.occurrences),
+        };
+        matched.occurrences.push(occurrence);
+    }
+    fn construct(&mut self, id: &str, rule: &Rule, start: usize, matched: Match) -> Option<Match> {
         let mut matched = self.checks(rule, start, matched);
         matched.value_depth = self.check_value_depth(
             matched.fields.values().map(|f| f.depth).max().unwrap_or(0) + 1,
             matched.end,
         )?;
+        self.trace_occurrence(id, start, &mut matched);
         let fields = matched
             .fields
             .clone()
             .into_iter()
             .map(|(name, capture)| (name, capture.value))
             .collect();
+        matched.origin = Some(Span::new(self.file, start, matched.end));
         matched.value = Some(AstValue::Node(Box::new(AstNode {
             kind: rule.name.clone(),
             fields,
@@ -497,7 +567,7 @@ impl Runtime<'_> {
         if let Some(left) = left {
             result.diagnostics.splice(0..0, left.diagnostics.clone());
         }
-        self.construct(&rule, start, result)
+        self.construct(&operator.rule, &rule, start, result)
     }
     fn term(&mut self, term: &Term, position: usize, raw: bool) -> Option<Match> {
         self.term_with(term, position, raw, None)
@@ -539,10 +609,16 @@ impl Runtime<'_> {
             }
         }
         match term {
+            Term::Meaning { definition, term } => {
+                let mut matched = self.term_with(term, start, raw, context)?;
+                self.trace_occurrence(definition, start, &mut matched);
+                Some(matched)
+            }
             Term::Literal(text) => {
                 if self.source.get(start..self.limit)?.starts_with(text) {
                     let mut matched = Match::empty(start + text.len());
                     matched.value = Some(AstValue::Text(text.clone()));
+                    matched.origin = Some(Span::new(self.file, start, matched.end));
                     Some(matched)
                 } else {
                     self.failure(start, &format!("{text:?}"));
@@ -553,6 +629,7 @@ impl Runtime<'_> {
                 if let Some((end, value)) = self.regex_match(pattern, start) {
                     let mut result = Match::empty(end);
                     result.value = Some(AstValue::Text(value));
+                    result.origin = Some(Span::new(self.file, start, end));
                     Some(result)
                 } else {
                     self.failure(start, &format!("/{pattern}/"));
@@ -566,6 +643,7 @@ impl Runtime<'_> {
             Term::Sequence(terms) => {
                 let mut result = Match::empty(start);
                 let mut values = vec![];
+                let mut origins = vec![];
                 let mut depth = 0;
                 for term in terms {
                     let m = self.term_with(term, result.end, raw, context)?;
@@ -573,13 +651,20 @@ impl Runtime<'_> {
                     if let Some(value) = m.value {
                         depth = depth.max(m.value_depth);
                         values.push(value);
+                        origins.push(m.origin.clone());
                     }
                     result.fields.extend(m.fields);
                     merge_marked(&mut result.marked, m.marked);
                     result.diagnostics.extend(m.diagnostics);
+                    result.occurrences.extend(m.occurrences);
                 }
                 result.value_depth =
                     self.check_value_depth(depth + usize::from(values.len() > 1), result.end)?;
+                result.origin = if values.len() == 1 {
+                    origins.into_iter().next().flatten()
+                } else {
+                    Some(Span::new(self.file, start, result.end))
+                };
                 result.value = collapse(values);
                 Some(result)
             }
@@ -594,6 +679,7 @@ impl Runtime<'_> {
             Term::Repeat(term, q) => {
                 let mut result = Match::empty(start);
                 let mut values = vec![];
+                let mut origins = vec![];
                 let mut depth = 0;
                 let mut count = 0;
                 loop {
@@ -613,10 +699,12 @@ impl Runtime<'_> {
                     if let Some(value) = m.value {
                         depth = depth.max(m.value_depth);
                         values.push(value);
+                        origins.push(m.origin.clone());
                     }
                     result.fields.extend(m.fields);
                     merge_marked(&mut result.marked, m.marked);
                     result.diagnostics.extend(m.diagnostics);
+                    result.occurrences.extend(m.occurrences);
                     if *q == Quantifier::Optional {
                         break;
                     }
@@ -628,6 +716,11 @@ impl Runtime<'_> {
                     depth + usize::from(*q != Quantifier::Optional),
                     result.end,
                 )?;
+                result.origin = if *q == Quantifier::Optional {
+                    origins.into_iter().next().flatten()
+                } else {
+                    Some(Span::new(self.file, start, result.end))
+                };
                 result.value = Some(if *q == Quantifier::Optional {
                     values.into_iter().next().unwrap_or(AstValue::None)
                 } else {
@@ -643,6 +736,10 @@ impl Runtime<'_> {
                     Captured {
                         value,
                         span: Span::new(self.file, start, result.end),
+                        origin: result
+                            .origin
+                            .clone()
+                            .unwrap_or_else(|| Span::new(self.file, start, result.end)),
                         depth: result.value_depth,
                     },
                 );
@@ -707,8 +804,15 @@ impl Runtime<'_> {
                 let mut matched = self.term_with(term, start, raw, context)?;
                 matched.marked.entry(*id).or_default().push(MarkedValue {
                     value: matched.value.clone(),
+                    origin: matched.origin.clone().or_else(|| {
+                        matched
+                            .value
+                            .as_ref()
+                            .map(|_| Span::new(self.file, start, matched.end))
+                    }),
                     fields: matched.fields.clone(),
                     depth: matched.value_depth,
+                    occurrences: matched.occurrences.clone(),
                 });
                 Some(matched)
             }
@@ -721,10 +825,13 @@ impl Runtime<'_> {
                 let mut matched = self.term_with(term, start, raw, context)?;
                 let originals = matched.marked.remove(id).unwrap_or_default();
                 matched.fields.clear();
+                matched.occurrences.clear();
                 let mut values = vec![];
+                let mut origins = vec![];
                 let mut depth = 0;
                 for original in originals {
                     if let Some(value) = original.value {
+                        origins.push(original.origin.clone());
                         depth = depth.max(original.depth);
                         if *collect_lists {
                             if let AstValue::List(items) = value {
@@ -737,9 +844,20 @@ impl Runtime<'_> {
                         }
                     }
                     matched.fields.extend(original.fields);
+                    matched.occurrences.extend(original.occurrences);
                 }
                 matched.value_depth =
                     self.check_value_depth(depth + usize::from(quantifier.is_some()), matched.end)?;
+                matched.origin = if matches!(quantifier, Some(Quantifier::Star | Quantifier::Plus))
+                {
+                    let spans: Vec<_> = origins.into_iter().flatten().collect();
+                    spans
+                        .first()
+                        .zip(spans.last())
+                        .map(|(first, last)| Span::new(self.file, first.start, last.end))
+                } else {
+                    origins.into_iter().next().flatten()
+                };
                 matched.value = if matches!(quantifier, Some(Quantifier::Star | Quantifier::Plus)) {
                     Some(AstValue::List(values))
                 } else {
