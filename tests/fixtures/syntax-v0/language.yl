@@ -1,4 +1,4 @@
-import { keyword, Name } from "./lexical"
+import { keyword, Name, Whitespace, Comment } from "./lexical"
 
 node Expression {
     node Number = value: /\d+/
@@ -14,4 +14,6 @@ node Expression {
 
 node Declaration = keyword("let") name: Name "=" initializer: Expression
 node Program = declarations: Declaration*
-entry Program
+entry Program {
+    trivia Whitespace, Comment
+}

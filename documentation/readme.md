@@ -422,7 +422,10 @@ Whitespace has no semantic meaning inside the `precedence` declaration. The cano
 
 ## Trivia
 
-Trivia is declared with `trivia` and is automatically skipped between ordinary grammar elements.
+Trivia is declared with `trivia`. Declarations define matchers; they do not activate
+automatic skipping. The entry block explicitly selects the trivia skipped between
+ordinary grammar elements. Importing a helper or trivia declaration alone does
+not change the language's trivia policy.
 
 ```yl
 trivia Whitespace =
@@ -579,10 +582,22 @@ requires identifier boundaries on both sides without making keywords a compiler 
 A language has one entrypoint:
 
 ```yl
-entry Program
+entry Program {
+    trivia Whitespace, Comment
+}
 ```
 
 The runtime may expose lower-level rules separately for tooling, but normal parsing begins at the declared entry.
+
+Selected trivia must be accessible through normal module/import/export rules and
+must name trivia declarations. Selecting an abstract trivia family activates its
+members through the family's matcher; members need not be individually listed.
+Imported trivia is not activated unless selected. Selection follows the written
+list order; repeated references to the same matcher are idempotent.
+
+`entry Program` (or an empty entry block) selects no automatic trivia. The node's
+grammar and all required declarations are still resolved through ordinary imports.
+
 
 ## Forward references
 

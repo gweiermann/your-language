@@ -39,3 +39,12 @@ Incompatible usage is diagnosed at the pipe application.
 
 Metadata is explicitly deferred beyond syntax-v0. Extensions add constraints;
 they cannot replace a canonical grammar definition.
+
+## Explicit entrypoint trivia
+
+The author approved `entry Program { trivia Whitespace, Comment }`.
+Trivia declarations define matchers; only the entry block activates automatic
+skipping. An entry without a trivia section skips nothing automatically. Selected
+trivia uses normal imports/exports and may name abstract families. Imported helper
+modules and unselected trivia must not affect skipping. This replaces the original
+specification's implicit activation of all trivia in the loaded module graph.

@@ -1,5 +1,5 @@
 import { separatedBy } from "std/parser"
-import { Name, keyword } from "./lexical"
+import { Name, keyword, Whitespace, Comment } from "./lexical"
 
 export node Expression {
     node String =
@@ -89,4 +89,6 @@ node Block =
 export node Program =
     statements: Statement*
 
-entry Program
+entry Program {
+    trivia Whitespace, Comment
+}

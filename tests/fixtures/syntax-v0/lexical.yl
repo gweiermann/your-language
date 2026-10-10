@@ -1,6 +1,6 @@
 import { boundedBy } from "std/parser"
-trivia Whitespace = /[ \t\r\n]+/
-trivia Comment = /\/\/[^\n]*/
+export trivia Whitespace = /[ \t\r\n]+/
+export trivia Comment = /\/\/[^\n]*/
 pattern IdentifierPart = /[_a-zA-Z0-9]/
 export pattern keyword(value) = value |> boundedBy(IdentifierPart)
 export node Name = value: /[_a-zA-Z][_a-zA-Z0-9]*/

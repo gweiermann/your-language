@@ -134,7 +134,19 @@ impl Parser {
             };
             DeclKind::Import { names, path }
         } else if self.take("entry") {
-            DeclKind::Entry(self.path()?)
+            let node = self.selector()?;
+            let mut trivia = vec![];
+            if self.take("{") {
+                if !self.is("}") {
+                    self.expect("trivia")?;
+                    trivia.push(self.selector()?);
+                    while self.take(",") {
+                        trivia.push(self.selector()?);
+                    }
+                }
+                self.expect("}")?;
+            }
+            DeclKind::Entry { node, trivia }
         } else if self.take("extend") {
             self.expect("node")?;
             let name = self.path()?;

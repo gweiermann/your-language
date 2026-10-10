@@ -803,7 +803,19 @@
     {
       "export": false,
       "kind": {
-        "Entry": "Program"
+        "Entry": {
+          "node": {
+            "kind": {
+              "Ref": "Program"
+            },
+            "span": {
+              "file": "tests/fixtures/decisions/language.yl",
+              "start": 664,
+              "end": 671
+            }
+          },
+          "trivia": []
+        }
       },
       "span": {
         "file": "tests/fixtures/decisions/language.yl",

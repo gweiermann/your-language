@@ -22,7 +22,7 @@ fn reusable_constraint_named_arguments_bind_by_name() {
         trivia W = /\s+/
         constraint tight(left, right) { when trivia.between(left, right) { error("not tight") } }
         node P = first: "a" second: "b" { constraints { tight(right=second, left=first) } }
-        entry P
+        entry P { trivia W }
     "#
         .into(),
     )]);

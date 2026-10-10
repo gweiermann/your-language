@@ -84,7 +84,7 @@ checks for MiniJS node names, keywords or grammar files and no hard-coded list h
 | 10 enums/arguments | Implemented for unambiguous expected types; explicit single/tuple selectors, exhaustive wildcard cases and caller diagnostics |
 | 11 separatedBy | Implemented in ordinary YL; all six modes and flat values tested |
 | 12 recursive precedence | Implemented; product/sum, power, member/call, unary, grouping, nonassoc tests |
-| 13–15 trivia/core/std/entry | Implemented; ordinary trivia, explicit core imports, boundedBy and entry checks |
+| 13–15 trivia/core/std/entry | Implemented; explicit entry-selected trivia, core imports, boundedBy and entry checks |
 | 16 constraints | Boolean/string conditions, presence guards, optional chaining, absence and reusable constraints implemented |
 | 17 extensions | Additive constraints implemented, grammar changes rejected; metadata explicitly deferred by the author |
 | 18 normalized artifact | Implemented; deterministic roundtrip and corrupt-artifact validation tests |
@@ -150,3 +150,13 @@ yl check documentation/target-syntax/minijs.yl
 
 passes. The full check/compile/parse sequence is covered by integration tests. The
 independent fixture provides additional generic-layer coverage.
+
+To inspect a caller diagnostic in a terminal:
+
+```sh
+cargo run -- check tests/fixtures/decisions/invalid-combination.yl
+```
+
+This intentionally fails with `yl.pipe_case`, underlining the `.a` and `.b`
+arguments at the caller. For target-source JSON diagnostics, compile MiniJS and
+parse `tests/fixtures/minijs/malformed-expression.js` instead of `program.js`.

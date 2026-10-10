@@ -92,7 +92,10 @@ pub enum DeclKind {
         name: String,
         constraints: Vec<Constraint>,
     },
-    Entry(String),
+    Entry {
+        node: Expr,
+        trivia: Vec<Expr>,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Level {

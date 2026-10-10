@@ -117,8 +117,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 1588,
-        "end": 1643
+        "start": 1609,
+        "end": 1664
       }
     },
     "minijs.yl#Expression": {
@@ -181,8 +181,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 84,
-        "end": 1035
+        "start": 105,
+        "end": 1056
       }
     },
     "minijs.yl#Expression::Call": {
@@ -271,8 +271,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 394,
-        "end": 539
+        "start": 415,
+        "end": 560
       }
     },
     "minijs.yl#Expression::Group": {
@@ -301,8 +301,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 261,
-        "end": 307
+        "start": 282,
+        "end": 328
       }
     },
     "minijs.yl#Expression::Member": {
@@ -336,8 +336,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 313,
-        "end": 388
+        "start": 334,
+        "end": 409
       }
     },
     "minijs.yl#Expression::NameExpression": {
@@ -356,8 +356,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 215,
-        "end": 255
+        "start": 236,
+        "end": 276
       }
     },
     "minijs.yl#Expression::Number": {
@@ -376,8 +376,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 165,
-        "end": 209
+        "start": 186,
+        "end": 230
       }
     },
     "minijs.yl#Expression::Power": {
@@ -416,8 +416,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 628,
-        "end": 714
+        "start": 649,
+        "end": 735
       }
     },
     "minijs.yl#Expression::Product": {
@@ -466,8 +466,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 720,
-        "end": 821
+        "start": 741,
+        "end": 842
       }
     },
     "minijs.yl#Expression::String": {
@@ -486,8 +486,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 113,
-        "end": 159
+        "start": 134,
+        "end": 180
       }
     },
     "minijs.yl#Expression::Sum": {
@@ -533,8 +533,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 827,
-        "end": 918
+        "start": 848,
+        "end": 939
       }
     },
     "minijs.yl#Expression::Unary": {
@@ -575,8 +575,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 545,
-        "end": 622
+        "start": 566,
+        "end": 643
       }
     },
     "minijs.yl#Parameter": {
@@ -619,8 +619,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 1037,
-        "end": 1099
+        "start": 1058,
+        "end": 1120
       }
     },
     "minijs.yl#Program": {
@@ -644,8 +644,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 1645,
-        "end": 1693
+        "start": 1666,
+        "end": 1714
       }
     },
     "minijs.yl#Statement": {
@@ -665,8 +665,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 1182,
-        "end": 1586
+        "start": 1203,
+        "end": 1607
       }
     },
     "minijs.yl#Statement::FunctionDeclaration": {
@@ -791,8 +791,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 1431,
-        "end": 1563
+        "start": 1452,
+        "end": 1584
       }
     },
     "minijs.yl#Statement::ReturnStatement": {
@@ -848,8 +848,8 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 1350,
-        "end": 1425
+        "start": 1371,
+        "end": 1446
       }
     },
     "minijs.yl#Statement::VariableDeclaration": {
@@ -961,15 +961,13 @@
       "constraints": [],
       "span": {
         "file": "minijs.yl",
-        "start": 1210,
-        "end": 1344
+        "start": 1231,
+        "end": 1365
       }
     }
   },
   "trivia": [
-    "lexical.yl#Comment",
-    "lexical.yl#Comment::Block",
-    "lexical.yl#Comment::Line",
-    "lexical.yl#Whitespace"
+    "lexical.yl#Whitespace",
+    "lexical.yl#Comment"
   ]
 }

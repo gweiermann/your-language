@@ -1,0 +1,20 @@
+enum Mode { a b }
+
+pipe wrap(first: Mode, second: Mode) {
+    rewrite value match (first, second) {
+        (.a, .a) => "(" value ")"
+        (.a, .b) => { error("This combination is not allowed.") }
+        _ => { warning("Pipe not applied; preserving input.") value }
+    }
+}
+
+node Program = name: /[A-Za-z]+/? ":" items: /x/* |> wrap(.a, .b) {
+    constraints {
+        when name?.matches(/^[A-Z]/) { warning("Capitalized name.") }
+        when !name?.matches(/^[A-Z]/) { help("Lowercase name.") }
+        when name?.matches(/^[A-Z]/) == absent { help("Missing name.") }
+        when name.isPresent() && name.matches(/^X/) { warning("X name.") }
+    }
+}
+
+entry Program

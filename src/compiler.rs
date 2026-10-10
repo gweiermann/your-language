@@ -694,8 +694,39 @@ impl Compiler {
         let mut entries = vec![];
         for (module, ast) in &self.modules {
             for d in &ast.declarations {
-                if let DeclKind::Entry(name) = &d.kind {
-                    entries.push(self.resolve(module, "", name, &d.span)?);
+                if let DeclKind::Entry { node, trivia } = &d.kind {
+                    let ExprKind::Ref(name) = &node.kind else {
+                        return Err(Diagnostic::error(
+                            "yl.entrypoint",
+                            "Expected entry node",
+                            node.span.clone(),
+                        ));
+                    };
+                    let entry = self.resolve(module, "", name, &node.span)?;
+                    let mut selected = vec![];
+                    for matcher in trivia {
+                        let ExprKind::Ref(name) = &matcher.kind else {
+                            return Err(Diagnostic::error(
+                                "yl.entry_trivia",
+                                "Expected trivia reference",
+                                matcher.span.clone(),
+                            ));
+                        };
+                        let id = self.resolve(module, "", name, &matcher.span)?;
+                        if !self.symbols.get(&id).is_some_and(|s| {
+                            matches!(s.declaration.kind, DeclKind::Node { trivia: true, .. })
+                        }) {
+                            return Err(Diagnostic::error(
+                                "yl.entry_trivia",
+                                "Entry trivia selection must name a trivia declaration",
+                                matcher.span.clone(),
+                            ));
+                        }
+                        if !selected.contains(&id) {
+                            selected.push(id);
+                        }
+                    }
+                    entries.push((entry, selected));
                 }
             }
         }
@@ -710,11 +741,12 @@ impl Compiler {
                     .unwrap_or_default(),
             ));
         }
+        let (entry, trivia) = entries.remove(0);
         let mut language = CompiledLanguage {
             version: 1,
-            entry: entries.remove(0),
+            entry,
             rules: BTreeMap::new(),
-            trivia: vec![],
+            trivia,
             diagnostics: vec![],
         };
         for (id, symbol) in self.symbols.clone() {
@@ -838,9 +870,6 @@ impl Compiler {
                         span: symbol.declaration.span.clone(),
                     },
                 );
-                if *trivia {
-                    language.trivia.push(id);
-                }
             }
         }
         for (module, extension) in self.extensions.clone() {

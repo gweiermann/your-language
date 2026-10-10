@@ -357,11 +357,7 @@ fn agreed_decisions_have_frontend_normalized_runtime_and_diagnostic_goldens() {
 
 #[test]
 fn cli_pipe_diagnostics_underline_caller_arguments_before_definition() {
-    let source = fs::read_to_string(fixture("tests/fixtures/decisions/language.yl"))
-        .unwrap()
-        .replace("wrap(.b, .a)", "wrap(.a, .b)");
-    let entry = fixture("target/caller-diagnostic.yl");
-    fs::write(&entry, source).unwrap();
+    let entry = fixture("tests/fixtures/decisions/invalid-combination.yl");
     let output = Command::new(env!("CARGO_BIN_EXE_yl"))
         .arg("check")
         .arg(entry)

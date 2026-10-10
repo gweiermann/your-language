@@ -30,7 +30,7 @@ node E {
  node Sum = left: E operator: "+" right: E
  precedence { Member, Call > Unary > right Power > Product > Sum }
 }
-entry E
+entry E { trivia W }
 "#,
     )
 }
@@ -122,7 +122,7 @@ fn transitive_abstract_constraints_see_leaf_captures() {
 #[test]
 fn trivia_is_normal_grammar_without_recursive_skip() {
     let language = compile(
-        r#"trivia W = /\s+/ trivia Comment { trivia Line = /\/\/[^\n]*/ trivia Block = "/*" /[^*]*/ "*/" } node P = "a" "b" entry P"#,
+        r#"trivia W = /\s+/ trivia Comment { trivia Line = /\/\/[^\n]*/ trivia Block = "/*" /[^*]*/ "*/" } node P = "a" "b" entry P { trivia W, Comment }"#,
     );
     assert!(parse(&language, " /* hi */ a // comment\n b ")
         .ast
@@ -196,7 +196,7 @@ fn lookbehind_checks_the_left_boundary_with_greedy_and_empty_patterns() {
 #[test]
 fn constraints_and_extensions_emit_after_success_only() {
     let language = compile(
-        r#"trivia W = /\s+/ constraint tight(left,right) { when trivia.between(left,right) { error("not tight") help("remove whitespace") } } node P = left: "a" right: "b" { constraints { tight(left,right) } } extend node P { constraints { when left.matches(/a/) { warning("a seen") } } } entry P"#,
+        r#"trivia W = /\s+/ constraint tight(left,right) { when trivia.between(left,right) { error("not tight") help("remove whitespace") } } node P = left: "a" right: "b" { constraints { tight(left,right) } } extend node P { constraints { when left.matches(/a/) { warning("a seen") } } } entry P { trivia W }"#,
     );
     let tight = parse(&language, "ab");
     assert_eq!(tight.diagnostics.len(), 1);
