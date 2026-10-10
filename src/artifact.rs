@@ -5,6 +5,10 @@ use crate::{
 };
 
 impl CompiledLanguage {
+    /// Non-fatal definition diagnostics produced while compiling this language.
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
+    }
     /// Deterministic versioned JSON artifact. It contains no YL source or imports.
     pub fn to_bytes(&self) -> CompileResult<Vec<u8>> {
         serde_json::to_vec_pretty(self).map_err(|e| {

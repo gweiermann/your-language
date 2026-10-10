@@ -8,6 +8,11 @@ pub struct Expr {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
+    EnumConstant(String, String),
+    Bool(bool),
+    Absent,
+    Not(Box<Expr>),
+    Binary(String, Box<Expr>, Box<Expr>),
     Literal(String),
     Regex(String),
     Ref(String),
@@ -113,6 +118,17 @@ pub struct Rewrite {
 pub enum RewriteBody {
     Direct(Expr),
     Cases(Vec<(Expr, Expr)>),
+    Match {
+        selectors: Vec<Expr>,
+        cases: Vec<RewriteCase>,
+    },
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RewriteCase {
+    pub patterns: Vec<Option<Expr>>,
+    pub replacement: Option<Expr>,
+    pub diagnostics: Vec<Constraint>,
+    pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Constraint {

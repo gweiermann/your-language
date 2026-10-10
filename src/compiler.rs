@@ -15,7 +15,7 @@ type Environment = BTreeMap<String, Value>;
 #[derive(Clone)]
 enum Value {
     Grammar(Term),
-    Enum(String, String),
+    Enum(String, String, Option<Span>),
 }
 #[derive(Clone)]
 struct Symbol {
@@ -35,6 +35,7 @@ struct Compiler {
     extensions: Vec<(String, Declaration)>,
     expanding: Vec<String>,
     next_marker: u32,
+    diagnostics: Vec<Diagnostic>,
 }
 
 pub fn compile_language(entry_file: impl AsRef<Path>) -> CompileResult<CompiledLanguage> {
@@ -135,6 +136,13 @@ impl Compiler {
                             RewriteBody::Direct(body) => {
                                 self.validate_expr(symbol, body, &locals)?
                             }
+                            RewriteBody::Match { cases, .. } => {
+                                for case in cases {
+                                    if let Some(body) = &case.replacement {
+                                        self.validate_expr(symbol, body, &locals)?;
+                                    }
+                                }
+                            }
                             RewriteBody::Cases(cases) => {
                                 for (_, body) in cases {
                                     self.validate_expr(symbol, body, &locals)?;
@@ -164,11 +172,85 @@ impl Compiler {
                     self.resolve(&symbol.module, &symbol.scope, ty, &parameter.span)?;
                 }
                 if let Some(default) = &parameter.default {
-                    self.validate_expr(symbol, default, &locals)?;
+                    let condition_literal = matches!(
+                        symbol.declaration.kind,
+                        DeclKind::Constraint { .. }
+                    ) && matches!(&default.kind,ExprKind::Ref(name) if matches!(name.as_str(),"true"|"false"|"absent"));
+                    if !condition_literal {
+                        self.validate_expr(symbol, default, &locals)?;
+                    }
                 }
             }
             for grammar in grammars {
                 self.validate_expr(symbol, grammar, &locals)?;
+            }
+        }
+        Ok(())
+    }
+    fn validate_pipe_matches(&mut self) -> Result<()> {
+        for symbol in self.symbols.clone().values() {
+            let DeclKind::Pipe {
+                parameters, arms, ..
+            } = &symbol.declaration.kind
+            else {
+                continue;
+            };
+            let mut bound = Environment::new();
+            for p in parameters {
+                if let Some(ty) = &p.ty {
+                    let id = self.resolve(&symbol.module, &symbol.scope, ty, &p.span)?;
+                    if let Some(Symbol {
+                        declaration:
+                            Declaration {
+                                kind: DeclKind::Enum { variants, .. },
+                                ..
+                            },
+                        ..
+                    }) = self.symbols.get(&id)
+                    {
+                        let variant = variants.first().ok_or_else(|| {
+                            Diagnostic::error(
+                                "yl.enum_selector",
+                                "A selected enum needs at least one variant",
+                                p.span.clone(),
+                            )
+                        })?;
+                        bound.insert(
+                            p.name.clone(),
+                            Value::Enum(id.clone(), variant.clone(), None),
+                        );
+                    }
+                }
+            }
+            for arm in arms {
+                match &arm.body {
+                    RewriteBody::Match { selectors, cases } => {
+                        self.select_case(
+                            symbol, selectors, cases, &bound, parameters, &arm.span, false,
+                        )?;
+                    }
+                    RewriteBody::Cases(original) => {
+                        let cases: Vec<_> = original
+                            .iter()
+                            .map(|(pattern, body)| RewriteCase {
+                                patterns: vec![Some(pattern.clone())],
+                                replacement: Some(body.clone()),
+                                diagnostics: vec![],
+                                span: pattern.span.clone(),
+                            })
+                            .collect();
+                        self.select_case(
+                            symbol,
+                            &[],
+                            &cases,
+                            &bound,
+                            parameters,
+                            &arm.span,
+                            false,
+                        )?;
+                    }
+                    _ => {}
+                }
             }
         }
         Ok(())
@@ -608,6 +690,7 @@ impl Compiler {
             }
         }
         self.validate_declarations()?;
+        self.validate_pipe_matches()?;
         let mut entries = vec![];
         for (module, ast) in &self.modules {
             for d in &ast.declarations {
@@ -632,6 +715,7 @@ impl Compiler {
             entry: entries.remove(0),
             rules: BTreeMap::new(),
             trivia: vec![],
+            diagnostics: vec![],
         };
         for (id, symbol) in self.symbols.clone() {
             if let DeclKind::Node {
@@ -780,6 +864,7 @@ impl Compiler {
                 Span::default(),
             ));
         }
+        language.diagnostics = std::mem::take(&mut self.diagnostics);
         validate_language(&language)?;
         Ok(language)
     }
@@ -1011,6 +1096,9 @@ impl Compiler {
                         expr.span.clone(),
                     )
                 })?;
+                let output_quantifier = value_shape(&input);
+                let collect_lists = arm.quantifier.is_none()
+                    && matches!(output_quantifier, Some(Quantifier::Star | Quantifier::Plus));
                 let marker = self.next_marker;
                 self.next_marker = self.next_marker.checked_add(1).ok_or_else(|| {
                     Diagnostic::error(
@@ -1028,61 +1116,80 @@ impl Compiler {
                 );
                 let body = match &arm.body {
                     RewriteBody::Direct(body) => body,
-                    RewriteBody::Cases(cases) => {
-                        let enums: Vec<_> = bound
-                            .values()
-                            .filter_map(|v| {
-                                if let Value::Enum(ty, v) = v {
-                                    Some((ty, v))
-                                } else {
-                                    None
-                                }
-                            })
+                    RewriteBody::Cases(original) => {
+                        let enums: Vec<_> = parameters
+                            .iter()
+                            .filter(|p| matches!(bound.get(&p.name), Some(Value::Enum(..))))
                             .collect();
                         if enums.len() != 1 {
-                            return Err(Diagnostic::error("yl.parked_enum_dispatch","PARKED: enum case dispatch requires one unambiguous enum parameter; multiple-parameter selector syntax is unspecified",arm.span.clone()));
-                        }
-                        let (ty, variant) = enums[0];
-                        let mut chosen = None;
-                        for (case, body) in cases {
-                            let (case_ty, case_variant) = self.enum_value(
-                                &symbol.module,
-                                &symbol.scope,
-                                case,
-                                Some(ty),
-                                &bound,
-                            )?;
-                            if case_ty == *ty && case_variant == *variant {
-                                if chosen.is_some() {
-                                    return Err(Diagnostic::error(
-                                        "yl.duplicate_member",
-                                        "Duplicate rewrite case",
-                                        case.span.clone(),
-                                    ));
-                                }
-                                chosen = Some(body);
-                            }
-                        }
-                        chosen.ok_or_else(|| {
-                            Diagnostic::error(
-                                "yl.invalid_rewrite",
-                                "No enum case matches argument",
+                            return Err(Diagnostic::error(
+                                "yl.enum_selector",
+                                "Multiple enum parameters require an explicit match selector",
                                 arm.span.clone(),
-                            )
-                        })?
+                            ));
+                        }
+                        let selector = Expr {
+                            kind: ExprKind::Ref(enums[0].name.clone()),
+                            span: arm.span.clone(),
+                        };
+                        let cases: Vec<_> = original
+                            .iter()
+                            .map(|(pattern, body)| RewriteCase {
+                                patterns: vec![Some(pattern.clone())],
+                                replacement: Some(body.clone()),
+                                diagnostics: vec![],
+                                span: pattern.span.clone(),
+                            })
+                            .collect();
+                        let chosen = self.select_case(
+                            &symbol,
+                            &[selector],
+                            &cases,
+                            &bound,
+                            parameters,
+                            &expr.span,
+                            true,
+                        )?;
+                        // The selected source body remains borrowed from the original arm.
+                        &original[chosen].1
+                    }
+                    RewriteBody::Match { selectors, cases } => {
+                        let chosen = self.select_case(
+                            &symbol, selectors, cases, &bound, parameters, &expr.span, true,
+                        )?;
+                        let case = &cases[chosen];
+                        let Some(body) = &case.replacement else {
+                            return Err(Diagnostic::error(
+                                "yl.invalid_rewrite",
+                                "A successful case requires a replacement grammar",
+                                case.span.clone(),
+                            ));
+                        };
+                        body
                     }
                 };
                 let term = self.expand(&id, &symbol, body, &bound, depth + 1)?;
-                if arm.quantifier.is_none() && marker_cardinality(&term, marker) != (1, Some(1)) {
-                    return Err(Diagnostic::error("yl.parked_projection_cardinality","PARKED: scalar-preserving rewrites must identify one original value; selection when a binding is omitted or duplicated is unspecified",arm.span.clone()));
+                let cardinality = marker_value_cardinality(&term, marker, collect_lists);
+                if !valid_cardinality(output_quantifier, cardinality) {
+                    return Err(Diagnostic::error(
+                        "yl.projection_cardinality",
+                        "Rewrite output does not preserve the input cardinality",
+                        expr.span.clone(),
+                    ));
                 }
                 Term::Project {
                     id: marker,
                     term: Box::new(term),
-                    quantifier: arm.quantifier,
+                    quantifier: output_quantifier,
+                    collect_lists,
                 }
             }
-            ExprKind::Variant(_) => {
+            ExprKind::EnumConstant(_, _)
+            | ExprKind::Bool(_)
+            | ExprKind::Absent
+            | ExprKind::Not(_)
+            | ExprKind::Binary(_, _, _)
+            | ExprKind::Variant(_) => {
                 return Err(Diagnostic::error(
                     "yl.ambiguous_enum_variant",
                     "Contextual enum needs an expected enum type",
@@ -1090,6 +1197,237 @@ impl Compiler {
                 ))
             }
         })
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn select_case(
+        &mut self,
+        symbol: &Symbol,
+        selectors: &[Expr],
+        cases: &[RewriteCase],
+        bound: &Environment,
+        parameters: &[Parameter],
+        call: &Span,
+        emit: bool,
+    ) -> Result<usize> {
+        let inferred;
+        let selectors = if selectors.is_empty() {
+            let enums: Vec<_> = parameters
+                .iter()
+                .filter(|p| matches!(bound.get(&p.name), Some(Value::Enum(..))))
+                .collect();
+            if enums.len() != 1 {
+                return Err(Diagnostic::error(
+                    "yl.enum_selector",
+                    "Multiple enum parameters require an explicit match selector",
+                    symbol.declaration.span.clone(),
+                ));
+            }
+            inferred = vec![Expr {
+                kind: ExprKind::Ref(enums[0].name.clone()),
+                span: symbol.declaration.span.clone(),
+            }];
+            &inferred
+        } else {
+            selectors
+        };
+        let mut selected = vec![];
+        let mut argument_spans = vec![];
+        for selector in selectors {
+            let ExprKind::Ref(name) = &selector.kind else {
+                return Err(Diagnostic::error(
+                    "yl.enum_selector",
+                    "Expected enum parameter selector",
+                    selector.span.clone(),
+                ));
+            };
+            let Some(Value::Enum(ty, variant, origin)) = bound.get(name) else {
+                return Err(Diagnostic::error(
+                    "yl.enum_selector",
+                    "Selector must name an enum parameter",
+                    selector.span.clone(),
+                ));
+            };
+            selected.push((ty.clone(), variant.clone()));
+            let span = origin.clone().unwrap_or_else(|| call.clone());
+            argument_spans.push(span);
+        }
+        let mut normalized = vec![];
+        for case in cases {
+            let wildcard;
+            let patterns = if case.patterns.len() == 1 && case.patterns[0].is_none() {
+                wildcard = vec![None; selected.len()];
+                &wildcard
+            } else {
+                &case.patterns
+            };
+            if patterns.len() != selected.len() {
+                return Err(Diagnostic::error(
+                    "yl.enum_case",
+                    "Case tuple does not match selector arity",
+                    case.span.clone(),
+                ));
+            }
+            let pattern = patterns
+                .iter()
+                .zip(&selected)
+                .map(|(p, (ty, _))| {
+                    p.as_ref()
+                        .map(|p| {
+                            self.enum_value(&symbol.module, &symbol.scope, p, Some(ty), bound)
+                                .map(|(_, v)| v)
+                        })
+                        .transpose()
+                })
+                .collect::<Result<Vec<_>>>()?;
+            if normalized.iter().any(|earlier: &Vec<Option<String>>| {
+                earlier
+                    .iter()
+                    .zip(&pattern)
+                    .all(|(a, b)| a.is_none() || a == b)
+            }) {
+                return Err(Diagnostic::error(
+                    "yl.unreachable_case",
+                    "Rewrite case is completely shadowed by an earlier case",
+                    case.span.clone(),
+                ));
+            }
+            let has_error = case
+                .diagnostics
+                .iter()
+                .any(|d| matches!(&d.kind,ConstraintKind::Call(name,_) if name=="error"));
+            if !has_error && case.replacement.is_none() {
+                return Err(Diagnostic::error(
+                    "yl.invalid_rewrite",
+                    "Case requires a replacement or error",
+                    case.span.clone(),
+                ));
+            }
+            for emission in &case.diagnostics {
+                validate_case_emission(emission)?;
+            }
+            normalized.push(pattern);
+        }
+        let mut combinations = vec![vec![]];
+        for (ty, _) in &selected {
+            let DeclKind::Enum { variants, .. } = &self.symbols[ty].declaration.kind else {
+                return Err(Diagnostic::error(
+                    "yl.enum_selector",
+                    "Expected enum",
+                    call.clone(),
+                ));
+            };
+            if combinations.len().saturating_mul(variants.len()) > 65536 {
+                return Err(Diagnostic::error(
+                    "yl.resource_limit",
+                    "Enum match exhaustiveness exceeds resource limit",
+                    call.clone(),
+                ));
+            }
+            combinations = combinations
+                .into_iter()
+                .flat_map(|prefix| {
+                    variants.iter().map(move |v| {
+                        let mut p = prefix.clone();
+                        p.push(v.clone());
+                        p
+                    })
+                })
+                .collect();
+        }
+        let matches = |pattern: &[Option<String>], values: &[String]| {
+            pattern
+                .iter()
+                .zip(values)
+                .all(|(p, v)| p.as_ref().is_none_or(|p| p == v))
+        };
+        if combinations
+            .iter()
+            .any(|values| !normalized.iter().any(|p| matches(p, values)))
+        {
+            return Err(Diagnostic::error(
+                "yl.nonexhaustive_match",
+                "Rewrite cases must cover every enum combination",
+                symbol.declaration.span.clone(),
+            ));
+        }
+        for (index, pattern) in normalized.iter().enumerate() {
+            if !combinations.iter().any(|values| {
+                matches(pattern, values)
+                    && !normalized[..index]
+                        .iter()
+                        .any(|earlier| matches(earlier, values))
+            }) {
+                return Err(Diagnostic::error(
+                    "yl.unreachable_case",
+                    "Rewrite case is completely shadowed by earlier cases",
+                    cases[index].span.clone(),
+                ));
+            }
+        }
+        let values: Vec<_> = selected.iter().map(|(_, v)| v.clone()).collect();
+        let index = normalized
+            .iter()
+            .position(|p| matches(p, &values))
+            .ok_or_else(|| {
+                Diagnostic::error("yl.enum_case", "No case matches arguments", call.clone())
+            })?;
+        if !emit {
+            return Ok(index);
+        }
+        for emission in &cases[index].diagnostics {
+            let ConstraintKind::Call(name, args) = &emission.kind else {
+                return Err(Diagnostic::error(
+                    "yl.invalid_constraint",
+                    "Expected diagnostic emission",
+                    emission.span.clone(),
+                ));
+            };
+            let [argument] = args.as_slice() else {
+                return Err(Diagnostic::error(
+                    "yl.invalid_argument",
+                    "Diagnostic takes one string",
+                    emission.span.clone(),
+                ));
+            };
+            let ExprKind::Literal(message) = &argument.value.kind else {
+                return Err(Diagnostic::error(
+                    "yl.invalid_argument",
+                    "Diagnostic takes one string",
+                    argument.span.clone(),
+                ));
+            };
+            let severity = match name.as_str() {
+                "error" => Severity::Error,
+                "warning" => Severity::Warning,
+                "help" => Severity::Help,
+                _ => {
+                    return Err(Diagnostic::error(
+                        "yl.invalid_constraint",
+                        "Expected diagnostic emission",
+                        emission.span.clone(),
+                    ))
+                }
+            };
+            let mut diagnostic = Diagnostic::error(
+                "yl.pipe_case",
+                message,
+                argument_spans.first().unwrap_or(call).clone(),
+            );
+            diagnostic.severity = severity;
+            diagnostic
+                .secondary
+                .extend(argument_spans.iter().skip(1).cloned());
+            diagnostic.secondary.push(emission.span.clone());
+            if argument_spans.iter().any(|s| s == call) {
+                diagnostic.help =
+                    Some("One or more selected enum arguments use their defaults".into());
+            }
+            if diagnostic.severity == Severity::Error {
+                return Err(diagnostic);
+            }
+            self.diagnostics.push(diagnostic);
+        }
+        Ok(index)
     }
     /// Resolve name-plus-parentheses after forward references/imports are known.
     /// Bindings and nodes denote grammar; parameterized definitions denote calls.
@@ -1250,7 +1588,20 @@ impl Compiler {
                     ty.as_deref(),
                     context_env,
                 )?;
-                Value::Enum(ty, v)
+                let origin = if let ExprKind::Ref(name) = &ungroup(value).kind {
+                    if let Some(Value::Enum(_, _, origin)) = context_env.get(name) {
+                        origin.clone()
+                    } else if supplied.contains_key(&p.name) {
+                        Some(value.span.clone())
+                    } else {
+                        None
+                    }
+                } else if supplied.contains_key(&p.name) {
+                    Some(value.span.clone())
+                } else {
+                    None
+                };
+                Value::Enum(ty, v, origin)
             } else {
                 let term =
                     self.lower(context_module, context_scope, value, context_env, depth + 1)?;
@@ -1280,7 +1631,8 @@ impl Compiler {
         expected: Option<&str>,
         env: &Environment,
     ) -> Result<(String, String)> {
-        let (ty, variant) = match &expr.kind {
+        let (ty, variant) = match &ungroup(expr).kind {
+            ExprKind::EnumConstant(ty, variant) => (ty.clone(), variant.clone()),
             ExprKind::Variant(v) => (
                 expected
                     .ok_or_else(|| {
@@ -1294,7 +1646,7 @@ impl Compiler {
                 v.clone(),
             ),
             ExprKind::Ref(name) => {
-                if let Some(Value::Enum(ty, v)) = env.get(name) {
+                if let Some(Value::Enum(ty, v, _)) = env.get(name) {
                     return Ok((ty.clone(), v.clone()));
                 }
                 let (ty, v) = name.rsplit_once("::").ok_or_else(|| {
@@ -1341,6 +1693,7 @@ impl Compiler {
                 id,
                 term,
                 quantifier: None,
+                ..
             } => {
                 if let Some(original) = find_marker(term, *id) {
                     self.accepts(original, ty, visiting)
@@ -1407,7 +1760,74 @@ impl Compiler {
                             constraint.span.clone(),
                         ));
                     };
-                    let bound = bind_constraint(parameters, values, args, &constraint.span)?;
+                    let mut bound = bind_constraint(parameters, values, args, &constraint.span)?;
+                    for value in bound.values_mut() {
+                        if matches!(&value.kind,ExprKind::Ref(name) if name.contains("::")) {
+                            let source_module = if self.modules.contains_key(&value.span.file) {
+                                value.span.file.as_str()
+                            } else {
+                                module
+                            };
+                            let (ty, variant) = self.enum_value(
+                                source_module,
+                                scope,
+                                value,
+                                None,
+                                &Environment::new(),
+                            )?;
+                            value.kind = ExprKind::EnumConstant(ty, variant);
+                        }
+                    }
+                    for parameter in parameters {
+                        if let Some(ty) = &parameter.ty {
+                            let ty =
+                                self.resolve(&symbol.module, &symbol.scope, ty, &parameter.span)?;
+                            let value = &bound[&parameter.name];
+                            if self.symbols.get(&ty).is_some_and(|s| {
+                                matches!(s.declaration.kind, DeclKind::Enum { .. })
+                            }) {
+                                let (ty, variant) = self.enum_value(
+                                    module,
+                                    scope,
+                                    value,
+                                    Some(&ty),
+                                    &Environment::new(),
+                                )?;
+                                let span = value.span.clone();
+                                bound.insert(
+                                    parameter.name.clone(),
+                                    Expr {
+                                        kind: ExprKind::EnumConstant(ty, variant),
+                                        span,
+                                    },
+                                );
+                            } else {
+                                if !self.symbols.get(&ty).is_some_and(|s| {
+                                    matches!(s.declaration.kind, DeclKind::Node { .. })
+                                }) {
+                                    return Err(Diagnostic::error(
+                                        "yl.invalid_typed_argument",
+                                        "Constraint type must be a node or enum",
+                                        parameter.span.clone(),
+                                    ));
+                                }
+                                let ExprKind::Ref(capture) = &value.kind else {
+                                    return Err(Diagnostic::error(
+                                        "yl.invalid_typed_argument",
+                                        "Typed constraint argument must be a node capture",
+                                        value.span.clone(),
+                                    ));
+                                };
+                                result.push(Check {
+                                    condition: Condition::CaptureType {
+                                        capture: capture.clone(),
+                                        rule: ty,
+                                    },
+                                    emissions: vec![],
+                                });
+                            }
+                        }
+                    }
                     result.extend(self.lower_checks(
                         &symbol.module,
                         &symbol.scope,
@@ -1422,7 +1842,26 @@ impl Compiler {
                     let mut emissions = vec![];
                     for c in body {
                         let ConstraintKind::Call(name, values) = &c.kind else {
-                            return Err(Diagnostic::error("yl.parked_constraint_logic","PARKED: nested boolean constraint evaluation contract is unspecified",c.span.clone()));
+                            if !emissions.is_empty() {
+                                result.push(Check {
+                                    condition: condition.clone(),
+                                    emissions: std::mem::take(&mut emissions),
+                                });
+                            }
+                            for mut nested in self.lower_checks(
+                                module,
+                                scope,
+                                std::slice::from_ref(c),
+                                args,
+                                depth + 1,
+                            )? {
+                                nested.condition = Condition::And(
+                                    Box::new(condition.clone()),
+                                    Box::new(nested.condition),
+                                );
+                                result.push(nested);
+                            }
+                            continue;
                         };
                         let severity = match name.as_str() {
                             "error" => Severity::Error,
@@ -1478,21 +1917,132 @@ impl Compiler {
         Ok(result)
     }
     fn condition(&self, module: &str, scope: &str, expr: &Expr) -> Result<Condition> {
+        self.condition_depth(module, scope, expr, 0)
+    }
+    fn condition_depth(
+        &self,
+        module: &str,
+        scope: &str,
+        expr: &Expr,
+        depth: usize,
+    ) -> Result<Condition> {
+        if depth > 128 {
+            return Err(Diagnostic::error(
+                "yl.depth_limit",
+                "Condition nesting exceeds resource limit",
+                expr.span.clone(),
+            ));
+        }
+        let bad =
+            |message: &str| Diagnostic::error("yl.invalid_constraint", message, expr.span.clone());
         match &expr.kind {
-            ExprKind::Group(inner)=>self.condition(module,scope,inner),
-            ExprKind::Call(name,arguments) if name.ends_with(".between")=>{
-                let [a,b]=arguments.as_slice() else { return Err(Diagnostic::error("yl.invalid_argument","between requires two captures",expr.span.clone())); };
-                let (ExprKind::Ref(left),ExprKind::Ref(right))=(&ungroup(&a.value).kind,&ungroup(&b.value).kind) else { return Err(Diagnostic::error("yl.invalid_constraint","between requires capture references",expr.span.clone())); };
-                let owner=name.trim_end_matches(".between"); let trivia=if owner=="trivia" { None } else { Some(self.resolve(module,scope,owner,&expr.span)?) };
-                Ok(Condition::Between { trivia,left:left.clone(),right:right.clone() })
-            },
-            ExprKind::Call(name,arguments) if name.ends_with(".matches")=>{
-                let [arg]=arguments.as_slice() else { return Err(Diagnostic::error("yl.invalid_argument","matches requires one regex",expr.span.clone())); };
-                let ExprKind::Regex(regex)=&ungroup(&arg.value).kind else { return Err(Diagnostic::error("yl.invalid_argument","matches requires a regex",expr.span.clone())); };
-                regex::Regex::new(regex).map_err(|e|Diagnostic::error("yl.invalid_regex",e.to_string(),expr.span.clone()))?;
-                Ok(Condition::Matches { capture:name.trim_end_matches(".matches").into(),regex:regex.clone() })
-            },
-            _=>Err(Diagnostic::error("yl.parked_constraint_logic","PARKED: boolean/string constraint operators beyond documented between/matches need specified syntax and behavior",expr.span.clone())),
+            ExprKind::Group(inner) => self.condition_depth(module, scope, inner, depth + 1),
+            ExprKind::EnumConstant(ty, variant) => Ok(Condition::EnumValue {
+                ty: ty.clone(),
+                variant: variant.clone(),
+            }),
+            ExprKind::Bool(value) => Ok(Condition::Bool(*value)),
+            ExprKind::Absent => Ok(Condition::Absent),
+            ExprKind::Literal(value) => Ok(Condition::Text(value.clone())),
+            ExprKind::Ref(name) if name == "true" || name == "false" => {
+                Ok(Condition::Bool(name == "true"))
+            }
+            ExprKind::Ref(name) if name == "absent" => Ok(Condition::Absent),
+            ExprKind::Ref(name) if name.contains("::") => {
+                let (ty, variant) =
+                    self.enum_value(module, scope, expr, None, &Environment::new())?;
+                Ok(Condition::EnumValue { ty, variant })
+            }
+            ExprKind::Ref(name) => Ok(Condition::CaptureValue(name.clone())),
+            ExprKind::Not(inner) => Ok(Condition::Not(Box::new(self.condition_depth(
+                module,
+                scope,
+                inner,
+                depth + 1,
+            )?))),
+            ExprKind::Binary(op, left, right) => {
+                let enum_operand = |variant: &Expr, other: &Expr| -> Result<Condition> {
+                    let (ty, _) =
+                        self.enum_value(module, scope, ungroup(other), None, &Environment::new())?;
+                    let (ty, variant) = self.enum_value(
+                        module,
+                        scope,
+                        ungroup(variant),
+                        Some(&ty),
+                        &Environment::new(),
+                    )?;
+                    Ok(Condition::EnumValue { ty, variant })
+                };
+                let a = if matches!(ungroup(left).kind, ExprKind::Variant(_)) {
+                    enum_operand(left, right)?
+                } else {
+                    self.condition_depth(module, scope, left, depth + 1)?
+                };
+                let b = if matches!(ungroup(right).kind, ExprKind::Variant(_)) {
+                    enum_operand(right, left)?
+                } else {
+                    self.condition_depth(module, scope, right, depth + 1)?
+                };
+                let (a, b) = (Box::new(a), Box::new(b));
+                Ok(match op.as_str() {
+                    "&&" => Condition::And(a, b),
+                    "||" => Condition::Or(a, b),
+                    "==" => Condition::Equal(a, b),
+                    "!=" => Condition::Not(Box::new(Condition::Equal(a, b))),
+                    _ => return Err(bad("Unknown condition operator")),
+                })
+            }
+            ExprKind::Call(name, arguments) if name.ends_with(".isPresent") => {
+                if !arguments.is_empty() {
+                    return Err(bad("isPresent takes no arguments"));
+                }
+                Ok(Condition::Present(
+                    name.trim_end_matches(".isPresent").into(),
+                ))
+            }
+            ExprKind::Call(name, arguments) if name.ends_with(".between") => {
+                let [a, b] = arguments.as_slice() else {
+                    return Err(bad("between requires two captures"));
+                };
+                let (ExprKind::Ref(left), ExprKind::Ref(right)) =
+                    (&ungroup(&a.value).kind, &ungroup(&b.value).kind)
+                else {
+                    return Err(bad("between requires capture references"));
+                };
+                let owner = name.trim_end_matches(".between");
+                let trivia = if owner == "trivia" {
+                    None
+                } else {
+                    Some(self.resolve(module, scope, owner, &expr.span)?)
+                };
+                Ok(Condition::Between {
+                    trivia,
+                    left: left.clone(),
+                    right: right.clone(),
+                })
+            }
+            ExprKind::Call(name, arguments) if name.ends_with(".matches") => {
+                let [arg] = arguments.as_slice() else {
+                    return Err(bad("matches requires one regex"));
+                };
+                let ExprKind::Regex(regex) = &ungroup(&arg.value).kind else {
+                    return Err(bad("matches requires a regex"));
+                };
+                regex::Regex::new(regex).map_err(|e| bad(&e.to_string()))?;
+                let capture = name.trim_end_matches(".matches");
+                if let Some(capture) = capture.strip_suffix('?') {
+                    Ok(Condition::OptionalMatches {
+                        capture: capture.into(),
+                        regex: regex.clone(),
+                    })
+                } else {
+                    Ok(Condition::Matches {
+                        capture: capture.into(),
+                        regex: regex.clone(),
+                    })
+                }
+            }
+            _ => Err(bad("Unsupported condition expression")),
         }
     }
 }
@@ -1541,13 +2091,6 @@ fn bind_constraint(
     }
     let mut bound = BTreeMap::new();
     for parameter in parameters {
-        if parameter.ty.is_some() {
-            return Err(Diagnostic::error(
-                "yl.parked_constraint_logic",
-                "PARKED: typed constraint operand rules are unspecified",
-                parameter.span.clone(),
-            ));
-        }
         let value = if let Some(value) = supplied.remove(&parameter.name) {
             value
         } else if let Some(default) = &parameter.default {
@@ -1579,14 +2122,23 @@ fn substitute(expr: &Expr, args: &BTreeMap<String, Expr>) -> Expr {
     if let ExprKind::Group(inner) = &mut result.kind {
         **inner = substitute(inner, args);
     }
+    if let ExprKind::Not(inner) = &mut result.kind {
+        **inner = substitute(inner, args);
+    }
+    if let ExprKind::Binary(_, left, right) = &mut result.kind {
+        **left = substitute(left, args);
+        **right = substitute(right, args);
+    }
     if let ExprKind::Call(name, values) = &mut result.kind {
         if let Some((receiver, method)) = name.rsplit_once('.') {
+            let optional = receiver.ends_with('?');
+            let receiver = receiver.trim_end_matches('?');
             if let Some(Expr {
                 kind: ExprKind::Ref(actual),
                 ..
             }) = args.get(receiver)
             {
-                *name = format!("{actual}.{method}");
+                *name = format!("{actual}{}.{method}", if optional { "?" } else { "" });
             }
         }
         for value in values {
@@ -1726,42 +2278,20 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
         }
         let (captures, guaranteed) = rule_capture_sets(rule, language, &mut BTreeSet::new());
         for check in &rule.constraints {
-            let required = match &check.condition {
-                Condition::Matches { capture, regex } => {
-                    regex::Regex::new(regex).map_err(|e| {
-                        Diagnostic::error("yl.invalid_regex", e.to_string(), rule.span.clone())
-                    })?;
-                    vec![capture]
-                }
-                Condition::Between {
-                    trivia,
-                    left,
-                    right,
-                } => {
-                    if let Some(id) = trivia {
-                        if !language.rules.get(id).is_some_and(|r| r.trivia) {
-                            return Err(Diagnostic::error(
-                                "yl.invalid_constraint",
-                                "between owner is not declared trivia",
-                                rule.span.clone(),
-                            ));
-                        }
-                    }
-                    vec![left, right]
-                }
-                Condition::Always => vec![],
-            };
-            for name in required {
-                if !captures.contains(name) {
-                    return Err(Diagnostic::error(
-                        "yl.unknown_capture",
-                        format!("Constraint references unknown capture {name}"),
-                        rule.span.clone(),
-                    ));
-                }
-                if !guaranteed.contains(name) {
-                    return Err(Diagnostic::error("yl.parked_constraint_optional",format!("PARKED: condition may observe absent capture {name}; missing-capture evaluation is unspecified"),rule.span.clone()));
-                }
+            let ty = validate_condition(
+                &check.condition,
+                &captures,
+                &guaranteed,
+                language,
+                rule,
+                &rule.span,
+            )?;
+            if !matches!(ty, ConditionType::Bool(_) | ConditionType::Absent) {
+                return Err(Diagnostic::error(
+                    "yl.condition_type",
+                    "when requires a boolean or optional boolean",
+                    rule.span.clone(),
+                ));
             }
         }
     }
@@ -1775,6 +2305,179 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum ConditionType {
+    Bool(bool),
+    Text,
+    Enum(String),
+    Absent,
+}
+fn condition_presence(condition: &Condition, truth: bool) -> BTreeSet<String> {
+    match condition {
+        Condition::Present(name) if truth => BTreeSet::from([name.clone()]),
+        Condition::Not(inner) => condition_presence(inner, !truth),
+        Condition::And(a, b) if truth => {
+            let mut set = condition_presence(a, true);
+            set.extend(condition_presence(b, true));
+            set
+        }
+        Condition::Or(a, b) if !truth => {
+            let mut set = condition_presence(a, false);
+            set.extend(condition_presence(b, false));
+            set
+        }
+        Condition::Equal(a, b) if !truth => match (a.as_ref(), b.as_ref()) {
+            (Condition::CaptureValue(name), Condition::Absent)
+            | (Condition::Absent, Condition::CaptureValue(name)) => BTreeSet::from([name.clone()]),
+            _ => BTreeSet::new(),
+        },
+        Condition::OptionalMatches { capture, .. } if truth => BTreeSet::from([capture.clone()]),
+        _ => BTreeSet::new(),
+    }
+}
+fn validate_condition(
+    condition: &Condition,
+    captures: &BTreeSet<String>,
+    guaranteed: &BTreeSet<String>,
+    language: &CompiledLanguage,
+    rule: &Rule,
+    span: &Span,
+) -> Result<ConditionType> {
+    let bad = |message: &str| Diagnostic::error("yl.condition_type", message, span.clone());
+    let capture = |name: &String, required: bool| -> Result<()> {
+        if !captures.contains(name) {
+            return Err(Diagnostic::error(
+                "yl.unknown_capture",
+                format!("Constraint references unknown capture {name}"),
+                span.clone(),
+            ));
+        }
+        if required && !guaranteed.contains(name) {
+            return Err(Diagnostic::error(
+                "yl.optional_capture",
+                format!("Capture {name} may be absent; use ?. or an isPresent guard"),
+                span.clone(),
+            ));
+        }
+        Ok(())
+    };
+    let validate =
+        |c: &Condition| validate_condition(c, captures, guaranteed, language, rule, span);
+    Ok(match condition {
+        Condition::Always | Condition::Bool(_) => ConditionType::Bool(false),
+        Condition::Text(_) => ConditionType::Text,
+        Condition::Absent => ConditionType::Absent,
+        Condition::EnumValue { ty, variant } => {
+            if ty.is_empty() || variant.is_empty() {
+                return Err(bad("Invalid normalized enum value"));
+            }
+            ConditionType::Enum(ty.clone())
+        }
+        Condition::CaptureValue(name) => {
+            capture(name, false)?;
+            let terms = capture_terms(rule, language, name, &mut BTreeSet::new());
+            if terms.iter().any(|t| !string_term(t)) {
+                return Err(bad("Equality supports scalar strings, booleans and enum variants; node/list values are not comparable"));
+            }
+            ConditionType::Text
+        }
+        Condition::CaptureType {
+            capture: name,
+            rule: expected,
+        } => {
+            capture(name, true)?;
+            let terms = capture_terms(rule, language, name, &mut BTreeSet::new());
+            if terms.is_empty()
+                || terms
+                    .iter()
+                    .any(|t| !node_term(t, expected, language, &mut BTreeSet::new()))
+            {
+                return Err(Diagnostic::error(
+                    "yl.invalid_typed_argument",
+                    "Constraint capture does not produce the required node type",
+                    span.clone(),
+                ));
+            }
+            ConditionType::Bool(false)
+        }
+        Condition::Present(name) => {
+            capture(name, false)?;
+            ConditionType::Bool(false)
+        }
+        Condition::Matches {
+            capture: name,
+            regex,
+        }
+        | Condition::OptionalMatches {
+            capture: name,
+            regex,
+        } => {
+            let optional = matches!(condition, Condition::OptionalMatches { .. });
+            capture(name, !optional)?;
+            regex::Regex::new(regex)
+                .map_err(|e| Diagnostic::error("yl.invalid_regex", e.to_string(), span.clone()))?;
+            ConditionType::Bool(optional && !guaranteed.contains(name))
+        }
+        Condition::Between {
+            trivia,
+            left,
+            right,
+        } => {
+            capture(left, true)?;
+            capture(right, true)?;
+            if let Some(id) = trivia {
+                if !language.rules.get(id).is_some_and(|r| r.trivia) {
+                    return Err(bad("between owner is not declared trivia"));
+                }
+            }
+            ConditionType::Bool(false)
+        }
+        Condition::Not(inner) => {
+            let t = validate(inner)?;
+            if !matches!(t, ConditionType::Bool(_) | ConditionType::Absent) {
+                return Err(bad("! requires a boolean or optional boolean"));
+            }
+            t
+        }
+        Condition::And(a, b) | Condition::Or(a, b) => {
+            let left = validate(a)?;
+            let mut known = guaranteed.clone();
+            known.extend(condition_presence(
+                a,
+                matches!(condition, Condition::And(..)),
+            ));
+            let right = validate_condition(b, captures, &known, language, rule, span)?;
+            let left = if left == ConditionType::Absent {
+                ConditionType::Bool(true)
+            } else {
+                left
+            };
+            let right = if right == ConditionType::Absent {
+                ConditionType::Bool(true)
+            } else {
+                right
+            };
+            let (ConditionType::Bool(a), ConditionType::Bool(b)) = (left, right) else {
+                return Err(bad("Logical operators require boolean operands"));
+            };
+            ConditionType::Bool(a || b)
+        }
+        Condition::Equal(a, b) => {
+            let (a, b) = (validate(a)?, validate(b)?);
+            let compatible = matches!(
+                (&a, &b),
+                (ConditionType::Absent, _)
+                    | (_, ConditionType::Absent)
+                    | (ConditionType::Bool(_), ConditionType::Bool(_))
+            ) || a == b;
+            if !compatible {
+                return Err(bad("Equality operands must have matching types"));
+            }
+            ConditionType::Bool(false)
+        }
+    })
 }
 
 fn rule_capture_sets(
@@ -1851,6 +2554,7 @@ fn capture_sets(term: &Term) -> (BTreeSet<String>, BTreeSet<String>) {
             id,
             term,
             quantifier,
+            ..
         } => {
             let (p, g) = find_marker(term, *id).map(capture_sets).unwrap_or_default();
             (
@@ -1873,6 +2577,7 @@ fn may_be_none(term: &Term) -> bool {
             id,
             term,
             quantifier: None,
+            ..
         } => find_marker(term, *id).is_none_or(may_be_none),
         Term::Choice(items) => items.iter().any(may_be_none),
         _ => false,
@@ -1885,6 +2590,7 @@ fn validate_projections(term: &Term, active: &mut BTreeSet<u32>, span: &Span) ->
             id,
             term,
             quantifier,
+            collect_lists,
         } => {
             if !active.insert(*id) {
                 return Err(Diagnostic::error(
@@ -1893,10 +2599,13 @@ fn validate_projections(term: &Term, active: &mut BTreeSet<u32>, span: &Span) ->
                     span.clone(),
                 ));
             }
-            if quantifier.is_none() && marker_cardinality(term, *id) != (1, Some(1)) {
+            if !valid_cardinality(
+                *quantifier,
+                marker_value_cardinality(term, *id, *collect_lists),
+            ) {
                 return Err(Diagnostic::error(
                     "yl.artifact",
-                    "Scalar projection requires exactly one marked value",
+                    "Projection output violates its cardinality",
                     span.clone(),
                 ));
             }
@@ -1983,25 +2692,30 @@ fn find_marker(term: &Term, marker: u32) -> Option<&Term> {
     }
 }
 /// Counts binding uses on all successful paths, without choosing a scalar value.
-fn marker_cardinality(term: &Term, marker: u32) -> (usize, Option<usize>) {
+fn marker_value_cardinality(term: &Term, marker: u32, flatten: bool) -> (usize, Option<usize>) {
     match term {
-        Term::Mark { id, .. } if *id == marker => (1, Some(1)),
-        Term::Sequence(items) => items.iter().map(|t| marker_cardinality(t, marker)).fold(
-            (0, Some(0)),
-            |(min, max), (a, b)| {
+        Term::Mark { id, term } if *id == marker => match value_shape(term) {
+            Some(Quantifier::Optional) => (0, Some(1)),
+            Some(Quantifier::Star) if flatten => (0, None),
+            Some(Quantifier::Plus) if flatten => (1, None),
+            _ => (1, Some(1)),
+        },
+        Term::Sequence(items) => items
+            .iter()
+            .map(|t| marker_value_cardinality(t, marker, flatten))
+            .fold((0, Some(0)), |(min, max), (a, b)| {
                 (
                     min.saturating_add(a),
                     max.zip(b).and_then(|(x, y)| x.checked_add(y)),
                 )
-            },
-        ),
+            }),
         Term::Choice(items) => items
             .iter()
-            .map(|t| marker_cardinality(t, marker))
+            .map(|t| marker_value_cardinality(t, marker, flatten))
             .reduce(|(a, b), (c, d)| (a.min(c), b.zip(d).map(|(b, d)| b.max(d))))
             .unwrap_or((0, Some(0))),
         Term::Repeat(t, q) => {
-            let (min, max) = marker_cardinality(t, marker);
+            let (min, max) = marker_value_cardinality(t, marker, flatten);
             match q {
                 Quantifier::Optional => (0, max),
                 Quantifier::Star => (0, if max == Some(0) { Some(0) } else { None }),
@@ -2009,8 +2723,152 @@ fn marker_cardinality(term: &Term, marker: u32) -> (usize, Option<usize>) {
             }
         }
         Term::Capture(_, t) | Term::Mark { term: t, .. } | Term::Project { term: t, .. } => {
-            marker_cardinality(t, marker)
+            marker_value_cardinality(t, marker, flatten)
         }
         _ => (0, Some(0)),
     }
+}
+
+fn value_shape(term: &Term) -> Option<Quantifier> {
+    match term {
+        Term::Repeat(_, q) => Some(*q),
+        Term::Capture(_, t) | Term::Mark { term: t, .. } => value_shape(t),
+        Term::Project { quantifier, .. } => *quantifier,
+        _ => None,
+    }
+}
+fn valid_cardinality(quantifier: Option<Quantifier>, (min, max): (usize, Option<usize>)) -> bool {
+    match quantifier {
+        None => min == 1 && max == Some(1),
+        Some(Quantifier::Optional) => max.is_some_and(|n| n <= 1),
+        Some(Quantifier::Star) => true,
+        Some(Quantifier::Plus) => min >= 1,
+    }
+}
+
+fn capture_terms<'a>(
+    rule: &'a Rule,
+    language: &'a CompiledLanguage,
+    name: &str,
+    visiting: &mut BTreeSet<String>,
+) -> Vec<&'a Term> {
+    fn walk<'a>(term: &'a Term, name: &str) -> Vec<&'a Term> {
+        match term {
+            Term::Capture(n, inner) if n == name => vec![inner],
+            Term::Sequence(items) | Term::Choice(items) => {
+                items.iter().flat_map(|t| walk(t, name)).collect()
+            }
+            Term::Capture(_, inner) | Term::Repeat(inner, _) | Term::Mark { term: inner, .. } => {
+                walk(inner, name)
+            }
+            Term::Project { id, term, .. } => find_marker(term, *id)
+                .map(|t| walk(t, name))
+                .unwrap_or_default(),
+            _ => vec![],
+        }
+    }
+    match &rule.body {
+        RuleBody::Concrete(t) => walk(t, name),
+        RuleBody::Abstract { bases, operators } => bases
+            .iter()
+            .chain(operators.iter().map(|o| &o.rule))
+            .flat_map(|id| {
+                if !visiting.insert(id.clone()) {
+                    return vec![];
+                }
+                let result = language
+                    .rules
+                    .get(id)
+                    .map(|r| capture_terms(r, language, name, visiting))
+                    .unwrap_or_default();
+                visiting.remove(id);
+                result
+            })
+            .collect(),
+    }
+}
+fn string_term(term: &Term) -> bool {
+    match term {
+        Term::Literal(_) | Term::Regex(_) => true,
+        Term::Repeat(t, Quantifier::Optional)
+        | Term::Capture(_, t)
+        | Term::Mark { term: t, .. } => string_term(t),
+        Term::Choice(items) => items.iter().all(string_term),
+        Term::Project {
+            id,
+            term,
+            quantifier: None | Some(Quantifier::Optional),
+            ..
+        } => find_marker(term, *id).is_some_and(string_term),
+        _ => false,
+    }
+}
+fn node_term(
+    term: &Term,
+    expected: &str,
+    language: &CompiledLanguage,
+    visiting: &mut BTreeSet<String>,
+) -> bool {
+    match term {
+        Term::Ref(id) if id == expected => true,
+        Term::Ref(id) => {
+            if !visiting.insert(expected.into()) {
+                return false;
+            }
+            let result = language.rules.get(expected).is_some_and(|r| match &r.body {
+                RuleBody::Abstract { bases, operators } => bases
+                    .iter()
+                    .chain(operators.iter().map(|o| &o.rule))
+                    .any(|member| node_term(&Term::Ref(id.clone()), member, language, visiting)),
+                _ => false,
+            });
+            visiting.remove(expected);
+            result
+        }
+        Term::Capture(_, t) | Term::Mark { term: t, .. } => {
+            node_term(t, expected, language, visiting)
+        }
+        Term::Choice(items) => items
+            .iter()
+            .all(|t| node_term(t, expected, language, visiting)),
+        Term::Project {
+            id,
+            term,
+            quantifier: None,
+            ..
+        } => find_marker(term, *id).is_some_and(|t| node_term(t, expected, language, visiting)),
+        _ => false,
+    }
+}
+
+fn validate_case_emission(emission: &Constraint) -> Result<()> {
+    let ConstraintKind::Call(name, args) = &emission.kind else {
+        return Err(Diagnostic::error(
+            "yl.invalid_constraint",
+            "Expected diagnostic emission",
+            emission.span.clone(),
+        ));
+    };
+    let [argument] = args.as_slice() else {
+        return Err(Diagnostic::error(
+            "yl.invalid_argument",
+            "Diagnostic takes one positional string",
+            emission.span.clone(),
+        ));
+    };
+    if argument.name.is_some() || !matches!(argument.value.kind, ExprKind::Literal(_)) {
+        return Err(Diagnostic::error(
+            "yl.invalid_argument",
+            "Diagnostic takes one positional string",
+            argument.span.clone(),
+        ));
+    }
+    if !matches!(name.as_str(), "error" | "warning" | "help") {
+        return Err(Diagnostic::error(
+            "yl.invalid_constraint",
+            "Unknown diagnostic emission",
+            emission.span.clone(),
+        ));
+    }
+    Ok(())
 }

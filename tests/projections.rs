@@ -85,10 +85,7 @@ fn typed_arguments_see_the_preserved_pipe_result() {
     ));
 }
 #[test]
-fn scalar_duplication_is_parked_instead_of_selecting_an_arbitrary_value() {
+fn scalar_duplication_is_rejected_instead_of_selecting_an_arbitrary_value() {
     let result=compile_sources("p.yl",&BTreeMap::from([("p.yl".into(),"pipe twice() { rewrite value => value value } node N = /x/ node P = N |> twice() entry P".into())]));
-    assert_eq!(
-        result.unwrap_err()[0].code,
-        "yl.parked_projection_cardinality"
-    );
+    assert_eq!(result.unwrap_err()[0].code, "yl.projection_cardinality");
 }

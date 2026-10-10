@@ -104,13 +104,13 @@ pub fn lex(file: &str, source: &str) -> Result<Vec<Token>, Diagnostic> {
             }
             TokenKind::Word(source[start..i].into())
         } else {
-            let symbol = ["::", "|>", "=>"]
+            let symbol = ["::", "|>", "=>", "?.", "&&", "||", "==", "!="]
                 .into_iter()
                 .find(|s| source[i..].starts_with(s));
             if let Some(s) = symbol {
                 i += s.len();
                 TokenKind::Symbol(s.into())
-            } else if "{}(),:=?*+|>.".contains(ch) {
+            } else if "{}(),:=?*+|>.!".contains(ch) {
                 i += ch.len_utf8();
                 TokenKind::Symbol(ch.to_string())
             } else {

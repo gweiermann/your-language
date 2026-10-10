@@ -144,7 +144,7 @@ fn diagnostic_categories() {
         code("node E { node N = /x/ precedence { Unknown } } entry E"),
         "yl.invalid_precedence_member"
     );
-    assert_eq!(code("node P = value: /x/? { constraints { when value.matches(/x/) { error(\"x\") } } } entry P"),"yl.parked_constraint_optional");
+    assert_eq!(code("node P = value: /x/? { constraints { when value.matches(/x/) { error(\"x\") } } } entry P"),"yl.optional_capture");
 }
 #[test]
 fn deterministic_artifacts_and_hostile_input() {

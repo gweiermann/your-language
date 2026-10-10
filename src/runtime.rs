@@ -248,47 +248,8 @@ impl Runtime<'_> {
     }
     fn checks(&mut self, rule: &Rule, start: usize, mut matched: Match) -> Match {
         for check in &rule.constraints {
-            let satisfied = match &check.condition {
-                Condition::Always => true,
-                Condition::Matches { capture, regex } => {
-                    matched.fields.get(capture).cloned().is_some_and(|f| {
-                        self.regex(regex).is_some_and(|r| {
-                            r.is_match(self.source.get(f.span.start..f.span.end).unwrap_or(""))
-                        })
-                    })
-                }
-                Condition::Between {
-                    trivia,
-                    left,
-                    right,
-                } => {
-                    let a = matched.fields.get(left);
-                    let b = matched.fields.get(right);
-                    if let (Some(a), Some(b)) = (a, b) {
-                        let (start, end) = (a.span.end, b.span.start);
-                        if start >= end {
-                            false
-                        } else if let Some(id) = trivia {
-                            let mut found = false;
-                            for offset in (start..end).filter(|p| self.source.is_char_boundary(*p))
-                            {
-                                if self
-                                    .rule(id, offset, true, 0)
-                                    .is_some_and(|m| m.end <= end && m.end > offset)
-                                {
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            found
-                        } else {
-                            self.skip(start) > start
-                        }
-                    } else {
-                        false
-                    }
-                }
-            };
+            let satisfied = self.evaluate_condition(&check.condition, &matched.fields)
+                == ConditionValue::Bool(true);
             if satisfied {
                 for emission in &check.emissions {
                     matched.diagnostics.push(Diagnostic {
@@ -303,6 +264,93 @@ impl Runtime<'_> {
             }
         }
         matched
+    }
+    fn evaluate_condition(
+        &mut self,
+        condition: &Condition,
+        fields: &BTreeMap<String, Captured>,
+    ) -> ConditionValue {
+        match condition {
+            Condition::Always | Condition::CaptureType { .. } => ConditionValue::Bool(true),
+            Condition::Bool(value) => ConditionValue::Bool(*value),
+            Condition::Text(value) => ConditionValue::Text(value.clone()),
+            Condition::Absent => ConditionValue::Absent,
+            Condition::EnumValue { ty, variant } => {
+                ConditionValue::Enum(ty.clone(), variant.clone())
+            }
+            Condition::CaptureValue(name) => fields
+                .get(name)
+                .filter(|f| f.value != AstValue::None)
+                .map_or(ConditionValue::Absent, |f| {
+                    ConditionValue::Text(
+                        self.source
+                            .get(f.span.start..f.span.end)
+                            .unwrap_or("")
+                            .into(),
+                    )
+                }),
+            Condition::Present(name) => {
+                ConditionValue::Bool(fields.get(name).is_some_and(|f| f.value != AstValue::None))
+            }
+            Condition::Matches { capture, regex }
+            | Condition::OptionalMatches { capture, regex } => {
+                let Some(field) = fields.get(capture).filter(|f| f.value != AstValue::None) else {
+                    return ConditionValue::Absent;
+                };
+                let span = field.span.clone();
+                ConditionValue::Bool(self.regex(regex).is_some_and(|r| {
+                    r.is_match(self.source.get(span.start..span.end).unwrap_or(""))
+                }))
+            }
+            Condition::Not(inner) => match self.evaluate_condition(inner, fields) {
+                ConditionValue::Bool(v) => ConditionValue::Bool(!v),
+                _ => ConditionValue::Absent,
+            },
+            Condition::And(a, b) => {
+                let left = self.evaluate_condition(a, fields);
+                if left == ConditionValue::Bool(true) {
+                    self.evaluate_condition(b, fields)
+                } else {
+                    left
+                }
+            }
+            Condition::Or(a, b) => {
+                let left = self.evaluate_condition(a, fields);
+                if left == ConditionValue::Bool(true) {
+                    left
+                } else {
+                    self.evaluate_condition(b, fields)
+                }
+            }
+            Condition::Equal(a, b) => {
+                let a = self.evaluate_condition(a, fields);
+                let b = self.evaluate_condition(b, fields);
+                ConditionValue::Bool(a == b)
+            }
+            Condition::Between {
+                trivia,
+                left,
+                right,
+            } => {
+                let (Some(a), Some(b)) = (fields.get(left), fields.get(right)) else {
+                    return ConditionValue::Absent;
+                };
+                let (start, end) = (a.span.end, b.span.start);
+                let found = if start >= end {
+                    false
+                } else if let Some(id) = trivia {
+                    (start..end)
+                        .filter(|p| self.source.is_char_boundary(*p))
+                        .any(|offset| {
+                            self.rule(id, offset, true, 0)
+                                .is_some_and(|m| m.end <= end && m.end > offset)
+                        })
+                } else {
+                    self.skip(start) > start
+                };
+                ConditionValue::Bool(found)
+            }
+        }
     }
     fn check_value_depth(&mut self, depth: usize, end: usize) -> Option<usize> {
         if depth > 128 {
@@ -636,6 +684,7 @@ impl Runtime<'_> {
                 id,
                 term,
                 quantifier,
+                collect_lists,
             } => {
                 let mut matched = self.term_with(term, start, raw, context)?;
                 let originals = matched.marked.remove(id).unwrap_or_default();
@@ -645,21 +694,36 @@ impl Runtime<'_> {
                 for original in originals {
                     if let Some(value) = original.value {
                         depth = depth.max(original.depth);
-                        values.push(value);
+                        if *collect_lists {
+                            if let AstValue::List(items) = value {
+                                values.extend(items);
+                            } else {
+                                values.push(value);
+                            }
+                        } else if value != AstValue::None {
+                            values.push(value);
+                        }
                     }
                     matched.fields.extend(original.fields);
                 }
                 matched.value_depth =
                     self.check_value_depth(depth + usize::from(quantifier.is_some()), matched.end)?;
-                matched.value = if quantifier.is_some() {
+                matched.value = if matches!(quantifier, Some(Quantifier::Star | Quantifier::Plus)) {
                     Some(AstValue::List(values))
                 } else {
-                    values.into_iter().next()
+                    Some(values.into_iter().next().unwrap_or(AstValue::None))
                 };
                 Some(matched)
             }
         }
     }
+}
+#[derive(PartialEq)]
+enum ConditionValue {
+    Bool(bool),
+    Text(String),
+    Enum(String, String),
+    Absent,
 }
 fn merge_marked(
     target: &mut BTreeMap<u32, Vec<MarkedValue>>,

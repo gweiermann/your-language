@@ -142,7 +142,7 @@ impl Parser {
             let mut constraints = vec![];
             while !self.is("}") {
                 if !self.take("constraints") {
-                    return Err(self.error("yl.extension_conflict","An extension may only add constraints in syntax-v0; metadata syntax is PARKED"));
+                    return Err(self.error("yl.extension_conflict","An extension may only add constraints in syntax-v0; metadata is deferred beyond syntax-v0"));
                 }
                 constraints.extend(self.constraint_block()?);
             }
@@ -230,6 +230,8 @@ impl Parser {
                 let binding = self.word()?;
                 let quantifier = if self.take("*") {
                     Some(Quantifier::Star)
+                } else if self.take("?") {
+                    Some(Quantifier::Optional)
                 } else if self.take("+") {
                     Some(Quantifier::Plus)
                 } else {
@@ -240,19 +242,48 @@ impl Parser {
                 } else {
                     None
                 };
-                let body = if self.take("=>") {
+                let selectors = if self.take("match") {
+                    let tuple = self.take("(");
+                    let mut selectors = vec![self.selector()?];
+                    if tuple {
+                        while self.take(",") {
+                            selectors.push(self.selector()?);
+                        }
+                        self.expect(")")?;
+                    }
+                    Some(selectors)
+                } else {
+                    None
+                };
+                let body = if let Some(selectors) = selectors {
+                    RewriteBody::Match {
+                        selectors,
+                        cases: self.rewrite_cases()?,
+                    }
+                } else if self.take("=>") {
                     RewriteBody::Direct(self.expression()?)
                 } else {
-                    self.expect("{")?;
-                    let mut cases = vec![];
-                    while !self.is("}") {
-                        let variant = self.atom()?;
-                        self.expect("=>")?;
-                        let value = self.expression()?;
-                        cases.push((variant, value));
+                    let cases = self.rewrite_cases()?;
+                    if cases.iter().all(|c| {
+                        c.patterns.len() == 1
+                            && c.patterns[0].is_some()
+                            && c.replacement.is_some()
+                            && c.diagnostics.is_empty()
+                    }) {
+                        RewriteBody::Cases(
+                            cases
+                                .into_iter()
+                                .filter_map(|c| {
+                                    c.patterns.into_iter().next().flatten().zip(c.replacement)
+                                })
+                                .collect(),
+                        )
+                    } else {
+                        RewriteBody::Match {
+                            selectors: vec![],
+                            cases,
+                        }
                     }
-                    self.expect("}")?;
-                    RewriteBody::Cases(cases)
                 };
                 arms.push(Rewrite {
                     binding,
@@ -299,6 +330,85 @@ impl Parser {
             kind,
             span: self.span_from(&start),
         })
+    }
+    fn selector(&mut self) -> Result<Expr> {
+        let start = self.token().span.clone();
+        let name = self.path()?;
+        Ok(Expr {
+            kind: ExprKind::Ref(name),
+            span: self.span_from(&start),
+        })
+    }
+    fn rewrite_cases(&mut self) -> Result<Vec<RewriteCase>> {
+        self.expect("{")?;
+        let mut cases = vec![];
+        while !self.is("}") {
+            let start = self.token().span.clone();
+            let tuple = self.take("(");
+            let mut patterns = vec![];
+            loop {
+                patterns.push(if self.take("_") {
+                    None
+                } else {
+                    Some(self.atom()?)
+                });
+                if !tuple || !self.take(",") {
+                    break;
+                }
+            }
+            if tuple {
+                self.expect(")")?;
+            }
+            self.expect("=>")?;
+            let mut diagnostics = vec![];
+            let replacement = if self.take("{") {
+                while self.is("error") || self.is("warning") || self.is("help") {
+                    let span = self.token().span.clone();
+                    let name = self.word()?;
+                    let arguments = self.condition_arguments()?;
+                    diagnostics.push(Constraint {
+                        kind: ConstraintKind::Call(name, arguments),
+                        span: self.span_from(&span),
+                    });
+                }
+                let value = if self.is("}") {
+                    None
+                } else {
+                    Some(self.expression()?)
+                };
+                self.expect("}")?;
+                value
+            } else {
+                Some(self.expression()?)
+            };
+            cases.push(RewriteCase {
+                patterns,
+                replacement,
+                diagnostics,
+                span: self.span_from(&start),
+            });
+            self.take(",");
+        }
+        self.expect("}")?;
+        Ok(cases)
+    }
+    fn case_label(&self) -> bool {
+        let mut position = self.position;
+        let mut depth = 0;
+        loop {
+            let Some(token) = self.tokens.get(position) else {
+                return false;
+            };
+            match &token.kind {
+                TokenKind::Symbol(s) if s == "=>" => return depth == 0,
+                TokenKind::Symbol(s) if s == "(" => depth += 1,
+                TokenKind::Symbol(s) if s == ")" && depth > 0 => depth -= 1,
+                TokenKind::Word(_) => {}
+                TokenKind::Symbol(s) if matches!(s.as_str(), "." | "::" | ",") => {}
+                _ => return false,
+            }
+            position += 1;
+        }
     }
     fn parameters(&mut self) -> Result<Vec<Parameter>> {
         let mut parameters = vec![];
@@ -403,6 +513,9 @@ impl Parser {
         {
             return false;
         }
+        if self.case_label() {
+            return false;
+        }
         // A case label is a boundary regardless of layout.
         if self.is(".") && matches!(self.peek(2),TokenKind::Symbol(s) if s=="=>") {
             return false;
@@ -491,7 +604,7 @@ impl Parser {
                         name.push('.');
                         name.push_str(&self.word()?);
                     }
-                    if self.is("(") {
+                    if self.is("(") && !self.case_label() {
                         ExprKind::Call(name, self.arguments()?)
                     } else {
                         ExprKind::Ref(name)
@@ -504,6 +617,115 @@ impl Parser {
             kind,
             span: self.span_from(&start),
         })
+    }
+    fn condition_expression(&mut self, minimum: u8) -> Result<Expr> {
+        self.depth += 1;
+        if self.depth > 128 {
+            return Err(self.error("yl.depth_limit", "Condition nesting exceeds resource limit"));
+        }
+        let start = self.token().span.clone();
+        let kind = if self.take("!") {
+            ExprKind::Not(Box::new(self.condition_expression(4)?))
+        } else if self.take("(") {
+            let inner = self.condition_expression(0)?;
+            self.expect(")")?;
+            ExprKind::Group(Box::new(inner))
+        } else if self.is("true")
+            && !matches!(self.peek(1),TokenKind::Symbol(s) if s == "." || s == "?.")
+        {
+            self.bump();
+            ExprKind::Bool(true)
+        } else if self.is("false")
+            && !matches!(self.peek(1),TokenKind::Symbol(s) if s == "." || s == "?.")
+        {
+            self.bump();
+            ExprKind::Bool(false)
+        } else if self.is("absent")
+            && !matches!(self.peek(1),TokenKind::Symbol(s) if s == "." || s == "?.")
+        {
+            self.bump();
+            ExprKind::Absent
+        } else if matches!(self.token().kind, TokenKind::Word(_)) {
+            let mut name = self.path()?;
+            while self.is(".") || self.is("?.") {
+                name.push_str(if self.take("?.") {
+                    "?."
+                } else {
+                    self.expect(".")?;
+                    "."
+                });
+                name.push_str(&self.word()?);
+            }
+            if self.is("(") {
+                ExprKind::Call(name, self.condition_arguments()?)
+            } else {
+                ExprKind::Ref(name)
+            }
+        } else {
+            self.atom()?.kind
+        };
+        let mut left = Expr {
+            kind,
+            span: self.span_from(&start),
+        };
+        let mut operators = 0;
+        loop {
+            let (operator, power) = if self.is("||") {
+                ("||", 1)
+            } else if self.is("&&") {
+                ("&&", 2)
+            } else if self.is("==") {
+                ("==", 3)
+            } else if self.is("!=") {
+                ("!=", 3)
+            } else {
+                break;
+            };
+            if power < minimum {
+                break;
+            }
+            operators += 1;
+            if operators > 128 {
+                return Err(
+                    self.error("yl.depth_limit", "Condition nesting exceeds resource limit")
+                );
+            }
+            self.bump();
+            let right = self.condition_expression(power + 1)?;
+            left = Expr {
+                kind: ExprKind::Binary(operator.into(), Box::new(left), Box::new(right)),
+                span: self.span_from(&start),
+            };
+        }
+        self.depth -= 1;
+        Ok(left)
+    }
+    fn condition_arguments(&mut self) -> Result<Vec<Argument>> {
+        self.expect("(")?;
+        let mut arguments = vec![];
+        while !self.is(")") {
+            let start = self.token().span.clone();
+            let name = if matches!(self.peek(0), TokenKind::Word(_))
+                && matches!(self.peek(1), TokenKind::Symbol(s) if s == "=")
+            {
+                let name = self.word()?;
+                self.expect("=")?;
+                Some(name)
+            } else {
+                None
+            };
+            let value = self.condition_expression(0)?;
+            arguments.push(Argument {
+                name,
+                value,
+                span: self.span_from(&start),
+            });
+            if !self.take(",") {
+                break;
+            }
+        }
+        self.expect(")")?;
+        Ok(arguments)
     }
     fn constraint_block(&mut self) -> Result<Vec<Constraint>> {
         self.depth += 1;
@@ -518,12 +740,12 @@ impl Parser {
         while !self.is("}") {
             let span = self.token().span.clone();
             let kind = if self.take("when") {
-                let condition = self.atom()?;
+                let condition = self.condition_expression(0)?;
                 let body = self.constraint_block()?;
                 ConstraintKind::When(condition, body)
             } else {
                 let name = self.path()?;
-                let arguments = self.arguments()?;
+                let arguments = self.condition_arguments()?;
                 ConstraintKind::Call(name, arguments)
             };
             body.push(Constraint {

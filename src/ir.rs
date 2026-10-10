@@ -12,6 +12,8 @@ pub struct CompiledLanguage {
     pub(crate) entry: String,
     pub(crate) rules: BTreeMap<String, Rule>,
     pub(crate) trivia: Vec<String>,
+    #[serde(skip)]
+    pub(crate) diagnostics: Vec<crate::diagnostic::Diagnostic>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Rule {
@@ -58,6 +60,8 @@ pub enum Term {
         id: u32,
         term: Box<Term>,
         quantifier: Option<Quantifier>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        collect_lists: bool,
     },
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -67,6 +71,27 @@ pub struct Check {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Condition {
+    Bool(bool),
+    Text(String),
+    Absent,
+    CaptureValue(String),
+    EnumValue {
+        ty: String,
+        variant: String,
+    },
+    Present(String),
+    CaptureType {
+        capture: String,
+        rule: String,
+    },
+    OptionalMatches {
+        capture: String,
+        regex: String,
+    },
+    Not(Box<Condition>),
+    And(Box<Condition>, Box<Condition>),
+    Or(Box<Condition>, Box<Condition>),
+    Equal(Box<Condition>, Box<Condition>),
     Between {
         trivia: Option<String>,
         left: String,
