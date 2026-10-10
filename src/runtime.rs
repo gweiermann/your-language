@@ -278,17 +278,15 @@ impl Runtime<'_> {
             Condition::EnumValue { ty, variant } => {
                 ConditionValue::Enum(ty.clone(), variant.clone())
             }
-            Condition::CaptureValue(name) => fields
-                .get(name)
-                .filter(|f| f.value != AstValue::None)
-                .map_or(ConditionValue::Absent, |f| {
-                    ConditionValue::Text(
-                        self.source
-                            .get(f.span.start..f.span.end)
-                            .unwrap_or("")
-                            .into(),
-                    )
-                }),
+            Condition::CaptureValue(name) => {
+                fields
+                    .get(name)
+                    .map_or(ConditionValue::Absent, |f| match &f.value {
+                        AstValue::Text(value) => ConditionValue::Text(value.clone()),
+                        AstValue::None => ConditionValue::Absent,
+                        _ => ConditionValue::PresentCapture,
+                    })
+            }
             Condition::Present(name) => {
                 ConditionValue::Bool(fields.get(name).is_some_and(|f| f.value != AstValue::None))
             }
@@ -297,10 +295,15 @@ impl Runtime<'_> {
                 let Some(field) = fields.get(capture).filter(|f| f.value != AstValue::None) else {
                     return ConditionValue::Absent;
                 };
-                let span = field.span.clone();
-                ConditionValue::Bool(self.regex(regex).is_some_and(|r| {
-                    r.is_match(self.source.get(span.start..span.end).unwrap_or(""))
-                }))
+                let text = if let AstValue::Text(value) = &field.value {
+                    value.clone()
+                } else {
+                    self.source
+                        .get(field.span.start..field.span.end)
+                        .unwrap_or("")
+                        .into()
+                };
+                ConditionValue::Bool(self.regex(regex).is_some_and(|r| r.is_match(&text)))
             }
             Condition::Not(inner) => match self.evaluate_condition(inner, fields) {
                 ConditionValue::Bool(v) => ConditionValue::Bool(!v),
@@ -720,6 +723,7 @@ impl Runtime<'_> {
 }
 #[derive(PartialEq)]
 enum ConditionValue {
+    PresentCapture,
     Bool(bool),
     Text(String),
     Enum(String, String),

@@ -2465,6 +2465,12 @@ fn validate_condition(
             ConditionType::Bool(a || b)
         }
         Condition::Equal(a, b) => {
+            if let (Condition::CaptureValue(name), Condition::Absent)
+            | (Condition::Absent, Condition::CaptureValue(name)) = (a.as_ref(), b.as_ref())
+            {
+                capture(name, false)?;
+                return Ok(ConditionType::Bool(false));
+            }
             let (a, b) = (validate(a)?, validate(b)?);
             let compatible = matches!(
                 (&a, &b),

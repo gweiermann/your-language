@@ -501,7 +501,8 @@ when name?.matches(/^[A-Z]/) == absent {
 ```
 
 `isPresent()` distinguishes absent captures from present values (including empty
-strings/lists). `.matches` inspects captured source text. An ordinary method call
+strings/lists). `.matches` tests the captured string value; for node captures it tests the captured
+source text. An ordinary method call
 on a possibly absent capture is a definition error unless its presence is proved
 by an earlier short-circuit guard. `?.matches` returns `absent` for an absent
 receiver, otherwise a boolean. A `when` accepts boolean or optional boolean and

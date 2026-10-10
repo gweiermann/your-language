@@ -333,3 +333,40 @@ fn imported_constraint_enum_arguments_keep_their_caller_context() {
         "b"
     );
 }
+
+#[test]
+fn string_checks_observe_preserved_values_and_node_absence_is_comparable() {
+    let source = r#"
+        pipe wrap() { rewrite value => "(" value ")" }
+        node N = /n/
+        node P = name: /x/ |> wrap() optional: N? {
+            constraints {
+                when name == "x" && name.matches(/^x$/) { warning("value") }
+                when optional == absent { help("missing") }
+            }
+        }
+        entry P
+    "#;
+    let language = compile_sources(
+        "main.yl",
+        &BTreeMap::from([("main.yl".into(), source.into())]),
+    )
+    .unwrap();
+    let language = load_compiled_language(&language.to_bytes().unwrap()).unwrap();
+    assert_eq!(
+        parse(&language, "(x)")
+            .diagnostics
+            .iter()
+            .map(|d| d.message.as_str())
+            .collect::<Vec<_>>(),
+        vec!["value", "missing"]
+    );
+    assert_eq!(
+        parse(&language, "(x)n")
+            .diagnostics
+            .iter()
+            .map(|d| d.message.as_str())
+            .collect::<Vec<_>>(),
+        vec!["value"]
+    );
+}
