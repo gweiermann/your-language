@@ -1,4 +1,4 @@
-//! Syntax-v0 compiler and interpreter. Source offsets are UTF-8 bytes.
+//! Declarative language compiler and grammar interpreter. Source offsets are UTF-8 bytes.
 mod compiler;
 pub mod diagnostic;
 pub mod frontend;
