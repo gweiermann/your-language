@@ -1,4 +1,4 @@
-name: Rust syntax-v0
+name: Rust
 on: [push, pull_request]
 jobs:
   check:

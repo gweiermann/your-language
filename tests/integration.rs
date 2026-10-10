@@ -23,7 +23,7 @@ fn golden(name: &str, value: &impl serde::Serialize) {
 #[test]
 fn yl_ast_goldens_preserve_the_entire_acceptance_language() {
     for name in ["lexical", "minijs"] {
-        let relative = format!("documentation/target-syntax/{name}.yl");
+        let relative = format!("examples/mini-js/{name}.yl");
         golden(
             &format!("{name}.yl-ast"),
             &parse_yl(&relative, &fs::read_to_string(fixture(&relative)).unwrap()).unwrap(),
@@ -131,7 +131,7 @@ fn oversized_left_growing_ast_returns_json_error_instead_of_crashing() {
     let artifact = fixture("target/cli-depth-limit.ylc");
     fs::write(
         &artifact,
-        compile_language(fixture("documentation/target-syntax/minijs.yl"))
+        compile_language(fixture("examples/mini-js/minijs.yl"))
             .unwrap()
             .to_bytes()
             .unwrap(),
@@ -154,7 +154,7 @@ fn oversized_left_growing_ast_returns_json_error_instead_of_crashing() {
 }
 #[test]
 fn minijs_compiles_reloads_and_parses_exact_ast_and_negative_diagnostics() {
-    let language = compile_language(fixture("documentation/target-syntax/minijs.yl")).unwrap();
+    let language = compile_language(fixture("examples/mini-js/minijs.yl")).unwrap();
     golden("minijs.normalized", &language);
     let bytes = language.to_bytes().unwrap();
     let loaded = load_compiled_language(&bytes).unwrap();
@@ -249,7 +249,7 @@ fn minijs_compiles_reloads_and_parses_exact_ast_and_negative_diagnostics() {
     }
     let output = fixture("target/cli-minijs.ylc");
     let cli = env!("CARGO_BIN_EXE_yl");
-    let entry = fixture("documentation/target-syntax/minijs.yl");
+    let entry = fixture("examples/mini-js/minijs.yl");
     assert!(Command::new(cli)
         .arg("check")
         .arg(&entry)
@@ -398,7 +398,7 @@ fn cli_language_check_renders_source_errors_and_preserves_json_mode() {
     let artifact = fixture("target/cli-human-parse.ylc");
     fs::write(
         &artifact,
-        compile_language(fixture("documentation/target-syntax/minijs.yl"))
+        compile_language(fixture("examples/mini-js/minijs.yl"))
             .unwrap()
             .to_bytes()
             .unwrap(),
@@ -440,7 +440,7 @@ fn cli_language_tools_handle_relative_paths_eof_and_constraint_errors() {
     let artifact = fixture("target/cli-human-relative.ylc");
     fs::write(
         &artifact,
-        compile_language(fixture("documentation/target-syntax/minijs.yl"))
+        compile_language(fixture("examples/mini-js/minijs.yl"))
             .unwrap()
             .to_bytes()
             .unwrap(),
@@ -486,7 +486,7 @@ fn language_tools_separate_ast_generation_from_diagnostic_checks() {
     let artifact = fixture("target/cli-language-tools.ylc");
     fs::write(
         &artifact,
-        compile_language(fixture("documentation/target-syntax/minijs.yl"))
+        compile_language(fixture("examples/mini-js/minijs.yl"))
             .unwrap()
             .to_bytes()
             .unwrap(),

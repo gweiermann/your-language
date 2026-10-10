@@ -1,0 +1,11 @@
+node Program = name: /[A-Za-z]+/? ":" {
+    constraints {
+        when name?.matches(/^[A-Z]/) {
+            warning("Names should begin with a lowercase letter.")
+        }
+        when !name.isPresent() {
+            error("A name is required.")
+        }
+    }
+}
+entry Program

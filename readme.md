@@ -1,59 +1,102 @@
 # Your Language
 
-Your Language (YL) is a declarative language for defining programming-language syntax, AST structure, semantic roles, constraints, and diagnostics.
+**Define a language. Compile it once. Parse it anywhere.**
 
-A YL definition is intended to be compiled into a reusable language artifact and executed by the Your Language runtime.
+Your Language is a declarative language for building parsers, structured abstract syntax trees, and precise diagnostics. Describe a language's syntax in YL, compile it into a reusable `.ylc` artifact, and parse source through the CLI or Rust API.
 
-## Current design
+## From syntax to an AST
 
-The current syntax design is documented in [documentation/readme.md](./documentation/readme.md).
+Define a grammar with named captures:
 
-A larger example is available in [documentation/target-syntax](./documentation/target-syntax).
+```yl
+node Declaration =
+    "let" name: /[A-Za-z_][A-Za-z_0-9]*/ "=" value: /[0-9]+/
 
-## Rust compiler and runtime
+trivia Whitespace = /[ \t\r\n]+/
+
+entry Declaration {
+    trivia Whitespace
+}
+```
+
+Parse a source file written in that language:
 
 ```text
-*.yl
-  ↓
-YL compiler
-  ↓
-*.ylc
-  ↓
-Your Language runtime
-  ↓
-AST + diagnostics
+let answer = 42
 ```
 
-The Rust library exposes compilation, deterministic `.ylc` serialization/reloading,
-and parsing with ASTs and structured diagnostics. The `yl` CLI supports `check`,
-`compile`, and `parse --json`.
+Get a structured tree:
 
-**Syntax-v0 / issue #5 is not complete.** MiniJS compilation and parsing pass; general constraints and metadata still have documented
-language-design questions. See [implementation status](./documentation/implementation)
-and the [exact PARKED decisions](./documentation/implementation/PARKED.md).
+```json
+{
+  "type": "Declaration",
+  "fields": {
+    "name": "answer",
+    "value": "42"
+  }
+}
+```
+
+Source spans are omitted here for brevity.
+
+Reusable pipes make comma-separated lists just as straightforward:
+
+```yl
+import { separatedBy } from "std/parser"
+
+pattern Arguments = Expression* |> separatedBy(",")
+```
+
+Syntax-local constraints can also add errors, warnings, and help messages to a language. Explore the [MiniJS example](./examples/mini-js/) for expressions, functions, calls, precedence, and comments working together.
+
+## Run a language
+
+Install the CLI from the repository:
 
 ```sh
-cargo test
-cargo fmt --check
-cargo clippy --all-targets --all-features -- -D warnings
-
-cargo run -- check tests/fixtures/syntax-v0/language.yl
-cargo run -- compile tests/fixtures/syntax-v0/language.yl -o independent.ylc
-cargo run -- parse independent.ylc tests/fixtures/syntax-v0/program.txt --json
+cargo install --path . --locked
 ```
 
-The independent fixture exercises the complete API/CLI pipeline; it does not replace
-the checked-in MiniJS acceptance language. Native parser generation and the semantic
-layer are outside this implementation.
-
-## CLI tools
+Check and compile the MiniJS definition:
 
 ```sh
-cargo run -- compile documentation/target-syntax/minijs.yl -o target/minijs.ylc
-cargo run -- language target/minijs.ylc ast tests/fixtures/minijs/program.js
-cargo run -- language target/minijs.ylc check tests/fixtures/minijs/unexpected-token.js
-cargo run -- language target/minijs.ylc check tests/fixtures/minijs/unexpected-token.js --json
+yl check examples/mini-js/minijs.yl
+yl compile examples/mini-js/minijs.yl -o minijs.ylc
 ```
 
-`ast` produces AST JSON. `check` reports diagnostics with terminal source
-underlines; `--json` selects a diagnostic array. A clean human check is silent.
+Generate an AST or check a source file for diagnostics:
+
+```sh
+yl language minijs.ylc ast examples/mini-js/program.js
+yl language minijs.ylc check examples/mini-js/invalid.js
+yl language minijs.ylc check examples/mini-js/invalid.js --json
+```
+
+`ast` writes JSON. `check` shows source snippets and colored underlines; `--json` provides diagnostics for tools. Clean checks are silent, and errors produce a nonzero exit code. Commands also work through `cargo run -- <command>`.
+
+## Documentation
+
+Visit the [Your Language documentation](https://gweiermann.github.io/your-language/) for tutorials, the language reference, and CLI and Rust API guides.
+
+- [Build your first language](https://gweiermann.github.io/your-language/tutorials/first-language)
+- [Language reference](https://gweiermann.github.io/your-language/reference/lexical-syntax)
+- [CLI reference](https://gweiermann.github.io/your-language/api/cli)
+- [Rust API](https://gweiermann.github.io/your-language/api/rust)
+
+To run the documentation locally:
+
+```sh
+npm ci
+npm run docs:dev
+```
+
+## Roadmap
+
+Planned development extends the syntax, AST, and diagnostic foundation across four areas:
+
+- **Language analysis:** relations, traits, scopes, declaration and reference resolution, and semantic diagnostics.
+- **Developer tooling:** editor integration, language-server support, and incremental parsing.
+- **Execution and integration:** parser generation, runtime performance, and bindings for additional host environments.
+- **Language authoring:** grammar inspection, reusable libraries, and node metadata.
+
+See the [roadmap](https://gweiermann.github.io/your-language/roadmap) for more detail.

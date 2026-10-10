@@ -1,0 +1,16 @@
+{
+  "name": "yl",
+  "displayName": "Your Language",
+  "scopeName": "source.yl",
+  "patterns": [
+    { "name": "comment.line.double-slash.yl", "begin": "//", "end": "$" },
+    { "name": "comment.block.yl", "begin": "/\\*", "end": "\\*/" },
+    { "name": "string.quoted.double.yl", "begin": "\"", "end": "\"", "patterns": [{ "name": "constant.character.escape.yl", "match": "\\\\." }] },
+    { "name": "string.regexp.yl", "begin": "/(?![/*])", "end": "/", "patterns": [{ "name": "constant.character.escape.yl", "match": "\\\\." }] },
+    { "name": "keyword.control.yl", "match": "\\b(export|import|from|as|node|pattern|pipe|rewrite|match|enum|precedence|right|nonassoc|trivia|constraint|constraints|when|extend|entry)\\b" },
+    { "name": "constant.language.yl", "match": "\\b(true|false|absent)\\b" },
+    { "name": "constant.other.enum.yl", "match": "\\.[A-Za-z_][A-Za-z_0-9]*" },
+    { "name": "entity.name.tag.yl", "match": "\\b[A-Za-z_][A-Za-z_0-9]*(?=\\s*:(?!:))" },
+    { "name": "keyword.operator.yl", "match": "\\|>|=>|::|\\?\\.|&&|\\|\\||==|!=|[?*+|=!>]" }
+  ]
+}

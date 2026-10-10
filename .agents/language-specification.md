@@ -2,7 +2,7 @@
 
 > **Status:** syntax-v0 design checkpoint. This document describes the syntax/parser layer that should be implemented before semantic relations, scopes, binding, and analysis.
 
-See [target-syntax](./target-syntax) for the MiniJS validation language.
+See [MiniJS example](../examples/mini-js/) for the MiniJS validation language.
 
 ## Modules
 

@@ -6,14 +6,8 @@ use your_language::{
 #[test]
 fn checked_in_definitions_parse() {
     for (file, source) in [
-        (
-            "lexical.yl",
-            include_str!("../documentation/target-syntax/lexical.yl"),
-        ),
-        (
-            "minijs.yl",
-            include_str!("../documentation/target-syntax/minijs.yl"),
-        ),
+        ("lexical.yl", include_str!("../examples/mini-js/lexical.yl")),
+        ("minijs.yl", include_str!("../examples/mini-js/minijs.yl")),
     ] {
         parse_yl(file, source).unwrap();
     }

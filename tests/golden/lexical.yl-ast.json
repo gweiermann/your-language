@@ -14,7 +14,7 @@
         }
       },
       "span": {
-        "file": "documentation/target-syntax/lexical.yl",
+        "file": "examples/mini-js/lexical.yl",
         "start": 0,
         "end": 38
       }
@@ -30,7 +30,7 @@
               "Regex": "[ \\t\\r\\n]+"
             },
             "span": {
-              "file": "documentation/target-syntax/lexical.yl",
+              "file": "examples/mini-js/lexical.yl",
               "start": 71,
               "end": 83
             }
@@ -41,7 +41,7 @@
         }
       },
       "span": {
-        "file": "documentation/target-syntax/lexical.yl",
+        "file": "examples/mini-js/lexical.yl",
         "start": 40,
         "end": 83
       }
@@ -65,7 +65,7 @@
                       "Regex": "//[^\\n]*"
                     },
                     "span": {
-                      "file": "documentation/target-syntax/lexical.yl",
+                      "file": "examples/mini-js/lexical.yl",
                       "start": 135,
                       "end": 147
                     }
@@ -76,7 +76,7 @@
                 }
               },
               "span": {
-                "file": "documentation/target-syntax/lexical.yl",
+                "file": "examples/mini-js/lexical.yl",
                 "start": 113,
                 "end": 147
               }
@@ -92,7 +92,7 @@
                       "Regex": "/\\*[\\s\\S]*?\\*/"
                     },
                     "span": {
-                      "file": "documentation/target-syntax/lexical.yl",
+                      "file": "examples/mini-js/lexical.yl",
                       "start": 176,
                       "end": 194
                     }
@@ -103,7 +103,7 @@
                 }
               },
               "span": {
-                "file": "documentation/target-syntax/lexical.yl",
+                "file": "examples/mini-js/lexical.yl",
                 "start": 153,
                 "end": 194
               }
@@ -114,7 +114,7 @@
         }
       },
       "span": {
-        "file": "documentation/target-syntax/lexical.yl",
+        "file": "examples/mini-js/lexical.yl",
         "start": 85,
         "end": 196
       }
@@ -130,7 +130,7 @@
               "Regex": "[_a-zA-Z0-9]"
             },
             "span": {
-              "file": "documentation/target-syntax/lexical.yl",
+              "file": "examples/mini-js/lexical.yl",
               "start": 227,
               "end": 241
             }
@@ -138,7 +138,7 @@
         }
       },
       "span": {
-        "file": "documentation/target-syntax/lexical.yl",
+        "file": "examples/mini-js/lexical.yl",
         "start": 198,
         "end": 241
       }
@@ -154,7 +154,7 @@
               "ty": null,
               "default": null,
               "span": {
-                "file": "documentation/target-syntax/lexical.yl",
+                "file": "examples/mini-js/lexical.yl",
                 "start": 266,
                 "end": 271
               }
@@ -168,7 +168,7 @@
                     "Ref": "value"
                   },
                   "span": {
-                    "file": "documentation/target-syntax/lexical.yl",
+                    "file": "examples/mini-js/lexical.yl",
                     "start": 279,
                     "end": 284
                   }
@@ -182,13 +182,13 @@
                         "Ref": "IdentifierPart"
                       },
                       "span": {
-                        "file": "documentation/target-syntax/lexical.yl",
+                        "file": "examples/mini-js/lexical.yl",
                         "start": 298,
                         "end": 312
                       }
                     },
                     "span": {
-                      "file": "documentation/target-syntax/lexical.yl",
+                      "file": "examples/mini-js/lexical.yl",
                       "start": 298,
                       "end": 312
                     }
@@ -197,7 +197,7 @@
               ]
             },
             "span": {
-              "file": "documentation/target-syntax/lexical.yl",
+              "file": "examples/mini-js/lexical.yl",
               "start": 279,
               "end": 313
             }
@@ -205,7 +205,7 @@
         }
       },
       "span": {
-        "file": "documentation/target-syntax/lexical.yl",
+        "file": "examples/mini-js/lexical.yl",
         "start": 243,
         "end": 313
       }
@@ -225,7 +225,7 @@
                     "Regex": "[_a-zA-Z][_a-zA-Z0-9]*"
                   },
                   "span": {
-                    "file": "documentation/target-syntax/lexical.yl",
+                    "file": "examples/mini-js/lexical.yl",
                     "start": 345,
                     "end": 369
                   }
@@ -233,7 +233,7 @@
               ]
             },
             "span": {
-              "file": "documentation/target-syntax/lexical.yl",
+              "file": "examples/mini-js/lexical.yl",
               "start": 338,
               "end": 369
             }
@@ -244,14 +244,14 @@
         }
       },
       "span": {
-        "file": "documentation/target-syntax/lexical.yl",
+        "file": "examples/mini-js/lexical.yl",
         "start": 315,
         "end": 369
       }
     }
   ],
   "span": {
-    "file": "documentation/target-syntax/lexical.yl",
+    "file": "examples/mini-js/lexical.yl",
     "start": 0,
     "end": 370
   }
