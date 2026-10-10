@@ -804,7 +804,12 @@ impl Runtime<'_> {
                 let mut matched = self.term_with(term, start, raw, context)?;
                 matched.marked.entry(*id).or_default().push(MarkedValue {
                     value: matched.value.clone(),
-                    origin: matched.origin.clone(),
+                    origin: matched.origin.clone().or_else(|| {
+                        matched
+                            .value
+                            .as_ref()
+                            .map(|_| Span::new(self.file, start, matched.end))
+                    }),
                     fields: matched.fields.clone(),
                     depth: matched.value_depth,
                     occurrences: matched.occurrences.clone(),

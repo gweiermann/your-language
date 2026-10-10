@@ -969,3 +969,55 @@ fn broad_descendant_precedence_explicitly_exempts_the_local_initializer() {
     assert_eq!(result.diagnostics[0].primary.start, 25);
     assert_eq!(result.diagnostics[0].primary.end, 30);
 }
+
+#[test]
+fn absent_pipe_input_keeps_an_empty_original_source_span() {
+    use your_language::semantics::{OperationParameter, ParameterKind, SemanticValue};
+    struct Observe;
+    impl NativeOperation for Observe {
+        fn before(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
+            context.attach("observed", context.argument("value").unwrap().clone());
+            Ok(())
+        }
+    }
+    let mut registry = OperationRegistry::new();
+    registry
+        .register(
+            "test/provenance",
+            "observe",
+            OperationSignature {
+                id: "test/provenance#observe".into(),
+                provides_context: false,
+                parameters: vec![OperationParameter {
+                    name: "value".into(),
+                    kind: ParameterKind::Capture,
+                    default: None,
+                }],
+            },
+            || Box::new(Observe),
+        )
+        .unwrap();
+    let engine = SemanticEngine::new(registry);
+    let language = engine
+        .compile(
+            "language.yl",
+            &sources(
+                r#"
+        import { observe } from "test/provenance"
+        pipe wrapped() { rewrite value => "(" value ")" }
+        node Root = value: /[a-z]+/? |> wrapped() { meanings { observe(value) } }
+        entry Root
+    "#,
+            ),
+        )
+        .unwrap();
+    let result = engine.analyze(&language, "source", "()");
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    let SemanticValue::Source(value) = &result.graph.attachments[0].value else {
+        panic!("Expected source capture")
+    };
+    assert_eq!(value.value, your_language::AstValue::None);
+    assert_eq!(value.text, "");
+    assert_eq!(value.span.start, 1);
+    assert_eq!(value.span.end, 1);
+}
