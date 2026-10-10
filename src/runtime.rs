@@ -33,12 +33,14 @@ pub struct ParseResult {
 struct Captured {
     value: AstValue,
     span: Span,
+    origin: Span,
     depth: usize,
 }
 #[derive(Clone)]
 struct Match {
     end: usize,
     value: Option<AstValue>,
+    origin: Option<Span>,
     fields: BTreeMap<String, Captured>,
     diagnostics: Vec<Diagnostic>,
     marked: BTreeMap<u32, Vec<MarkedValue>>,
@@ -48,6 +50,7 @@ struct Match {
 #[derive(Clone)]
 struct MarkedValue {
     value: Option<AstValue>,
+    origin: Option<Span>,
     fields: BTreeMap<String, Captured>,
     depth: usize,
     occurrences: Vec<crate::semantics::Occurrence>,
@@ -63,6 +66,7 @@ impl Match {
         Self {
             end,
             value: None,
+            origin: None,
             fields: BTreeMap::new(),
             diagnostics: vec![],
             marked: BTreeMap::new(),
@@ -428,10 +432,10 @@ impl Runtime<'_> {
                     name.clone(),
                     crate::semantics::SourceCapture {
                         value: capture.value.clone(),
-                        span: capture.span.clone(),
+                        span: capture.origin.clone(),
                         text: self
                             .source
-                            .get(capture.span.start..capture.span.end)
+                            .get(capture.origin.start..capture.origin.end)
                             .unwrap_or_default()
                             .into(),
                     },
@@ -460,6 +464,7 @@ impl Runtime<'_> {
             .into_iter()
             .map(|(name, capture)| (name, capture.value))
             .collect();
+        matched.origin = Some(Span::new(self.file, start, matched.end));
         matched.value = Some(AstValue::Node(Box::new(AstNode {
             kind: rule.name.clone(),
             fields,
@@ -613,6 +618,7 @@ impl Runtime<'_> {
                 if self.source.get(start..self.limit)?.starts_with(text) {
                     let mut matched = Match::empty(start + text.len());
                     matched.value = Some(AstValue::Text(text.clone()));
+                    matched.origin = Some(Span::new(self.file, start, matched.end));
                     Some(matched)
                 } else {
                     self.failure(start, &format!("{text:?}"));
@@ -623,6 +629,7 @@ impl Runtime<'_> {
                 if let Some((end, value)) = self.regex_match(pattern, start) {
                     let mut result = Match::empty(end);
                     result.value = Some(AstValue::Text(value));
+                    result.origin = Some(Span::new(self.file, start, end));
                     Some(result)
                 } else {
                     self.failure(start, &format!("/{pattern}/"));
@@ -636,6 +643,7 @@ impl Runtime<'_> {
             Term::Sequence(terms) => {
                 let mut result = Match::empty(start);
                 let mut values = vec![];
+                let mut origins = vec![];
                 let mut depth = 0;
                 for term in terms {
                     let m = self.term_with(term, result.end, raw, context)?;
@@ -643,6 +651,7 @@ impl Runtime<'_> {
                     if let Some(value) = m.value {
                         depth = depth.max(m.value_depth);
                         values.push(value);
+                        origins.push(m.origin.clone());
                     }
                     result.fields.extend(m.fields);
                     merge_marked(&mut result.marked, m.marked);
@@ -651,6 +660,11 @@ impl Runtime<'_> {
                 }
                 result.value_depth =
                     self.check_value_depth(depth + usize::from(values.len() > 1), result.end)?;
+                result.origin = if values.len() == 1 {
+                    origins.into_iter().next().flatten()
+                } else {
+                    Some(Span::new(self.file, start, result.end))
+                };
                 result.value = collapse(values);
                 Some(result)
             }
@@ -665,6 +679,7 @@ impl Runtime<'_> {
             Term::Repeat(term, q) => {
                 let mut result = Match::empty(start);
                 let mut values = vec![];
+                let mut origins = vec![];
                 let mut depth = 0;
                 let mut count = 0;
                 loop {
@@ -684,6 +699,7 @@ impl Runtime<'_> {
                     if let Some(value) = m.value {
                         depth = depth.max(m.value_depth);
                         values.push(value);
+                        origins.push(m.origin.clone());
                     }
                     result.fields.extend(m.fields);
                     merge_marked(&mut result.marked, m.marked);
@@ -700,6 +716,11 @@ impl Runtime<'_> {
                     depth + usize::from(*q != Quantifier::Optional),
                     result.end,
                 )?;
+                result.origin = if *q == Quantifier::Optional {
+                    origins.into_iter().next().flatten()
+                } else {
+                    Some(Span::new(self.file, start, result.end))
+                };
                 result.value = Some(if *q == Quantifier::Optional {
                     values.into_iter().next().unwrap_or(AstValue::None)
                 } else {
@@ -715,6 +736,10 @@ impl Runtime<'_> {
                     Captured {
                         value,
                         span: Span::new(self.file, start, result.end),
+                        origin: result
+                            .origin
+                            .clone()
+                            .unwrap_or_else(|| Span::new(self.file, start, result.end)),
                         depth: result.value_depth,
                     },
                 );
@@ -779,6 +804,7 @@ impl Runtime<'_> {
                 let mut matched = self.term_with(term, start, raw, context)?;
                 matched.marked.entry(*id).or_default().push(MarkedValue {
                     value: matched.value.clone(),
+                    origin: matched.origin.clone(),
                     fields: matched.fields.clone(),
                     depth: matched.value_depth,
                     occurrences: matched.occurrences.clone(),
@@ -796,9 +822,11 @@ impl Runtime<'_> {
                 matched.fields.clear();
                 matched.occurrences.clear();
                 let mut values = vec![];
+                let mut origins = vec![];
                 let mut depth = 0;
                 for original in originals {
                     if let Some(value) = original.value {
+                        origins.push(original.origin.clone());
                         depth = depth.max(original.depth);
                         if *collect_lists {
                             if let AstValue::List(items) = value {
@@ -815,6 +843,16 @@ impl Runtime<'_> {
                 }
                 matched.value_depth =
                     self.check_value_depth(depth + usize::from(quantifier.is_some()), matched.end)?;
+                matched.origin = if matches!(quantifier, Some(Quantifier::Star | Quantifier::Plus))
+                {
+                    let spans: Vec<_> = origins.into_iter().flatten().collect();
+                    spans
+                        .first()
+                        .zip(spans.last())
+                        .map(|(first, last)| Span::new(self.file, first.start, last.end))
+                } else {
+                    origins.into_iter().next().flatten()
+                };
                 matched.value = if matches!(quantifier, Some(Quantifier::Star | Quantifier::Plus)) {
                     Some(AstValue::List(values))
                 } else {

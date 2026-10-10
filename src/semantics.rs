@@ -46,6 +46,8 @@ pub struct MeaningSelector {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// Preserved semantic value and its original source extent. Pipe wrappers do not
+/// widen this extent; syntax-local captures separately retain grammar match spans.
 pub struct SourceCapture {
     pub value: AstValue,
     pub span: Span,
@@ -199,11 +201,8 @@ impl OperationRegistry {
 /// Instances are created per operation occurrence, never reused between analyses.
 /// `before`/`after` run once; `enter`/`leave` run for each scheduler activation.
 pub trait NativeOperation {
-    fn before(
-        &mut self,
-        _context: &mut OperationContext<'_>,
-    ) -> Result<Option<SemanticValue>, Diagnostic> {
-        Ok(None)
+    fn before(&mut self, _context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
+        Ok(())
     }
     fn enter(&mut self, _context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
         Ok(())
@@ -358,7 +357,12 @@ fn analyze(
         graph: SemanticGraph::default(),
         diagnostics: parsed.diagnostics,
     };
-    if result.ast.is_some() {
+    if result.ast.is_some()
+        && !result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity == crate::diagnostic::Severity::Error)
+    {
         execute(
             language,
             registry,
@@ -602,15 +606,12 @@ mod tests {
         events: Arc<Mutex<Vec<String>>>,
     }
     impl NativeOperation for Recording {
-        fn before(
-            &mut self,
-            context: &mut OperationContext<'_>,
-        ) -> Result<Option<SemanticValue>, Diagnostic> {
+        fn before(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
             self.events
                 .lock()
                 .unwrap()
                 .push(format!("before:{}", context.occurrence.id));
-            Ok(None)
+            Ok(())
         }
         fn enter(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
             self.events
@@ -719,10 +720,7 @@ mod tests {
         events: Arc<Mutex<Vec<String>>>,
     }
     impl NativeOperation for FailingSetup {
-        fn before(
-            &mut self,
-            context: &mut OperationContext<'_>,
-        ) -> Result<Option<SemanticValue>, Diagnostic> {
+        fn before(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
             self.events.lock().unwrap().push("before".into());
             Err(Diagnostic::error(
                 "test.setup",

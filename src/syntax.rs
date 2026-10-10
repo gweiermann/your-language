@@ -68,11 +68,15 @@ pub enum DeclKind {
         members: Vec<Declaration>,
         precedence: Vec<Level>,
         constraints: Vec<Constraint>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        meanings: Option<Meanings>,
     },
     Pattern {
         name: String,
         parameters: Vec<Parameter>,
         grammar: Expr,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        meanings: Option<Meanings>,
     },
     Pipe {
         name: String,
@@ -96,6 +100,29 @@ pub enum DeclKind {
         node: Expr,
         trivia: Vec<Expr>,
     },
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Meanings {
+    pub groups: Vec<MeaningSyntaxGroup>,
+    pub precedence: Vec<MeaningSyntaxChain>,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MeaningSyntaxGroup {
+    pub name: Option<String>,
+    pub calls: Vec<MeaningSyntaxCall>,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MeaningSyntaxCall {
+    pub name: String,
+    pub arguments: Vec<Argument>,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MeaningSyntaxChain {
+    pub selectors: Vec<Expr>,
+    pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Level {

@@ -122,16 +122,13 @@ impl Default for SemanticValue {
     }
 }
 impl NativeOperation for LexicalScope {
-    fn before(
-        &mut self,
-        context: &mut OperationContext<'_>,
-    ) -> Result<Option<SemanticValue>, Diagnostic> {
+    fn before(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
         let parent = context.global(CURRENT);
         let scope = context.record();
         context.set(scope, key("parentSymbol"), parent)?;
         context.attach(&symbol("scope"), SemanticValue::Record(scope));
         self.scope = Some(scope);
-        Ok(Some(SemanticValue::Record(scope)))
+        Ok(())
     }
     fn enter(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
         self.previous = context.global(CURRENT);
@@ -174,10 +171,7 @@ struct Declare {
     kind: Option<String>,
 }
 impl NativeOperation for Declare {
-    fn before(
-        &mut self,
-        context: &mut OperationContext<'_>,
-    ) -> Result<Option<SemanticValue>, Diagnostic> {
+    fn before(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
         let name = name(context)?;
         let scope = current(context)?;
         let entry = SemanticKey::Text(name.text.clone());
@@ -193,7 +187,7 @@ impl NativeOperation for Declare {
                 diagnostic.secondary.push(origin.span.clone());
             }
             context.emit(diagnostic);
-            return Ok(None);
+            return Ok(());
         }
         let kind = match (&self.kind, context.argument("kind")) {
             (Some(kind), _) | (None, Some(SemanticValue::Symbol(kind))) => kind.clone(),
@@ -220,15 +214,12 @@ impl NativeOperation for Declare {
         context.set(binding, key("reassignableSymbol"), reassignable)?;
         context.set(scope, entry, SemanticValue::Record(binding))?;
         context.attach(&symbol("declaration"), SemanticValue::Record(binding));
-        Ok(Some(SemanticValue::Record(binding)))
+        Ok(())
     }
 }
 struct Use;
 impl NativeOperation for Use {
-    fn before(
-        &mut self,
-        context: &mut OperationContext<'_>,
-    ) -> Result<Option<SemanticValue>, Diagnostic> {
+    fn before(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
         let name = name(context)?;
         let mut scope = Some(current(context)?);
         let mut visited = std::collections::BTreeSet::new();
@@ -245,7 +236,7 @@ impl NativeOperation for Use {
                 .cloned()
             {
                 context.attach(&symbol("reference"), binding.clone());
-                return Ok(Some(binding));
+                return Ok(());
             }
             scope = match context.get(id, &key("parentSymbol")) {
                 Some(SemanticValue::Record(parent)) => Some(*parent),
@@ -257,6 +248,6 @@ impl NativeOperation for Use {
             format!("No declaration found for {}", name.text),
             name.span,
         ));
-        Ok(None)
+        Ok(())
     }
 }
