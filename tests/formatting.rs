@@ -895,7 +895,7 @@ fn meaning_match_alignment_is_opt_in_and_aligns_tuple_alternatives() {
 }
 #[test]
 fn alignment_is_local_to_each_match_and_handles_unicode_and_blocks() {
-    let source = "node Outer=\"x\"{meanings{match(value){\"\u{4f60}\u{597d}\",veryLong => { first() second() } _=>{}}}} node Inner=\"y\"{meanings{match(value){\"\u{1f600}\"=>go() \"ab\"=>go() _=>go()}}}";
+    let source = "node Container { node Outer=\"x\"{meanings{match(value){\"\u{4f60}\u{597d}\",veryLong => { first() second() } _=>{}}}} node Inner=\"y\"{meanings{match(value){\"\u{1f600}\"=>go() \"ab\"=>go() \"e\u{0301}\"=>go() _=>go()}}} }";
     let formatted = aligned(source);
     let columns: Vec<_> = formatted
         .lines()
@@ -904,10 +904,11 @@ fn alignment_is_local_to_each_match_and_handles_unicode_and_blocks() {
                 .map(|index| unicode_width::UnicodeWidthStr::width(&line[..index]))
         })
         .collect();
-    assert_eq!(columns.len(), 5, "{formatted}");
+    assert_eq!(columns.len(), 6, "{formatted}");
     assert_eq!(columns[0], columns[1], "{formatted}");
     assert_eq!(columns[2], columns[3], "{formatted}");
     assert_eq!(columns[3], columns[4], "{formatted}");
+    assert_eq!(columns[4], columns[5], "{formatted}");
     assert_ne!(columns[0], columns[2], "{formatted}");
     assert_eq!(tree(source), tree(&formatted));
     assert_eq!(aligned(&formatted), formatted);
