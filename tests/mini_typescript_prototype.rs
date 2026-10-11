@@ -58,7 +58,7 @@ fn annotation_and_call_errors_have_original_spans() {
         &source[result.diagnostics[0].primary.start..result.diagnostics[0].primary.end],
         "\"wrong\""
     );
-    assert_annotation_related(source, &result.diagnostics[0], ": number");
+    assert_annotation_related(source, &result.diagnostics[0], "number");
 }
 #[test]
 fn declarations_references_keep_identity_across_shadowing() {
@@ -257,7 +257,7 @@ fn literal_initializer_is_primary_and_annotation_is_related() {
         &source[diagnostic.primary.start..diagnostic.primary.end],
         "\"wrong\""
     );
-    assert_annotation_related(source, diagnostic, ": number");
+    assert_annotation_related(source, diagnostic, "number");
     let valid = analyze("let count: number = 42;");
     assert!(valid.diagnostics.is_empty(), "{:?}", valid.diagnostics);
     assert_eq!(types(&valid, "count"), ["number"]);
@@ -273,7 +273,7 @@ fn parameter_annotation_points_to_actual_argument() {
         &source[diagnostic.primary.start..diagnostic.primary.end],
         "\"wrong\""
     );
-    assert_annotation_related(source, diagnostic, ": number");
+    assert_annotation_related(source, diagnostic, "number");
 }
 
 #[test]
@@ -286,7 +286,7 @@ fn return_annotation_points_to_returned_expression() {
         &source[diagnostic.primary.start..diagnostic.primary.end],
         "\"wrong\""
     );
-    assert_annotation_related(source, diagnostic, ": number");
+    assert_annotation_related(source, diagnostic, "number");
 }
 
 #[test]
@@ -299,7 +299,7 @@ fn binding_alias_keeps_the_original_type_fact_location() {
         &source[diagnostic.primary.start..diagnostic.primary.end],
         "\"wrong\""
     );
-    assert_annotation_related(source, diagnostic, ": number");
+    assert_annotation_related(source, diagnostic, "number");
 }
 
 #[test]
@@ -324,5 +324,5 @@ fn initializer_pipe_keeps_original_expression_provenance() {
         &source[diagnostic.primary.start..diagnostic.primary.end],
         "\"wrong\""
     );
-    assert_annotation_related(source, diagnostic, ": number");
+    assert_annotation_related(source, diagnostic, "number");
 }

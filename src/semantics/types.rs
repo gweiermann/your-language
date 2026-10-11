@@ -215,7 +215,10 @@ impl Constraints {
             if fallback.requirement.is_some() {
                 Origin {
                     fact: None,
-                    requirement: fallback.requirement.clone(),
+                    requirement: inherited
+                        .requirement
+                        .or(inherited.fact)
+                        .or_else(|| fallback.requirement.clone()),
                 }
             } else if as_value && fallback.fact.is_some() && inherited.requirement.is_some() {
                 Origin {

@@ -154,6 +154,12 @@ fn mini_typescript_consumer_renders_initializer_origin_and_json_uses_same_span()
         .iter()
         .position(|line| line.contains("let count: number = \"wrong\";"))
         .unwrap();
+    let type_column = lines[row].find("number").unwrap();
+    assert_eq!(
+        &lines[row + 1][type_column - 2..type_column + 7],
+        "  ^^^^^^ ",
+        "{plain}"
+    );
     let column = lines[row].find("\"wrong\"").unwrap();
     assert_eq!(&lines[row + 1][column..column + 7], "^^^^^^^", "{plain}");
     let json = Command::new(&executable)
@@ -189,6 +195,6 @@ fn mini_typescript_consumer_renders_initializer_origin_and_json_uses_same_span()
                 span["start"].as_u64().unwrap() as usize,
                 span["end"].as_u64().unwrap() as usize,
             );
-            &source[start..end] == ": number"
+            &source[start..end] == "number"
         }));
 }
