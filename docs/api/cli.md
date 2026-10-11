@@ -112,3 +112,27 @@ cargo run -- language minijs.ylc check examples/mini-js/invalid.js
 ```
 
 `cargo run --quiet -- ...` suppresses Cargo's own build messages. It does not alter YL output.
+
+## Language server
+
+```sh
+cargo run -- lsp
+```
+
+`yl lsp` serves YL authoring over standard LSP stdio framing. Standard output is
+reserved for protocol messages. It supports full-document synchronization, live
+syntax/definition diagnostics, buffer formatting and parser-validated example inlay
+hints. See [editor setup](/guide/editor) for installation, unsaved imports and current
+native-library limits. Target-language servers and incremental parsing are not
+provided by this command.
+
+## Representative examples
+
+```sh
+cargo run -- examples examples/example_metadata/language.yl
+cargo run -- examples language.ylc
+```
+
+`yl examples` emits JSON with definition IDs, source spans, validated text and reasons
+for unavailable previews. Explicit node/pattern `example "..."` metadata takes priority
+within the experimental bounded generator.

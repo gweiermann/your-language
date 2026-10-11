@@ -181,12 +181,20 @@ impl Parser {
             let mut precedence = vec![];
             let mut constraints = vec![];
             let mut meanings = None;
+            let mut example = None;
             if self.take("=") {
                 grammar = Some(self.expression()?);
             }
             if self.take("{") {
                 while !self.is("}") {
-                    if self.take("meanings") {
+                    if self.take("example") {
+                        if example.is_some() {
+                            return Err(
+                                self.error("yl.duplicate_example", "Only one example is allowed")
+                            );
+                        }
+                        example = Some(self.example()?);
+                    } else if self.take("meanings") {
                         if meanings.is_some() {
                             return Err(
                                 self.error("yl.duplicate_member", "Duplicate meanings section")
@@ -239,25 +247,42 @@ impl Parser {
                 precedence,
                 constraints,
                 meanings,
+                example,
             }
         } else if self.take("pattern") {
             let name = self.word()?;
             let parameters = self.parameters()?;
             self.expect("=")?;
             let grammar = self.expression()?;
-            let meanings = if self.take("{") {
-                self.expect("meanings")?;
-                let meanings = self.meanings()?;
+            let mut meanings = None;
+            let mut example = None;
+            if self.take("{") {
+                while !self.is("}") {
+                    if self.take("example") {
+                        if example.is_some() {
+                            return Err(
+                                self.error("yl.duplicate_example", "Only one example is allowed")
+                            );
+                        }
+                        example = Some(self.example()?);
+                    } else {
+                        self.expect("meanings")?;
+                        if meanings.is_some() {
+                            return Err(
+                                self.error("yl.duplicate_member", "Duplicate meanings section")
+                            );
+                        }
+                        meanings = Some(self.meanings()?);
+                    }
+                }
                 self.expect("}")?;
-                Some(meanings)
-            } else {
-                None
-            };
+            }
             DeclKind::Pattern {
                 name,
                 parameters,
                 grammar,
                 meanings,
+                example,
             }
         } else if self.take("pipe") {
             let name = self.word()?;
@@ -444,6 +469,18 @@ impl Parser {
             cases,
             span: self.span_from(&start),
         })
+    }
+    fn example(&mut self) -> Result<Example> {
+        let start = self.tokens[self.position.saturating_sub(1)].span.clone();
+        let token = self.bump();
+        if let TokenKind::String(text) = token.kind {
+            Ok(Example {
+                text,
+                span: self.span_from(&start),
+            })
+        } else {
+            Err(self.error("yl.example", "Expected example string"))
+        }
     }
     fn meanings(&mut self) -> Result<Meanings> {
         let start = self.token().span.clone();

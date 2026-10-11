@@ -802,5 +802,81 @@
         }
       ]
     }
+  },
+  "examples": {
+    "definition/function.yl#FunctionContents": {
+      "term": {
+        "Sequence": [
+          {
+            "Literal": "("
+          },
+          {
+            "Capture": [
+              "parameters",
+              {
+                "Project": {
+                  "id": 2,
+                  "term": {
+                    "Repeat": [
+                      {
+                        "Sequence": [
+                          {
+                            "Mark": {
+                              "id": 2,
+                              "term": {
+                                "Ref": "definition/function.yl#Parameter"
+                              }
+                            }
+                          },
+                          {
+                            "Repeat": [
+                              {
+                                "Sequence": [
+                                  {
+                                    "Literal": ","
+                                  },
+                                  {
+                                    "Mark": {
+                                      "id": 2,
+                                      "term": {
+                                        "Ref": "definition/function.yl#Parameter"
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "Star"
+                            ]
+                          }
+                        ]
+                      },
+                      "Optional"
+                    ]
+                  },
+                  "quantifier": "Star"
+                }
+              }
+            ]
+          },
+          {
+            "Literal": ")"
+          },
+          {
+            "Capture": [
+              "body",
+              {
+                "Ref": "definition/function.yl#FunctionBody"
+              }
+            ]
+          }
+        ]
+      },
+      "explicit": null,
+      "span": {
+        "file": "definition/function.yl",
+        "start": 458,
+        "end": 618
+      }
+    }
   }
 }

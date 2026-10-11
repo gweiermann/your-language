@@ -12,6 +12,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .find(|arg| arg.as_str() != "--json")
         .map(String::as_str)
         .unwrap_or("program");
+    if choice == "examples" {
+        let engine = inference::engine();
+        let language = engine
+            .compile(definition::ENTRY, &definition::sources())
+            .map_err(|errors| format!("{errors:?}"))?;
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&language.example_previews())?
+        );
+        return Ok(());
+    }
     let source = match choice {
         "program" => include_str!("mini_typescript/programs/program.txt"),
         "errors" => include_str!("mini_typescript/programs/errors.txt"),

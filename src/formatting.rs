@@ -126,10 +126,14 @@ impl Layout {
                 members,
                 constraints,
                 meanings,
+                example,
                 ..
             } => {
                 if let Some(grammar) = grammar {
                     self.grammar(grammar);
+                }
+                if let Some(example) = example {
+                    self.line(&example.span, false);
                 }
                 // Sibling declarations are separated, but the first child starts
                 // directly after the opening brace, including its leading comments.
@@ -144,9 +148,15 @@ impl Layout {
                 }
             }
             DeclKind::Pattern {
-                grammar, meanings, ..
+                grammar,
+                meanings,
+                example,
+                ..
             } => {
                 self.grammar(grammar);
+                if let Some(example) = example {
+                    self.line(&example.span, false);
+                }
                 if let Some(meanings) = meanings {
                     self.meanings(meanings);
                 }

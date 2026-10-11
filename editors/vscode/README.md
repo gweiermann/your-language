@@ -1,32 +1,29 @@
 # Your Language for VS Code
 
-Edit YL language definitions with syntax highlighting, comment toggling, bracket pairing, and **Format Document** powered by the `yl` CLI. Both saved and unsaved `.yl` buffers can be formatted. The current buffer is copied to a temporary file; the original file is never modified by the formatter process.
+The extension provides YL syntax highlighting, live definition diagnostics, formatting and parser-validated example inlay hints. A reusable Rust language server runs as `yl lsp` over stdio; unsaved buffers and their imported modules are analyzed together.
 
-## Install
+## Install or upgrade
 
-Build and install the CLI from the repository:
+Build the CLI and extension from the same repository revision:
 
 ```sh
 cargo install --path . --locked
-```
-
-This extension requires a CLI that supports `yl fmt`. Install a build with the formatter implementation; earlier CLI releases do not provide that command. New YL syntax also requires a CLI that understands that syntax.
-
-From the repository, build the extension package:
-
-```sh
 cd editors/vscode
 npm ci
 npm test
 npm run package
-code --install-extension your-language.vsix
+code --install-extension your-language.vsix --force
 ```
 
-Alternatively, use **Extensions: Install from VSIX…** in VS Code and select `your-language.vsix`. The extension is packaged locally, not published to the Marketplace.
+Alternatively select **Extensions: Install from VSIXâ€¦**. Reload the VS Code window after upgrading. Packages are local; the extension is not published to the Marketplace.
 
-## Format a definition
+## Configuration
 
-Open a `.yl` file, then run **Format Document**. If multiple formatters are available, select **Your Language**. To enable formatting on save:
+The extension launches `yl lsp` from the extension host PATH. Set `yourLanguage.cliPath` to an absolute executable path if needed, without shell quotes or arguments. Remote workspaces require the executable in the remote environment. Workspace trust is required to launch the server; TextMate highlighting works without it.
+
+Open an entry module to discover its import graph automatically. For editing helper modules independently, set `yourLanguage.exampleEntry` to the absolute entry `.yl` path. This existing setting now selects the analysis root and supports unsaved imports. Empty means automatic detection of open modules declaring `entry`. Changes to `.yl` files on disk trigger graph reanalysis.
+
+Run **Format Document**, or configure:
 
 ```json
 {
@@ -37,32 +34,23 @@ Open a `.yl` file, then run **Format Document**. If multiple formatters are avai
 }
 ```
 
-The formatter uses the CLI's canonical four-space layout. Editor indentation preferences do not change that layout. Formatting operates on YL definitions; programs written in languages defined by YL need their own formatter.
+Formatting uses the canonical four-space Rust formatter directly on the buffer. Invalid syntax leaves it unchanged. Diagnostics appear in Problems and editor underlines. Example hints compose valid node/pattern examples, omit optional parts and include one item for `*` and `+`; explicit `example "..."` metadata takes priority. Generation never runs meanings. Unsupported or nonterminating cases have no hint.
 
-By default, the extension looks for `yl` on the extension host's `PATH`. If it is installed elsewhere, configure its absolute executable path:
+## Current scope
 
-```json
-{
-  "yourLanguage.cliPath": "C:\\Users\\Gerrit\\.cargo\\bin\\yl.exe"
-}
-```
+The server handles YL definitions, file and untitled buffers, full-document synchronization, UTF-16 positions, cancellation, stale-result rejection, dependency invalidation, diagnostics, formatting and inlay hints. It performs full reanalysis, not incremental parsing. Cancellation suppresses the response; in-progress compiler work completes before the next request. The stdio transport assumes a trusted local client and does not impose a separate message or document allocation limit. Disk imports are read only within discovered graphs. Untitled buffers get syntax diagnostics and formatting; save them before import resolution or example generation.
 
-Use an executable path without arguments or shell quotes, including when the path contains spaces. In Remote SSH, WSL, or a development container, install and configure the CLI in that remote environment. The extension runs in the workspace extension host.
+The built-in `std/variables` native contracts are registered for definition checking. Other host-provided native libraries must remain in their host consumer: unavailable contracts produce diagnostics, rather than being guessed or executed. The Mini TypeScript consumer's `std/types` registration is not yet installed into the language server. No target-language language server, completion, navigation or rename is included in this experiment.
 
-Invalid syntax, a missing CLI, or a formatter failure leaves the document unchanged. Choose **Show Details** on the error notification to see CLI diagnostics in the **Your Language** output channel. Formatting is cancelled when requested; results are discarded if the document changes during the request. The CLI has a 30-second execution timeout.
-
-Syntax highlighting is available in untrusted workspaces; CLI formatting requires workspace trust. Only file and untitled YL documents are formatted. Browser-only VS Code and virtual workspaces are not supported.
+The CLI `fmt` and `examples` commands remain available independently. The extension uses `vscode-languageclient` and does not bundle Rust. See [the metadata experiment](../../examples/example_metadata/README.md) for generator limits.
 
 ## Development
 
-Open `editors/vscode` as the workspace and press **F5** to launch an Extension Development Host. The launch task builds the TypeScript code and copies the shared highlighting grammar from `docs/.vitepress/yl-grammar.json`. Edit that source grammar when adding syntax; the generated extension copy is not committed.
+Open `editors/vscode` and press **F5**. The build copies the grammar from `docs/.vitepress/yl-grammar.json`. Tests use a real Rust server and Node JSON-RPC client:
 
-Run tests against a real CLI in addition to the process/provider and TextMate tests:
-
-```powershell
+```sh
 cargo build --manifest-path ../../Cargo.toml --bin yl
-$env:YL_TEST_CLI = (Resolve-Path ../../target/debug/yl.exe).Path
 npm test
 ```
 
-On Unix, set `YL_TEST_CLI` to the absolute path of `../../target/debug/yl`. CI builds the CLI and runs these integration tests on Windows and Linux. The extension has no runtime npm dependencies and does not bundle the CLI.
+Set `YL_TEST_CLI` to a different absolute executable path when testing another build. CI runs Rust, client, protocol and packaging checks on Windows and Linux.
