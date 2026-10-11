@@ -7,11 +7,42 @@ The executable is `yl`. Definition commands read `.yl` modules; language tools r
 ```sh
 yl fmt <files...>
 yl fmt --check <files...>
+yl fmt --check --json <files...>
+yl fmt --json <files...>
 ```
 
 `fmt` formats the supplied UTF-8 YL definition files in place. It uses four-space indentation, spaces around operators, separate declaration paragraphs, and expanded blocks. A single grammar unit stays after `=` on the declaration line. Sequences place each unit on a separate indented line; alternatives start separate lines with `|`. Captures, grouped expressions, postfix operators and pipes stay together. A body following a multiline grammar starts with `{` on its own line. Comments and the raw spelling of strings and regexes are preserved. Nonempty output ends with a newline. There is no configurable line-width policy.
 
-`--check` makes no writes. It prints `Would format <file>` for each noncanonical file and exits nonzero when any file needs formatting. A clean check is silent. Write mode prints `Formatted <file>` only for files it changes. Use `--` before file names that begin with a dash; provide explicit paths or use your shell's glob expansion.
+`--check` makes no writes. Human output prints `Would format <file>` and renders a `yl.format_required` warning at the first layout difference, with a source underline and help. Check mode exits 1 when any file needs formatting, even though formatting warnings are separate from syntax errors. A clean human check is silent. Write mode prints `Formatted <file>` only for files it changes. Syntax and I/O errors use structured error diagnostics and exit 1.
+
+`--json` emits one report on stdout and suppresses human stdout/stderr. Flags can appear before or after file paths; `--` ends option parsing. Use explicit paths or your shell's glob expansion.
+
+```json
+{
+  "check": true,
+  "success": false,
+  "files": [
+    {
+      "path": "language.yl",
+      "status": "would_change",
+      "would_change": true,
+      "changed": false
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "yl.format_required",
+      "message": "This file needs formatting",
+      "primary": { "file": "language.yl", "start": 6, "end": 7 },
+      "secondary": [],
+      "help": "Run yl fmt without --check to apply the canonical layout"
+    }
+  ]
+}
+```
+
+The report's `success` matches the exit status. Each unique canonical file appears once, using its first supplied path. `status` is `clean`, `would_change` (check mode), `changed` (write completed), `error`, or `skipped` (a write prevented by another batch error). `would_change` is null when syntax or reading failed before a comparison could be made. `changed` records actual completed replacements, including replacements before a later runtime I/O failure. Diagnostics include formatting requirements, source syntax errors, argument errors and file I/O errors. A clean JSON check still emits a successful report with an empty diagnostics array.
 
 The formatter validates YL syntax without loading imports or running semantic operations. Within `meanings`, the standalone structural `boundary` marker is placed first; each operation, group, match and precedence block starts its own line. Moving that marker does not reorder operations. Before returning output, the formatter checks that all raw token spellings and their order (apart from this marker placement) are preserved and that the parsed module is unchanged apart from source spans. Syntax errors produce structured diagnostics rendered through the normal CLI and leave the whole batch untouched. Changed files are replaced through a temporary file in the same directory, preserving file permissions; a file changed concurrently is rejected before replacement.
 
@@ -62,13 +93,14 @@ The default form writes human diagnostics to stderr. Source snippets show line n
 | --- | --- | --- | --- |
 | `fmt <files...>` | Changed-file messages | Human stderr | Nonzero |
 | `fmt --check <files...>` | Files needing formatting | Human stderr | Nonzero |
+| `fmt [--check] --json <files...>` | Formatting report | Included on stdout | Nonzero |
 | `check <entry.yl>` | Validation message | Human stderr | Nonzero |
 | `compile <entry.yl> -o <file>` | Compilation message | Human stderr | Nonzero |
 | `language <file> ast <source>` | AST JSON | JSON stderr | Nonzero |
 | `language <file> check <source>` | Empty | Human stderr | Nonzero |
 | `language <file> check <source> --json` | Diagnostic array | Included on stdout | Nonzero |
 
-Warnings and help messages alone do not cause failure. Invalid command arguments produce a usage diagnostic. Language tools accept one target-source file per invocation; the formatter accepts multiple YL definition files.
+Warnings and help messages alone do not cause failure in language checking. Formatter check mode exits 1 when layout changes are required, independently of diagnostic severity. Invalid command arguments produce a usage diagnostic. Language tools accept one target-source file per invocation; the formatter accepts multiple YL definition files.
 
 ## Repository examples
 
