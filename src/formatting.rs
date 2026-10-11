@@ -124,10 +124,14 @@ impl Layout {
                 members,
                 constraints,
                 meanings,
+                example,
                 ..
             } => {
                 if let Some(grammar) = grammar {
                     self.grammar(grammar);
+                }
+                if let Some(example) = example {
+                    self.line(&example.span, false);
                 }
                 for member in members {
                     self.declaration(member, false);
@@ -140,9 +144,15 @@ impl Layout {
                 }
             }
             DeclKind::Pattern {
-                grammar, meanings, ..
+                grammar,
+                meanings,
+                example,
+                ..
             } => {
                 self.grammar(grammar);
+                if let Some(example) = example {
+                    self.line(&example.span, false);
+                }
                 if let Some(meanings) = meanings {
                     self.meanings(meanings);
                 }

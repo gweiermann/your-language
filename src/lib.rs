@@ -16,3 +16,5 @@ pub mod syntax;
 
 mod formatting;
 pub use formatting::format_yl;
+
+pub mod examples;

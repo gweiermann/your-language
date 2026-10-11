@@ -14,6 +14,8 @@ pub struct CompiledLanguage {
     pub(crate) trivia: Vec<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub(crate) meanings: BTreeMap<String, crate::semantics::MeaningDefinition>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub(crate) examples: BTreeMap<String, crate::examples::ExampleDefinition>,
     #[serde(skip)]
     pub(crate) diagnostics: Vec<crate::diagnostic::Diagnostic>,
 }
@@ -43,6 +45,11 @@ pub struct Operator {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Term {
+    /// Tooling metadata reference; transparent to parsing and meanings.
+    Example {
+        definition: String,
+        term: Box<Term>,
+    },
     /// A successful pattern occurrence; absent from the produced AST.
     Meaning {
         definition: String,

@@ -457,5 +457,18 @@
   "trivia": [
     "lexical.yl#Whitespace",
     "lexical.yl#Comment"
-  ]
+  ],
+  "examples": {
+    "lexical.yl#IdentifierPart": {
+      "term": {
+        "Regex": "[_a-zA-Z0-9]"
+      },
+      "explicit": null,
+      "span": {
+        "file": "lexical.yl",
+        "start": 116,
+        "end": 155
+      }
+    }
+  }
 }

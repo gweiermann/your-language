@@ -18,6 +18,15 @@ fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
         )]
     };
     match args.first().map(String::as_str) {
+        Some("examples") if args.len() == 2 => {
+            let language = if Path::new(&args[1]).extension().is_some_and(|e| e == "ylc") {
+                load_compiled_language(&fs::read(&args[1]).map_err(|e| io(&args[1], e))?)?
+            } else {
+                compile_language(&args[1])?
+            };
+            println!("{}", json(&language.example_previews())?);
+            Ok(true)
+        }
         Some("fmt") => format_files(&args[1..]),
         Some("check") if args.len() == 2 => {
             let language = compile_language(&args[1])?;

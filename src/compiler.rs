@@ -792,6 +792,7 @@ impl Compiler {
             rules: BTreeMap::new(),
             trivia,
             meanings: BTreeMap::new(),
+            examples: BTreeMap::new(),
             diagnostics: vec![],
         };
         for (id, symbol) in &self.symbols {
@@ -960,6 +961,50 @@ impl Compiler {
                 Span::default(),
             ));
         }
+        // Pattern surface sugar is retained only as tooling templates, never runtime rules.
+        for (id, symbol) in self.symbols.clone() {
+            let (term, example) = match &symbol.declaration.kind {
+                DeclKind::Node { example, .. } => (Term::Ref(id.clone()), example.clone()),
+                DeclKind::Pattern {
+                    parameters,
+                    grammar,
+                    example,
+                    ..
+                } if parameters.is_empty() => (
+                    self.lower(
+                        &symbol.module,
+                        &symbol.name,
+                        grammar,
+                        &Environment::new(),
+                        0,
+                    )?,
+                    example.clone(),
+                ),
+                DeclKind::Pattern {
+                    example: Some(example),
+                    ..
+                } => {
+                    return Err(Diagnostic::error(
+                        "yl.example_parameters",
+                        "Experimental examples require a parameterless pattern",
+                        example.span.clone(),
+                    ))
+                }
+                _ => continue,
+            };
+            // Keep node-only artifacts unchanged unless metadata is supplied.
+            if example.is_some() || matches!(symbol.declaration.kind, DeclKind::Pattern { .. }) {
+                language.examples.insert(
+                    id,
+                    crate::examples::ExampleDefinition {
+                        term,
+                        explicit: example,
+                        span: symbol.declaration.span.clone(),
+                    },
+                );
+            }
+        }
+        crate::examples::validate_explicit(&language)?;
         language.diagnostics = std::mem::take(&mut self.diagnostics);
         for (id, rule) in &language.rules {
             if let Some(meanings) = language.meanings.get(id) {
@@ -1604,6 +1649,20 @@ impl Compiler {
         let result = self.lower(&symbol.module, &symbol.name, expr, env, depth);
         self.expanding.pop();
         result.and_then(|term| {
+            let term = if matches!(
+                &symbol.declaration.kind,
+                DeclKind::Pattern {
+                    example: Some(_),
+                    ..
+                }
+            ) {
+                Term::Example {
+                    definition: id.into(),
+                    term: Box::new(term),
+                }
+            } else {
+                term
+            };
             if let DeclKind::Pattern {
                 meanings: Some(meanings),
                 ..
@@ -2228,9 +2287,10 @@ impl Compiler {
                 self.leaves(id, &mut BTreeSet::new(), &mut actual)?;
                 Ok(actual.iter().all(|id| leaves.contains(id)))
             }
-            Term::Capture(_, t) | Term::Meaning { term: t, .. } | Term::Mark { term: t, .. } => {
-                self.accepts(t, ty, visiting)
-            }
+            Term::Capture(_, t)
+            | Term::Meaning { term: t, .. }
+            | Term::Example { term: t, .. }
+            | Term::Mark { term: t, .. } => self.accepts(t, ty, visiting),
             Term::Project {
                 id,
                 term,
@@ -2694,6 +2754,7 @@ pub(crate) fn edge_term(term: &Term, right: bool) -> Option<&Term> {
         Term::Ref(_) => Some(term),
         Term::Capture(_, term)
         | Term::Meaning { term, .. }
+        | Term::Example { term, .. }
         | Term::Mark { term, .. }
         | Term::Project { term, .. } => edge_term(term, right),
         Term::Sequence(items) => {
@@ -2714,6 +2775,7 @@ fn zero_width(term: &Term) -> bool {
         Term::Literal(text) => text.is_empty(),
         Term::Capture(_, term)
         | Term::Meaning { term, .. }
+        | Term::Example { term, .. }
         | Term::Mark { term, .. }
         | Term::Project { term, .. } => zero_width(term),
         Term::Sequence(items) => items.iter().all(zero_width),
@@ -2747,6 +2809,19 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
             ));
         }
         match t {
+            Term::Example {
+                definition,
+                term: inner,
+            } => {
+                if !language.examples.contains_key(definition) {
+                    return Err(Diagnostic::error(
+                        "yl.artifact",
+                        "Unknown example metadata reference",
+                        span.clone(),
+                    ));
+                }
+                term(inner, language, span, depth + 1)
+            }
             Term::Meaning {
                 definition,
                 term: inner,
@@ -2868,6 +2943,10 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
             ));
         }
     }
+    for definition in language.examples.values() {
+        term(&definition.term, language, &definition.span, 0)?;
+    }
+    crate::examples::validate_explicit(language)?;
     for (owner, meanings) in &language.meanings {
         if owner.is_empty() {
             return Err(Diagnostic::error(
@@ -3335,7 +3414,9 @@ fn capture_sets(term: &Term) -> (BTreeSet<String>, BTreeSet<String>) {
                 },
             )
         }
-        Term::Mark { term, .. } | Term::Meaning { term, .. } => capture_sets(term),
+        Term::Mark { term, .. } | Term::Meaning { term, .. } | Term::Example { term, .. } => {
+            capture_sets(term)
+        }
         Term::Project {
             id,
             term,
@@ -3358,9 +3439,10 @@ fn capture_sets(term: &Term) -> (BTreeSet<String>, BTreeSet<String>) {
 fn may_be_none(term: &Term) -> bool {
     match term {
         Term::Repeat(_, Quantifier::Optional) | Term::NotAhead(_) | Term::NotBehind(_) => true,
-        Term::Capture(_, term) | Term::Meaning { term, .. } | Term::Mark { term, .. } => {
-            may_be_none(term)
-        }
+        Term::Capture(_, term)
+        | Term::Meaning { term, .. }
+        | Term::Example { term, .. }
+        | Term::Mark { term, .. } => may_be_none(term),
         Term::Project {
             id,
             term,
@@ -3417,6 +3499,7 @@ fn validate_projections(term: &Term, active: &mut BTreeSet<u32>, span: &Span) ->
         }
         Term::Repeat(t, _)
         | Term::Meaning { term: t, .. }
+        | Term::Example { term: t, .. }
         | Term::Capture(_, t)
         | Term::NotAhead(t)
         | Term::NotBehind(t) => validate_projections(t, active, span)?,
@@ -3457,7 +3540,9 @@ fn captures(term: &Term, span: &Span) -> Result<BTreeSet<String>> {
             }
         }
         Term::Repeat(inner, _) => names = captures(inner, span)?,
-        Term::Mark { term, .. } | Term::Meaning { term, .. } => names = captures(term, span)?,
+        Term::Mark { term, .. } | Term::Meaning { term, .. } | Term::Example { term, .. } => {
+            names = captures(term, span)?
+        }
         Term::Project { id, term, .. } => {
             if let Some(original) = find_marker(term, *id) {
                 names = captures(original, span)?;
@@ -3477,6 +3562,7 @@ fn find_marker(term: &Term, marker: u32) -> Option<&Term> {
         Term::Repeat(t, _)
         | Term::Capture(_, t)
         | Term::Meaning { term: t, .. }
+        | Term::Example { term: t, .. }
         | Term::Mark { term: t, .. }
         | Term::Project { term: t, .. } => find_marker(t, marker),
         _ => None,
@@ -3515,6 +3601,7 @@ fn marker_value_cardinality(term: &Term, marker: u32, flatten: bool) -> (usize, 
         }
         Term::Capture(_, t)
         | Term::Meaning { term: t, .. }
+        | Term::Example { term: t, .. }
         | Term::Mark { term: t, .. }
         | Term::Project { term: t, .. } => marker_value_cardinality(t, marker, flatten),
         _ => (0, Some(0)),
@@ -3524,9 +3611,10 @@ fn marker_value_cardinality(term: &Term, marker: u32, flatten: bool) -> (usize, 
 fn value_shape(term: &Term) -> Option<Quantifier> {
     match term {
         Term::Repeat(_, q) => Some(*q),
-        Term::Capture(_, t) | Term::Meaning { term: t, .. } | Term::Mark { term: t, .. } => {
-            value_shape(t)
-        }
+        Term::Capture(_, t)
+        | Term::Meaning { term: t, .. }
+        | Term::Example { term: t, .. }
+        | Term::Mark { term: t, .. } => value_shape(t),
         Term::Project { quantifier, .. } => *quantifier,
         _ => None,
     }
@@ -3555,6 +3643,7 @@ fn capture_terms<'a>(
             Term::Capture(_, inner)
             | Term::Repeat(inner, _)
             | Term::Meaning { term: inner, .. }
+            | Term::Example { term: inner, .. }
             | Term::Mark { term: inner, .. } => walk(inner, name),
             Term::Project { id, term, .. } => find_marker(term, *id)
                 .map(|t| walk(t, name))
@@ -3620,9 +3709,10 @@ fn node_term(
             visiting.remove(expected);
             result
         }
-        Term::Capture(_, t) | Term::Meaning { term: t, .. } | Term::Mark { term: t, .. } => {
-            node_term(t, expected, language, visiting)
-        }
+        Term::Capture(_, t)
+        | Term::Meaning { term: t, .. }
+        | Term::Example { term: t, .. }
+        | Term::Mark { term: t, .. } => node_term(t, expected, language, visiting),
         Term::Choice(items) => items
             .iter()
             .all(|t| node_term(t, expected, language, visiting)),

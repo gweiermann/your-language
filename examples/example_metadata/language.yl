@@ -1,0 +1,21 @@
+// Experimental representative examples compose through normal grammar.
+import { separatedBy } from "std/parser"
+
+pattern Name = /[a-z]+/ {
+    example "name"
+}
+
+node Number = /[0-9]+/ {
+    example "42"
+}
+
+node Program =
+    "let "
+    Name
+    "="
+    Number
+    ";"
+
+node List = Number* |> separatedBy(",")
+
+entry Program
