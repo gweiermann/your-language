@@ -24,10 +24,7 @@ fn types(result: &AnalysisResult, name: &str) -> Vec<String> {
             if get("std/variables#nameSymbol") != Some(&SemanticValue::Text(name.into())) {
                 return None;
             }
-            match get("std/types#inferredType") {
-                Some(SemanticValue::Text(ty)) => Some(ty.clone()),
-                _ => None,
-            }
+            inference::display_type(record)
         })
         .collect()
 }
@@ -54,12 +51,9 @@ fn annotation_and_call_errors_have_original_spans() {
     let source = include_str!("../examples/mini_typescript/programs/errors.txt");
     let result = analyze(source);
     assert_eq!(result.diagnostics.len(), 4, "{:?}", result.diagnostics);
-    assert!(result
-        .diagnostics
-        .iter()
-        .all(|d| d.code == "prototype.type_mismatch"
-            && d.primary.file == "test.ts"
-            && d.primary.end <= source.len()));
+    assert!(result.diagnostics.iter().all(|d| d.code == "types.mismatch"
+        && d.primary.file == "test.ts"
+        && d.primary.end <= source.len()));
     assert_eq!(
         &source[result.diagnostics[0].primary.start..result.diagnostics[0].primary.end],
         ": number"
@@ -186,6 +180,7 @@ fn attachment_reader_supports_another_native_library() {
             OperationSignature {
                 id: "test/audit#audit".into(),
                 parameters: vec![],
+                finalization_only: false,
                 provides_context: false,
             },
             || Box::new(Audit),
@@ -209,4 +204,22 @@ fn attachment_reader_supports_another_native_library() {
             SemanticKey::Symbol("test/audit#checked".into()),
             SemanticValue::Bool(true)
         ))));
+}
+
+#[test]
+fn function_aliases_share_parameter_and_return_slots() {
+    let result =
+        analyze("function id(value) { return value; } let alias = id; let result = alias(1);");
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(types(&result, "id"), ["(number) => number"]);
+    assert_eq!(types(&result, "alias"), ["(number) => number"]);
+    assert_eq!(types(&result, "result"), ["number"]);
+}
+
+#[test]
+fn function_arguments_propagate_signature_slots_through_parameters() {
+    let result = analyze("function identity(value) { return value; } function apply(f, value) { return f(value); } let result = apply(identity, 1);");
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(types(&result, "identity"), ["(number) => number"]);
+    assert_eq!(types(&result, "result"), ["number"]);
 }
