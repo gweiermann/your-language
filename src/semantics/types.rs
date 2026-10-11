@@ -167,7 +167,7 @@ impl Constraints {
             let a = self.substitutions.remove(&left);
             let b = self.substitutions.remove(&right);
             self.parents[right] = left;
-            if let Some(a) = a.clone() {
+            if let Some(a) = a.clone().filter(|value| !matches!(value, Type::Unknown) || b.is_none()) {
                 self.substitutions.insert(left, a);
             } else if let Some(b) = b.clone() {
                 self.substitutions.insert(left, b);
@@ -193,6 +193,16 @@ impl Constraints {
                 return Err("Recursive constraint requires an infinite type".into());
             }
             return Ok(());
+        }
+        for (variable, requirement) in [(&left, &right), (&right, &left)] {
+            if let Type::Variable(id) = variable {
+                if matches!(self.head(variable), Type::Unknown) && !matches!(self.head(requirement), Type::Unknown) {
+                    let id = self.root(*id);
+                    self.substitutions.insert(id, self.head(requirement));
+                    if self.cyclic(id, &mut std::collections::BTreeSet::new()) { return Err("Recursive constraint requires an infinite type".into()); }
+                    return Ok(());
+                }
+            }
         }
         let (left, right) = (self.head(&left), self.head(&right));
         if left == right {

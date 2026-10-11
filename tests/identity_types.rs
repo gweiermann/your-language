@@ -142,3 +142,47 @@ fn a_live_context_cannot_claim_finalization_only_effects() {
         )
         .is_err());
 }
+
+#[test]
+fn a_known_fact_is_preserved_when_linked_to_settled_unknown() {
+    for (left,right) in [("first","second"),("second","first")] {
+        let definition=format!(r#"
+import * as types from "std/types"
+import * as variables from "std/variables"
+symbol Red
+node First = "x" {{ meanings {{ types::ensure(variables::identity(), types::unknown) }} }}
+node Second = "y" {{ meanings {{ types::ensure(variables::identity(), Red) }} }}
+node Root = first: First second: Second {{
+ meanings {{
+  types::ensure(variables::identity({left}), types::typeof(variables::identity({right})))
+  match (types::typeof(variables::identity(first)), types::typeof(variables::identity(second))) {{
+   Red, Red => {{}},
+   _ => error("A known type was lost")
+  }}
+ }}
+}}
+entry Root
+"#);
+        let result=analyze(&definition,"xy");
+        assert!(result.diagnostics.is_empty(),"{:?}",result.diagnostics);
+    }
+}
+#[test]
+fn a_branch_after_unknown_settlement_can_publish_a_positive_result() {
+    let result=analyze(r#"
+import * as types from "std/types"
+import * as variables from "std/variables"
+symbol Red
+node Root = "x" {
+ meanings {
+  match (types::typeof(variables::identity())) {
+   types::unknown => types::ensure(variables::identity(), Red),
+   _ => {}
+  }
+ }
+}
+entry Root
+"#,"x");
+    assert!(result.diagnostics.is_empty(),"{:?}",result.diagnostics);
+    assert!(result.graph.records.iter().any(|record| record.entries.iter().any(|(_,value)| *value == your_language::semantics::SemanticValue::Text("Red".into()))));
+}
