@@ -121,7 +121,10 @@
                 "start": 29,
                 "end": 33
               },
-              "text": "read"
+              "text": "read",
+              "occurrences": [
+                8
+              ]
             }
           }
         ],
@@ -197,7 +200,10 @@
                 "start": 77,
                 "end": 82
               },
-              "text": "later"
+              "text": "later",
+              "occurrences": [
+                18
+              ]
             }
           }
         ],
@@ -252,7 +258,10 @@
                 "start": 68,
                 "end": 76
               },
-              "text": "identity"
+              "text": "identity",
+              "occurrences": [
+                15
+              ]
             }
           }
         ],
@@ -307,7 +316,10 @@
                 "start": 4,
                 "end": 10
               },
-              "text": "caller"
+              "text": "caller",
+              "occurrences": [
+                2
+              ]
             }
           }
         ],
@@ -375,7 +387,10 @@
                 "start": 111,
                 "end": 112
               },
-              "text": "f"
+              "text": "f",
+              "occurrences": [
+                24
+              ]
             }
           }
         ],
@@ -451,7 +466,10 @@
                 "start": 150,
                 "end": 155
               },
-              "text": "local"
+              "text": "local",
+              "occurrences": [
+                34
+              ]
             }
           }
         ],
@@ -527,7 +545,10 @@
                 "start": 217,
                 "end": 224
               },
-              "text": "capture"
+              "text": "capture",
+              "occurrences": [
+                49
+              ]
             }
           }
         ],
@@ -582,7 +603,10 @@
                 "start": 290,
                 "end": 295
               },
-              "text": "later"
+              "text": "later",
+              "occurrences": [
+                65
+              ]
             }
           }
         ],
@@ -637,7 +661,10 @@
                 "start": 179,
                 "end": 184
               },
-              "text": "later"
+              "text": "later",
+              "occurrences": [
+                41
+              ]
             }
           }
         ],
@@ -692,7 +719,10 @@
                 "start": 248,
                 "end": 253
               },
-              "text": "inner"
+              "text": "inner",
+              "occurrences": [
+                56
+              ]
             }
           }
         ],
