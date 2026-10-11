@@ -12,14 +12,19 @@ cargo run --example mini_typescript -- addition --json
 cargo test --test mini_typescript_composable
 ```
 
-Definitions and programs remain in separate directories. Compilation is directly in memory; tests additionally serialize/reload the optional `.ylc` representation. Default output prints inferred binding types and human underlined diagnostics. `--json` returns the complete AST, retained occurrences, lexical/type records and structured diagnostics. Error outcomes exit 1.
+Definitions and programs live in separate directories. The definition is split into `types.yl`, `parameter.yl`, `expression.yl`, `function.yl`, `let.yl`, `lexical.yl` and the entry module `language.yl`. Compilation is directly in memory; tests additionally serialize/reload the optional `.ylc` representation. Default output prints inferred binding types and human underlined diagnostics. `--json` returns the complete AST, retained occurrences, lexical/type records and structured diagnostics. Error outcomes exit 1.
 
 ## Local meanings and library interface
 
-Literal and annotation nodes import identity symbols and publish their types locally:
+The language authors its own type identity symbols; the native library does not choose the available primitive types. Literal and annotation nodes import these symbols and publish their types locally:
 
 ```yl
-import { type, number, string } from "prototype/types"
+import { type } from "std/types"
+import { number, string } from "./types"
+
+// types.yl declares these identities:
+// export symbol number
+// export symbol string
 
 node Number = value: /[0-9]+/ {
     meanings { type(number) }
@@ -30,7 +35,9 @@ node String = value: /"[^"\n]*"/ {
 }
 ```
 
-`aliasType(value)` connects an owner's type to its captured value. `inheritType()` explicitly connects a transparent abstract family's type to its selected retained member. `declarationType()`, `bindingType(value)` and `referenceType()` consume lexical identity attachments; `checkType(annotation)`, `functionType(parameters, body, annotation)` and `callType(callee, arguments)` publish the remaining equalities. Each operation is imported normally through a registered native YL module. The library knows the operation contracts, not grammar role names.
+`types(unknown, functionTypeSymbol)` configures the language-authored identities for settled unknown and function-category results at the entry node. It does not define which primitive types are available. `typeof` waits while a type is pending and uses the configured unknown identity only after settling.
+
+`sameType(value)` connects an owner's type to its captured value. It handles both forwarding and explicit annotations: both publish an equality constraint. The former separate `aliasType` and `checkType` helpers have been consolidated. `inheritType()` explicitly connects a transparent abstract family's type to its selected retained member. `declarationType()`, `bindingType(value)` and `referenceType()` consume lexical identity attachments; `functionType(parameters, body, annotation)` and `callType(callee, arguments)` publish the remaining equalities. Each operation is imported normally through a registered native YL module. The library knows the operation contracts, not grammar role names.
 
 Addition policy lives entirely in the language definition:
 
@@ -76,7 +83,7 @@ Deferred matches and nested-value calls run during finalization, after ordinary 
 
 Native value readers must be observational and may be retried on fresh instances. They must not emit diagnostics or external effects; persistent query state belongs to an analysis service. Match blocks currently appear directly inside `meanings`; named `group` blocks support native calls, but not nested matches yet.
 
-Types are stored as `prototype/types#inferredType` metadata on lexical declaration records. The root `prototype/types#expressionTypes` attachment points to a report keyed by occurrence IDs, which link to original source spans in structured output. Native factories, services, deferred jobs and variables are fresh per analysis; tests verify repeatability, concurrent isolation and optional artifact reload.
+Types are stored as `std/types#inferredType` metadata on lexical declaration records. The root `std/types#expressionTypes` attachment points to a report keyed by occurrence IDs, which link to original source spans in structured output. Native factories, services, deferred jobs and variables are fresh per analysis; tests verify repeatability, concurrent isolation and optional artifact reload.
 
 ## Gaps and possible next experiments
 

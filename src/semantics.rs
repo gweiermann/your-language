@@ -613,7 +613,7 @@ mod tests {
         operation: &str,
         args: BTreeMap<String, MeaningValue>,
     ) -> MeaningDefinition {
-        let id = format!("std/semantics#{operation}");
+        let id = format!("std/variables#{operation}");
         MeaningDefinition {
             boundary: false,
             groups: vec![MeaningGroup {
@@ -721,7 +721,7 @@ mod tests {
             graph
                 .attachments
                 .iter()
-                .find(|a| a.occurrence == occurrence && a.key == format!("std/semantics#{key}"))
+                .find(|a| a.occurrence == occurrence && a.key == format!("std/variables#{key}"))
                 .unwrap()
                 .value
                 .clone()

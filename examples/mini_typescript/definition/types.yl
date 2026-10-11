@@ -1,0 +1,44 @@
+import { type, inheritType, sameType } from "std/types"
+
+export symbol number
+
+export symbol string
+
+export symbol boolean
+
+export symbol unknown
+
+export symbol functionTypeSymbol
+
+export node TypeName {
+
+    node NumberType = "number" {
+        meanings {
+            type(number)
+        }
+    }
+
+    node StringType = "string" {
+        meanings {
+            type(string)
+        }
+    }
+
+    node BooleanType = "boolean" {
+        meanings {
+            type(boolean)
+        }
+    }
+    meanings {
+        inheritType()
+    }
+}
+
+export node Annotation =
+    ":"
+    value: TypeName
+{
+    meanings {
+        sameType(value)
+    }
+}

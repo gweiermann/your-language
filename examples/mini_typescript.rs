@@ -54,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     (
                         your_language::semantics::SemanticKey::Symbol(key),
                         your_language::semantics::SemanticValue::Text(value),
-                    ) if key == "std/semantics#nameSymbol" => Some(value),
+                    ) if key == "std/variables#nameSymbol" => Some(value),
                     _ => None,
                 });
             let ty = record
@@ -64,7 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     (
                         your_language::semantics::SemanticKey::Symbol(key),
                         your_language::semantics::SemanticValue::Text(value),
-                    ) if key == "prototype/types#inferredType" => Some(value),
+                    ) if key == "std/types#inferredType" => Some(value),
                     _ => None,
                 });
             if let (Some(name), Some(ty)) = (name, ty) {

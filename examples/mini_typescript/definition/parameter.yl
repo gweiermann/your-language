@@ -1,0 +1,15 @@
+import { declare, variable } from "std/variables"
+import { declarationType, sameType } from "std/types"
+import { Name } from "./lexical"
+import { Annotation } from "./types"
+
+export node Parameter =
+    name: Name
+    annotation: Annotation?
+{
+    meanings {
+        declare(variable, name)
+        declarationType()
+        sameType(annotation)
+    }
+}

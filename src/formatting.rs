@@ -16,6 +16,7 @@ pub fn format_yl(file: &str, source: &str) -> CompileResult<String> {
     for declaration in &module.declarations {
         layout.declaration(declaration, true);
     }
+    let tokens = layout.prepare_meanings(&tokens);
     layout.attach_leading_comments(&tokens, source);
     let formatted = layout.render(&tokens, source);
     let output_tokens =
@@ -71,6 +72,8 @@ struct Layout {
     inline: Vec<Span>,
     enums: Vec<Span>,
     grammar_ends: BTreeSet<usize>,
+    choice_separators: Vec<Span>,
+    meanings: Vec<Meanings>,
 }
 impl Layout {
     fn line(&mut self, span: &Span, blank: bool) {
@@ -80,14 +83,40 @@ impl Layout {
             .or_insert(blank);
     }
     fn grammar(&mut self, expression: &Expr) {
-        self.line(&expression.span, false);
+        // Layout is determined by the grammar AST, not source whitespace or
+        // token count. Captures, repetitions, groups and pipes are one unit.
+        match &expression.kind {
+            ExprKind::Sequence(items) => {
+                for item in items {
+                    self.line(&item.span, false);
+                }
+            }
+            ExprKind::Choice(branches) => {
+                self.line(&expression.span, false);
+                for pair in branches.windows(2) {
+                    self.choice_separators.push(Span::new(
+                        &expression.span.file,
+                        pair[0].span.end,
+                        pair[1].span.start,
+                    ));
+                }
+                for branch in branches {
+                    if let ExprKind::Sequence(items) = &branch.kind {
+                        for item in items.iter().skip(1) {
+                            self.line(&item.span, false);
+                        }
+                    }
+                }
+            }
+            _ => return,
+        }
         self.grammar.push(expression.span.clone());
         self.grammar_ends.insert(expression.span.end);
     }
-    fn declaration(&mut self, declaration: &Declaration, top: bool) {
+    fn declaration(&mut self, declaration: &Declaration, blank: bool) {
         self.line(
             &declaration.span,
-            !matches!(declaration.kind, DeclKind::Import { .. }),
+            blank && !matches!(declaration.kind, DeclKind::Import { .. }),
         );
         match &declaration.kind {
             DeclKind::Import { .. } => self.inline.push(declaration.span.clone()),
@@ -102,8 +131,10 @@ impl Layout {
                 if let Some(grammar) = grammar {
                     self.grammar(grammar);
                 }
-                for member in members {
-                    self.declaration(member, false);
+                // Sibling declarations are separated, but the first child starts
+                // directly after the opening brace, including its leading comments.
+                for (index, member) in members.iter().enumerate() {
+                    self.declaration(member, index != 0);
                 }
                 for constraint in constraints {
                     self.constraint(constraint);
@@ -149,17 +180,28 @@ impl Layout {
                     self.constraint(constraint);
                 }
             }
-            DeclKind::Entry { .. } => {}
-        }
-        if !top {
-            self.breaks.insert(declaration.span.start, true);
+            DeclKind::Entry { .. } | DeclKind::Symbol { .. } => {}
         }
     }
     fn meanings(&mut self, meanings: &Meanings) {
+        self.meanings.push(meanings.clone());
         for group in &meanings.groups {
             self.line(&group.span, false);
             for call in &group.calls {
                 self.line(&call.span, false);
+            }
+            if let Some(matching) = &group.matching {
+                self.line(&matching.span, false);
+                for case in &matching.cases {
+                    self.line(&case.span, false);
+                    for action in &case.actions {
+                        // Single actions stay on the case's line. Blocks with
+                        // several actions receive one line per call.
+                        if case.actions.len() > 1 {
+                            self.line(&action.span, false);
+                        }
+                    }
+                }
             }
         }
         for chain in &meanings.precedence {
@@ -173,6 +215,63 @@ impl Layout {
                 self.constraint(item);
             }
         }
+    }
+    fn prepare_meanings(&mut self, tokens: &[Token]) -> Vec<Token> {
+        let mut tokens = tokens.to_vec();
+        // Meanings stores boundary as a structural boolean, independent of its
+        // source position. Move ONLY that marker; preserve every operation and
+        // all other raw tokens in their original order. The token guard compares
+        // against this canonical order and AST equivalence is still mandatory.
+        for meanings in self.meanings.clone() {
+            let span = &meanings.span;
+            let Some(open) = tokens
+                .iter()
+                .position(|token| token.span.start == span.start)
+            else {
+                continue;
+            };
+            let mut braces = 0usize;
+            let mut parentheses = 0usize;
+            let mut boundary = None;
+            for (index, token) in tokens.iter().enumerate().skip(open) {
+                if token.span.end > span.end {
+                    break;
+                }
+                match &token.kind {
+                    TokenKind::Symbol(symbol) => match symbol.as_str() {
+                        "{" => braces += 1,
+                        "}" => braces = braces.saturating_sub(1),
+                        "(" => parentheses += 1,
+                        ")" => parentheses = parentheses.saturating_sub(1),
+                        _ => {}
+                    },
+                    TokenKind::Word(word)
+                        if braces == 1
+                            && parentheses == 0
+                            && !meanings.groups.iter().any(|group| {
+                                group.span.start <= token.span.start
+                                    && token.span.end <= group.span.end
+                            }) =>
+                    {
+                        if word == "boundary" {
+                            boundary = Some(index);
+                            self.line(&token.span, false);
+                        } else if word == "precedence" {
+                            self.line(&token.span, false);
+                        }
+                    }
+                    _ => {}
+                }
+                if braces == 0 {
+                    break;
+                }
+            }
+            if let Some(index) = boundary {
+                let marker = tokens.remove(index);
+                tokens.insert(open + 1, marker);
+            }
+        }
+        tokens
     }
     fn attach_leading_comments(&mut self, tokens: &[Token], source: &str) {
         let breaks: Vec<_> = self
@@ -247,6 +346,14 @@ impl Layout {
                 TokenKind::Symbol(symbol) => Some(symbol.as_str()),
                 _ => None,
             };
+            if symbol == Some("|")
+                && self
+                    .choice_separators
+                    .iter()
+                    .any(|span| span.start <= token.span.start && token.span.end <= span.end)
+            {
+                output.line(false);
+            }
             if symbol == Some("{") {
                 let inline = self
                     .inline
@@ -288,7 +395,6 @@ impl Layout {
                 {
                     output.line(false);
                 }
-                if raw == "boundary" && previous.is_some_and(|previous| matches!(&previous.kind,TokenKind::Symbol(symbol) if symbol=="{")) { output.line(false); }
                 if space_between(previous, token) {
                     output.space();
                 }
@@ -330,6 +436,9 @@ fn space_between(previous: Option<&Token>, token: &Token) -> bool {
         return false;
     }
     if current == Some("(") {
+        if before == Some(":") {
+            return true;
+        }
         return matches!(&previous.kind,TokenKind::Word(word) if word == "when" || word == "match");
     }
     true

@@ -1,4 +1,4 @@
-import { declare, variable } from "std/semantics"
+import { declare, variable } from "std/variables"
 import { Name } from "./lexical"
 import { ExpressionDeclaration } from "./expression"
 import { FunctionBody } from "./function"

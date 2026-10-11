@@ -469,9 +469,9 @@
           "name": "Resolve",
           "calls": [
             {
-              "operation": "std/semantics#use",
+              "operation": "std/variables#use",
               "contract": {
-                "id": "std/semantics#use",
+                "id": "std/variables#use",
                 "parameters": [
                   {
                     "name": "name",
@@ -514,9 +514,9 @@
           "name": null,
           "calls": [
             {
-              "operation": "std/semantics#lexicalScope",
+              "operation": "std/variables#lexicalScope",
               "contract": {
-                "id": "std/semantics#lexicalScope",
+                "id": "std/variables#lexicalScope",
                 "parameters": [],
                 "provides_context": true
               },
@@ -544,9 +544,9 @@
           "name": "Register",
           "calls": [
             {
-              "operation": "std/semantics#declare",
+              "operation": "std/variables#declare",
               "contract": {
-                "id": "std/semantics#declare",
+                "id": "std/variables#declare",
                 "parameters": [
                   {
                     "name": "kind",
@@ -570,7 +570,7 @@
               },
               "arguments": {
                 "kind": {
-                  "Symbol": "std/semantics#function"
+                  "Symbol": "std/variables#function"
                 },
                 "name": {
                   "Capture": "name"
@@ -602,9 +602,9 @@
           "name": null,
           "calls": [
             {
-              "operation": "std/semantics#declare",
+              "operation": "std/variables#declare",
               "contract": {
-                "id": "std/semantics#declare",
+                "id": "std/variables#declare",
                 "parameters": [
                   {
                     "name": "kind",
@@ -628,7 +628,7 @@
               },
               "arguments": {
                 "kind": {
-                  "Symbol": "std/semantics#variable"
+                  "Symbol": "std/variables#variable"
                 },
                 "name": {
                   "Capture": "name"
@@ -660,9 +660,9 @@
           "name": null,
           "calls": [
             {
-              "operation": "std/semantics#lexicalScope",
+              "operation": "std/variables#lexicalScope",
               "contract": {
-                "id": "std/semantics#lexicalScope",
+                "id": "std/variables#lexicalScope",
                 "parameters": [],
                 "provides_context": true
               },
@@ -729,9 +729,9 @@
           "name": "Register",
           "calls": [
             {
-              "operation": "std/semantics#declare",
+              "operation": "std/variables#declare",
               "contract": {
-                "id": "std/semantics#declare",
+                "id": "std/variables#declare",
                 "parameters": [
                   {
                     "name": "kind",
@@ -755,7 +755,7 @@
               },
               "arguments": {
                 "kind": {
-                  "Symbol": "std/semantics#variable"
+                  "Symbol": "std/variables#variable"
                 },
                 "name": {
                   "Capture": "name"
