@@ -8,7 +8,7 @@ use your_language::{
 
 fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
     let usage = || {
-        vec![Diagnostic::error("yl.cli","Usage: yl check <entry.yl> | yl compile <entry.yl> -o <language.ylc> | yl language <language.ylc> ast <source> | yl language <language.ylc> check <source> [--json]",Span::default())]
+        vec![Diagnostic::error("yl.cli","Usage: yl fmt [--check] <files...> | yl check <entry.yl> | yl compile <entry.yl> -o <language.ylc> | yl language <language.ylc> ast <source> | yl language <language.ylc> check <source> [--json]",Span::default())]
     };
     let io = |path: &str, e: std::io::Error| {
         vec![Diagnostic::error(
@@ -18,6 +18,7 @@ fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
         )]
     };
     match args.first().map(String::as_str) {
+        Some("fmt") => format_files(&args[1..]),
         Some("check") if args.len() == 2 => {
             let language = compile_language(&args[1])?;
             print_definition_diagnostics(&language, &args[1]);
@@ -116,4 +117,129 @@ fn render_definition_diagnostics(diagnostics: &[Diagnostic], entry: &str) {
     print_diagnostics(diagnostics, |span| {
         fs::read_to_string(root.join(&span.file)).ok()
     });
+}
+
+fn format_files(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
+    use std::collections::BTreeSet;
+    let io = |path: &str, error: std::io::Error| {
+        vec![Diagnostic::error(
+            "yl.io",
+            error.to_string(),
+            Span::new(path, 0, 0),
+        )]
+    };
+    let mut check = false;
+    let mut options = true;
+    let mut files = vec![];
+    for arg in args {
+        if options && arg == "--" {
+            options = false;
+        } else if options && arg == "--check" {
+            check = true;
+        } else if options && arg.starts_with('-') {
+            return Err(vec![Diagnostic::error(
+                "yl.cli",
+                "Usage: yl fmt [--check] <files...>",
+                Span::default(),
+            )]);
+        } else {
+            files.push(arg);
+        }
+    }
+    if files.is_empty() {
+        return Err(vec![Diagnostic::error(
+            "yl.cli",
+            "Usage: yl fmt [--check] <files...>",
+            Span::default(),
+        )]);
+    }
+    let mut seen = BTreeSet::new();
+    let mut pending = vec![];
+    // Validate the whole batch before modifying any source files.
+    for label in files {
+        let path = fs::canonicalize(label).map_err(|error| io(label, error))?;
+        if !seen.insert(path.clone()) {
+            continue;
+        }
+        let source = fs::read_to_string(&path).map_err(|error| io(label, error))?;
+        let formatted = your_language::format_yl(label, &source)?;
+        if formatted != source {
+            if !check
+                && fs::metadata(&path)
+                    .map_err(|error| io(label, error))?
+                    .permissions()
+                    .readonly()
+            {
+                return Err(io(
+                    label,
+                    std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        "Cannot format a read-only file",
+                    ),
+                ));
+            }
+            pending.push((label, path, source, formatted));
+        }
+    }
+    let clean = pending.is_empty();
+    for (label, path, source, formatted) in pending {
+        if check {
+            println!("Would format {label}");
+        } else {
+            replace_formatted_file(&path, &source, &formatted).map_err(|error| io(label, error))?;
+            println!("Formatted {label}");
+        }
+    }
+    Ok(!check || clean)
+}
+
+fn replace_formatted_file(path: &Path, original: &str, formatted: &str) -> std::io::Result<()> {
+    use std::{
+        io::Write,
+        sync::atomic::{AtomicU64, Ordering},
+    };
+    static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+    let metadata = fs::metadata(path)?;
+    if metadata.permissions().readonly() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "Cannot format a read-only file",
+        ));
+    }
+    let parent = path.parent().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "Missing parent directory")
+    })?;
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let (temp, mut file) = loop {
+        let temp = parent.join(format!(
+            ".{name}.yl-fmt-{}-{}.tmp",
+            std::process::id(),
+            NEXT_TEMP.fetch_add(1, Ordering::Relaxed)
+        ));
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp)
+        {
+            Ok(file) => break (temp, file),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+    };
+    let result = (|| {
+        file.write_all(formatted.as_bytes())?;
+        file.sync_all()?;
+        drop(file);
+        fs::set_permissions(&temp, metadata.permissions())?;
+        if fs::read_to_string(path)? != original {
+            return Err(std::io::Error::other(
+                "File changed while formatting; run the formatter again",
+            ));
+        }
+        fs::rename(&temp, path)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(temp);
+    }
+    result
 }

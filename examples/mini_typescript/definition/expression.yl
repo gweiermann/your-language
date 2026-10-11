@@ -1,0 +1,76 @@
+import { use } from "std/variables"
+import { type, typeof, referenceType, callType, inheritType } from "std/types"
+import { separatedBy } from "std/parser"
+import { Name } from "./lexical"
+import { number, string, boolean, unknown } from "./types"
+
+node Reference = name: Name {
+    meanings {
+        use(name)
+        referenceType()
+    }
+}
+
+node Call =
+    callee: Reference
+    "("
+    arguments: Expression* |> separatedBy(",")
+    ")"
+{
+    meanings {
+        callType(callee, arguments)
+    }
+}
+
+node Number = value: /[0-9]+/ {
+    meanings {
+        type(number)
+    }
+}
+
+node String = value: /"[^"\n]*"/ {
+    meanings {
+        type(string)
+    }
+}
+
+node Boolean = value: /true|false/ {
+    meanings {
+        type(boolean)
+    }
+}
+
+node Addition =
+    left: Expression
+    "+"
+    right: Expression
+{
+    meanings {
+        match (typeof(left), typeof(right)) {
+            string, string | string, number | number, string => type(string),
+            number, number => type(number),
+            unknown, _ | _, unknown => type(unknown),
+            _ => error("${left} + ${right} is not possible")
+        }
+    }
+}
+
+export node Expression {
+
+    node Addition
+
+    node Call
+
+    node Boolean
+
+    node Number
+
+    node String
+
+    node Reference precedence {
+        Addition
+    }
+    meanings {
+        inheritType()
+    }
+}

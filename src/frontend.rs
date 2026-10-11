@@ -92,9 +92,17 @@ impl Parser {
         if self.is("export") || self.is("import") || self.is("entry") || self.is("extend") {
             return true;
         }
-        ["node", "trivia", "pattern", "pipe", "enum", "constraint"]
-            .iter()
-            .any(|s| self.is(s))
+        [
+            "node",
+            "trivia",
+            "pattern",
+            "pipe",
+            "enum",
+            "constraint",
+            "symbol",
+        ]
+        .iter()
+        .any(|s| self.is(s))
             && matches!(self.peek(1), TokenKind::Word(_))
     }
     fn declaration(&mut self) -> Result<Declaration> {
@@ -133,6 +141,8 @@ impl Parser {
                 ));
             };
             DeclKind::Import { names, path }
+        } else if self.take("symbol") {
+            DeclKind::Symbol { name: self.word()? }
         } else if self.take("entry") {
             let node = self.selector()?;
             let mut trivia = vec![];

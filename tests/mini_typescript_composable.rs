@@ -11,7 +11,7 @@ fn analyze(source: &str) -> AnalysisResult {
 }
 fn analyze_with(source: &str, edit: impl FnOnce(&mut String)) -> AnalysisResult {
     let mut sources = definition::sources();
-    edit(sources.get_mut(definition::ENTRY).unwrap());
+    edit(sources.get_mut("definition/expression.yl").unwrap());
     inference::engine()
         .compile_and_analyze(definition::ENTRY, &sources, "input.ts", source)
         .unwrap()
@@ -25,8 +25,8 @@ fn binding(result: &AnalysisResult, name: &str) -> String {
                 .find(|(k, _)| *k == SemanticKey::Symbol(key.into()))
                 .map(|(_, v)| v)
         };
-        if get("std/semantics#nameSymbol") == Some(&SemanticValue::Text(name.into())) {
-            if let Some(SemanticValue::Text(ty)) = get("prototype/types#inferredType") {
+        if get("std/variables#nameSymbol") == Some(&SemanticValue::Text(name.into())) {
+            if let Some(SemanticValue::Text(ty)) = get("std/types#inferredType") {
                 return ty.clone();
             }
         }
@@ -162,4 +162,50 @@ fn local_match_operations_survive_reload_and_isolated_concurrent_analysis() {
         assert!(string.diagnostics.is_empty());
         assert_eq!(binding(&string, "result"), "string");
     });
+}
+
+#[test]
+fn language_authored_type_symbols_can_be_renamed_and_reloaded() {
+    let mut sources = definition::sources();
+    for source in sources.values_mut() {
+        *source = source.replace("number", "decimal");
+    }
+    let engine = inference::engine();
+    let language = engine.compile(definition::ENTRY, &sources).unwrap();
+    let bytes = language.to_bytes().unwrap();
+    let language = engine.load(&bytes).unwrap();
+    let result = engine.analyze(&language, "input.ts", "let result: decimal = 1;");
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(binding(&result, "result"), "decimal");
+}
+
+#[test]
+fn authored_symbols_obey_export_visibility_and_duplicate_rules() {
+    let engine = inference::engine();
+    let mut sources = definition::sources();
+    *sources.get_mut("definition/types.yl").unwrap() =
+        sources["definition/types.yl"].replace("export symbol number", "symbol number");
+    assert!(engine.compile(definition::ENTRY, &sources).is_err());
+    let mut sources = definition::sources();
+    sources
+        .get_mut("definition/types.yl")
+        .unwrap()
+        .push_str("\nsymbol number\n");
+    assert_eq!(
+        engine.compile(definition::ENTRY, &sources).unwrap_err()[0].code,
+        "yl.duplicate_declaration"
+    );
+}
+#[test]
+fn missing_type_symbol_configuration_is_a_structured_diagnostic() {
+    let mut sources = definition::sources();
+    *sources.get_mut(definition::ENTRY).unwrap() =
+        sources[definition::ENTRY].replace("types(unknown, functionTypeSymbol)", "");
+    let result = inference::engine()
+        .compile_and_analyze(definition::ENTRY, &sources, "input.ts", "let result = 1;")
+        .unwrap();
+    assert!(result
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "types.configuration"));
 }

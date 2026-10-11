@@ -2,6 +2,21 @@
 
 The executable is `yl`. Definition commands read `.yl` modules; language tools read a compiled `.ylc` artifact and a target-source file.
 
+## Format YL definitions
+
+```sh
+yl fmt <files...>
+yl fmt --check <files...>
+```
+
+`fmt` formats the supplied UTF-8 YL definition files in place. It uses four-space indentation, spaces around operators, separate declaration paragraphs, and expanded blocks. A single grammar unit stays after `=` on the declaration line. Sequences place each unit on a separate indented line; alternatives start separate lines with `|`. Captures, grouped expressions, postfix operators and pipes stay together. A body following a multiline grammar starts with `{` on its own line. Comments and the raw spelling of strings and regexes are preserved. Nonempty output ends with a newline. There is no configurable line-width policy.
+
+`--check` makes no writes. It prints `Would format <file>` for each noncanonical file and exits nonzero when any file needs formatting. A clean check is silent. Write mode prints `Formatted <file>` only for files it changes. Use `--` before file names that begin with a dash; provide explicit paths or use your shell's glob expansion.
+
+The formatter validates YL syntax without loading imports or running semantic operations. Before returning output, it checks that token spellings and the parsed module are unchanged apart from source spans. Syntax errors produce structured diagnostics rendered through the normal CLI and leave the whole batch untouched. Changed files are replaced through a temporary file in the same directory, preserving file permissions; a file changed concurrently is rejected before replacement.
+
+The command formats YL definitions. Formatting programs written in a target language is a separate language-specific capability. Editor integrations can reuse the [pure Rust formatting interface](/api/rust#format-yl).
+
 ## Validate a definition
 
 ```sh
@@ -45,13 +60,15 @@ The default form writes human diagnostics to stderr. Source snippets show line n
 
 | Command | Successful stdout | Diagnostic stream | Error exit |
 | --- | --- | --- | --- |
+| `fmt <files...>` | Changed-file messages | Human stderr | Nonzero |
+| `fmt --check <files...>` | Files needing formatting | Human stderr | Nonzero |
 | `check <entry.yl>` | Validation message | Human stderr | Nonzero |
 | `compile <entry.yl> -o <file>` | Compilation message | Human stderr | Nonzero |
 | `language <file> ast <source>` | AST JSON | JSON stderr | Nonzero |
 | `language <file> check <source>` | Empty | Human stderr | Nonzero |
 | `language <file> check <source> --json` | Diagnostic array | Included on stdout | Nonzero |
 
-Warnings and help messages alone do not cause failure. Invalid command arguments produce a usage diagnostic. The CLI accepts one source file per invocation and has no target-language execution command.
+Warnings and help messages alone do not cause failure. Invalid command arguments produce a usage diagnostic. Language tools accept one target-source file per invocation; the formatter accepts multiple YL definition files.
 
 ## Repository examples
 

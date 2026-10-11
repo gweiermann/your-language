@@ -57,6 +57,9 @@ pub struct Declaration {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum DeclKind {
+    Symbol {
+        name: String,
+    },
     Import {
         names: Vec<(String, String)>,
         path: String,

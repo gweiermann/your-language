@@ -201,7 +201,7 @@ fn descendant_ordering_diagnoses_scope_provider_cycles() {
             "language.yl",
             &sources(
                 r#"
-        import { lexicalScope, declareVariable } from "std/semantics"
+        import { lexicalScope, declareVariable } from "std/variables"
         node LetDeclaration = "let" name: /[a-z]+/ ";" {
             meanings { declareVariable(name) }
         }
@@ -235,7 +235,7 @@ fn enclosing_pattern_scope_is_independent_of_deferred_body_operations() {
             "language.yl",
             &sources(
                 r#"
-        import { lexicalScope, declareVariable, use } from "std/semantics"
+        import { lexicalScope, declareVariable, use } from "std/variables"
         node LetDeclaration = "let" name: /[a-z]+/ ";" {
             meanings { declareVariable(name) }
         }
@@ -260,13 +260,13 @@ fn enclosing_pattern_scope_is_independent_of_deferred_body_operations() {
         .graph
         .attachments
         .iter()
-        .find(|a| a.key == "std/semantics#declaration")
+        .find(|a| a.key == "std/variables#declaration")
         .unwrap();
     let reference = result
         .graph
         .attachments
         .iter()
-        .find(|a| a.key == "std/semantics#reference")
+        .find(|a| a.key == "std/variables#reference")
         .unwrap();
     assert_eq!(declaration.value, reference.value);
     assert_ne!(declaration.occurrence, reference.occurrence);
@@ -441,7 +441,7 @@ fn generic_references() -> (SemanticEngine, your_language::CompiledLanguage) {
         .unwrap();
     let engine = SemanticEngine::new(registry);
     let grammar = r#"
-        import { lexicalScope, declareVariable, use } from "std/semantics"
+        import { lexicalScope, declareVariable, use } from "std/variables"
         import { action } from "test/native"
         node Name = /[a-z]+/
         node Reference = name: Name { meanings { use(name) } }
@@ -472,13 +472,13 @@ fn generic_reference_can_bind_to_the_enclosing_function_variable() {
         .graph
         .attachments
         .iter()
-        .find(|a| a.key == "std/semantics#declaration")
+        .find(|a| a.key == "std/variables#declaration")
         .unwrap();
     let reference = result
         .graph
         .attachments
         .iter()
-        .find(|a| a.key == "std/semantics#reference")
+        .find(|a| a.key == "std/variables#reference")
         .unwrap();
     assert_eq!(declaration.value, reference.value);
 }
@@ -511,7 +511,7 @@ fn ordinary_initializer_reference_does_not_bind_to_its_own_declaration() {
         .graph
         .attachments
         .iter()
-        .any(|a| a.key == "std/semantics#reference"));
+        .any(|a| a.key == "std/variables#reference"));
 }
 
 #[test]
@@ -575,7 +575,7 @@ fn deferred_generic_reference_sees_later_outer_bindings_and_local_shadowing() {
             .graph
             .attachments
             .iter()
-            .find(|a| a.key == "std/semantics#reference")
+            .find(|a| a.key == "std/variables#reference")
             .unwrap();
         let your_language::semantics::SemanticValue::Record(binding) = reference.value else {
             panic!("Expected reference to binding")
@@ -588,7 +588,7 @@ fn deferred_generic_reference_sees_later_outer_bindings_and_local_shadowing() {
                 (
                     your_language::semantics::SemanticKey::Symbol(key),
                     your_language::semantics::SemanticValue::Source(origin),
-                ) if key == "std/semantics#originSymbol" => Some(origin),
+                ) if key == "std/variables#originSymbol" => Some(origin),
                 _ => None,
             })
             .unwrap();
@@ -616,7 +616,7 @@ fn explicit_earlier_local_declaration_preserves_ordinary_initializer_order() {
             .graph
             .attachments
             .iter()
-            .filter(|a| a.key == "std/semantics#reference")
+            .filter(|a| a.key == "std/variables#reference")
             .count(),
         1
     );
@@ -681,7 +681,7 @@ fn equally_named_categories_from_distinct_libraries_keep_distinct_identity() {
             "language.yl",
             &sources(
                 r#"
-        import { lexicalScope, declare } from "std/semantics"
+        import { lexicalScope, declare } from "std/variables"
         import { category as First } from "native/first"
         import { category as Second } from "native/second"
         node A = name: "a" { meanings { declare(First, name) } }
@@ -703,7 +703,7 @@ fn equally_named_categories_from_distinct_libraries_keep_distinct_identity() {
             (
                 your_language::semantics::SemanticKey::Symbol(key),
                 your_language::semantics::SemanticValue::Symbol(category),
-            ) if key == "std/semantics#kindSymbol" => Some(category.clone()),
+            ) if key == "std/variables#kindSymbol" => Some(category.clone()),
             _ => None,
         })
         .collect();
@@ -858,7 +858,7 @@ fn lexical_name_arguments_observe_preserved_pipe_values() {
         let engine = SemanticEngine::default();
         let grammar = format!(
             r#"
-            import {{ lexicalScope, declareVariable, use }} from "std/semantics"
+            import {{ lexicalScope, declareVariable, use }} from "std/variables"
             pipe wrapped() {{ rewrite value => "(" value ")" }}
             {construct} Name = value: /[a-z]+/
             node Declaration = "let" name: Name |> wrapped() ";" {{ meanings {{ declareVariable(name) }} }}
@@ -878,13 +878,13 @@ fn lexical_name_arguments_observe_preserved_pipe_values() {
             .graph
             .attachments
             .iter()
-            .find(|a| a.key == "std/semantics#declaration")
+            .find(|a| a.key == "std/variables#declaration")
             .unwrap();
         let reference = result
             .graph
             .attachments
             .iter()
-            .find(|a| a.key == "std/semantics#reference")
+            .find(|a| a.key == "std/variables#reference")
             .unwrap();
         assert_eq!(declaration.value, reference.value);
         let your_language::semantics::SemanticValue::Record(binding) = declaration.value else {
@@ -897,7 +897,7 @@ fn lexical_name_arguments_observe_preserved_pipe_values() {
                 (
                     your_language::semantics::SemanticKey::Symbol(key),
                     your_language::semantics::SemanticValue::Source(origin),
-                ) if key == "std/semantics#originSymbol" => Some(origin),
+                ) if key == "std/variables#originSymbol" => Some(origin),
                 _ => None,
             })
             .unwrap();
@@ -916,13 +916,13 @@ fn sequential_ordinary_initializers_can_use_earlier_declarations() {
         .graph
         .attachments
         .iter()
-        .find(|a| a.key == "std/semantics#declaration")
+        .find(|a| a.key == "std/variables#declaration")
         .unwrap();
     let reference = result
         .graph
         .attachments
         .iter()
-        .find(|a| a.key == "std/semantics#reference")
+        .find(|a| a.key == "std/variables#reference")
         .unwrap();
     assert_eq!(declaration.value, reference.value);
 }
@@ -938,7 +938,7 @@ fn closure_local_initializer_can_use_a_later_outer_declaration() {
             .graph
             .attachments
             .iter()
-            .filter(|a| a.key == "std/semantics#reference")
+            .filter(|a| a.key == "std/variables#reference")
             .count(),
         2
     );
@@ -1303,7 +1303,7 @@ fn repeated_boundary_marker_is_a_structured_definition_error() {
 fn nested_function_regions_resolve_mutual_names_and_later_local_bindings() {
     let engine = SemanticEngine::default();
     let grammar = r#"
-        import { lexicalScope, declareVariable, declareFunction, use } from "std/semantics"
+        import { lexicalScope, declareVariable, declareFunction, use } from "std/variables"
         node Name = /[a-z]+/
         trivia Spaces = /\s+/
         node Reference = name: Name { meanings { use(name) } }
@@ -1332,7 +1332,7 @@ fn nested_function_regions_resolve_mutual_names_and_later_local_bindings() {
             .graph
             .attachments
             .iter()
-            .filter(|a| a.key == "std/semantics#reference")
+            .filter(|a| a.key == "std/variables#reference")
             .count(),
         6
     );

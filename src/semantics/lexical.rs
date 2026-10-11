@@ -2,8 +2,8 @@
 //! Policy: one namespace, same-scope duplicates are errors, inner scopes shadow.
 use super::*;
 
-const MODULE: &str = "std/semantics";
-const CURRENT: &str = "std/semantics/currentLexicalScope";
+const MODULE: &str = "std/variables";
+const CURRENT: &str = "std/variables/currentLexicalScope";
 fn symbol(name: &str) -> String {
     format!("{MODULE}#{name}")
 }

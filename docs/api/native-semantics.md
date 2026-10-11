@@ -23,7 +23,7 @@ Compilation and analysis require no artifact file. `engine.compile(...)` can als
 Nodes and patterns accept a grammar-following body:
 
 ```yl
-import { declareVariable, useVariable, lexicalScope } from "std/semantics"
+import { declareVariable, useVariable, lexicalScope } from "std/variables"
 
 node Declaration = "let" name: Name ";" {
     meanings {
@@ -40,7 +40,7 @@ pattern FunctionContents = "{" (Declaration | Reference)* "}" {
 }
 ```
 
-An operation argument can be a local capture, string, boolean, or imported identity symbol, according to the registered interface. Positional and named arguments use existing YL argument syntax. Captures preserve their values, matched text, and UTF-8 source spans. A library does not need to depend on a target language's `Name` node type.
+An operation argument can be a local capture, string, boolean, or identity symbol, according to the registered interface. A language may declare `symbol name` and expose it with `export symbol name`; imports and aliases preserve its module-qualified identity. Native modules can also export symbols. A symbol is an identity value, not a grammar pattern or a target-language type chosen by the core. Positional and named arguments use existing YL argument syntax. Captures preserve their values, matched text, and UTF-8 source spans. A library does not need to depend on a target language's `Name` node type.
 
 Patterns retain semantic occurrences without adding AST wrappers. Operations run only for committed original matches. Failed alternatives, lookaround/trivia probes, and pipe wrappers do not introduce additional semantic actions. Projection preserves the original input's occurrences instead of creating actions from projected copies.
 
@@ -133,7 +133,7 @@ Parsing must produce an AST with no error-severity syntax diagnostics before nat
 
 ## Lexical library policy
 
-The bundled `std/semantics` adapter exports `lexicalScope`, generic `declare`, `declareVariable`, `declareFunction`, `use`, and `useVariable`. `declare` accepts an imported category symbol, a name capture, and `reassignable` (default `true`). The `variable` and `function` category symbols classify declarations; they do not create separate namespaces or target-language types.
+The bundled `std/variables` adapter exports `lexicalScope`, generic `declare`, `declareVariable`, `declareFunction`, `use`, and `useVariable`. `declare` accepts an imported category symbol, a name capture, and `reassignable` (default `true`). The `variable` and `function` category symbols classify declarations; they do not create separate namespaces or target-language types.
 
 Its explicit policy is one namespace per scope, errors for duplicate names in the same scope, and nearest-scope shadowing. `useVariable` is a convenience alias for general name lookup and can resolve function-category bindings too. The `reassignable` attribute records binding metadata; assignment checking and object mutation are outside this slice.
 
@@ -176,7 +176,7 @@ Exact policies and limitations live in `examples/mini_typescript/README.md`.
 These syntax extensions are experimental: nested semantic value calls, tuple-match
 alternatives, a required final wildcard, void `{}` branches and interpolated
 `error(...)`/`warning(...)` actions. Pending value inputs delay branch selection;
-settled unknown is an ordinary imported identity symbol. Branch effects run once.
+settled unknown is an ordinary language-authored identity symbol. The example configures it explicitly through `types(unknown, functionTypeSymbol)`. Branch effects run once.
 A void branch does not publish a type; `type(unknown)` does so explicitly.
 
 `SourceCapture::occurrences` exposes original retained capture roots, including

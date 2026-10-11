@@ -5,7 +5,7 @@
       "entries": [
         [
           {
-            "Symbol": "std/semantics#parentSymbol"
+            "Symbol": "std/variables#parentSymbol"
           },
           "Absent"
         ],
@@ -72,7 +72,7 @@
       "entries": [
         [
           {
-            "Symbol": "std/semantics#parentSymbol"
+            "Symbol": "std/variables#parentSymbol"
           },
           {
             "Record": 0
@@ -85,15 +85,15 @@
       "entries": [
         [
           {
-            "Symbol": "std/semantics#kindSymbol"
+            "Symbol": "std/variables#kindSymbol"
           },
           {
-            "Symbol": "std/semantics#function"
+            "Symbol": "std/variables#function"
           }
         ],
         [
           {
-            "Symbol": "std/semantics#nameSymbol"
+            "Symbol": "std/variables#nameSymbol"
           },
           {
             "Text": "read"
@@ -101,7 +101,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#originSymbol"
+            "Symbol": "std/variables#originSymbol"
           },
           {
             "Source": {
@@ -130,7 +130,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#reassignableSymbol"
+            "Symbol": "std/variables#reassignableSymbol"
           },
           {
             "Bool": false
@@ -143,7 +143,7 @@
       "entries": [
         [
           {
-            "Symbol": "std/semantics#parentSymbol"
+            "Symbol": "std/variables#parentSymbol"
           },
           {
             "Record": 0
@@ -164,15 +164,15 @@
       "entries": [
         [
           {
-            "Symbol": "std/semantics#kindSymbol"
+            "Symbol": "std/variables#kindSymbol"
           },
           {
-            "Symbol": "std/semantics#variable"
+            "Symbol": "std/variables#variable"
           }
         ],
         [
           {
-            "Symbol": "std/semantics#nameSymbol"
+            "Symbol": "std/variables#nameSymbol"
           },
           {
             "Text": "later"
@@ -180,7 +180,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#originSymbol"
+            "Symbol": "std/variables#originSymbol"
           },
           {
             "Source": {
@@ -209,7 +209,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#reassignableSymbol"
+            "Symbol": "std/variables#reassignableSymbol"
           },
           {
             "Bool": true
@@ -222,15 +222,15 @@
       "entries": [
         [
           {
-            "Symbol": "std/semantics#kindSymbol"
+            "Symbol": "std/variables#kindSymbol"
           },
           {
-            "Symbol": "std/semantics#function"
+            "Symbol": "std/variables#function"
           }
         ],
         [
           {
-            "Symbol": "std/semantics#nameSymbol"
+            "Symbol": "std/variables#nameSymbol"
           },
           {
             "Text": "identity"
@@ -238,7 +238,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#originSymbol"
+            "Symbol": "std/variables#originSymbol"
           },
           {
             "Source": {
@@ -267,7 +267,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#reassignableSymbol"
+            "Symbol": "std/variables#reassignableSymbol"
           },
           {
             "Bool": false
@@ -280,15 +280,15 @@
       "entries": [
         [
           {
-            "Symbol": "std/semantics#kindSymbol"
+            "Symbol": "std/variables#kindSymbol"
           },
           {
-            "Symbol": "std/semantics#variable"
+            "Symbol": "std/variables#variable"
           }
         ],
         [
           {
-            "Symbol": "std/semantics#nameSymbol"
+            "Symbol": "std/variables#nameSymbol"
           },
           {
             "Text": "caller"
@@ -296,7 +296,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#originSymbol"
+            "Symbol": "std/variables#originSymbol"
           },
           {
             "Source": {
@@ -325,7 +325,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#reassignableSymbol"
+            "Symbol": "std/variables#reassignableSymbol"
           },
           {
             "Bool": true
@@ -338,7 +338,7 @@
       "entries": [
         [
           {
-            "Symbol": "std/semantics#parentSymbol"
+            "Symbol": "std/variables#parentSymbol"
           },
           {
             "Record": 0
@@ -351,15 +351,15 @@
       "entries": [
         [
           {
-            "Symbol": "std/semantics#kindSymbol"
+            "Symbol": "std/variables#kindSymbol"
           },
           {
-            "Symbol": "std/semantics#variable"
+            "Symbol": "std/variables#variable"
           }
         ],
         [
           {
-            "Symbol": "std/semantics#nameSymbol"
+            "Symbol": "std/variables#nameSymbol"
           },
           {
             "Text": "f"
@@ -367,7 +367,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#originSymbol"
+            "Symbol": "std/variables#originSymbol"
           },
           {
             "Source": {
@@ -396,7 +396,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#reassignableSymbol"
+            "Symbol": "std/variables#reassignableSymbol"
           },
           {
             "Bool": true
@@ -409,7 +409,7 @@
       "entries": [
         [
           {
-            "Symbol": "std/semantics#parentSymbol"
+            "Symbol": "std/variables#parentSymbol"
           },
           {
             "Record": 0
@@ -430,15 +430,15 @@
       "entries": [
         [
           {
-            "Symbol": "std/semantics#kindSymbol"
+            "Symbol": "std/variables#kindSymbol"
           },
           {
-            "Symbol": "std/semantics#variable"
+            "Symbol": "std/variables#variable"
           }
         ],
         [
           {
-            "Symbol": "std/semantics#nameSymbol"
+            "Symbol": "std/variables#nameSymbol"
           },
           {
             "Text": "local"
@@ -446,7 +446,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#originSymbol"
+            "Symbol": "std/variables#originSymbol"
           },
           {
             "Source": {
@@ -475,7 +475,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#reassignableSymbol"
+            "Symbol": "std/variables#reassignableSymbol"
           },
           {
             "Bool": true
@@ -488,7 +488,7 @@
       "entries": [
         [
           {
-            "Symbol": "std/semantics#parentSymbol"
+            "Symbol": "std/variables#parentSymbol"
           },
           {
             "Record": 0
@@ -509,15 +509,15 @@
       "entries": [
         [
           {
-            "Symbol": "std/semantics#kindSymbol"
+            "Symbol": "std/variables#kindSymbol"
           },
           {
-            "Symbol": "std/semantics#variable"
+            "Symbol": "std/variables#variable"
           }
         ],
         [
           {
-            "Symbol": "std/semantics#nameSymbol"
+            "Symbol": "std/variables#nameSymbol"
           },
           {
             "Text": "capture"
@@ -525,7 +525,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#originSymbol"
+            "Symbol": "std/variables#originSymbol"
           },
           {
             "Source": {
@@ -554,7 +554,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#reassignableSymbol"
+            "Symbol": "std/variables#reassignableSymbol"
           },
           {
             "Bool": true
@@ -567,15 +567,15 @@
       "entries": [
         [
           {
-            "Symbol": "std/semantics#kindSymbol"
+            "Symbol": "std/variables#kindSymbol"
           },
           {
-            "Symbol": "std/semantics#variable"
+            "Symbol": "std/variables#variable"
           }
         ],
         [
           {
-            "Symbol": "std/semantics#nameSymbol"
+            "Symbol": "std/variables#nameSymbol"
           },
           {
             "Text": "later"
@@ -583,7 +583,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#originSymbol"
+            "Symbol": "std/variables#originSymbol"
           },
           {
             "Source": {
@@ -612,7 +612,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#reassignableSymbol"
+            "Symbol": "std/variables#reassignableSymbol"
           },
           {
             "Bool": true
@@ -625,15 +625,15 @@
       "entries": [
         [
           {
-            "Symbol": "std/semantics#kindSymbol"
+            "Symbol": "std/variables#kindSymbol"
           },
           {
-            "Symbol": "std/semantics#variable"
+            "Symbol": "std/variables#variable"
           }
         ],
         [
           {
-            "Symbol": "std/semantics#nameSymbol"
+            "Symbol": "std/variables#nameSymbol"
           },
           {
             "Text": "later"
@@ -641,7 +641,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#originSymbol"
+            "Symbol": "std/variables#originSymbol"
           },
           {
             "Source": {
@@ -670,7 +670,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#reassignableSymbol"
+            "Symbol": "std/variables#reassignableSymbol"
           },
           {
             "Bool": true
@@ -683,15 +683,15 @@
       "entries": [
         [
           {
-            "Symbol": "std/semantics#kindSymbol"
+            "Symbol": "std/variables#kindSymbol"
           },
           {
-            "Symbol": "std/semantics#variable"
+            "Symbol": "std/variables#variable"
           }
         ],
         [
           {
-            "Symbol": "std/semantics#nameSymbol"
+            "Symbol": "std/variables#nameSymbol"
           },
           {
             "Text": "inner"
@@ -699,7 +699,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#originSymbol"
+            "Symbol": "std/variables#originSymbol"
           },
           {
             "Source": {
@@ -728,7 +728,7 @@
         ],
         [
           {
-            "Symbol": "std/semantics#reassignableSymbol"
+            "Symbol": "std/variables#reassignableSymbol"
           },
           {
             "Bool": true
@@ -740,161 +740,161 @@
   "attachments": [
     {
       "occurrence": 0,
-      "key": "std/semantics#scope",
+      "key": "std/variables#scope",
       "value": {
         "Record": 0
       }
     },
     {
       "occurrence": 9,
-      "key": "std/semantics#scope",
+      "key": "std/variables#scope",
       "value": {
         "Record": 1
       }
     },
     {
       "occurrence": 7,
-      "key": "std/semantics#declaration",
+      "key": "std/variables#declaration",
       "value": {
         "Record": 2
       }
     },
     {
       "occurrence": 16,
-      "key": "std/semantics#scope",
+      "key": "std/variables#scope",
       "value": {
         "Record": 3
       }
     },
     {
       "occurrence": 17,
-      "key": "std/semantics#declaration",
+      "key": "std/variables#declaration",
       "value": {
         "Record": 4
       }
     },
     {
       "occurrence": 14,
-      "key": "std/semantics#declaration",
+      "key": "std/variables#declaration",
       "value": {
         "Record": 5
       }
     },
     {
       "occurrence": 5,
-      "key": "std/semantics#reference",
+      "key": "std/variables#reference",
       "value": {
         "Record": 2
       }
     },
     {
       "occurrence": 1,
-      "key": "std/semantics#declaration",
+      "key": "std/variables#declaration",
       "value": {
         "Record": 6
       }
     },
     {
       "occurrence": 28,
-      "key": "std/semantics#scope",
+      "key": "std/variables#scope",
       "value": {
         "Record": 7
       }
     },
     {
       "occurrence": 23,
-      "key": "std/semantics#declaration",
+      "key": "std/variables#declaration",
       "value": {
         "Record": 8
       }
     },
     {
       "occurrence": 38,
-      "key": "std/semantics#scope",
+      "key": "std/variables#scope",
       "value": {
         "Record": 9
       }
     },
     {
       "occurrence": 33,
-      "key": "std/semantics#declaration",
+      "key": "std/variables#declaration",
       "value": {
         "Record": 10
       }
     },
     {
       "occurrence": 53,
-      "key": "std/semantics#scope",
+      "key": "std/variables#scope",
       "value": {
         "Record": 11
       }
     },
     {
       "occurrence": 48,
-      "key": "std/semantics#declaration",
+      "key": "std/variables#declaration",
       "value": {
         "Record": 12
       }
     },
     {
       "occurrence": 64,
-      "key": "std/semantics#declaration",
+      "key": "std/variables#declaration",
       "value": {
         "Record": 13
       }
     },
     {
       "occurrence": 12,
-      "key": "std/semantics#reference",
+      "key": "std/variables#reference",
       "value": {
         "Record": 13
       }
     },
     {
       "occurrence": 21,
-      "key": "std/semantics#reference",
+      "key": "std/variables#reference",
       "value": {
         "Record": 4
       }
     },
     {
       "occurrence": 31,
-      "key": "std/semantics#reference",
+      "key": "std/variables#reference",
       "value": {
         "Record": 8
       }
     },
     {
       "occurrence": 40,
-      "key": "std/semantics#declaration",
+      "key": "std/variables#declaration",
       "value": {
         "Record": 14
       }
     },
     {
       "occurrence": 46,
-      "key": "std/semantics#reference",
+      "key": "std/variables#reference",
       "value": {
         "Record": 14
       }
     },
     {
       "occurrence": 59,
-      "key": "std/semantics#reference",
+      "key": "std/variables#reference",
       "value": {
         "Record": 13
       }
     },
     {
       "occurrence": 55,
-      "key": "std/semantics#declaration",
+      "key": "std/variables#declaration",
       "value": {
         "Record": 15
       }
     },
     {
       "occurrence": 62,
-      "key": "std/semantics#reference",
+      "key": "std/variables#reference",
       "value": {
         "Record": 15
       }
