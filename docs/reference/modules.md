@@ -85,7 +85,7 @@ node Name = text: /[a-z]+/
 entry Pair
 ```
 
-This also enables ordinary recursive node grammars. Recursive operators should declare their [precedence](./precedence) explicitly.
+This also enables ordinary recursive node grammars. A single recursive operator has an implicit left-associative binding level; multiple operators require explicit [precedence](./precedence).
 
 An import cycle does not by itself determine grammar validity. The compiler collects modules before resolving declarations, and validates references and grammar recursion after collection.
 
