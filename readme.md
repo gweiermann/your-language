@@ -83,6 +83,8 @@ yl language minijs.ylc check examples/mini-js/invalid.js --json
 
 ## Documentation
 
+The [VS Code extension](./editors/vscode/) provides YL syntax highlighting and formats definitions through the CLI. See the [editor setup guide](https://gweiermann.github.io/your-language/guide/editor) for installation and configuration.
+
 Visit the [Your Language documentation](https://gweiermann.github.io/your-language/) for tutorials, the language reference, and CLI and Rust API guides.
 
 - [Build your first language](https://gweiermann.github.io/your-language/tutorials/first-language)

@@ -32,6 +32,7 @@ export default defineConfig({
       { text: 'Guide', items: [
         { text: 'Introduction', link: '/guide/introduction' },
         { text: 'Installation', link: '/guide/installation' },
+        { text: 'VS Code extension', link: '/guide/editor' },
       ] },
       { text: 'Tutorials', items: [
         { text: 'Build a first language', link: '/tutorials/first-language' },
