@@ -382,11 +382,20 @@ impl Parser {
     fn meanings(&mut self) -> Result<Meanings> {
         let start = self.token().span.clone();
         self.expect("{")?;
+        let mut boundary = false;
         let mut groups = vec![];
         let mut precedence = vec![];
         while !self.is("}") {
             let start = self.token().span.clone();
-            if self.take("group") {
+            if self.take("boundary") {
+                if boundary {
+                    return Err(self.error(
+                        "yl.duplicate_boundary",
+                        "Boundary is already declared for this node or pattern",
+                    ));
+                }
+                boundary = true;
+            } else if self.take("group") {
                 let name = self.word()?;
                 self.expect("{")?;
                 let mut calls = vec![];
@@ -427,6 +436,7 @@ impl Parser {
         self.expect("}")?;
         let span = self.span_from(&start);
         Ok(Meanings {
+            boundary,
             groups,
             precedence,
             span,

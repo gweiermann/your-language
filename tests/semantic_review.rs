@@ -417,12 +417,6 @@ fn aliases_preserve_canonical_meaning_identity_and_abstract_boundaries() {
 }
 
 fn generic_references() -> (SemanticEngine, your_language::CompiledLanguage) {
-    generic_references_with_top_level_role(false)
-}
-
-fn generic_references_with_top_level_role(
-    top_level_role: bool,
-) -> (SemanticEngine, your_language::CompiledLanguage) {
     let events = Events::default();
     let mut registry = your_language::semantics::lexical::registry();
     let captured = events.clone();
@@ -451,7 +445,7 @@ fn generic_references_with_top_level_role(
         import { action } from "test/native"
         node Name = /[a-z]+/
         node Reference = name: Name { meanings { use(name) } }
-        node FunctionBody = "{" locals: LetDeclaration* "return" value: Reference ";}" { meanings { action() } }
+        node FunctionBody = "{" locals: LetDeclaration* "return" value: Reference ";}" { meanings { boundary action() } }
         pattern FunctionContents = FunctionBody { meanings { lexicalScope() } }
         node FunctionExpression = "function()" body: FunctionContents
         node Expression { node FunctionExpression node Reference node Number = /[0-9]+/ }
@@ -463,13 +457,7 @@ fn generic_references_with_top_level_role(
         }
         entry Program
     "#;
-    let grammar = if top_level_role {
-        grammar.replace("node Program = declarations: LetDeclaration*", "pattern TopLevelDeclaration = LetDeclaration\nnode Program = declarations: TopLevelDeclaration*")
-            .replace("precedence { LetDeclaration > FunctionBody }", "precedence { TopLevelDeclaration > FunctionBody }")
-    } else {
-        grammar.into()
-    };
-    let language = engine.compile("language.yl", &sources(&grammar)).unwrap();
+    let language = engine.compile("language.yl", &sources(grammar)).unwrap();
     (engine, language)
 }
 
@@ -941,7 +929,7 @@ fn sequential_ordinary_initializers_can_use_earlier_declarations() {
 
 #[test]
 fn closure_local_initializer_can_use_a_later_outer_declaration() {
-    let (engine, language) = generic_references_with_top_level_role(true);
+    let (engine, language) = generic_references();
     let source = "letf=function(){letinner=later;returninner;};letlater=1;";
     let result = engine.analyze(&language, "source", source);
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
@@ -957,17 +945,13 @@ fn closure_local_initializer_can_use_a_later_outer_declaration() {
 }
 
 #[test]
-fn broad_descendant_precedence_explicitly_exempts_the_local_initializer() {
+fn explicit_body_boundary_leaves_local_initializers_inside_the_body() {
     let (engine, language) = generic_references();
     let source = "letf=function(){letinner=later;returninner;};letlater=1;";
     let result = engine.analyze(&language, "source", source);
-    // Broad LetDeclaration > FunctionBody selects the inner let too, explicitly
-    // pulling its initializer before deferred body traversal. A top-level role
-    // pattern above expresses the policy that leaves body-local lets deferred.
-    assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
-    assert_eq!(result.diagnostics[0].code, "semantic.unresolved_reference");
-    assert_eq!(result.diagnostics[0].primary.start, 25);
-    assert_eq!(result.diagnostics[0].primary.end, 30);
+    // Program can select the body itself, while its explicit boundary excludes
+    // body-local declarations from the outer declaration phase.
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
 }
 
 #[test]
@@ -1020,4 +1004,340 @@ fn absent_pipe_input_keeps_an_empty_original_source_span() {
     assert_eq!(value.text, "");
     assert_eq!(value.span.start, 1);
     assert_eq!(value.span.end, 1);
+}
+
+#[test]
+fn region_selection_reaches_matches_at_every_wrapper_depth() {
+    let events = Events::default();
+    let engine = recording_engine(&events, None);
+    let grammar = r#"
+        import { action } from "test/native"
+        node A = "a" { meanings { action() } }
+        node Wrapped = A
+        node B = "b" { meanings { action() } }
+        node Root = Wrapped first: A B last: A { meanings { precedence { B > A } } }
+        entry Root
+    "#;
+    let language = engine.compile("language.yl", &sources(grammar)).unwrap();
+    let result = engine.analyze(&language, "source", "aaba");
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    // All A matches in the current region wait for B, including the wrapped A.
+    assert_eq!(
+        visit_order(&result),
+        [
+            "language.yl#B",
+            "language.yl#A",
+            "language.yl#A",
+            "language.yl#A"
+        ]
+    );
+}
+
+#[test]
+fn explicit_pattern_groups_differently_wrapped_declarations_as_peers() {
+    let events = Events::default();
+    let engine = recording_engine(&events, None);
+    let grammar = r#"
+        import { action } from "test/native"
+        node A = "a" { meanings { action() } }
+        node Wrapped = "(" A ")"
+        pattern Declaration = A | Wrapped
+        node B = "b" { meanings { action() } }
+        node Root = Declaration Declaration B { meanings { precedence { B > Declaration } } }
+        entry Root
+    "#;
+    let language = engine.compile("language.yl", &sources(grammar)).unwrap();
+    let result = engine.analyze(&language, "source", "(a)ab");
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(
+        visit_order(&result),
+        ["language.yl#B", "language.yl#A", "language.yl#A"]
+    );
+    assert_eq!(
+        result.occurrences[0].children[0].definition,
+        "language.yl#Declaration"
+    );
+    assert_eq!(
+        result.occurrences[0].children[1].definition,
+        "language.yl#Declaration"
+    );
+}
+
+#[test]
+fn owning_node_is_selectable_without_hiding_its_initializer_selector() {
+    let events = Events::default();
+    let engine = recording_engine(&events, None);
+    let grammar = r#"
+        import { action } from "test/native"
+        node Initializer = "i" { meanings { action() } }
+        node Declaration = Initializer {
+            meanings { action() precedence { Initializer > Declaration } }
+        }
+        node Root = Declaration
+        entry Root
+    "#;
+    let language = engine.compile("language.yl", &sources(grammar)).unwrap();
+    let result = engine.analyze(&language, "source", "i");
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(
+        visit_order(&result),
+        ["language.yl#Initializer", "language.yl#Declaration"]
+    );
+}
+
+#[test]
+fn plain_pattern_wrappers_do_not_create_false_region_boundaries() {
+    let events = Events::default();
+    let engine = recording_engine(&events, None);
+    let grammar = r#"
+        import { action } from "test/native"
+        node A = "a" { meanings { action() } }
+        pattern Wrapped = A
+        node B = "b" { meanings { action() } }
+        node Root = Wrapped first: A B last: A { meanings { precedence { B > A } } }
+        entry Root
+    "#;
+    let language = engine.compile("language.yl", &sources(grammar)).unwrap();
+    let result = engine.analyze(&language, "source", "aaba");
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    // All A matches in the current region wait for B, including the wrapped A.
+    assert_eq!(
+        visit_order(&result),
+        [
+            "language.yl#B",
+            "language.yl#A",
+            "language.yl#A",
+            "language.yl#A"
+        ]
+    );
+}
+
+#[test]
+fn nested_named_functions_are_not_outer_function_declaration_peers() {
+    let events = Events::default();
+    let engine = recording_engine(&events, None);
+    let grammar = r#"
+        import { action } from "test/native"
+        node FunctionDeclaration = "f" "{" body: FunctionBody "}" { meanings { action() } }
+        node FunctionBody = FunctionDeclaration* "r" { meanings { boundary action() precedence { FunctionDeclaration > FunctionBody } } }
+        node Later = "l" { meanings { action() } }
+        node Root = FunctionDeclaration Later {
+            meanings { precedence { FunctionDeclaration > Later > FunctionBody } }
+        }
+        entry Root
+    "#;
+    let language = engine.compile("language.yl", &sources(grammar)).unwrap();
+    let result = engine.analyze(&language, "source", "f{f{r}r}l");
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(
+        visit_order(&result),
+        [
+            "language.yl#FunctionDeclaration",
+            "language.yl#Later",
+            "language.yl#FunctionDeclaration",
+            "language.yl#FunctionBody",
+            "language.yl#FunctionBody"
+        ]
+    );
+}
+
+#[test]
+fn qualified_named_groups_search_the_region_and_order_only_the_selected_group() {
+    let events = Events::default();
+    let engine = recording_engine(&events, None);
+    let grammar = r#"
+        import { action } from "test/native"
+        node A = "a" { meanings { group Early { action() } group Late { action() } } }
+        node Wrapped = A
+        node B = "b" { meanings { action() } }
+        node Root = Wrapped A B { meanings { precedence { B > A::meanings::Late } } }
+        entry Root
+    "#;
+    let language = engine.compile("language.yl", &sources(grammar)).unwrap();
+    let result = engine.analyze(&language, "source", "aab");
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(
+        visit_order(&result),
+        [
+            "language.yl#A",
+            "language.yl#A",
+            "language.yl#B",
+            "language.yl#A",
+            "language.yl#A"
+        ]
+    );
+}
+
+#[test]
+fn imported_aliases_share_canonical_identity_in_region_group_selection() {
+    let events = Events::default();
+    let engine = recording_engine(&events, None);
+    let modules = BTreeMap::from([
+        (
+            "names.yl".into(),
+            r#"
+            import { action } from "test/native"
+            export node Item = "x" { meanings { group Emit { action() } } }
+        "#
+            .into(),
+        ),
+        (
+            "language.yl".into(),
+            r#"
+            import { action } from "test/native"
+            import { Item as First, Item as Second } from "./names"
+            node Wrapped = First
+            node B = "b" { meanings { action() } }
+            node Root = Wrapped First B Second {
+                meanings { precedence { B > First::meanings::Emit } }
+            }
+            entry Root
+        "#
+            .into(),
+        ),
+    ]);
+    let language = engine.compile("language.yl", &modules).unwrap();
+    let result = engine.analyze(&language, "source", "xxbx");
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(
+        visit_order(&result),
+        [
+            "language.yl#B",
+            "names.yl#Item",
+            "names.yl#Item",
+            "names.yl#Item"
+        ]
+    );
+}
+
+#[test]
+fn node_and_pattern_boundaries_are_selectable_but_hide_their_contents() {
+    for construct in ["node", "pattern"] {
+        let events = Events::default();
+        let engine = recording_engine(&events, None);
+        let grammar = format!(
+            r#"
+            import {{ action }} from "test/native"
+            node A = "a" {{ meanings {{ action() }} }}
+            {construct} Region = A {{ meanings {{ boundary }} }}
+            node B = "b" {{ meanings {{ action() }} }}
+            node Root = Region A B {{ meanings {{ boundary precedence {{ B > A }} }} }}
+            entry Root
+        "#
+        );
+        let language = engine.compile("language.yl", &sources(&grammar)).unwrap();
+        let result = engine.analyze(&language, "source", "aab");
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        // The owner boundary does not hide its interior. Nested Region DOES hide
+        // its A, so only the exterior A waits for B in this clause.
+        assert_eq!(
+            visit_order(&result),
+            ["language.yl#A", "language.yl#B", "language.yl#A"]
+        );
+        let grammar = grammar.replace("B > A", "B > Region");
+        let language = engine.compile("language.yl", &sources(&grammar)).unwrap();
+        let result = engine.analyze(&language, "source", "aab");
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        // The boundary occurrence itself can be selected, deferring ALL its work.
+        assert_eq!(
+            visit_order(&result),
+            ["language.yl#A", "language.yl#B", "language.yl#A"]
+        );
+        let boundary = &result.occurrences[0].children[0];
+        let exterior = &result.occurrences[0].children[1];
+        let owners: Vec<_> = result
+            .graph
+            .attachments
+            .iter()
+            .map(|a| a.occurrence)
+            .collect();
+        assert_eq!(owners[0], exterior.id);
+        assert_eq!(owners[2], boundary.children[0].id);
+        let loaded = engine.load(&language.to_bytes().unwrap()).unwrap();
+        assert_eq!(
+            serde_json::to_value(&loaded).unwrap()["meanings"]["language.yl#Region"]["boundary"],
+            true
+        );
+        assert_eq!(result, engine.analyze(&loaded, "source", "aab"));
+    }
+}
+
+#[test]
+fn boundary_entry_waits_for_outer_predecessors_before_local_ordering() {
+    let events = Events::default();
+    let engine = recording_engine(&events, None);
+    let grammar = r#"
+        import { action } from "test/native"
+        node Reference = "r" { meanings { action() } }
+        node Body = Reference { meanings { boundary action() precedence { Reference > Body } } }
+        node Outer = "o" { meanings { action() } }
+        node Root = Body Outer { meanings { precedence { Outer > Body } } }
+        entry Root
+    "#;
+    let language = engine.compile("language.yl", &sources(grammar)).unwrap();
+    let result = engine.analyze(&language, "source", "ro");
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(
+        visit_order(&result),
+        [
+            "language.yl#Outer",
+            "language.yl#Reference",
+            "language.yl#Body"
+        ]
+    );
+}
+
+#[test]
+fn repeated_boundary_marker_is_a_structured_definition_error() {
+    let engine = SemanticEngine::default();
+    let diagnostics = engine
+        .compile(
+            "language.yl",
+            &sources("node Root = \"r\" { meanings { boundary boundary } } entry Root"),
+        )
+        .unwrap_err();
+    assert_eq!(diagnostics[0].code, "yl.duplicate_boundary");
+}
+
+#[test]
+fn nested_function_regions_resolve_mutual_names_and_later_local_bindings() {
+    let engine = SemanticEngine::default();
+    let grammar = r#"
+        import { lexicalScope, declareVariable, declareFunction, use } from "std/semantics"
+        node Name = /[a-z]+/
+        trivia Spaces = /\s+/
+        node Reference = name: Name { meanings { use(name) } }
+        node Expression { node FunctionExpression node Reference node Number = /[0-9]+/ }
+        node ExpressionDeclaration = Expression
+        node LetDeclaration = "let" name: Name "=" ExpressionDeclaration ";" {
+            meanings { declareVariable(name) precedence { ExpressionDeclaration > LetDeclaration > FunctionBody } }
+        }
+        node FunctionBody = "{" (FunctionDeclaration | LetDeclaration)* "return" Reference ";" "}" {
+            meanings { boundary precedence { FunctionDeclaration > LetDeclaration > FunctionBody } }
+        }
+        pattern FunctionContents = "(" ")" FunctionBody { meanings { lexicalScope() } }
+        node FunctionExpression = "function" FunctionContents
+        node FunctionDeclaration = "function" name: Name FunctionContents { meanings { declareFunction(name) } }
+        node Program = (FunctionDeclaration | LetDeclaration)* {
+            meanings { boundary lexicalScope() precedence { FunctionDeclaration > ExpressionDeclaration FunctionDeclaration > LetDeclaration > FunctionBody } }
+        }
+        entry Program { trivia Spaces }
+    "#;
+    let source = "function outer() { function first() { return second; } function second() { return first; } function read() { return later; } let later = 1; return read; } let f = function() { let inner = later; return inner; }; let later = 1;";
+    let language = engine.compile("language.yl", &sources(grammar)).unwrap();
+    let result = engine.analyze(&language, "source", source);
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(
+        result
+            .graph
+            .attachments
+            .iter()
+            .filter(|a| a.key == "std/semantics#reference")
+            .count(),
+        6
+    );
+    let loaded = engine.load(&language.to_bytes().unwrap()).unwrap();
+    assert_eq!(result, engine.analyze(&loaded, "source", source));
+    let invalid = engine.analyze(&language, "source", "let x = x;");
+    assert_eq!(invalid.diagnostics[0].code, "semantic.unresolved_reference");
 }

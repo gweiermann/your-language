@@ -11,6 +11,9 @@ use scheduler::execute;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MeaningDefinition {
+    /// Marks a syntax occurrence as the edge of its owner's selection region.
+    #[serde(default)]
+    pub boundary: bool,
     pub groups: Vec<MeaningGroup>,
     pub precedence: Vec<MeaningChain>,
 }
@@ -433,6 +436,7 @@ mod tests {
     ) -> MeaningDefinition {
         let id = format!("std/semantics#{operation}");
         MeaningDefinition {
+            boundary: false,
             groups: vec![MeaningGroup {
                 name: None,
                 calls: vec![MeaningCall {
@@ -667,6 +671,7 @@ mod tests {
             language.meanings.insert(
                 id.into(),
                 MeaningDefinition {
+                    boundary: false,
                     groups: vec![MeaningGroup {
                         name: Some("record".into()),
                         calls: vec![call.clone()],
@@ -761,6 +766,7 @@ mod tests {
         language.meanings.insert(
             "Root".into(),
             MeaningDefinition {
+                boundary: false,
                 groups: vec![MeaningGroup {
                     name: None,
                     calls: vec![MeaningCall {
@@ -809,6 +815,7 @@ mod tests {
             .unwrap();
         let mut language = language();
         let mut definition = MeaningDefinition {
+            boundary: false,
             groups: vec![MeaningGroup {
                 name: None,
                 calls: vec![MeaningCall {

@@ -148,6 +148,16 @@ pub(super) fn execute(
     for occurrence in occurrences {
         flatten(occurrence, None, &mut all, &mut parents);
     }
+    let boundaries: std::collections::BTreeSet<_> = all
+        .iter()
+        .filter(|occurrence| {
+            language
+                .meanings
+                .get(&occurrence.definition)
+                .is_some_and(|definition| definition.boundary)
+        })
+        .map(|occurrence| occurrence.id)
+        .collect();
     let mut tasks = vec![];
     for owner in &all {
         let Some(definition) = language.meanings.get(&owner.definition) else {
@@ -292,6 +302,7 @@ pub(super) fn execute(
         whole: Vec<usize>,
     }
     struct Fence {
+        owner: usize,
         before: Selection,
         after: Selection,
         barrier: usize,
@@ -309,13 +320,33 @@ pub(super) fn execute(
                 .selectors
                 .iter()
                 .map(|selector| {
-                    let matching: Vec<_> = all
-                        .iter()
-                        .filter(|candidate| {
-                            candidate.definition == selector.definition
-                                && within(candidate.id, owner.id, &parents)
-                        })
-                        .collect();
+                    // Search the entire current region, including a nested
+                    // boundary occurrence itself but never entering its contents.
+                    // The owner's own boundary does not hide its interior.
+                    fn search<'a>(
+                        candidate: &'a Occurrence,
+                        owner: usize,
+                        language: &CompiledLanguage,
+                        selector: &MeaningSelector,
+                        found: &mut Vec<&'a Occurrence>,
+                    ) {
+                        if candidate.definition == selector.definition {
+                            found.push(candidate);
+                        }
+                        if candidate.id != owner
+                            && language
+                                .meanings
+                                .get(&candidate.definition)
+                                .is_some_and(|definition| definition.boundary)
+                        {
+                            return;
+                        }
+                        for child in &candidate.children {
+                            search(child, owner, language, selector, found);
+                        }
+                    }
+                    let mut matching = vec![];
+                    search(owner, owner.id, language, selector, &mut matching);
                     let mut nodes = vec![];
                     for candidate in &matching {
                         nodes.extend(
@@ -362,6 +393,7 @@ pub(super) fn execute(
                     dependencies[after].insert(barrier);
                 }
                 fences.push(Fence {
+                    owner: owner.id,
                     before: pair[0].clone(),
                     after: pair[1].clone(),
                     barrier,
@@ -379,9 +411,12 @@ pub(super) fn execute(
             // enclosing traversal fences as well as their own local fence.
             let mut required = std::collections::BTreeSet::new();
             let mut pending = fence.before.nodes.clone();
-            for &node in &fence.after.nodes {
-                if graph_owners[node].id == region {
-                    pending.extend(strict[node].iter().copied());
+            let boundary_entry = fence.owner != region && boundaries.contains(&region);
+            if !boundary_entry {
+                for &node in &fence.after.nodes {
+                    if graph_owners[node].id == region {
+                        pending.extend(strict[node].iter().copied());
+                    }
                 }
             }
             while let Some(id) = pending.pop() {

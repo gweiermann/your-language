@@ -103,6 +103,8 @@ pub enum DeclKind {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Meanings {
+    #[serde(default)]
+    pub boundary: bool,
     pub groups: Vec<MeaningSyntaxGroup>,
     pub precedence: Vec<MeaningSyntaxChain>,
     pub span: Span,

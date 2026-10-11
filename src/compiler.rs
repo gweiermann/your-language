@@ -803,23 +803,16 @@ impl Compiler {
                     .insert(id.clone(), self.lower_meanings(symbol, meanings)?);
             }
         }
-        let selected_patterns: Vec<_> = language
-            .meanings
-            .values()
-            .flat_map(|definition| &definition.precedence)
-            .flat_map(|chain| &chain.selectors)
-            .filter(|selector| {
-                self.symbols
-                    .get(&selector.definition)
-                    .is_some_and(|symbol| {
-                        matches!(symbol.declaration.kind, DeclKind::Pattern { .. })
-                    })
-            })
-            .map(|selector| selector.definition.clone())
-            .collect();
-        for id in selected_patterns {
-            self.selected_patterns.insert(id.clone());
-            language.meanings.entry(id).or_default();
+        // Every named pattern is a real occurrence level in semantic languages,
+        // including wrappers not themselves mentioned by any selector. Syntax-only
+        // artifacts retain their existing sugar-free representation.
+        if !language.meanings.is_empty() {
+            for (id, symbol) in &self.symbols {
+                if matches!(symbol.declaration.kind, DeclKind::Pattern { .. }) {
+                    self.selected_patterns.insert(id.clone());
+                    language.meanings.entry(id.clone()).or_default();
+                }
+            }
         }
         for (id, symbol) in self.symbols.clone() {
             if let DeclKind::Node {
@@ -1832,7 +1825,11 @@ impl Compiler {
                 span: chain.span.clone(),
             });
         }
-        Ok(MeaningDefinition { groups, precedence })
+        Ok(MeaningDefinition {
+            boundary: meanings.boundary,
+            groups,
+            precedence,
+        })
     }
     #[allow(clippy::too_many_arguments)]
     fn bind(
@@ -3401,6 +3398,7 @@ mod semantic_artifact_tests {
         language.meanings.insert(
             "test.yl#Program".into(),
             MeaningDefinition {
+                boundary: false,
                 groups: vec![MeaningGroup {
                     name: Some("Register".into()),
                     span: span.clone(),
