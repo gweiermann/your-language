@@ -15,14 +15,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let source = match choice {
         "program" => include_str!("mini_typescript/programs/program.txt"),
         "errors" => include_str!("mini_typescript/programs/errors.txt"),
-        _ => return Err("Choose program or errors, optionally --json".into()),
+        "addition" => include_str!("mini_typescript/programs/addition.txt"),
+        "addition-errors" => include_str!("mini_typescript/programs/addition-errors.txt"),
+        _ => {
+            return Err(
+                "Choose program, errors, addition or addition-errors, optionally --json".into(),
+            )
+        }
     };
     let sources = definition::sources();
     let engine = inference::engine();
     let result = match engine.compile_and_analyze(definition::ENTRY, &sources, choice, source) {
         Ok(result) => result,
         Err(diagnostics) => {
-            print_diagnostics(&diagnostics, |span| sources.get(&span.file).cloned());
+            if json {
+                println!("{}", serde_json::to_string_pretty(&diagnostics)?);
+            } else {
+                print_diagnostics(&diagnostics, |span| sources.get(&span.file).cloned());
+            }
             std::process::exit(1);
         }
     };

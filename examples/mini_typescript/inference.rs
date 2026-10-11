@@ -1,46 +1,32 @@
-//! Throwaway monomorphic constraint inference. No TypeScript compatibility claim.
-use std::collections::BTreeMap;
+//! Throwaway composable monomorphic constraints; no grammar names or arithmetic policy.
+use std::{any::Any, collections::BTreeMap};
 use your_language::{
     diagnostic::{Diagnostic, Span},
     semantics::{
-        NativeOperation, Occurrence, OperationContext, OperationSignature, SemanticEngine,
-        SemanticKey, SemanticValue,
+        AnalysisService, Evaluation, NativeOperation, OperationContext, OperationParameter,
+        OperationSignature, ParameterKind, SemanticEngine, SemanticKey, SemanticValue,
+        SourceCapture,
     },
 };
-
 const MODULE: &str = "prototype/types";
-fn key(name: &str) -> SemanticKey {
-    SemanticKey::Symbol(format!("{MODULE}#{name}"))
+fn symbol(name: &str) -> String {
+    format!("{MODULE}#{name}")
 }
-
-pub fn engine() -> SemanticEngine {
-    let mut engine = SemanticEngine::default();
-    engine
-        .registry_mut()
-        .register(
-            MODULE,
-            "solve",
-            OperationSignature {
-                id: format!("{MODULE}#solve"),
-                parameters: vec![],
-                provides_context: false,
-            },
-            || Box::new(Solve),
-        )
-        .unwrap();
-    engine
+fn key(name: &str) -> SemanticKey {
+    SemanticKey::Symbol(symbol(name))
 }
 #[derive(Clone, Debug, PartialEq)]
 enum Type {
     Var(usize),
-    Primitive(&'static str),
+    Unknown,
+    Primitive(String),
     Function(Vec<Type>, Box<Type>),
 }
 impl Type {
     fn display(&self) -> String {
         match self {
-            Self::Var(_) => "unknown".into(),
-            Self::Primitive(name) => (*name).into(),
+            Self::Var(_) | Self::Unknown => "unknown".into(),
+            Self::Primitive(name) => name.rsplit('#').next().unwrap_or(name).into(),
             Self::Function(params, result) => format!(
                 "({}) => {}",
                 params
@@ -60,6 +46,7 @@ struct Constraints {
     bindings: BTreeMap<usize, Type>,
     equalities: Vec<(Type, Type, Span)>,
     substitutions: BTreeMap<usize, Type>,
+    settled: bool,
 }
 impl Constraints {
     fn fresh(&mut self) -> Type {
@@ -122,6 +109,8 @@ impl Constraints {
                 self.substitutions.insert(id, ty);
                 Ok(())
             }
+            // Settled unknown carries no positive information and is never a type error.
+            (Type::Unknown, _) | (_, Type::Unknown) => Ok(()),
             (Type::Function(a, ar), Type::Function(b, br)) if a.len() == b.len() => {
                 for (a, b) in a.into_iter().zip(b) {
                     self.unify(a, b)?;
@@ -135,162 +124,277 @@ impl Constraints {
             )),
         }
     }
-    fn collect(&mut self, node: &Occurrence, context: &OperationContext<'_>) {
-        for child in &node.children {
-            self.collect(child, context);
-        }
-        let ty = self.expression(node.id);
-        let linked =
-            |kind: &str| match context.attachment(node.id, &format!("std/semantics#{kind}")) {
-                Some(SemanticValue::Record(id)) => Some(*id),
-                _ => None,
-            };
-        match role(node) {
-            "Number" | "String" | "Boolean" => {
-                let primitive = match role(node) {
-                    "Number" => "number",
-                    "String" => "string",
-                    _ => "boolean",
-                };
-                self.equal(ty, Type::Primitive(primitive), &node.span);
-            }
-            "Reference" => {
-                if let Some(id) = linked("reference") {
-                    let binding = self.binding(id);
-                    self.equal(ty, binding, &node.span);
-                }
-            }
-            "Parameter" | "LetDeclaration" => {
-                if let Some(id) = linked("declaration") {
-                    let binding = self.binding(id);
-                    if let Some(initializer) = captured(node, "initializer") {
-                        let init = self.expression(initializer.id);
-                        self.equal(binding.clone(), init, &initializer.span);
-                    }
-                    self.annotation(node, binding);
-                }
-            }
-            "FunctionDeclaration" => {
-                if let (Some(id), Some(contents)) =
-                    (linked("declaration"), descendant(node, "FunctionContents"))
-                {
-                    let params = contents
-                        .children
-                        .iter()
-                        .filter(|child| role(child) == "Parameter")
-                        .filter_map(|param| {
-                            match context.attachment(param.id, "std/semantics#declaration") {
-                                Some(SemanticValue::Record(id)) => Some(self.binding(*id)),
-                                _ => None,
-                            }
-                        })
-                        .collect();
-                    let result = descendant(contents, "FunctionBody")
-                        .and_then(|body| captured(body, "result"))
-                        .map(|result| self.expression(result.id))
-                        .unwrap_or_else(|| self.fresh());
-                    self.annotation(contents, result.clone());
-                    let binding = self.binding(id);
-                    self.equal(
-                        binding,
-                        Type::Function(params, Box::new(result)),
-                        &node.span,
-                    );
-                }
-            }
-            "Call" => {
-                if let Some(callee) = captured(node, "callee") {
-                    let args = node
-                        .children
-                        .iter()
-                        .filter(|child| role(child) == "Expression")
-                        .map(|arg| self.expression(arg.id))
-                        .collect();
-                    let callee = self.expression(callee.id);
-                    self.equal(callee, Type::Function(args, Box::new(ty)), &node.span);
-                }
-            }
-            "Expression" => {
-                if let Some(child) = node.children.first() {
-                    let child = self.expression(child.id);
-                    self.equal(ty, child, &node.span);
-                }
-            }
-            _ => {}
-        }
-    }
-    fn annotation(&mut self, node: &Occurrence, ty: Type) {
-        if let Some(annotation) = captured(node, "annotation") {
-            let name = annotation
-                .captures
-                .get("name")
-                .map(|capture| capture.text.as_str());
-            let primitive = match name {
-                Some("number") => "number",
-                Some("string") => "string",
-                Some("boolean") => "boolean",
-                _ => return,
-            };
-            self.equal(ty, Type::Primitive(primitive), &annotation.span);
-        }
-    }
-}
-fn role(node: &Occurrence) -> &str {
-    node.definition
-        .rsplit('#')
-        .next()
-        .unwrap_or(&node.definition)
-}
-fn descendant<'a>(node: &'a Occurrence, name: &str) -> Option<&'a Occurrence> {
-    node.children
-        .iter()
-        .find(|child| role(child) == name)
-        .or_else(|| {
-            node.children
-                .iter()
-                .find_map(|child| descendant(child, name))
-        })
-}
-fn captured<'a>(node: &'a Occurrence, name: &str) -> Option<&'a Occurrence> {
-    let span = &node.captures.get(name)?.span;
-    fn find<'a>(node: &'a Occurrence, span: &Span) -> Option<&'a Occurrence> {
-        node.children
+    fn captures(&mut self, capture: &SourceCapture) -> Vec<Type> {
+        capture
+            .occurrences
             .iter()
-            .find(|child| child.span == *span)
-            .or_else(|| node.children.iter().find_map(|child| find(child, span)))
+            .map(|id| self.expression(*id))
+            .collect()
     }
-    find(node, span)
+    fn capture(&mut self, capture: &SourceCapture) -> Option<Type> {
+        capture.occurrences.first().map(|id| self.expression(*id))
+    }
 }
-struct Solve;
-impl NativeOperation for Solve {
-    fn after(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
-        let mut constraints = Constraints::default();
-        constraints.collect(context.occurrence, context);
-        for (a, b, span) in std::mem::take(&mut constraints.equalities) {
-            // A failed equation does not roll back successful components; this is best effort.
-            if let Err(message) = constraints.unify(a, b) {
-                context.emit(Diagnostic::error("prototype.type_mismatch", message, span));
+impl AnalysisService for Constraints {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+    fn progress(&mut self, ctx: &mut OperationContext<'_>) -> Result<bool, Diagnostic> {
+        let equations = std::mem::take(&mut self.equalities);
+        let changed = !equations.is_empty();
+        for (a, b, span) in equations {
+            if let Err(message) = self.unify(a, b) {
+                ctx.emit(Diagnostic::error("prototype.type_mismatch", message, span));
             }
         }
-        for (id, ty) in &constraints.bindings {
-            context.set(
-                *id,
-                key("inferredType"),
-                SemanticValue::Text(constraints.resolve(ty).display()),
-            )?;
+        Ok(changed)
+    }
+    fn settle(&mut self, _ctx: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
+        self.settled = true;
+        // All existing unconstrained equivalence classes become settled unknown.
+        for id in 0..self.next {
+            if matches!(self.resolve(&Type::Var(id)), Type::Var(_)) {
+                self.substitutions.insert(id, Type::Unknown);
+            }
         }
-        let report = context.record();
-        for (id, ty) in &constraints.expressions {
-            context.set(
-                report,
-                SemanticKey::Text(id.to_string()),
-                SemanticValue::Text(constraints.resolve(ty).display()),
-            )?;
-        }
-        context.attach(
-            &format!("{MODULE}#expressionTypes"),
-            SemanticValue::Record(report),
-        );
         Ok(())
     }
+    fn finish(&mut self, ctx: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
+        for (id, ty) in &self.bindings {
+            ctx.set(
+                *id,
+                key("inferredType"),
+                SemanticValue::Text(self.resolve(ty).display()),
+            )?;
+        }
+        let report = ctx.record();
+        for (id, ty) in &self.expressions {
+            ctx.set(
+                report,
+                SemanticKey::Text(id.to_string()),
+                SemanticValue::Text(self.resolve(ty).display()),
+            )?;
+        }
+        ctx.attach(&symbol("expressionTypes"), SemanticValue::Record(report));
+        Ok(())
+    }
+}
+#[derive(Clone, Copy)]
+enum Kind {
+    Type,
+    TypeOf,
+    Alias,
+    Inherit,
+    Declaration,
+    Binding,
+    Reference,
+    Check,
+    Function,
+    Call,
+}
+struct TypeOperation(Kind);
+fn capture(ctx: &OperationContext<'_>, name: &str) -> Result<SourceCapture, Diagnostic> {
+    match ctx.argument(name) {
+        Some(SemanticValue::Source(value)) => Ok(value.clone()),
+        _ => Err(Diagnostic::error(
+            "prototype.argument",
+            format!("Expected capture {name}"),
+            ctx.occurrence.span.clone(),
+        )),
+    }
+}
+fn identity(ctx: &OperationContext<'_>, role: &str) -> Option<usize> {
+    match ctx.attachment(ctx.occurrence.id, &format!("std/semantics#{role}")) {
+        Some(SemanticValue::Record(id)) => Some(*id),
+        _ => None,
+    }
+}
+impl NativeOperation for TypeOperation {
+    fn before(&mut self, ctx: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
+        let kind = self.0;
+        ctx.with_service::<Constraints, _>(MODULE, |state, ctx| {
+            let own = state.expression(ctx.occurrence.id);
+            let span = &ctx.occurrence.span;
+            match kind {
+                Kind::Type => {
+                    if let Some(SemanticValue::Symbol(ty)) = ctx.argument("value") {
+                        state.equal(
+                            own,
+                            if ty == &symbol("unknown") {
+                                Type::Unknown
+                            } else {
+                                Type::Primitive(ty.clone())
+                            },
+                            span,
+                        );
+                    }
+                }
+                Kind::Alias => {
+                    let source = capture(ctx, "value")?;
+                    if let Some(value) = state.capture(&source) {
+                        state.equal(own, value, &source.span);
+                    }
+                }
+                Kind::Inherit => {
+                    if let Some(child) = ctx.occurrence.children.first() {
+                        let value = state.expression(child.id);
+                        state.equal(own, value, span);
+                    }
+                }
+                Kind::Declaration => {
+                    if let Some(id) = identity(ctx, "declaration") {
+                        let binding = state.binding(id);
+                        state.equal(own, binding, span);
+                    }
+                }
+                Kind::Binding => {
+                    if let Some(id) = identity(ctx, "declaration") {
+                        let binding = state.binding(id);
+                        state.equal(own.clone(), binding, span);
+                    }
+                    let source = capture(ctx, "value")?;
+                    if let Some(value) = state.capture(&source) {
+                        state.equal(own, value, &source.span);
+                    }
+                }
+                Kind::Reference => {
+                    if let Some(id) = identity(ctx, "reference") {
+                        let binding = state.binding(id);
+                        state.equal(own, binding, span);
+                    }
+                }
+                Kind::Check => {
+                    let source = capture(ctx, "annotation")?;
+                    if let Some(annotation) = state.capture(&source) {
+                        state.equal(own, annotation, &source.span);
+                    }
+                }
+                Kind::Function => {
+                    let params = state.captures(&capture(ctx, "parameters")?);
+                    let body = capture(ctx, "body")?;
+                    let result = state.capture(&body).unwrap_or_else(|| state.fresh());
+                    let annotation = capture(ctx, "annotation")?;
+                    if let Some(annotation_type) = state.capture(&annotation) {
+                        state.equal(result.clone(), annotation_type, &annotation.span);
+                    }
+                    state.equal(own, Type::Function(params, Box::new(result)), span);
+                }
+                Kind::Call => {
+                    let callee = capture(ctx, "callee")?;
+                    if let Some(callee_type) = state.capture(&callee) {
+                        let args = state.captures(&capture(ctx, "arguments")?);
+                        state.equal(callee_type, Type::Function(args, Box::new(own)), span);
+                    }
+                }
+                Kind::TypeOf => {}
+            }
+            Ok(())
+        })
+        .unwrap_or_else(|| {
+            Err(Diagnostic::error(
+                "prototype.service",
+                "Missing type analysis service",
+                ctx.occurrence.span.clone(),
+            ))
+        })
+    }
+    fn evaluate(&mut self, ctx: &mut OperationContext<'_>) -> Result<Evaluation, Diagnostic> {
+        if !matches!(self.0, Kind::TypeOf) {
+            return Ok(Evaluation::Ready(SemanticValue::Absent));
+        }
+        let source = capture(ctx, "value")?;
+        Ok(ctx
+            .with_service::<Constraints, _>(MODULE, |state, _ctx| {
+                let Some(ty) = state.capture(&source) else {
+                    return Evaluation::Ready(SemanticValue::Symbol(symbol("unknown")));
+                };
+                match state.resolve(&ty) {
+                    Type::Var(_) if !state.settled => Evaluation::Pending,
+                    Type::Var(_) | Type::Unknown => {
+                        Evaluation::Ready(SemanticValue::Symbol(symbol("unknown")))
+                    }
+                    Type::Primitive(name) => Evaluation::Ready(SemanticValue::Symbol(name)),
+                    Type::Function(_, _) => {
+                        Evaluation::Ready(SemanticValue::Symbol(symbol("function")))
+                    }
+                }
+            })
+            .unwrap_or(Evaluation::Pending))
+    }
+}
+pub fn engine() -> SemanticEngine {
+    let mut engine = SemanticEngine::default();
+    engine
+        .registry_mut()
+        .register_service(MODULE, || Box::<Constraints>::default())
+        .unwrap();
+    for name in ["number", "string", "boolean", "unknown"] {
+        engine.registry_mut().export_symbol(MODULE, name).unwrap();
+    }
+    let operations = [
+        ("type", Kind::Type, vec![("value", ParameterKind::Symbol)]),
+        (
+            "typeof",
+            Kind::TypeOf,
+            vec![("value", ParameterKind::Capture)],
+        ),
+        (
+            "aliasType",
+            Kind::Alias,
+            vec![("value", ParameterKind::Capture)],
+        ),
+        ("inheritType", Kind::Inherit, vec![]),
+        ("declarationType", Kind::Declaration, vec![]),
+        (
+            "bindingType",
+            Kind::Binding,
+            vec![("value", ParameterKind::Capture)],
+        ),
+        ("referenceType", Kind::Reference, vec![]),
+        (
+            "checkType",
+            Kind::Check,
+            vec![("annotation", ParameterKind::Capture)],
+        ),
+        (
+            "functionType",
+            Kind::Function,
+            vec![
+                ("parameters", ParameterKind::Capture),
+                ("body", ParameterKind::Capture),
+                ("annotation", ParameterKind::Capture),
+            ],
+        ),
+        (
+            "callType",
+            Kind::Call,
+            vec![
+                ("callee", ParameterKind::Capture),
+                ("arguments", ParameterKind::Capture),
+            ],
+        ),
+    ];
+    for (name, kind, params) in operations {
+        engine
+            .registry_mut()
+            .register(
+                MODULE,
+                name,
+                OperationSignature {
+                    id: symbol(name),
+                    provides_context: false,
+                    parameters: params
+                        .into_iter()
+                        .map(|(name, kind)| OperationParameter {
+                            name: name.into(),
+                            kind,
+                            default: None,
+                        })
+                        .collect(),
+                },
+                move || Box::new(TypeOperation(kind)),
+            )
+            .unwrap();
+    }
+    engine
 }

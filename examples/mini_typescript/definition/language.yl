@@ -1,41 +1,78 @@
 import { lexicalScope, declare, use, variable, function } from "std/semantics"
-import { solve } from "prototype/types"
+import {
+    type, typeof, number, string, boolean, unknown,
+    aliasType, inheritType, declarationType, bindingType, referenceType,
+    checkType, functionType, callType
+} from "prototype/types"
 import { separatedBy } from "std/parser"
 import { Name, Whitespace } from "./lexical"
 
-node Annotation =
-    ":" name: /number|string|boolean/
+node TypeName {
+    node NumberType = "number" {
+        meanings { type(number) }
+    }
 
-node Parameter =
-    name: Name annotation: Annotation?
-{
+    node StringType = "string" {
+        meanings { type(string) }
+    }
+
+    node BooleanType = "boolean" {
+        meanings { type(boolean) }
+    }
+
+    meanings { inheritType() }
+}
+
+node Annotation = ":" value: TypeName {
+    meanings { aliasType(value) }
+}
+
+node Parameter = name: Name annotation: Annotation? {
     meanings {
         declare(variable, name)
+        declarationType()
+        checkType(annotation)
     }
 }
 
-node Reference =
-    name: Name
-{
+node Reference = name: Name {
     meanings {
         use(name)
+        referenceType()
     }
 }
 
-node Call =
-    callee: Reference
-    "(" arguments: Expression* |> separatedBy(",") ")"
+node Call = callee: Reference
+    "(" arguments: Expression* |> separatedBy(",") ")" {
+    meanings { callType(callee, arguments) }
+}
 
-node Number =
-    value: /[0-9]+/
+node Number = value: /[0-9]+/ {
+    meanings { type(number) }
+}
 
-node String =
-    value: /"[^"\n]*"/
+node String = value: /"[^"\n]*"/ {
+    meanings { type(string) }
+}
 
-node Boolean =
-    value: /true|false/
+node Boolean = value: /true|false/ {
+    meanings { type(boolean) }
+}
+
+node Addition = left: Expression "+" right: Expression {
+    meanings {
+        match (typeof(left), typeof(right)) {
+            string, string | string, number | number, string => type(string),
+            number, number => type(number),
+            unknown, _ | _, unknown => type(unknown),
+            _ => error("${left} + ${right} is not possible")
+        }
+    }
+}
 
 node Expression {
+    node Addition
+
     node Call
 
     node Boolean
@@ -45,63 +82,55 @@ node Expression {
     node String
 
     node Reference
+
+    precedence { Addition }
+
+    meanings { inheritType() }
 }
 
-node FunctionBody =
-    "{"
-    locals: LetDeclaration*
-    "return" result: Expression ";"
-    "}"
-{
+node FunctionBody = "{" locals: LetDeclaration*
+    "return" result: Expression ";" "}" {
     meanings {
         boundary
+        aliasType(result)
     }
 }
 
-pattern FunctionContents =
-    "(" parameters: Parameter* |> separatedBy(",") ")"
-    annotation: Annotation? body: FunctionBody
-{
+pattern FunctionContents = "(" parameters: Parameter* |> separatedBy(",") ")"
+    annotation: Annotation? body: FunctionBody {
     meanings {
         lexicalScope()
+        functionType(parameters, body, annotation)
     }
 }
 
-node FunctionDeclaration =
-    "function" name: Name contents: FunctionContents
-{
+node FunctionDeclaration = "function" name: Name contents: FunctionContents {
     meanings {
         group Register {
             declare(function, name, reassignable=false)
+            bindingType(contents)
         }
     }
 }
 
-node LetDeclaration =
-    "let" name: Name annotation: Annotation? "="
-    initializer: Expression ";"
-{
+node LetDeclaration = "let" name: Name annotation: Annotation? "="
+    initializer: Expression ";" {
     meanings {
         group Register {
             declare(variable, name)
+            bindingType(initializer)
+            checkType(annotation)
         }
     }
 }
 
-node Program =
-    statements: (FunctionDeclaration | LetDeclaration)*
-{
+node Program = statements: (FunctionDeclaration | LetDeclaration)* {
     meanings {
         boundary
         lexicalScope()
-        solve()
 
-        precedence {
-            FunctionDeclaration > LetDeclaration > FunctionBody
-        }
+        precedence { FunctionDeclaration > LetDeclaration > FunctionBody }
     }
 }
 
-entry Program {
-    trivia Whitespace
-}
+entry Program { trivia Whitespace }

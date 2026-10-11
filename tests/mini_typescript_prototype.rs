@@ -62,7 +62,7 @@ fn annotation_and_call_errors_have_original_spans() {
             && d.primary.end <= source.len()));
     assert_eq!(
         &source[result.diagnostics[0].primary.start..result.diagnostics[0].primary.end],
-        ": string"
+        ": number"
     );
 }
 #[test]
@@ -195,7 +195,10 @@ fn attachment_reader_supports_another_native_library() {
     let source = sources.get_mut(definition::ENTRY).unwrap();
     *source = format!(
         "import {{ audit }} from \"test/audit\"\n{}",
-        source.replace("solve()", "solve() audit()")
+        source.replace(
+            "precedence { FunctionDeclaration",
+            "audit() precedence { FunctionDeclaration"
+        )
     );
     let result = engine
         .compile_and_analyze(definition::ENTRY, &sources, "audit", "let value = 1;")
