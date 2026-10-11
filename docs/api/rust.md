@@ -135,3 +135,18 @@ cargo doc --no-deps --open
 ## Experimental native analysis
 
 [`SemanticEngine`](/api/native-semantics) provides registry-aware `compile`, `analyze`, and `compile_and_analyze` methods, plus optional checked artifact loading. The engine supplies bundled lexical operations and supports custom native libraries through the same interface. The parse APIs above and existing CLI remain syntax-only.
+
+## `format_yl`
+
+```rust
+pub fn format_yl(file: &str, source: &str) -> CompileResult<String>;
+```
+
+Formats a YL definition module from memory. The file label is used only in diagnostic spans; the function does not read or write files or resolve imports. A future editor integration can replace its document with the returned string.
+
+```rust
+let formatted = your_language::format_yl("language.yl", "node Name=/[a-z]+/ entry Name")?;
+assert_eq!(your_language::format_yl("language.yl", &formatted)?, formatted);
+```
+
+The formatter uses the actual lexer and parser. It preserves comments and raw string/regex spelling, then verifies token preservation and parse-equivalence apart from spans. Invalid syntax returns the same structured frontend diagnostics. Unsupported preservation failures return `yl.format_equivalence` with no formatted output. Formatting is deterministic and idempotent; it has no style configuration or hard line wrapping. See [CLI formatting](/api/cli#format-yl-definitions) for file-writing and check modes.

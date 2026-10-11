@@ -64,6 +64,13 @@ yl check examples/mini-js/minijs.yl
 yl compile examples/mini-js/minijs.yl -o minijs.ylc
 ```
 
+Format YL definition files or check their layout:
+
+```sh
+yl fmt examples/getting-started/language.yl
+yl fmt --check examples/getting-started/language.yl
+```
+
 Generate an AST or check a source file for diagnostics:
 
 ```sh
@@ -75,6 +82,8 @@ yl language minijs.ylc check examples/mini-js/invalid.js --json
 `ast` writes JSON. `check` shows source snippets and colored underlines; `--json` provides diagnostics for tools. Clean checks are silent, and errors produce a nonzero exit code. Commands also work through `cargo run -- <command>`.
 
 ## Documentation
+
+The [VS Code extension](./editors/vscode/) provides YL syntax highlighting and formats definitions through the CLI. See the [editor setup guide](https://gweiermann.github.io/your-language/guide/editor) for installation and configuration.
 
 Visit the [Your Language documentation](https://gweiermann.github.io/your-language/) for tutorials, the language reference, and CLI and Rust API guides.
 
