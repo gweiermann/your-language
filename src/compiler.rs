@@ -1856,34 +1856,25 @@ impl Compiler {
                 if let Some(value) = bindings.get(name) {
                     return Ok(value.clone());
                 }
-                if name == "absent" {
+                if symbol_has_capture(context, name) {
+                    ExprKind::Ref(name.clone())
+                } else if name == "absent" {
                     ExprKind::Absent
                 } else if matches!(name.as_str(), "true" | "false") {
                     ExprKind::Bool(name == "true")
                 } else {
-                    let grammar = match &context.declaration.kind {
-                        DeclKind::Node { grammar, .. } => grammar.as_ref(),
-                        DeclKind::Pattern { grammar, .. } => Some(grammar),
-                        _ => None,
-                    };
-                    if grammar.is_some_and(|grammar| syntax_has_capture(grammar, name)) {
-                        ExprKind::Ref(name.clone())
-                    } else {
-                        match self.resolve(&context.module, &context.name, name, &expr.span) {
-                            Ok(id) => ExprKind::Ref(id),
-                            Err(error)
-                                if matches!(
-                                    context.declaration.kind,
-                                    DeclKind::Operation { .. }
-                                ) =>
-                            {
-                                return Err(error)
-                            }
-                            Err(_) => ExprKind::Ref(name.clone()),
+                    match self.resolve(&context.module, &context.name, name, &expr.span) {
+                        Ok(id) => ExprKind::Ref(id),
+                        Err(error)
+                            if matches!(context.declaration.kind, DeclKind::Operation { .. }) =>
+                        {
+                            return Err(error)
                         }
+                        Err(_) => ExprKind::Ref(name.clone()),
                     }
                 }
             }
+
             ExprKind::Call(name, arguments) => {
                 let id = self.resolve(&context.module, &context.name, name, &expr.span)?;
                 let arguments = arguments
@@ -2267,7 +2258,10 @@ impl Compiler {
             }
             ExprKind::Literal(value) => Ok(MeaningValue::Text(value.clone())),
             ExprKind::Bool(value) => Ok(MeaningValue::Bool(*value)),
-            ExprKind::Ref(name) if matches!(name.as_str(), "true" | "false") => {
+            ExprKind::Ref(name)
+                if matches!(name.as_str(), "true" | "false")
+                    && !symbol_has_capture(symbol, name) =>
+            {
                 Ok(MeaningValue::Bool(name == "true"))
             }
             ExprKind::Ref(name) => {
@@ -3600,6 +3594,14 @@ fn meaning_value_matches(value: &MeaningValue, kind: &ParameterKind) -> bool {
     }
 }
 
+fn symbol_has_capture(symbol: &Symbol, name: &str) -> bool {
+    let grammar = match &symbol.declaration.kind {
+        DeclKind::Node { grammar, .. } => grammar.as_ref(),
+        DeclKind::Pattern { grammar, .. } => Some(grammar),
+        _ => None,
+    };
+    grammar.is_some_and(|grammar| syntax_has_capture(grammar, name))
+}
 fn syntax_has_capture(expr: &Expr, name: &str) -> bool {
     match &expr.kind {
         ExprKind::Capture(capture, inner) => capture == name || syntax_has_capture(inner, name),

@@ -234,3 +234,27 @@ fn namespace_aliases_cannot_shadow_local_or_named_imports() {
         assert_eq!(errors[0].code, "yl.duplicate_declaration");
     }
 }
+
+#[test]
+fn contextual_literal_capture_names_survive_wrapper_arguments() {
+    let source = r#"import * as native from "test"
+operation annotate(value = absent) { native::value(value) }
+node Program = absent: /a/ true: /b/ false: /c/ {
+    meanings { annotate(absent) annotate(true) annotate(false) annotate() }
+}
+entry Program"#;
+    let engine = engine();
+    let language = engine.compile("language.yl", &graph(source, &[])).unwrap();
+    let result = engine.analyze(&language, "input", "abc");
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    let values: Vec<_> = result
+        .graph
+        .attachments
+        .iter()
+        .map(|attachment| &attachment.value)
+        .collect();
+    for (value, text) in values.iter().zip(["a", "b", "c"]) {
+        assert!(matches!(value, SemanticValue::Source(source) if source.text == text));
+    }
+    assert_eq!(values[3], &SemanticValue::Absent);
+}
