@@ -21,10 +21,10 @@ fn types(result: &AnalysisResult, name: &str) -> Vec<String> {
                     .find(|(k, _)| *k == SemanticKey::Symbol(key.into()))
                     .map(|(_, v)| v)
             };
-            if get("std/semantics#nameSymbol") != Some(&SemanticValue::Text(name.into())) {
+            if get("std/variables#nameSymbol") != Some(&SemanticValue::Text(name.into())) {
                 return None;
             }
-            match get("prototype/types#inferredType") {
+            match get("std/types#inferredType") {
                 Some(SemanticValue::Text(ty)) => Some(ty.clone()),
                 _ => None,
             }
@@ -76,14 +76,14 @@ fn declarations_references_keep_identity_across_shadowing() {
         .graph
         .attachments
         .iter()
-        .filter(|a| a.key == "std/semantics#declaration")
+        .filter(|a| a.key == "std/variables#declaration")
         .map(|a| &a.value)
         .collect();
     for reference in result
         .graph
         .attachments
         .iter()
-        .filter(|a| a.key == "std/semantics#reference")
+        .filter(|a| a.key == "std/variables#reference")
     {
         assert!(declarations.contains(&&reference.value));
     }
@@ -164,7 +164,7 @@ fn attachment_reader_supports_another_native_library() {
                 .is_none());
             let declaration = &context.occurrence.children[0];
             let Some(SemanticValue::Record(id)) =
-                context.attachment(declaration.id, "std/semantics#declaration")
+                context.attachment(declaration.id, "std/variables#declaration")
             else {
                 panic!("Missing declaration identity")
             };
@@ -195,10 +195,7 @@ fn attachment_reader_supports_another_native_library() {
     let source = sources.get_mut(definition::ENTRY).unwrap();
     *source = format!(
         "import {{ audit }} from \"test/audit\"\n{}",
-        source.replace(
-            "precedence { FunctionDeclaration",
-            "audit() precedence { FunctionDeclaration"
-        )
+        source.replace("precedence {", "audit() precedence {")
     );
     let result = engine
         .compile_and_analyze(definition::ENTRY, &sources, "audit", "let value = 1;")

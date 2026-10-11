@@ -1,0 +1,48 @@
+import { lexicalScope, declare, function } from "std/variables"
+import { sameType, functionType, bindingType } from "std/types"
+import { separatedBy } from "std/parser"
+import { Name } from "./lexical"
+import { Annotation } from "./types"
+import { Parameter } from "./parameter"
+import { Expression } from "./expression"
+import { LetDeclaration } from "./let"
+
+export node FunctionBody =
+    "{"
+    locals: LetDeclaration*
+    "return"
+    result: Expression
+    ";"
+    "}"
+{
+    meanings {
+        boundary
+        sameType(result)
+    }
+}
+
+pattern FunctionContents =
+    "("
+    parameters: Parameter* |> separatedBy(",")
+    ")"
+    annotation: Annotation?
+    body: FunctionBody
+{
+    meanings {
+        lexicalScope()
+        functionType(parameters, body, annotation)
+    }
+}
+
+export node FunctionDeclaration =
+    "function"
+    name: Name
+    contents: FunctionContents
+{
+    meanings {
+        group Register {
+            declare(function, name, reassignable = false)
+            bindingType(contents)
+        }
+    }
+}

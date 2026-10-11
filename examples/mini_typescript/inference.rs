@@ -8,7 +8,7 @@ use your_language::{
         SourceCapture,
     },
 };
-const MODULE: &str = "prototype/types";
+const MODULE: &str = "std/types";
 fn symbol(name: &str) -> String {
     format!("{MODULE}#{name}")
 }
@@ -47,6 +47,8 @@ struct Constraints {
     equalities: Vec<(Type, Type, Span)>,
     substitutions: BTreeMap<usize, Type>,
     settled: bool,
+    unknown_symbol: Option<String>,
+    function_symbol: Option<String>,
 }
 impl Constraints {
     fn fresh(&mut self) -> Type {
@@ -181,6 +183,7 @@ impl AnalysisService for Constraints {
 }
 #[derive(Clone, Copy)]
 enum Kind {
+    Configure,
     Type,
     TypeOf,
     Alias,
@@ -188,7 +191,6 @@ enum Kind {
     Declaration,
     Binding,
     Reference,
-    Check,
     Function,
     Call,
 }
@@ -204,7 +206,7 @@ fn capture(ctx: &OperationContext<'_>, name: &str) -> Result<SourceCapture, Diag
     }
 }
 fn identity(ctx: &OperationContext<'_>, role: &str) -> Option<usize> {
-    match ctx.attachment(ctx.occurrence.id, &format!("std/semantics#{role}")) {
+    match ctx.attachment(ctx.occurrence.id, &format!("std/variables#{role}")) {
         Some(SemanticValue::Record(id)) => Some(*id),
         _ => None,
     }
@@ -213,14 +215,27 @@ impl NativeOperation for TypeOperation {
     fn before(&mut self, ctx: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
         let kind = self.0;
         ctx.with_service::<Constraints, _>(MODULE, |state, ctx| {
+            if !matches!(kind, Kind::Configure) && state.unknown_symbol.is_none() {
+                return Err(Diagnostic::error("types.configuration", "Configure the language's unknown and function symbols with types(unknown, function) before type meanings", ctx.occurrence.span.clone()));
+            }
             let own = state.expression(ctx.occurrence.id);
             let span = &ctx.occurrence.span;
             match kind {
+                Kind::Configure => {
+                    if let (
+                        Some(SemanticValue::Symbol(unknown)),
+                        Some(SemanticValue::Symbol(function)),
+                    ) = (ctx.argument("unknown"), ctx.argument("function"))
+                    {
+                        state.unknown_symbol = Some(unknown.clone());
+                        state.function_symbol = Some(function.clone());
+                    }
+                }
                 Kind::Type => {
                     if let Some(SemanticValue::Symbol(ty)) = ctx.argument("value") {
                         state.equal(
                             own,
-                            if ty == &symbol("unknown") {
+                            if state.unknown_symbol.as_ref() == Some(ty) {
                                 Type::Unknown
                             } else {
                                 Type::Primitive(ty.clone())
@@ -263,12 +278,6 @@ impl NativeOperation for TypeOperation {
                         state.equal(own, binding, span);
                     }
                 }
-                Kind::Check => {
-                    let source = capture(ctx, "annotation")?;
-                    if let Some(annotation) = state.capture(&source) {
-                        state.equal(own, annotation, &source.span);
-                    }
-                }
                 Kind::Function => {
                     let params = state.captures(&capture(ctx, "parameters")?);
                     let body = capture(ctx, "body")?;
@@ -303,20 +312,34 @@ impl NativeOperation for TypeOperation {
             return Ok(Evaluation::Ready(SemanticValue::Absent));
         }
         let source = capture(ctx, "value")?;
+        let configured = ctx
+            .with_service::<Constraints, _>(MODULE, |state, _| {
+                state.unknown_symbol.is_some() && state.function_symbol.is_some()
+            })
+            .unwrap_or(false);
+        if !configured {
+            return Err(Diagnostic::error(
+                "types.configuration",
+                "Configure type symbols before typeof",
+                ctx.occurrence.span.clone(),
+            ));
+        }
         Ok(ctx
             .with_service::<Constraints, _>(MODULE, |state, _ctx| {
                 let Some(ty) = state.capture(&source) else {
-                    return Evaluation::Ready(SemanticValue::Symbol(symbol("unknown")));
+                    return Evaluation::Ready(SemanticValue::Symbol(
+                        state.unknown_symbol.clone().unwrap_or_default(),
+                    ));
                 };
                 match state.resolve(&ty) {
                     Type::Var(_) if !state.settled => Evaluation::Pending,
-                    Type::Var(_) | Type::Unknown => {
-                        Evaluation::Ready(SemanticValue::Symbol(symbol("unknown")))
-                    }
+                    Type::Var(_) | Type::Unknown => Evaluation::Ready(SemanticValue::Symbol(
+                        state.unknown_symbol.clone().unwrap_or_default(),
+                    )),
                     Type::Primitive(name) => Evaluation::Ready(SemanticValue::Symbol(name)),
-                    Type::Function(_, _) => {
-                        Evaluation::Ready(SemanticValue::Symbol(symbol("function")))
-                    }
+                    Type::Function(_, _) => Evaluation::Ready(SemanticValue::Symbol(
+                        state.function_symbol.clone().unwrap_or_default(),
+                    )),
                 }
             })
             .unwrap_or(Evaluation::Pending))
@@ -328,10 +351,15 @@ pub fn engine() -> SemanticEngine {
         .registry_mut()
         .register_service(MODULE, || Box::<Constraints>::default())
         .unwrap();
-    for name in ["number", "string", "boolean", "unknown"] {
-        engine.registry_mut().export_symbol(MODULE, name).unwrap();
-    }
     let operations = [
+        (
+            "types",
+            Kind::Configure,
+            vec![
+                ("unknown", ParameterKind::Symbol),
+                ("function", ParameterKind::Symbol),
+            ],
+        ),
         ("type", Kind::Type, vec![("value", ParameterKind::Symbol)]),
         (
             "typeof",
@@ -339,7 +367,7 @@ pub fn engine() -> SemanticEngine {
             vec![("value", ParameterKind::Capture)],
         ),
         (
-            "aliasType",
+            "sameType",
             Kind::Alias,
             vec![("value", ParameterKind::Capture)],
         ),
@@ -351,11 +379,6 @@ pub fn engine() -> SemanticEngine {
             vec![("value", ParameterKind::Capture)],
         ),
         ("referenceType", Kind::Reference, vec![]),
-        (
-            "checkType",
-            Kind::Check,
-            vec![("annotation", ParameterKind::Capture)],
-        ),
         (
             "functionType",
             Kind::Function,
@@ -382,7 +405,7 @@ pub fn engine() -> SemanticEngine {
                 name,
                 OperationSignature {
                     id: symbol(name),
-                    provides_context: false,
+                    provides_context: matches!(kind, Kind::Configure),
                     parameters: params
                         .into_iter()
                         .map(|(name, kind)| OperationParameter {

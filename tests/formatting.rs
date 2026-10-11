@@ -32,7 +32,12 @@ fn formats_semantic_blocks_without_changing_syntax() {
     let formatted = format_yl("source", source).unwrap();
     assert_eq!(tree(source), tree(&formatted));
     assert!(formatted.contains("import { scope } from \"lib\""));
-    assert!(formatted.contains("node Program =\n    name: /[a-z]+/\n{\n    meanings {\n        boundary\n        scope()\n"), "{formatted}");
+    assert!(
+        formatted.contains(
+            "node Program = name: /[a-z]+/ {\n    meanings {\n        boundary\n        scope()\n"
+        ),
+        "{formatted}"
+    );
     assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
 }
 #[test]
@@ -139,7 +144,7 @@ fn cli_check_is_read_only_and_invalid_batches_are_not_modified() {
     };
     let check = run(&["fmt", "--check"], &[&valid]);
     assert_eq!(check.status.code(), Some(1));
-    assert!(check.stderr.is_empty());
+    assert!(String::from_utf8_lossy(&check.stderr).contains("yl.format_required"));
     assert_eq!(fs::read_to_string(&valid).unwrap(), source);
     assert!(String::from_utf8(check.stdout)
         .unwrap()
@@ -216,7 +221,7 @@ fn supports_enums_constraints_extensions_and_tuple_rewrite_cases() {
 fn optional_pattern_and_contextual_variant_do_not_merge_into_optional_chaining() {
     let source = "pattern A = /a/? .b";
     let formatted = format_yl("source", source).unwrap();
-    assert!(formatted.contains("/a/? .b"), "{formatted}");
+    assert!(formatted.contains("/a/?\n    .b"), "{formatted}");
     assert_eq!(tree(source), tree(&formatted));
 }
 
@@ -262,4 +267,464 @@ fn cli_read_only_files_and_literal_dash_paths_are_safe() {
         .unwrap();
     assert!(duplicate.status.success());
     assert!(duplicate.stdout.is_empty());
+}
+
+#[test]
+fn single_units_stay_inline_including_captures_postfix_and_pipes() {
+    let source = r#"node Name=/[a-z]+/ pattern Names=names:Name* |> separatedBy(",") node Value=item:Name? { meanings { scope() } }"#;
+    let expected = "node Name = /[a-z]+/\n\npattern Names = names: Name* |> separatedBy(\",\")\n\nnode Value = item: Name? {\n    meanings {\n        scope()\n    }\n}\n";
+    assert_eq!(format_yl("source", source).unwrap(), expected);
+    assert_eq!(format_yl("source", expected).unwrap(), expected);
+}
+
+#[test]
+fn sequences_place_every_grammar_unit_on_its_own_line() {
+    let source = r#"pattern FunctionContents="(" parameters:Parameter* |> separatedBy(",") ")" annotation:Annotation? body:FunctionBody {meanings{lexicalScope() functionType(parameters,body,annotation)}}"#;
+    let expected = r#"pattern FunctionContents =
+    "("
+    parameters: Parameter* |> separatedBy(",")
+    ")"
+    annotation: Annotation?
+    body: FunctionBody
+{
+    meanings {
+        lexicalScope()
+        functionType(parameters, body, annotation)
+    }
+}
+"#;
+    assert_eq!(format_yl("source", source).unwrap(), expected);
+    assert_eq!(tree(source), tree(expected));
+    assert_eq!(format_yl("source", expected).unwrap(), expected);
+}
+
+#[test]
+fn grouped_units_and_pipelines_remain_intact() {
+    let source =
+        r#"node A = first:(Name | Number)+ |> wrap("[") |> close("]") second:("(" Name ")")?"#;
+    let expected = r#"node A =
+    first: (Name | Number)+ |> wrap("[") |> close("]")
+    second: ("(" Name ")")?
+"#;
+    assert_eq!(format_yl("source", source).unwrap(), expected);
+    assert_eq!(tree(source), tree(expected));
+    assert_eq!(format_yl("source", expected).unwrap(), expected);
+}
+
+#[test]
+fn choices_have_separate_branches_without_splitting_captured_units() {
+    let source = r#"pattern A=left:Name "+" right:Name | Number | Text"#;
+    let expected = r#"pattern A =
+    left: Name
+    "+"
+    right: Name
+    | Number
+    | Text
+"#;
+    assert_eq!(format_yl("source", source).unwrap(), expected);
+    assert_eq!(tree(source), tree(expected));
+    assert_eq!(format_yl("source", expected).unwrap(), expected);
+}
+
+#[test]
+fn sequence_comments_and_raw_literals_remain_parse_equivalent() {
+    let source = "node A = first:/a\\/b/ // first\n/* separator */ \";\" second:Name? |> wrap(\"x\") {meanings{scope()}}";
+    let formatted = format_yl("source", source).unwrap();
+    assert!(
+        formatted.contains("first: /a\\/b/ // first\n"),
+        "{formatted}"
+    );
+    assert!(
+        formatted.contains("    second: Name? |> wrap(\"x\")\n{"),
+        "{formatted}"
+    );
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+
+#[test]
+fn deferred_meaning_matches_are_formatted_and_keep_noop_branches() {
+    let source = r#"node Add=left:Expression "+" right:Expression {meanings{match(typeof(left),typeof(right)){string,string|string,number|number,string=>type(string),number,number=>type(number),unknown,_|_,unknown=>{},_=>error("${left} + ${right} is not possible")}}}"#;
+    let formatted = format_yl("source", source).unwrap();
+    assert!(
+        formatted.contains("match (typeof(left), typeof(right)) {\n"),
+        "{formatted}"
+    );
+    assert!(
+        formatted.contains("number, number => type(number),\n"),
+        "{formatted}"
+    );
+    assert!(
+        formatted.contains("_ => error(\"${left} + ${right} is not possible\")"),
+        "{formatted}"
+    );
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+
+#[test]
+fn authored_symbols_have_one_declaration_per_paragraph() {
+    let source =
+        "export symbol number export symbol string node Number=/[0-9]+/{meanings{type(number)}}";
+    let formatted = format_yl("source", source).unwrap();
+    assert!(
+        formatted.starts_with(
+            "export symbol number\n\nexport symbol string\n\nnode Number = /[0-9]+/ {"
+        ),
+        "{formatted}"
+    );
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+
+#[test]
+fn meaning_metadata_is_first_and_each_operation_has_its_own_line() {
+    let expected = r#"node Program = Statements* {
+    meanings {
+        boundary
+        types(unknown, functionTypeSymbol)
+        lexicalScope()
+        precedence {
+            FunctionDeclaration > LetDeclaration > FunctionBody
+        }
+    }
+}
+"#;
+    for body in [
+        "boundary types(unknown,functionTypeSymbol) lexicalScope() precedence{FunctionDeclaration>LetDeclaration>FunctionBody}",
+        "types(unknown,functionTypeSymbol) boundary lexicalScope() precedence{FunctionDeclaration>LetDeclaration>FunctionBody}",
+        "types(unknown,functionTypeSymbol) lexicalScope() precedence{FunctionDeclaration>LetDeclaration>FunctionBody} boundary",
+    ] {
+        let source = format!("node Program=Statements*{{meanings{{{body}}}}}");
+        let formatted = format_yl("source", &source).unwrap();
+        assert_eq!(formatted, expected);
+        assert_eq!(tree(&source), tree(&formatted));
+        assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+    }
+}
+
+#[test]
+fn meaning_layout_keeps_groups_matches_and_precedence_separate() {
+    let source = r#"node Program=Statements*{meanings{first() group Register{register() check()} precedence{Register>Body} match(typeof(value)){number=>type(number),_=>{}} boundary last()}}"#;
+    let expected = r#"node Program = Statements* {
+    meanings {
+        boundary
+        first()
+        group Register {
+            register()
+            check()
+        }
+        precedence {
+            Register > Body
+        }
+        match (typeof(value)) {
+            number => type(number),
+            _ => {
+            }
+        }
+        last()
+    }
+}
+"#;
+    let formatted = format_yl("source", source).unwrap();
+    assert_eq!(formatted, expected);
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+
+#[test]
+fn metadata_movement_preserves_comments_literals_and_operation_order() {
+    let source = r#"node A=/a/{meanings{first("boundary", /boundary/) // first stays first
+// metadata explanation
+boundary // boundary note
+second(value=boundary) precedence{A>B} third()}}"#;
+    let formatted = format_yl("source", source).unwrap();
+    assert!(formatted.contains("meanings {\n        boundary\n        first(\"boundary\", /boundary/) // first stays first\n"), "{formatted}");
+    for comment in ["// metadata explanation", "// boundary note"] {
+        assert!(formatted.contains(comment));
+    }
+    assert!(
+        formatted.contains("second(value = boundary)\n        precedence {"),
+        "{formatted}"
+    );
+    assert!(formatted.find("first(").unwrap() < formatted.find("second(").unwrap());
+    assert!(formatted.find("second(").unwrap() < formatted.find("third(").unwrap());
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+
+#[test]
+fn meaning_boundary_does_not_move_other_boundary_words() {
+    let source = "symbol boundary node A=/a/{meanings{first(value=boundary) group G{second(boundary)} boundary last(\"boundary\")}}";
+    let formatted = format_yl("source", source).unwrap();
+    assert!(formatted.starts_with("symbol boundary\n\nnode A = /a/ {\n    meanings {\n        boundary\n        first(value = boundary)"), "{formatted}");
+    assert!(formatted.contains("second(boundary)"));
+    assert!(formatted.contains("last(\"boundary\")"));
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+
+#[test]
+fn qualified_operations_named_like_metadata_are_not_moved_or_split() {
+    let source =
+        "node A=/a/{meanings{lib::boundary() lib::precedence() boundary other() precedence{A>B}}}";
+    let formatted = format_yl("source", source).unwrap();
+    assert!(formatted.contains("meanings {\n        boundary\n        lib::boundary()\n        lib::precedence()\n        other()\n        precedence {"), "{formatted}");
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+
+#[test]
+fn cli_json_check_reports_each_file_and_is_read_only() {
+    let root = scratch();
+    let dirty = root.0.join("dirty.yl");
+    let clean = root.0.join("clean.yl");
+    let original = "node A=\"a\" entry A";
+    fs::write(&dirty, original).unwrap();
+    fs::write(&clean, format_yl("source", original).unwrap()).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .args(["fmt", "--json"])
+        .arg(&dirty)
+        .arg("--check")
+        .arg(&clean)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stderr.is_empty());
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["check"], true);
+    assert_eq!(report["success"], false);
+    assert_eq!(report["files"][0]["path"], dirty.to_str().unwrap());
+    assert_eq!(report["files"][0]["status"], "would_change");
+    assert_eq!(report["files"][0]["would_change"], true);
+    assert_eq!(report["files"][0]["changed"], false);
+    assert_eq!(report["files"][1]["status"], "clean");
+    assert_eq!(report["files"][1]["would_change"], false);
+    assert_eq!(report["diagnostics"][0]["code"], "yl.format_required");
+    assert_eq!(report["diagnostics"][0]["severity"], "warning");
+    assert_eq!(
+        report["diagnostics"][0]["primary"]["file"],
+        dirty.to_str().unwrap()
+    );
+    assert_eq!(fs::read_to_string(&dirty).unwrap(), original);
+}
+
+#[test]
+fn cli_json_write_and_clean_check_emit_one_report_without_human_output() {
+    let root = scratch();
+    let file = root.0.join("source.yl");
+    fs::write(&file, "node A=\"a\" entry A").unwrap();
+    for (flags, expected) in [
+        (vec!["fmt", "--json"], "changed"),
+        (vec!["fmt", "--check", "--json"], "clean"),
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_yl"))
+            .args(flags)
+            .arg(&file)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(report["success"], true);
+        assert_eq!(report["files"][0]["status"], expected);
+        assert_eq!(report["files"][0]["changed"], expected == "changed");
+        assert!(report["diagnostics"].as_array().unwrap().is_empty());
+    }
+    assert_eq!(fs::read_dir(&root.0).unwrap().count(), 1);
+}
+
+#[test]
+fn cli_json_errors_cover_invalid_and_missing_files_without_partial_writes() {
+    let root = scratch();
+    let valid = root.0.join("valid.yl");
+    let invalid = root.0.join("invalid.yl");
+    let missing = root.0.join("missing.yl");
+    let original = "node A=\"a\" entry A";
+    fs::write(&valid, original).unwrap();
+    fs::write(&invalid, "node =").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .args(["fmt", "--json"])
+        .arg(&valid)
+        .arg(&invalid)
+        .arg(&missing)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stderr.is_empty());
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["success"], false);
+    assert_eq!(report["files"][0]["status"], "skipped");
+    assert_eq!(report["files"][0]["would_change"], true);
+    assert_eq!(report["files"][0]["changed"], false);
+    assert_eq!(report["files"][1]["status"], "error");
+    assert!(report["files"][1]["would_change"].is_null());
+    assert_eq!(report["files"][2]["status"], "error");
+    assert_eq!(report["diagnostics"][0]["code"], "yl.unexpected_token");
+    assert_eq!(report["diagnostics"][1]["code"], "yl.io");
+    assert_eq!(fs::read_to_string(&valid).unwrap(), original);
+    assert_eq!(fs::read_to_string(&invalid).unwrap(), "node =");
+}
+
+#[test]
+fn cli_human_check_underlines_layout_and_syntax_errors() {
+    let root = scratch();
+    let file = root.0.join("source.yl");
+    let source = "node A = \"é\" entry A";
+    fs::write(&file, source).unwrap();
+    let run = || {
+        Command::new(env!("CARGO_BIN_EXE_yl"))
+            .args(["fmt", "--check"])
+            .arg(&file)
+            .env("CLICOLOR_FORCE", "1")
+            .env_remove("NO_COLOR")
+            .output()
+            .unwrap()
+    };
+    let layout = run();
+    assert_eq!(layout.status.code(), Some(1));
+    let diagnostic = String::from_utf8(layout.stderr).unwrap();
+    assert!(
+        diagnostic.contains("Warning[yl.format_required]"),
+        "{diagnostic}"
+    );
+    assert!(diagnostic.contains(source));
+    assert!(diagnostic.contains('^'));
+    assert!(diagnostic.contains("\x1b[33m"));
+    assert!(diagnostic.contains("without --check"));
+    fs::write(&file, "node =").unwrap();
+    let syntax = run();
+    assert_eq!(syntax.status.code(), Some(1));
+    let diagnostic = String::from_utf8(syntax.stderr).unwrap();
+    assert!(diagnostic.contains("yl.unexpected_token"));
+    assert!(diagnostic.contains("node ="));
+    assert!(diagnostic.contains("\x1b[31m"));
+}
+
+#[test]
+fn cli_json_usage_and_literal_json_file_names_are_unambiguous() {
+    let invalid = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .args(["fmt", "--bogus", "--json"])
+        .output()
+        .unwrap();
+    assert_eq!(invalid.status.code(), Some(1));
+    assert!(invalid.stderr.is_empty());
+    let report: serde_json::Value = serde_json::from_slice(&invalid.stdout).unwrap();
+    assert_eq!(report["diagnostics"][0]["code"], "yl.cli");
+    assert!(report["files"].as_array().unwrap().is_empty());
+    let root = scratch();
+    fs::write(root.0.join("--json"), "node A=\"a\" entry A").unwrap();
+    let literal = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .args(["fmt", "--", "--json"])
+        .current_dir(&root.0)
+        .output()
+        .unwrap();
+    assert!(literal.status.success());
+    assert!(String::from_utf8(literal.stdout)
+        .unwrap()
+        .contains("Formatted --json"));
+}
+
+#[test]
+fn cli_json_readonly_batch_has_io_diagnostic_and_no_changes() {
+    let root = scratch();
+    let earlier = root.0.join("earlier.yl");
+    let readonly = root.0.join("readonly.yl");
+    let source = "node A=\"a\" entry A";
+    fs::write(&earlier, source).unwrap();
+    fs::write(&readonly, source).unwrap();
+    let permissions = fs::metadata(&readonly).unwrap().permissions();
+    let mut protected = permissions.clone();
+    protected.set_readonly(true);
+    fs::set_permissions(&readonly, protected).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .args(["fmt", "--json"])
+        .arg(&earlier)
+        .arg(&readonly)
+        .output()
+        .unwrap();
+    fs::set_permissions(&readonly, permissions).unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stderr.is_empty());
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["files"][0]["status"], "skipped");
+    assert_eq!(report["files"][1]["status"], "error");
+    assert_eq!(report["files"][1]["would_change"], true);
+    assert_eq!(report["diagnostics"][0]["code"], "yl.io");
+    assert_eq!(fs::read_to_string(&earlier).unwrap(), source);
+    assert_eq!(fs::read_to_string(&readonly).unwrap(), source);
+}
+
+#[test]
+fn declaration_containers_start_without_a_blank_line_and_separate_siblings() {
+    let source = r#"export trivia Comment {
+
+    trivia Line = /\/\/[^\n]*/
+
+    trivia Block = /\/\*[\s\S]*?\*\//
+
+}"#;
+    let expected = r#"export trivia Comment {
+    trivia Line = /\/\/[^\n]*/
+
+    trivia Block = /\/\*[\s\S]*?\*\//
+}
+"#;
+    let formatted = format_yl("source", source).unwrap();
+    assert_eq!(formatted, expected);
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+
+#[test]
+fn nested_containers_keep_leading_comments_and_comment_contents() {
+    let source = r#"node Outer {
+
+// first member
+node Inner {
+
+/* nested documentation
+
+   preserved blank line */
+node First = "a"
+
+// second member
+node Second = "b"
+
+}
+
+pattern Tail = "c"
+
+}
+enum Kind {
+
+A
+
+B
+
+}"#;
+    let expected = r#"node Outer {
+    // first member
+    node Inner {
+        /* nested documentation
+
+   preserved blank line */
+        node First = "a"
+
+        // second member
+        node Second = "b"
+    }
+
+    pattern Tail = "c"
+}
+
+enum Kind {
+    A
+    B
+}
+"#;
+    let formatted = format_yl("source", source).unwrap();
+    assert_eq!(formatted, expected);
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
 }

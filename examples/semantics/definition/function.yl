@@ -1,4 +1,4 @@
-import { lexicalScope, declare, variable, function } from "std/semantics"
+import { lexicalScope, declare, variable, function } from "std/variables"
 import { separatedBy } from "std/parser"
 import { Name } from "./lexical"
 import { Expression } from "./expression"

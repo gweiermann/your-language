@@ -449,7 +449,8 @@ impl Compiler {
         declaration: &Declaration,
     ) -> Result<Option<String>> {
         let name = match &declaration.kind {
-            DeclKind::Node { name, .. }
+            DeclKind::Symbol { name }
+            | DeclKind::Node { name, .. }
             | DeclKind::Pattern { name, .. }
             | DeclKind::Pipe { name, .. }
             | DeclKind::Enum { name, .. }
@@ -1696,10 +1697,15 @@ impl Compiler {
                 (ParameterKind::Symbol, ExprKind::Ref(name)) => {
                     let id =
                         self.resolve(&symbol.module, &symbol.name, name, &argument.value.span)?;
-                    if !self.registry.symbols.values().any(|symbol| symbol == &id) {
+                    if !self.registry.symbols.values().any(|symbol| symbol == &id)
+                        && !self
+                            .symbols
+                            .get(&id)
+                            .is_some_and(|s| matches!(s.declaration.kind, DeclKind::Symbol { .. }))
+                    {
                         return Err(Diagnostic::error(
                             "yl.invalid_argument",
-                            "Expected a registered semantic symbol",
+                            "Expected a semantic identity symbol",
                             argument.span.clone(),
                         ));
                     }
@@ -1793,10 +1799,15 @@ impl Compiler {
             }
             ExprKind::Ref(name) => {
                 let id = self.resolve(&symbol.module, &symbol.name, name, &expr.span)?;
-                if !self.registry.symbols.values().any(|symbol| symbol == &id) {
+                if !self.registry.symbols.values().any(|symbol| symbol == &id)
+                    && !self
+                        .symbols
+                        .get(&id)
+                        .is_some_and(|s| matches!(s.declaration.kind, DeclKind::Symbol { .. }))
+                {
                     return Err(Diagnostic::error(
                         "yl.invalid_meaning_match",
-                        "Match constants must be registered symbols",
+                        "Match constants must be semantic identity symbols",
                         expr.span.clone(),
                     ));
                 }
