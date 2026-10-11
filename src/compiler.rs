@@ -2943,8 +2943,17 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
             ));
         }
     }
-    for definition in language.examples.values() {
+    for (id, definition) in &language.examples {
+        if language.rules.contains_key(id) && definition.term != Term::Ref(id.clone()) {
+            return Err(Diagnostic::error(
+                "yl.artifact",
+                "Node example must reference its actual node rule",
+                definition.span.clone(),
+            ));
+        }
         term(&definition.term, language, &definition.span, 0)?;
+        validate_projections(&definition.term, &mut BTreeSet::new(), &definition.span)?;
+        captures(&definition.term, &definition.span)?;
     }
     crate::examples::validate_explicit(language)?;
     for (owner, meanings) in &language.meanings {
@@ -3673,6 +3682,7 @@ fn capture_terms<'a>(
 }
 fn string_term(term: &Term) -> bool {
     match term {
+        Term::Example { term, .. } => string_term(term),
         Term::Literal(_) | Term::Regex(_) => true,
         Term::Repeat(t, Quantifier::Optional)
         | Term::Capture(_, t)

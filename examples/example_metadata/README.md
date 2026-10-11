@@ -24,14 +24,18 @@ When no example is authored, the prototype searches bounded candidates:
 - Choices try shortest candidates first; declaration order breaks ties.
 - Optional grammar is omitted. Both `*` and `+` include one original item.
 - Pipes generate from normalized grammar and preserve one list item, omitting the
-  normalized separator tail. The core does not recognize `separatedBy` by name.
+  normalized separator tail. Candidate provenance counts original projection markers
+  so empty alternatives and nested optional wrappers cannot accidentally produce an
+  empty list. The core does not recognize `separatedBy` by name.
 - Recursive rules try a terminating branch. A recursive repetition is not silently
   reduced to zero to escape recursion.
 - Entry-selected trivia allows candidate spacing. Every returned candidate is
-  checked with the actual parser, including constraints and operator handling.
+  checked with the actual parser, including constraints and operator handling. Recursive operator members are
+  validated through their Pratt family and must produce that member as the root.
 
 Generation is limited to 48 nesting levels, 10,000 generation steps per definition,
-24 candidate strings per composition, and 4,096 bytes per generated candidate.
+24 candidate strings per composition, and 4,096 bytes per generated candidate. An authored top-level example can be longer;
+composing it into an automatically generated parent still respects the parent budget.
 No valid candidate means `text: null` with a reason; this is not a language error.
 This is a minimal candidate among the explored possibilities, not a proof of the
 mathematically shortest string of an arbitrary grammar. Regex assertions are

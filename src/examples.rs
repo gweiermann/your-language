@@ -41,8 +41,8 @@ impl CompiledLanguage {
         definitions.extend(self.examples.clone());
         definitions.into_iter().map(|(id, definition)| {
             let text = if let Some(explicit) = &definition.explicit { Some(explicit.text.clone()) } else {
-                let mut generator = Generator { language: self, steps: 0, active: BTreeSet::new() };
-                generator.term(&definition.term, 0).into_iter().find(|text| accepts(self, &definition.term, text))
+                let mut generator = Generator { language: self, steps: 0, active: BTreeSet::new(), projection: None };
+                generator.term(&definition.term, 0).into_iter().find(|candidate| accepts(self, &definition.term, &candidate.text)).map(|candidate| candidate.text)
             };
             Preview { definition: id, span: definition.span, reason: text.is_none().then(|| "No valid representative within generation limits; supply an explicit example".into()), text }
         }).collect()
@@ -76,30 +76,87 @@ fn accepts(language: &CompiledLanguage, term: &Term, text: &str) -> bool {
         },
     );
     let parsed = crate::parse(&isolated, text);
-    parsed.ast.is_some() && !parsed.has_errors()
+    if parsed.ast.is_some() && !parsed.has_errors() {
+        return true;
+    }
+    // Recursive operator members are parsed in their Pratt family's context.
+    // Require the resulting root to be this member, not another family alternative.
+    if let Term::Ref(id) = term {
+        if let Some(member) = language.rules.get(id) {
+            for (family, rule) in &language.rules {
+                if let RuleBody::Abstract { operators, .. } = &rule.body {
+                    if operators.iter().any(|operator| &operator.rule == id) {
+                        let mut context = language.clone();
+                        context.entry = family.clone();
+                        context.meanings.entry(family.clone()).or_default();
+                        let (result, occurrences) =
+                            crate::runtime::parse_occurrences(&context, "<example>", text);
+                        if !result.has_errors()
+                            && result.ast.is_some_and(|ast| ast.kind == member.name)
+                            && occurrences.iter().any(|root| {
+                                root.definition == *family
+                                    && root
+                                        .children
+                                        .first()
+                                        .is_some_and(|child| child.definition == *id)
+                            })
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 const CANDIDATES: usize = 24;
 const BYTES: usize = 4096;
+
 struct Generator<'a> {
     language: &'a CompiledLanguage,
     steps: usize,
     active: BTreeSet<String>,
+    projection: Option<u32>,
 }
-fn bounded(mut strings: Vec<String>) -> Vec<String> {
-    strings.retain(|s| s.len() <= BYTES);
-    strings.sort_by_key(String::len); // stable: declaration order breaks ties
+#[derive(Clone)]
+struct Candidate {
+    text: String,
+    marks: BTreeMap<u32, usize>,
+}
+impl Candidate {
+    fn new(text: String) -> Self {
+        Self {
+            text,
+            marks: BTreeMap::new(),
+        }
+    }
+    fn join(&self, other: &Self, separator: &str) -> Self {
+        let mut marks = self.marks.clone();
+        for (id, count) in &other.marks {
+            *marks.entry(*id).or_default() += count;
+        }
+        Self {
+            text: format!("{}{separator}{}", self.text, other.text),
+            marks,
+        }
+    }
+}
+fn bounded(mut candidates: Vec<Candidate>) -> Vec<Candidate> {
+    candidates.retain(|s| s.text.len() <= BYTES);
+    candidates.sort_by_key(|s| s.text.len()); // stable: declaration order breaks ties
     let mut seen = BTreeSet::new();
-    strings.retain(|s| seen.insert(s.clone()));
-    strings.truncate(CANDIDATES);
-    strings
+    candidates.retain(|s| seen.insert((s.text.clone(), s.marks.clone())));
+    candidates.truncate(CANDIDATES);
+    candidates
 }
 impl Generator<'_> {
-    fn term(&mut self, term: &Term, depth: usize) -> Vec<String> {
+    fn term(&mut self, term: &Term, depth: usize) -> Vec<Candidate> {
         self.steps += 1;
         if depth > 48 || self.steps > 10000 {
             return vec![];
         }
-        match term {
+        let candidates = match term {
             Term::Example { definition, term } => {
                 if let Some(example) = self
                     .language
@@ -107,16 +164,17 @@ impl Generator<'_> {
                     .get(definition)
                     .and_then(|d| d.explicit.as_ref())
                 {
-                    vec![example.text.clone()]
+                    vec![Candidate::new(example.text.clone())]
                 } else {
                     self.term(term, depth + 1)
                 }
             }
-            Term::Literal(s) => vec![s.clone()],
+            Term::Literal(s) => vec![Candidate::new(s.clone())],
             Term::Regex(s) => regex_syntax::Parser::new()
                 .parse(s)
                 .ok()
                 .and_then(|hir| regex_example(&hir))
+                .map(Candidate::new)
                 .into_iter()
                 .collect(),
             Term::Ref(id) => {
@@ -126,7 +184,7 @@ impl Generator<'_> {
                     .get(id)
                     .and_then(|d| d.explicit.as_ref())
                 {
-                    return vec![example.text.clone()];
+                    return bounded(vec![Candidate::new(example.text.clone())]);
                 }
                 if !self.active.insert(id.clone()) {
                     return vec![];
@@ -146,18 +204,18 @@ impl Generator<'_> {
                 result
             }
             Term::Sequence(terms) => {
-                let mut candidates = vec![String::new()];
+                let mut candidates = vec![Candidate::new(String::new())];
                 for term in terms {
                     let next = self.term(term, depth + 1);
                     let mut combined = vec![];
                     for prefix in &candidates {
                         for suffix in &next {
-                            combined.push(format!("{prefix}{suffix}"));
+                            combined.push(prefix.join(suffix, ""));
                             if !self.language.trivia.is_empty()
-                                && !prefix.is_empty()
-                                && !suffix.is_empty()
+                                && !prefix.text.is_empty()
+                                && !suffix.text.is_empty()
                             {
-                                combined.push(format!("{prefix} {suffix}"));
+                                combined.push(prefix.join(suffix, " "));
                             }
                         }
                     }
@@ -172,31 +230,53 @@ impl Generator<'_> {
                 }
                 bounded(candidates)
             }
-            Term::Repeat(_, Quantifier::Optional) => vec![String::new()],
-            Term::Repeat(term, _)
-            | Term::Capture(_, term)
-            | Term::Meaning { term, .. }
-            | Term::Mark { term, .. } => self.term(term, depth + 1),
+            Term::Repeat(term, quantifier) => match (quantifier, self.projection) {
+                (Quantifier::Optional, None) => vec![Candidate::new(String::new())],
+                (Quantifier::Optional | Quantifier::Star, Some(_)) => {
+                    let mut candidates = vec![Candidate::new(String::new())];
+                    candidates.extend(self.term(term, depth + 1));
+                    candidates
+                }
+                (Quantifier::Star | Quantifier::Plus, None) => {
+                    // Runtime repetitions require progress; empty text would match zero items.
+                    self.term(term, depth + 1)
+                        .into_iter()
+                        .filter(|candidate| !candidate.text.is_empty())
+                        .collect()
+                }
+                _ => self.term(term, depth + 1),
+            },
+            Term::Capture(_, term) | Term::Meaning { term, .. } => self.term(term, depth + 1),
+            Term::Mark { id, term } => {
+                // The original item still follows authored repetition/optional defaults.
+                let previous = self.projection;
+                if previous == Some(*id) {
+                    self.projection = None;
+                }
+                let mut candidates = self.term(term, depth + 1);
+                self.projection = previous;
+                for candidate in &mut candidates {
+                    *candidate.marks.entry(*id).or_default() += 1;
+                }
+                candidates
+            }
             Term::Project {
+                id,
                 term,
                 quantifier: Some(Quantifier::Star | Quantifier::Plus),
                 ..
             } => {
-                let mut inner = term.as_ref().clone();
-                suppress_wrapper_repetition(&mut inner);
-                let mut inner = &inner;
-                while let Term::Meaning { term, .. } | Term::Capture(_, term) = inner {
-                    inner = term;
-                }
-                if let Term::Repeat(item, Quantifier::Optional) = inner {
-                    self.term(item, depth + 1)
-                } else {
-                    self.term(inner, depth + 1)
-                }
+                let previous = self.projection.replace(*id);
+                let mut candidates = self.term(term, depth + 1);
+                self.projection = previous;
+                // Choose one original item regardless of wrapper nesting or empty alternatives.
+                candidates.retain(|candidate| candidate.marks.get(id) == Some(&1));
+                candidates
             }
             Term::Project { term, .. } => self.term(term, depth + 1),
-            Term::NotAhead(_) | Term::NotBehind(_) => vec![String::new()],
-        }
+            Term::NotAhead(_) | Term::NotBehind(_) => vec![Candidate::new(String::new())],
+        };
+        bounded(candidates)
     }
 }
 fn regex_example(hir: &regex_syntax::hir::Hir) -> Option<String> {
@@ -227,30 +307,10 @@ fn regex_example(hir: &regex_syntax::hir::Hir) -> Option<String> {
             .collect::<Option<Vec<_>>>()
             .map(|p| p.concat())
             .filter(|s| s.len() <= BYTES),
-        HirKind::Alternation(parts) => bounded(parts.iter().filter_map(regex_example).collect())
-            .into_iter()
-            .next(),
-    }
-}
-
-// Pipe-generated list tails are wrapper machinery, not authored repetitions.
-fn suppress_wrapper_repetition(term: &mut Term) {
-    match term {
-        Term::Mark { .. } => {}
-        Term::Repeat(inner, quantifier) => {
-            if *quantifier == Quantifier::Star {
-                *quantifier = Quantifier::Optional;
-            }
-            suppress_wrapper_repetition(inner);
+        HirKind::Alternation(parts) => {
+            let mut alternatives: Vec<_> = parts.iter().filter_map(regex_example).collect();
+            alternatives.sort_by_key(String::len);
+            alternatives.into_iter().next()
         }
-        Term::Sequence(terms) | Term::Choice(terms) => {
-            for term in terms {
-                suppress_wrapper_repetition(term);
-            }
-        }
-        Term::Capture(_, inner) | Term::Meaning { term: inner, .. } => {
-            suppress_wrapper_repetition(inner)
-        }
-        _ => {}
     }
 }

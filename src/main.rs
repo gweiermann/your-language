@@ -8,7 +8,7 @@ use your_language::{
 
 fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
     let usage = || {
-        vec![Diagnostic::error("yl.cli","Usage: yl fmt [--check] <files...> | yl check <entry.yl> | yl compile <entry.yl> -o <language.ylc> | yl language <language.ylc> ast <source> | yl language <language.ylc> check <source> [--json]",Span::default())]
+        vec![Diagnostic::error("yl.cli","Usage: yl examples <entry.yl|language.ylc> | yl fmt [--check] <files...> | yl check <entry.yl> | yl compile <entry.yl> -o <language.ylc> | yl language <language.ylc> ast <source> | yl language <language.ylc> check <source> [--json]",Span::default())]
     };
     let io = |path: &str, e: std::io::Error| {
         vec![Diagnostic::error(
@@ -101,10 +101,9 @@ fn main() -> ExitCode {
                     Ok(output) => eprintln!("{output}"),
                     Err(_) => eprintln!("Unable to serialize diagnostics"),
                 }
-            } else if args
-                .first()
-                .is_some_and(|command| command == "check" || command == "compile")
-            {
+            } else if args.first().is_some_and(|command| {
+                command == "check" || command == "compile" || command == "examples"
+            }) {
                 render_definition_diagnostics(
                     &diagnostics,
                     args.get(1).map(String::as_str).unwrap_or("."),
