@@ -31,6 +31,7 @@ pub struct ParseResult {
 }
 #[derive(Clone)]
 struct Captured {
+    occurrences: Vec<usize>,
     value: AstValue,
     span: Span,
     origin: Span,
@@ -99,6 +100,7 @@ pub(crate) fn parse_occurrences(
         steps: 0,
         limit: source.len(),
         trace: !language.meanings.is_empty(),
+        next_occurrence: 0,
     };
     let attempt = parser.rule(&language.entry, 0, false, 0);
     if let Some(mut matched) = attempt {
@@ -106,15 +108,39 @@ pub(crate) fn parse_occurrences(
         if end == source.len() && !parser.resource_limit {
             if let Some(AstValue::Node(node)) = matched.value {
                 let mut next = 0;
-                fn identify(occurrence: &mut crate::semantics::Occurrence, next: &mut usize) {
+                fn identify(
+                    occurrence: &mut crate::semantics::Occurrence,
+                    next: &mut usize,
+                    identities: &mut BTreeMap<usize, usize>,
+                ) {
+                    identities.insert(occurrence.id, *next);
                     occurrence.id = *next;
                     *next += 1;
                     for child in &mut occurrence.children {
-                        identify(child, next);
+                        identify(child, next, identities);
+                    }
+                }
+                let mut identities = BTreeMap::new();
+                for occurrence in &mut matched.occurrences {
+                    identify(occurrence, &mut next, &mut identities);
+                }
+                fn remap(
+                    occurrence: &mut crate::semantics::Occurrence,
+                    identities: &BTreeMap<usize, usize>,
+                ) {
+                    for capture in occurrence.captures.values_mut() {
+                        capture.occurrences = capture
+                            .occurrences
+                            .iter()
+                            .filter_map(|id| identities.get(id).copied())
+                            .collect();
+                    }
+                    for child in &mut occurrence.children {
+                        remap(child, identities);
                     }
                 }
                 for occurrence in &mut matched.occurrences {
-                    identify(occurrence, &mut next);
+                    remap(occurrence, &identities);
                 }
                 return (
                     ParseResult {
@@ -163,6 +189,7 @@ pub(crate) fn parse_occurrences(
 struct Runtime<'a> {
     language: &'a CompiledLanguage,
     trace: bool,
+    next_occurrence: usize,
     source: &'a str,
     file: &'a str,
     regexes: BTreeMap<String, regex::Regex>,
@@ -420,7 +447,7 @@ impl Runtime<'_> {
             Some(depth)
         }
     }
-    fn trace_occurrence(&self, definition: &str, start: usize, matched: &mut Match) {
+    fn trace_occurrence(&mut self, definition: &str, start: usize, matched: &mut Match) {
         if !self.trace {
             return;
         }
@@ -432,6 +459,7 @@ impl Runtime<'_> {
                     name.clone(),
                     crate::semantics::SourceCapture {
                         value: capture.value.clone(),
+                        occurrences: capture.occurrences.clone(),
                         span: capture.origin.clone(),
                         text: self
                             .source
@@ -443,12 +471,13 @@ impl Runtime<'_> {
             })
             .collect();
         let occurrence = crate::semantics::Occurrence {
-            id: 0,
+            id: self.next_occurrence,
             definition: definition.into(),
             span: Span::new(self.file, start, matched.end),
             captures,
             children: std::mem::take(&mut matched.occurrences),
         };
+        self.next_occurrence += 1;
         matched.occurrences.push(occurrence);
     }
     fn construct(&mut self, id: &str, rule: &Rule, start: usize, matched: Match) -> Option<Match> {
@@ -734,6 +763,11 @@ impl Runtime<'_> {
                 result.fields.insert(
                     name.clone(),
                     Captured {
+                        occurrences: result
+                            .occurrences
+                            .iter()
+                            .map(|occurrence| occurrence.id)
+                            .collect(),
                         value,
                         span: Span::new(self.file, start, result.end),
                         origin: result

@@ -379,6 +379,62 @@ impl Parser {
             span: self.span_from(&start),
         })
     }
+    fn meaning_match(&mut self, start: Span) -> Result<MeaningSyntaxMatch> {
+        self.expect("(")?;
+        let mut inputs = vec![self.atom()?];
+        while self.take(",") {
+            inputs.push(self.atom()?);
+        }
+        self.expect(")")?;
+        self.expect("{")?;
+        let mut cases = vec![];
+        while !self.is("}") {
+            let case_start = self.token().span.clone();
+            let mut alternatives = vec![];
+            loop {
+                let mut patterns = vec![];
+                loop {
+                    patterns.push(if self.take("_") {
+                        None
+                    } else {
+                        Some(self.atom()?)
+                    });
+                    if !self.take(",") {
+                        break;
+                    }
+                }
+                if patterns.len() == 1 && patterns[0].is_none() {
+                    patterns.resize(inputs.len(), None);
+                }
+                alternatives.push(patterns);
+                if !self.take("|") {
+                    break;
+                }
+            }
+            self.expect("=>")?;
+            let mut actions = vec![];
+            if self.take("{") {
+                while !self.is("}") {
+                    actions.push(self.meaning_call()?);
+                }
+                self.expect("}")?;
+            } else {
+                actions.push(self.meaning_call()?);
+            }
+            cases.push(MeaningSyntaxCase {
+                alternatives,
+                actions,
+                span: self.span_from(&case_start),
+            });
+            self.take(",");
+        }
+        self.expect("}")?;
+        Ok(MeaningSyntaxMatch {
+            inputs,
+            cases,
+            span: self.span_from(&start),
+        })
+    }
     fn meanings(&mut self) -> Result<Meanings> {
         let start = self.token().span.clone();
         self.expect("{")?;
@@ -406,6 +462,15 @@ impl Parser {
                 groups.push(MeaningSyntaxGroup {
                     name: Some(name),
                     calls,
+                    matching: None,
+                    span: self.span_from(&start),
+                });
+            } else if self.take("match") {
+                let matching = self.meaning_match(start.clone())?;
+                groups.push(MeaningSyntaxGroup {
+                    name: None,
+                    calls: vec![],
+                    matching: Some(matching),
                     span: self.span_from(&start),
                 });
             } else if self.take("precedence") {
@@ -430,6 +495,7 @@ impl Parser {
                     name: None,
                     span: call.span.clone(),
                     calls: vec![call],
+                    matching: None,
                 });
             }
         }

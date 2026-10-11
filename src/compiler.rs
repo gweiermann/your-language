@@ -4,8 +4,9 @@ use crate::{
     frontend::parse_yl,
     ir::*,
     semantics::{
-        MeaningCall, MeaningChain, MeaningDefinition, MeaningGroup, MeaningSelector, MeaningValue,
-        OperationRegistry, ParameterKind,
+        MeaningAction, MeaningCall, MeaningCase, MeaningChain, MeaningDefinition, MeaningGroup,
+        MeaningMatch, MeaningMessagePart, MeaningSelector, MeaningValue, OperationRegistry,
+        ParameterKind,
     },
     syntax::*,
 };
@@ -1629,6 +1630,301 @@ impl Compiler {
             }
         })
     }
+    fn lower_meaning_call(&self, symbol: &Symbol, call: &MeaningSyntaxCall) -> Result<MeaningCall> {
+        let id = self.resolve(&symbol.module, &symbol.name, &call.name, &call.span)?;
+        let contract = self
+            .registry
+            .signature(&id)
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "yl.unknown_operation",
+                    format!("{} is not a registered semantic operation", call.name),
+                    call.span.clone(),
+                )
+            })?
+            .clone();
+        let mut arguments = BTreeMap::new();
+        let mut position = 0;
+        let mut named = false;
+        for argument in &call.arguments {
+            let parameter = if let Some(name) = &argument.name {
+                named = true;
+                contract
+                    .parameters
+                    .iter()
+                    .find(|parameter| &parameter.name == name)
+            } else {
+                if named {
+                    return Err(Diagnostic::error(
+                        "yl.invalid_argument",
+                        "Positional operation argument follows a named argument",
+                        argument.span.clone(),
+                    ));
+                }
+                let parameter = contract.parameters.get(position);
+                position += 1;
+                parameter
+            }
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "yl.invalid_argument",
+                    "Unknown or excess operation argument",
+                    argument.span.clone(),
+                )
+            })?;
+            let value = match (&parameter.kind, &argument.value.kind) {
+                (_, ExprKind::Call(name, args)) => {
+                    MeaningValue::Call(Box::new(self.lower_meaning_query(
+                        symbol,
+                        &MeaningSyntaxCall {
+                            name: name.clone(),
+                            arguments: args.clone(),
+                            span: argument.value.span.clone(),
+                        },
+                    )?))
+                }
+                (ParameterKind::Capture, ExprKind::Ref(name)) => {
+                    MeaningValue::Capture(name.clone())
+                }
+                (ParameterKind::Text, ExprKind::Literal(text)) => MeaningValue::Text(text.clone()),
+                (ParameterKind::Bool, ExprKind::Bool(value)) => MeaningValue::Bool(*value),
+                (ParameterKind::Bool, ExprKind::Ref(value))
+                    if matches!(value.as_str(), "true" | "false") =>
+                {
+                    MeaningValue::Bool(value == "true")
+                }
+                (ParameterKind::Symbol, ExprKind::Ref(name)) => {
+                    let id =
+                        self.resolve(&symbol.module, &symbol.name, name, &argument.value.span)?;
+                    if !self.registry.symbols.values().any(|symbol| symbol == &id) {
+                        return Err(Diagnostic::error(
+                            "yl.invalid_argument",
+                            "Expected a registered semantic symbol",
+                            argument.span.clone(),
+                        ));
+                    }
+                    MeaningValue::Symbol(id)
+                }
+                _ => {
+                    return Err(Diagnostic::error(
+                        "yl.invalid_argument",
+                        format!(
+                            "Incompatible value for operation parameter {}",
+                            parameter.name
+                        ),
+                        argument.span.clone(),
+                    ))
+                }
+            };
+            if arguments.insert(parameter.name.clone(), value).is_some() {
+                return Err(Diagnostic::error(
+                    "yl.invalid_argument",
+                    "Duplicate operation argument",
+                    argument.span.clone(),
+                ));
+            }
+        }
+        for parameter in &contract.parameters {
+            if !arguments.contains_key(&parameter.name) {
+                let value = parameter.default.clone().ok_or_else(|| {
+                    Diagnostic::error(
+                        "yl.invalid_argument",
+                        format!("Missing operation argument {}", parameter.name),
+                        call.span.clone(),
+                    )
+                })?;
+                arguments.insert(parameter.name.clone(), value);
+            }
+        }
+        if contract.provides_context
+            && arguments
+                .values()
+                .any(|value| matches!(value, MeaningValue::Call(_)))
+        {
+            return Err(Diagnostic::error(
+                "yl.deferred_context",
+                "Context providers cannot depend on deferred value expressions",
+                call.span.clone(),
+            ));
+        }
+        Ok(MeaningCall {
+            operation: id,
+            contract,
+            arguments,
+            span: call.span.clone(),
+        })
+    }
+    fn lower_meaning_query(
+        &self,
+        symbol: &Symbol,
+        syntax: &MeaningSyntaxCall,
+    ) -> Result<MeaningCall> {
+        let call = self.lower_meaning_call(symbol, syntax)?;
+        if call.contract.provides_context {
+            return Err(Diagnostic::error(
+                "yl.deferred_context",
+                "Value expressions cannot provide lifecycle contexts",
+                call.span,
+            ));
+        }
+        Ok(call)
+    }
+    fn lower_meaning_value(
+        &self,
+        symbol: &Symbol,
+        expr: &Expr,
+        pattern: bool,
+    ) -> Result<MeaningValue> {
+        match &expr.kind {
+            ExprKind::Call(name, arguments) if !pattern => {
+                Ok(MeaningValue::Call(Box::new(self.lower_meaning_query(
+                    symbol,
+                    &MeaningSyntaxCall {
+                        name: name.clone(),
+                        arguments: arguments.clone(),
+                        span: expr.span.clone(),
+                    },
+                )?)))
+            }
+            ExprKind::Literal(value) => Ok(MeaningValue::Text(value.clone())),
+            ExprKind::Bool(value) => Ok(MeaningValue::Bool(*value)),
+            ExprKind::Ref(name) if matches!(name.as_str(), "true" | "false") => {
+                Ok(MeaningValue::Bool(name == "true"))
+            }
+            ExprKind::Ref(name) => {
+                let id = self.resolve(&symbol.module, &symbol.name, name, &expr.span)?;
+                if !self.registry.symbols.values().any(|symbol| symbol == &id) {
+                    return Err(Diagnostic::error(
+                        "yl.invalid_meaning_match",
+                        "Match constants must be registered symbols",
+                        expr.span.clone(),
+                    ));
+                }
+                Ok(MeaningValue::Symbol(id))
+            }
+            _ => Err(Diagnostic::error(
+                "yl.invalid_meaning_match",
+                "Expected a native value call or constant",
+                expr.span.clone(),
+            )),
+        }
+    }
+    fn lower_meaning_match(
+        &self,
+        symbol: &Symbol,
+        matching: &MeaningSyntaxMatch,
+    ) -> Result<MeaningMatch> {
+        let inputs = matching
+            .inputs
+            .iter()
+            .map(|input| self.lower_meaning_value(symbol, input, false))
+            .collect::<Result<Vec<_>>>()?;
+        let mut cases = vec![];
+        for (index, case) in matching.cases.iter().enumerate() {
+            let mut alternatives = vec![];
+            for alternative in &case.alternatives {
+                if alternative.len() != inputs.len() {
+                    return Err(Diagnostic::error(
+                        "yl.invalid_meaning_match",
+                        "Match tuple arity differs from its inputs",
+                        case.span.clone(),
+                    ));
+                }
+                if alternative.iter().all(Option::is_none) && index + 1 != matching.cases.len() {
+                    return Err(Diagnostic::error(
+                        "yl.invalid_meaning_match",
+                        "Wildcard case must be last",
+                        case.span.clone(),
+                    ));
+                }
+                alternatives.push(
+                    alternative
+                        .iter()
+                        .map(|value| {
+                            value
+                                .as_ref()
+                                .map(|value| self.lower_meaning_value(symbol, value, true))
+                                .transpose()
+                        })
+                        .collect::<Result<Vec<_>>>()?,
+                );
+            }
+            let mut actions = vec![];
+            for call in &case.actions {
+                if matches!(call.name.as_str(), "error" | "warn" | "warning") {
+                    let [argument] = call.arguments.as_slice() else {
+                        return Err(Diagnostic::error(
+                            "yl.invalid_meaning_match",
+                            "Diagnostic needs one message",
+                            call.span.clone(),
+                        ));
+                    };
+                    let ExprKind::Literal(text) = &argument.value.kind else {
+                        return Err(Diagnostic::error(
+                            "yl.invalid_meaning_match",
+                            "Diagnostic needs a string message",
+                            argument.span.clone(),
+                        ));
+                    };
+                    let mut message = vec![];
+                    let mut remaining = text.as_str();
+                    while let Some((before, after)) = remaining.split_once("${") {
+                        message.push(MeaningMessagePart::Text(before.into()));
+                        let Some((capture, rest)) = after.split_once('}') else {
+                            return Err(Diagnostic::error(
+                                "yl.invalid_meaning_match",
+                                "Unterminated diagnostic interpolation",
+                                argument.span.clone(),
+                            ));
+                        };
+                        message.push(MeaningMessagePart::Capture(capture.into()));
+                        remaining = rest;
+                    }
+                    message.push(MeaningMessagePart::Text(remaining.into()));
+                    actions.push(MeaningAction::Emit {
+                        severity: if call.name == "error" {
+                            Severity::Error
+                        } else {
+                            Severity::Warning
+                        },
+                        message,
+                        span: call.span.clone(),
+                    });
+                } else {
+                    let call = self.lower_meaning_call(symbol, call)?;
+                    if call.contract.provides_context {
+                        return Err(Diagnostic::error(
+                            "yl.deferred_context",
+                            "Deferred actions cannot provide lifecycle contexts",
+                            call.span,
+                        ));
+                    }
+                    actions.push(MeaningAction::Call(call));
+                }
+            }
+            cases.push(MeaningCase {
+                alternatives,
+                actions,
+                span: case.span.clone(),
+            });
+        }
+        if !cases.last().is_some_and(|case| {
+            case.alternatives
+                .iter()
+                .any(|alternative| alternative.iter().all(Option::is_none))
+        }) {
+            return Err(Diagnostic::error(
+                "yl.non_exhaustive_meaning_match",
+                "Match requires a final wildcard case",
+                matching.span.clone(),
+            ));
+        }
+        Ok(MeaningMatch {
+            inputs,
+            cases,
+            span: matching.span.clone(),
+        })
+    }
     fn lower_meanings(&self, symbol: &Symbol, meanings: &Meanings) -> Result<MeaningDefinition> {
         let mut groups = vec![];
         let mut names = BTreeSet::new();
@@ -1644,119 +1940,20 @@ impl Compiler {
                     group.span.clone(),
                 ));
             }
-            let mut calls = vec![];
-            for call in &group.calls {
-                let id = self.resolve(&symbol.module, &symbol.name, &call.name, &call.span)?;
-                let contract = self
-                    .registry
-                    .signature(&id)
-                    .ok_or_else(|| {
-                        Diagnostic::error(
-                            "yl.unknown_operation",
-                            format!("{} is not a registered semantic operation", call.name),
-                            call.span.clone(),
-                        )
-                    })?
-                    .clone();
-                let mut arguments = BTreeMap::new();
-                let mut position = 0;
-                let mut named = false;
-                for argument in &call.arguments {
-                    let parameter = if let Some(name) = &argument.name {
-                        named = true;
-                        contract
-                            .parameters
-                            .iter()
-                            .find(|parameter| &parameter.name == name)
-                    } else {
-                        if named {
-                            return Err(Diagnostic::error(
-                                "yl.invalid_argument",
-                                "Positional operation argument follows a named argument",
-                                argument.span.clone(),
-                            ));
-                        }
-                        let parameter = contract.parameters.get(position);
-                        position += 1;
-                        parameter
-                    }
-                    .ok_or_else(|| {
-                        Diagnostic::error(
-                            "yl.invalid_argument",
-                            "Unknown or excess operation argument",
-                            argument.span.clone(),
-                        )
-                    })?;
-                    let value = match (&parameter.kind, &argument.value.kind) {
-                        (ParameterKind::Capture, ExprKind::Ref(name)) => {
-                            MeaningValue::Capture(name.clone())
-                        }
-                        (ParameterKind::Text, ExprKind::Literal(text)) => {
-                            MeaningValue::Text(text.clone())
-                        }
-                        (ParameterKind::Bool, ExprKind::Bool(value)) => MeaningValue::Bool(*value),
-                        (ParameterKind::Bool, ExprKind::Ref(value))
-                            if matches!(value.as_str(), "true" | "false") =>
-                        {
-                            MeaningValue::Bool(value == "true")
-                        }
-                        (ParameterKind::Symbol, ExprKind::Ref(name)) => {
-                            let id = self.resolve(
-                                &symbol.module,
-                                &symbol.name,
-                                name,
-                                &argument.value.span,
-                            )?;
-                            if !self.registry.symbols.values().any(|symbol| symbol == &id) {
-                                return Err(Diagnostic::error(
-                                    "yl.invalid_argument",
-                                    "Expected a registered semantic symbol",
-                                    argument.span.clone(),
-                                ));
-                            }
-                            MeaningValue::Symbol(id)
-                        }
-                        _ => {
-                            return Err(Diagnostic::error(
-                                "yl.invalid_argument",
-                                format!(
-                                    "Incompatible value for operation parameter {}",
-                                    parameter.name
-                                ),
-                                argument.span.clone(),
-                            ))
-                        }
-                    };
-                    if arguments.insert(parameter.name.clone(), value).is_some() {
-                        return Err(Diagnostic::error(
-                            "yl.invalid_argument",
-                            "Duplicate operation argument",
-                            argument.span.clone(),
-                        ));
-                    }
-                }
-                for parameter in &contract.parameters {
-                    if !arguments.contains_key(&parameter.name) {
-                        let value = parameter.default.clone().ok_or_else(|| {
-                            Diagnostic::error(
-                                "yl.invalid_argument",
-                                format!("Missing operation argument {}", parameter.name),
-                                call.span.clone(),
-                            )
-                        })?;
-                        arguments.insert(parameter.name.clone(), value);
-                    }
-                }
-                calls.push(MeaningCall {
-                    operation: id,
-                    contract,
-                    arguments,
-                    span: call.span.clone(),
-                });
-            }
+            let calls = group
+                .calls
+                .iter()
+                .map(|call| self.lower_meaning_call(symbol, call))
+                .collect::<Result<Vec<_>>>()?;
+            let matching = group
+                .matching
+                .as_ref()
+                .map(|matching| self.lower_meaning_match(symbol, matching))
+                .transpose()?;
             groups.push(MeaningGroup {
                 name: group.name.clone(),
                 calls,
+                matching,
                 span: group.span.clone(),
             });
         }
@@ -2682,13 +2879,70 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                     group.span.clone(),
                 ));
             }
-            for call in &group.calls {
+            if let Some(matching) = &group.matching {
+                if matching.inputs.is_empty()
+                    || matching.cases.is_empty()
+                    || !matching.cases.last().is_some_and(|case| {
+                        case.alternatives.iter().any(|alternative| {
+                            alternative.len() == matching.inputs.len()
+                                && alternative.iter().all(Option::is_none)
+                        })
+                    })
+                {
+                    return Err(Diagnostic::error(
+                        "yl.artifact",
+                        "Meaning match needs inputs and a final wildcard",
+                        matching.span.clone(),
+                    ));
+                }
+                if matching.inputs.iter().any(|value| matches!(value, MeaningValue::Capture(_)) || matches!(value, MeaningValue::Call(call) if call.contract.provides_context)) {
+                    return Err(Diagnostic::error("yl.artifact", "Invalid meaning match input", matching.span.clone()));
+                }
+                for (index, case) in matching.cases.iter().enumerate() {
+                    if case.alternatives.is_empty()
+                        || case.alternatives.iter().any(|alternative| {
+                            alternative.len() != matching.inputs.len()
+                                || alternative.iter().flatten().any(|value| {
+                                    !matches!(
+                                        value,
+                                        MeaningValue::Text(_)
+                                            | MeaningValue::Bool(_)
+                                            | MeaningValue::Symbol(_)
+                                    )
+                                })
+                                || (index + 1 != matching.cases.len()
+                                    && alternative.iter().all(Option::is_none))
+                        })
+                    {
+                        return Err(Diagnostic::error(
+                            "yl.artifact",
+                            "Invalid meaning match patterns",
+                            case.span.clone(),
+                        ));
+                    }
+                    for action in &case.actions {
+                        if let MeaningAction::Call(call) = action {
+                            if call.contract.provides_context {
+                                return Err(Diagnostic::error(
+                                    "yl.artifact",
+                                    "Deferred action provides a context",
+                                    call.span.clone(),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+            for call in group.all_calls() {
                 if call.operation.is_empty() || call.operation != call.contract.id {
                     return Err(Diagnostic::error(
                         "yl.artifact",
                         "Meaning operation identity does not match its contract",
                         call.span.clone(),
                     ));
+                }
+                if call.arguments.values().any(|value| matches!(value, MeaningValue::Call(query) if query.contract.provides_context)) || (call.contract.provides_context && call.arguments.values().any(|value| matches!(value, MeaningValue::Call(_)))) {
+                    return Err(Diagnostic::error("yl.artifact", "Deferred calls cannot provide lifecycle contexts", call.span.clone()));
                 }
                 let mut parameters = BTreeSet::new();
                 for parameter in &call.contract.parameters {
@@ -2699,11 +2953,10 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                             call.span.clone(),
                         ));
                     }
-                    if parameter
-                        .default
-                        .as_ref()
-                        .is_some_and(|value| !meaning_value_matches(value, &parameter.kind))
-                    {
+                    if parameter.default.as_ref().is_some_and(|value| {
+                        matches!(value, MeaningValue::Call(_))
+                            || !meaning_value_matches(value, &parameter.kind)
+                    }) {
                         return Err(Diagnostic::error(
                             "yl.artifact",
                             "Operation parameter default has an incompatible type",
@@ -2773,6 +3026,7 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
 
 fn meaning_value_matches(value: &MeaningValue, kind: &ParameterKind) -> bool {
     match (value, kind) {
+        (MeaningValue::Call(_), _) => true,
         (MeaningValue::Capture(name), ParameterKind::Capture)
         | (MeaningValue::Symbol(name), ParameterKind::Symbol) => !name.is_empty(),
         (MeaningValue::Text(_), ParameterKind::Text)
@@ -2785,7 +3039,7 @@ fn validate_meaning_captures(
     meanings: &MeaningDefinition,
     captures: &BTreeSet<String>,
 ) -> Result<()> {
-    for call in meanings.groups.iter().flat_map(|group| &group.calls) {
+    for call in meanings.groups.iter().flat_map(MeaningGroup::all_calls) {
         for value in call.arguments.values() {
             if let MeaningValue::Capture(name) = value {
                 if !captures.contains(name) {
@@ -2794,6 +3048,27 @@ fn validate_meaning_captures(
                         format!("Meaning argument references unavailable capture {name}"),
                         call.span.clone(),
                     ));
+                }
+            }
+        }
+    }
+    for group in &meanings.groups {
+        if let Some(matching) = &group.matching {
+            for case in &matching.cases {
+                for action in &case.actions {
+                    if let MeaningAction::Emit { message, span, .. } = action {
+                        for part in message {
+                            if let MeaningMessagePart::Capture(name) = part {
+                                if !captures.contains(name) {
+                                    return Err(Diagnostic::error(
+                                        "yl.artifact",
+                                        format!("Diagnostic references unavailable capture {name}"),
+                                        span.clone(),
+                                    ));
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -3400,6 +3675,7 @@ mod semantic_artifact_tests {
             MeaningDefinition {
                 boundary: false,
                 groups: vec![MeaningGroup {
+                    matching: None,
                     name: Some("Register".into()),
                     span: span.clone(),
                     calls: vec![MeaningCall {

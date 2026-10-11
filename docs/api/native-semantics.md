@@ -162,3 +162,37 @@ cargo run --example semantic_analysis -- unresolved --json
 The default output reports success briefly, or renders semantic diagnostics to stderr with the same source underlines as the CLI. `--json` writes the complete analysis result to stdout and suppresses human diagnostics. Error outcomes exit with code 1 in either mode. Color follows stderr's terminal status; `CLICOLOR_FORCE=1` forces color and `NO_COLOR` takes precedence to disable it.
 
 Rust consumers can reuse `diagnostic_render::print_diagnostics`, providing a source lookup function for diagnostic spans, or call `render_diagnostics` with an explicit color setting to obtain a string. Rendering does not change structured diagnostic data or source offsets.
+
+## Separate composable inference experiment
+
+The throwaway Mini TypeScript consumer publishes local constraints through imported
+native meanings. Literals use `type(number)`/`type(string)` identity symbols;
+addition declares its operand combinations in a tuple `match` over
+`typeof(left)`/`typeof(right)`. The native type library has no grammar node names,
+root traversal or addition policy. Run `cargo run --example mini_typescript -- addition`,
+use `-- addition-errors` for underlined operand diagnostics, or add `--json` for full state.
+Exact policies and limitations live in `examples/mini_typescript/README.md`.
+
+These syntax extensions are experimental: nested semantic value calls, tuple-match
+alternatives, a required final wildcard, void `{}` branches and interpolated
+`error(...)`/`warning(...)` actions. Pending value inputs delay branch selection;
+settled unknown is an ordinary imported identity symbol. Branch effects run once.
+A void branch does not publish a type; `type(unknown)` does so explicitly.
+
+`SourceCapture::occurrences` exposes original retained capture roots, including
+aliases, transparent patterns, repetition and pipe projections. Terminal/absent
+captures have no handles. `OperationContext::attachment(occurrence, key)` reads
+published identity links without inspecting another library's private context.
+
+Registered `AnalysisService` factories supply fresh per-analysis state. Their
+`progress`, `settle` and `finish` hooks define automatic fixed-point completion;
+there is no grammar-level `solve()` call. Native `evaluate` returns `Pending` or
+`Ready(SemanticValue)`, separately from effect hooks. Deferred expressions and
+matches run after ordinary lifecycle traversal, without enclosing context
+activation. Context providers and incompatible mixed-phase ordering are rejected.
+Value readers must be observational: retries can create fresh instances, and readers
+must not emit diagnostics or external effects. Keep persistent query state in an
+analysis service. Match blocks currently live directly in `meanings`; named groups
+support native calls but not nested match blocks.
+The prototype tests second native libraries at the capture/service interfaces,
+repeated/concurrent analyses and optional artifact reload.

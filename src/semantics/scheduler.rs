@@ -158,14 +158,40 @@ pub(super) fn execute(
         })
         .map(|occurrence| occurrence.id)
         .collect();
+    let mut deferred = vec![];
     let mut tasks = vec![];
     for owner in &all {
         let Some(definition) = language.meanings.get(&owner.definition) else {
             continue;
         };
         for group in &definition.groups {
+            if let Some(matching) = &group.matching {
+                deferred.push(Deferred {
+                    task: tasks.len(),
+                    owner,
+                    kind: DeferredKind::Match(matching),
+                    next: 0,
+                    selected: None,
+                    done: false,
+                });
+            }
             let mut instances = vec![];
             for call in &group.calls {
+                if call
+                    .arguments
+                    .values()
+                    .any(|value| matches!(value, MeaningValue::Call(_)))
+                {
+                    deferred.push(Deferred {
+                        task: tasks.len(),
+                        owner,
+                        kind: DeferredKind::Call(call),
+                        next: 0,
+                        selected: None,
+                        done: false,
+                    });
+                    continue;
+                }
                 let Some((signature, factory)) = registry.operations.get(&call.operation) else {
                     diagnostics.push(Diagnostic::error(
                         "semantic.missing_operation",
@@ -188,6 +214,7 @@ pub(super) fn execute(
                 let mut arguments = BTreeMap::new();
                 for (name, value) in &call.arguments {
                     let value = match value {
+                        MeaningValue::Call(_) => unreachable!("nested calls are deferred"),
                         MeaningValue::Capture(capture) => {
                             let Some(capture) = owner.captures.get(capture) else {
                                 diagnostics.push(Diagnostic::error(
@@ -404,6 +431,34 @@ pub(super) fn execute(
     // Ancestor/local constraints accumulate. Bare selectors postpone traversal,
     // while named selectors order only that owner's chosen operation group.
     let strict = dependencies.clone();
+    // Explicit dependency chains cannot move finalization effects ahead of
+    // ordinary lifecycle hooks. Check transitively through selection barriers.
+    for (task_id, task) in tasks.iter().enumerate() {
+        if task.instances.is_empty() {
+            continue;
+        }
+        let mut visited = std::collections::BTreeSet::new();
+        let mut pending: Vec<_> = strict[task_id].iter().copied().collect();
+        while let Some(required) = pending.pop() {
+            if !visited.insert(required) {
+                continue;
+            }
+            if deferred.iter().any(|job| job.task == required) {
+                let primary = visited
+                    .iter()
+                    .find_map(|id| chain_spans.get(id))
+                    .cloned()
+                    .unwrap_or_else(|| task.group.span.clone());
+                diagnostics.push(Diagnostic::error(
+                    "semantic.deferred_order",
+                    "A deferred finalization action cannot precede an ordinary lifecycle action",
+                    primary,
+                ));
+                return;
+            }
+            pending.extend(strict[required].iter().copied());
+        }
+    }
 
     for fence in fences {
         for region in fence.after.whole {
@@ -513,7 +568,31 @@ pub(super) fn execute(
         diagnostics.push(diagnostic);
         return;
     }
-    let mut state = AnalysisState::default();
+    let positions: BTreeMap<_, _> = sorted
+        .iter()
+        .enumerate()
+        .map(|(position, task)| (*task, position))
+        .collect();
+    deferred.sort_by_key(|job| positions[&job.task]);
+    let mut deferred_dependencies = BTreeMap::new();
+    for job in &deferred {
+        let mut required = std::collections::BTreeSet::new();
+        let mut pending: Vec<_> = dependencies[job.task].iter().copied().collect();
+        while let Some(task) = pending.pop() {
+            if required.insert(task) {
+                pending.extend(dependencies[task].iter().copied());
+            }
+        }
+        deferred_dependencies.insert(job.task, required);
+    }
+    let mut state = AnalysisState {
+        services: registry
+            .services
+            .iter()
+            .map(|(id, factory)| (id.clone(), factory()))
+            .collect(),
+        ..AnalysisState::default()
+    };
     let mut finalized = std::collections::BTreeSet::new();
     let mut failed = false;
     for task_id in sorted {
@@ -605,6 +684,59 @@ pub(super) fn execute(
             }
         }
     }
+    if !failed {
+        if let Some(root) = occurrences.first() {
+            for phase in [ServicePhase::Progress, ServicePhase::Settle] {
+                if matches!(phase, ServicePhase::Settle) {
+                    run_services(root, &mut state, phase);
+                }
+                let mut exhausted = true;
+                for _ in 0..10000 {
+                    let mut progress = run_services(root, &mut state, ServicePhase::Progress);
+                    for index in 0..deferred.len() {
+                        let blocked = deferred.iter().enumerate().any(|(other, candidate)| {
+                            !candidate.done
+                                && (deferred_dependencies[&deferred[index].task]
+                                    .contains(&candidate.task)
+                                    || (candidate.task == deferred[index].task && other < index))
+                        });
+                        let job = &mut deferred[index];
+                        if !job.done && !blocked {
+                            match advance(job, registry, &mut state) {
+                                Ok(changed) => progress |= changed,
+                                Err(error) => {
+                                    state.diagnostics.push(error);
+                                    job.done = true;
+                                }
+                            }
+                        }
+                    }
+                    if !progress {
+                        exhausted = false;
+                        break;
+                    }
+                }
+                if exhausted {
+                    state.diagnostics.push(Diagnostic::error(
+                        "semantic.progress_limit",
+                        "Semantic finalization exceeded its progress limit",
+                        root.span.clone(),
+                    ));
+                    break;
+                }
+            }
+            for job in &deferred {
+                if !job.done {
+                    state.diagnostics.push(Diagnostic::error(
+                        "semantic.pending",
+                        "Semantic inputs remain pending after finalization",
+                        job.owner.span.clone(),
+                    ));
+                }
+            }
+            run_services(root, &mut state, ServicePhase::Finish);
+        }
+    }
     *graph = state.graph;
     diagnostics.extend(state.diagnostics);
 }
@@ -678,5 +810,273 @@ fn finish(
         }
         tasks[task].instances[operation].ready = false;
         leave(&enclosing, tasks, state);
+    }
+}
+
+// Deferred actions have no enclosing lifecycle activation. They consume analysis
+// services and captured identities, and never create context providers.
+enum DeferredKind<'a> {
+    Call(&'a MeaningCall),
+    Match(&'a MeaningMatch),
+}
+struct Deferred<'a> {
+    task: usize,
+    owner: &'a Occurrence,
+    kind: DeferredKind<'a>,
+    selected: Option<usize>,
+    next: usize,
+    done: bool,
+}
+fn evaluate(
+    value: &MeaningValue,
+    owner: &Occurrence,
+    registry: &OperationRegistry,
+    state: &mut AnalysisState,
+    depth: usize,
+) -> Result<Evaluation, Diagnostic> {
+    if depth > 128 {
+        return Err(Diagnostic::error(
+            "semantic.depth_limit",
+            "Native value nesting exceeds resource limit",
+            owner.span.clone(),
+        ));
+    }
+    Ok(Evaluation::Ready(match value {
+        MeaningValue::Capture(name) => SemanticValue::Source(
+            owner
+                .captures
+                .get(name)
+                .ok_or_else(|| {
+                    Diagnostic::error(
+                        "semantic.missing_capture",
+                        format!("Capture {name} is unavailable"),
+                        owner.span.clone(),
+                    )
+                })?
+                .clone(),
+        ),
+        MeaningValue::Text(value) => SemanticValue::Text(value.clone()),
+        MeaningValue::Bool(value) => SemanticValue::Bool(*value),
+        MeaningValue::Symbol(value) => SemanticValue::Symbol(value.clone()),
+        MeaningValue::Call(call) => {
+            let Some((arguments, mut native)) = prepare(call, owner, registry, state, depth + 1)?
+            else {
+                return Ok(Evaluation::Pending);
+            };
+            let mut context = OperationContext {
+                occurrence: owner,
+                arguments: &arguments,
+                operation_span: &call.span,
+                state,
+            };
+            return native.evaluate(&mut context);
+        }
+    }))
+}
+type PreparedCall = (BTreeMap<String, SemanticValue>, Box<dyn NativeOperation>);
+fn prepare(
+    call: &MeaningCall,
+    owner: &Occurrence,
+    registry: &OperationRegistry,
+    state: &mut AnalysisState,
+    depth: usize,
+) -> Result<Option<PreparedCall>, Diagnostic> {
+    let Some((signature, factory)) = registry.operations.get(&call.operation) else {
+        return Err(Diagnostic::error(
+            "semantic.missing_operation",
+            "Native operation is not registered",
+            call.span.clone(),
+        ));
+    };
+    if signature != &call.contract {
+        return Err(Diagnostic::error(
+            "semantic.contract_mismatch",
+            "Native operation contract changed",
+            call.span.clone(),
+        ));
+    }
+    if signature.provides_context {
+        return Err(Diagnostic::error(
+            "semantic.deferred_context",
+            "Deferred calls cannot provide lifecycle contexts",
+            call.span.clone(),
+        ));
+    }
+    let mut arguments = BTreeMap::new();
+    for parameter in &signature.parameters {
+        let value = call.arguments.get(&parameter.name).ok_or_else(|| {
+            Diagnostic::error(
+                "semantic.invalid_argument",
+                "Missing native argument",
+                call.span.clone(),
+            )
+        })?;
+        let Evaluation::Ready(value) = evaluate(value, owner, registry, state, depth)? else {
+            return Ok(None);
+        };
+        let valid = matches!(
+            (&parameter.kind, &value),
+            (ParameterKind::Capture, SemanticValue::Source(_))
+                | (ParameterKind::Text, SemanticValue::Text(_))
+                | (ParameterKind::Bool, SemanticValue::Bool(_))
+                | (ParameterKind::Symbol, SemanticValue::Symbol(_))
+        );
+        if !valid {
+            return Err(Diagnostic::error(
+                "semantic.invalid_argument",
+                format!("Native value has incompatible type for {}", parameter.name),
+                owner.span.clone(),
+            ));
+        }
+        arguments.insert(parameter.name.clone(), value);
+    }
+    Ok(Some((arguments, factory())))
+}
+fn perform(
+    call: &MeaningCall,
+    owner: &Occurrence,
+    registry: &OperationRegistry,
+    state: &mut AnalysisState,
+) -> Result<bool, Diagnostic> {
+    let Some((arguments, native)) = prepare(call, owner, registry, state, 0)? else {
+        return Ok(false);
+    };
+    let mut instance = Instance {
+        call: call.clone(),
+        arguments,
+        native,
+        started: true,
+        ready: false,
+    };
+    let before = invoke(&mut instance, owner, state, Hook::Before);
+    let attempted_enter = before.is_ok();
+    let entered = if attempted_enter {
+        invoke(&mut instance, owner, state, Hook::Enter)
+    } else {
+        before
+    };
+    let leave = if attempted_enter {
+        invoke(&mut instance, owner, state, Hook::Leave)
+    } else {
+        Ok(())
+    };
+    let after = invoke(&mut instance, owner, state, Hook::After);
+    entered?;
+    leave?;
+    after?;
+    Ok(true)
+}
+fn advance(
+    job: &mut Deferred<'_>,
+    registry: &OperationRegistry,
+    state: &mut AnalysisState,
+) -> Result<bool, Diagnostic> {
+    match job.kind {
+        DeferredKind::Call(call) => {
+            job.done = perform(call, job.owner, registry, state)?;
+            Ok(job.done)
+        }
+        DeferredKind::Match(matching) => {
+            let mut changed = false;
+            if job.selected.is_none() {
+                let mut values = vec![];
+                for input in &matching.inputs {
+                    let Evaluation::Ready(value) = evaluate(input, job.owner, registry, state, 0)?
+                    else {
+                        return Ok(false);
+                    };
+                    values.push(value);
+                }
+                for (index, case) in matching.cases.iter().enumerate() {
+                    let mut found = false;
+                    for alternative in &case.alternatives {
+                        let mut matches = alternative.len() == values.len();
+                        for (pattern, value) in alternative.iter().zip(&values) {
+                            if let Some(pattern) = pattern {
+                                let Evaluation::Ready(expected) =
+                                    evaluate(pattern, job.owner, registry, state, 0)?
+                                else {
+                                    return Err(Diagnostic::error(
+                                        "semantic.invalid_match",
+                                        "Match patterns must be ready constants",
+                                        case.span.clone(),
+                                    ));
+                                };
+                                matches &= &expected == value;
+                            }
+                        }
+                        found |= matches;
+                    }
+                    if found {
+                        job.selected = Some(index);
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+            let index = job.selected.ok_or_else(|| {
+                Diagnostic::error(
+                    "semantic.invalid_match",
+                    "No matching case",
+                    matching.span.clone(),
+                )
+            })?;
+            let case = &matching.cases[index];
+            while job.next < case.actions.len() {
+                match &case.actions[job.next] {
+                    MeaningAction::Call(call) => {
+                        if !perform(call, job.owner, registry, state)? {
+                            return Ok(changed);
+                        }
+                    }
+                    MeaningAction::Emit {
+                        severity,
+                        message,
+                        span,
+                    } => {
+                        let mut text = String::new();
+                        let mut spans = vec![];
+                        for part in message {
+                            match part {
+                                MeaningMessagePart::Text(value) => text.push_str(value),
+                                MeaningMessagePart::Capture(name) => {
+                                    let capture =
+                                        job.owner.captures.get(name).ok_or_else(|| {
+                                            Diagnostic::error(
+                                                "semantic.missing_capture",
+                                                "Diagnostic capture is unavailable",
+                                                job.owner.span.clone(),
+                                            )
+                                        })?;
+                                    text.push_str(&capture.text);
+                                    spans.push(capture.span.clone());
+                                }
+                            }
+                        }
+                        let mut diagnostic = Diagnostic::error(
+                            "semantic.meaning_case",
+                            text,
+                            spans
+                                .first()
+                                .cloned()
+                                .unwrap_or_else(|| job.owner.span.clone()),
+                        );
+                        diagnostic.severity = severity.clone();
+                        diagnostic.secondary.extend(spans.into_iter().skip(1));
+                        diagnostic.secondary.push(span.clone());
+                        let abort = severity == &crate::diagnostic::Severity::Error;
+                        state.diagnostics.push(diagnostic);
+                        if abort {
+                            job.done = true;
+                            return Ok(true);
+                        }
+                    }
+                }
+                job.next += 1;
+                changed = true;
+            }
+            job.done = true;
+            Ok(changed)
+        }
     }
 }

@@ -1,0 +1,15 @@
+function identity(value) {
+    return value;
+}
+
+function recursive(value: number): number {
+    return recursive(value);
+}
+
+let count: number = identity(42);
+
+let again = recursive(count);
+
+let title = "hello";
+
+let enabled: boolean = true;

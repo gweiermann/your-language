@@ -113,6 +113,8 @@ pub struct Meanings {
 pub struct MeaningSyntaxGroup {
     pub name: Option<String>,
     pub calls: Vec<MeaningSyntaxCall>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub matching: Option<MeaningSyntaxMatch>,
     pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -171,4 +173,17 @@ pub struct Constraint {
 pub enum ConstraintKind {
     Call(String, Vec<Argument>),
     When(Expr, Vec<Constraint>),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MeaningSyntaxMatch {
+    pub inputs: Vec<Expr>,
+    pub cases: Vec<MeaningSyntaxCase>,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MeaningSyntaxCase {
+    pub alternatives: Vec<Vec<Option<Expr>>>,
+    pub actions: Vec<MeaningSyntaxCall>,
+    pub span: Span,
 }

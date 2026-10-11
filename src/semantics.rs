@@ -4,7 +4,7 @@ use crate::{
     AstNode, AstValue, CompiledLanguage,
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{any::Any, collections::BTreeMap, sync::Arc};
 pub mod lexical;
 mod scheduler;
 use scheduler::execute;
@@ -21,7 +21,40 @@ pub struct MeaningDefinition {
 pub struct MeaningGroup {
     pub name: Option<String>,
     pub calls: Vec<MeaningCall>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub matching: Option<MeaningMatch>,
     pub span: Span,
+}
+impl MeaningGroup {
+    pub(crate) fn all_calls(&self) -> Vec<&MeaningCall> {
+        fn add<'a>(call: &'a MeaningCall, calls: &mut Vec<&'a MeaningCall>) {
+            calls.push(call);
+            for value in call.arguments.values() {
+                if let MeaningValue::Call(call) = value {
+                    add(call, calls);
+                }
+            }
+        }
+        let mut calls = vec![];
+        for call in &self.calls {
+            add(call, &mut calls);
+        }
+        if let Some(matching) = &self.matching {
+            for value in &matching.inputs {
+                if let MeaningValue::Call(call) = value {
+                    add(call, &mut calls);
+                }
+            }
+            for case in &matching.cases {
+                for action in &case.actions {
+                    if let MeaningAction::Call(call) = action {
+                        add(call, &mut calls);
+                    }
+                }
+            }
+        }
+        calls
+    }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MeaningCall {
@@ -32,10 +65,37 @@ pub struct MeaningCall {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MeaningValue {
+    Call(Box<MeaningCall>),
     Capture(String),
     Text(String),
     Bool(bool),
     Symbol(String),
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MeaningMatch {
+    pub inputs: Vec<MeaningValue>,
+    pub cases: Vec<MeaningCase>,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MeaningCase {
+    pub alternatives: Vec<Vec<Option<MeaningValue>>>,
+    pub actions: Vec<MeaningAction>,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum MeaningAction {
+    Call(MeaningCall),
+    Emit {
+        severity: crate::diagnostic::Severity,
+        message: Vec<MeaningMessagePart>,
+        span: Span,
+    },
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum MeaningMessagePart {
+    Text(String),
+    Capture(String),
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MeaningChain {
@@ -55,6 +115,10 @@ pub struct SourceCapture {
     pub value: AstValue,
     pub span: Span,
     pub text: String,
+    /// Original retained occurrence roots selected by this capture, in order.
+    /// Empty for terminals and absent optional captures; survives projections.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub occurrences: Vec<usize>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Occurrence {
@@ -123,13 +187,26 @@ pub struct OperationSignature {
     pub provides_context: bool,
 }
 type Factory = Arc<dyn Fn() -> Box<dyn NativeOperation> + Send + Sync>;
+type ServiceFactory = Arc<dyn Fn() -> Box<dyn AnalysisService> + Send + Sync>;
 #[derive(Clone, Default)]
 pub struct OperationRegistry {
     pub(crate) operations: BTreeMap<String, (OperationSignature, Factory)>,
     pub(crate) exports: BTreeMap<(String, String), String>,
     pub(crate) symbols: BTreeMap<(String, String), String>,
+    pub(crate) services: BTreeMap<String, ServiceFactory>,
 }
 impl OperationRegistry {
+    /// Register fresh per-analysis state with automatic fixed-point completion.
+    pub fn register_service<F>(&mut self, id: &str, factory: F) -> Result<(), String>
+    where
+        F: Fn() -> Box<dyn AnalysisService> + Send + Sync + 'static,
+    {
+        if self.services.contains_key(id) {
+            return Err(format!("Duplicate analysis service {id}"));
+        }
+        self.services.insert(id.into(), Arc::new(factory));
+        Ok(())
+    }
     pub fn new() -> Self {
         Self::default()
     }
@@ -204,6 +281,13 @@ impl OperationRegistry {
 /// Instances are created per operation occurrence, never reused between analyses.
 /// `before`/`after` run once; `enter`/`leave` run for each scheduler activation.
 pub trait NativeOperation {
+    /// Evaluate a value expression. Pending is distinct from a ready unknown symbol.
+    /// Readers must be observational: no diagnostics or externally visible effects.
+    /// A fresh reader instance may be evaluated on every propagation retry; store
+    /// persistent query state in an analysis service rather than the reader instance.
+    fn evaluate(&mut self, _context: &mut OperationContext<'_>) -> Result<Evaluation, Diagnostic> {
+        Ok(Evaluation::Ready(SemanticValue::Absent))
+    }
     fn before(&mut self, _context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
         Ok(())
     }
@@ -217,12 +301,78 @@ pub trait NativeOperation {
         Ok(())
     }
 }
+#[derive(Clone, Debug, PartialEq)]
+pub enum Evaluation {
+    Pending,
+    Ready(SemanticValue),
+}
+/// An analysis-local native library service. The engine drives progress to a
+/// fixed point, calls settle once, resumes propagation, then calls finish once.
+/// No target-language policy is built into this lifecycle.
+pub trait AnalysisService: Any {
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+    fn progress(&mut self, _context: &mut OperationContext<'_>) -> Result<bool, Diagnostic> {
+        Ok(false)
+    }
+    fn settle(&mut self, _context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
+        Ok(())
+    }
+    fn finish(&mut self, _context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
+        Ok(())
+    }
+}
+pub(crate) enum ServicePhase {
+    Progress,
+    Settle,
+    Finish,
+}
+pub(crate) fn run_services(
+    occurrence: &Occurrence,
+    state: &mut AnalysisState,
+    phase: ServicePhase,
+) -> bool {
+    let arguments = BTreeMap::new();
+    let mut context = OperationContext {
+        occurrence,
+        arguments: &arguments,
+        operation_span: &occurrence.span,
+        state,
+    };
+    let ids: Vec<_> = context.state.services.keys().cloned().collect();
+    let mut changed = false;
+    for id in ids {
+        if context.state.failed_services.contains(&id) && !matches!(phase, ServicePhase::Finish) {
+            continue;
+        }
+        let mut service = context
+            .state
+            .services
+            .remove(&id)
+            .expect("registered service");
+        let result = match phase {
+            ServicePhase::Progress => service.progress(&mut context),
+            ServicePhase::Settle => service.settle(&mut context).map(|()| false),
+            ServicePhase::Finish => service.finish(&mut context).map(|()| false),
+        };
+        match result {
+            Ok(progress) => changed |= progress,
+            Err(error) => {
+                context.emit(error);
+                context.state.failed_services.insert(id.clone());
+            }
+        }
+        context.state.services.insert(id, service);
+    }
+    changed
+}
 #[derive(Default)]
 pub(crate) struct AnalysisState {
     pub globals: BTreeMap<String, SemanticValue>,
     pub graph: SemanticGraph,
     pub diagnostics: Vec<Diagnostic>,
     pub hook_failed: bool,
+    pub services: BTreeMap<String, Box<dyn AnalysisService>>,
+    pub failed_services: std::collections::BTreeSet<String>,
 }
 pub struct OperationContext<'a> {
     pub occurrence: &'a Occurrence,
@@ -231,6 +381,34 @@ pub struct OperationContext<'a> {
     pub(crate) state: &'a mut AnalysisState,
 }
 impl OperationContext<'_> {
+    /// Borrow one library's analysis-local service while retaining graph access.
+    pub fn with_service<T: AnalysisService, R>(
+        &mut self,
+        id: &str,
+        action: impl FnOnce(&mut T, &mut Self) -> R,
+    ) -> Option<R> {
+        if self.state.failed_services.contains(id) {
+            return None;
+        }
+        let mut service = self.state.services.remove(id)?;
+        let result = service
+            .as_any_mut()
+            .downcast_mut::<T>()
+            .map(|service| action(service, self));
+        self.state.services.insert(id.into(), service);
+        result
+    }
+    /// Read the latest attachment published by an operation on an occurrence.
+    /// Handles are local to this analysis; absent attachments remain absent.
+    pub fn attachment(&self, occurrence: usize, key: &str) -> Option<&SemanticValue> {
+        self.state
+            .graph
+            .attachments
+            .iter()
+            .rev()
+            .find(|attachment| attachment.occurrence == occurrence && attachment.key == key)
+            .map(|attachment| &attachment.value)
+    }
     pub fn argument(&self, name: &str) -> Option<&SemanticValue> {
         self.arguments.get(name)
     }
@@ -381,7 +559,7 @@ fn validate_registry(
     registry: &OperationRegistry,
 ) -> crate::diagnostic::CompileResult<()> {
     for definition in language.meanings.values() {
-        for call in definition.groups.iter().flat_map(|group| &group.calls) {
+        for call in definition.groups.iter().flat_map(MeaningGroup::all_calls) {
             let Some(signature) = registry.signature(&call.operation) else {
                 return Err(vec![Diagnostic::error(
                     "semantic.missing_operation",
@@ -421,6 +599,7 @@ mod tests {
             captures: BTreeMap::from([(
                 "name".into(),
                 SourceCapture {
+                    occurrences: vec![],
                     value: AstValue::Text(text.into()),
                     span: Span::new("program", id, id + 1),
                     text: text.into(),
@@ -438,6 +617,7 @@ mod tests {
         MeaningDefinition {
             boundary: false,
             groups: vec![MeaningGroup {
+                matching: None,
                 name: None,
                 calls: vec![MeaningCall {
                     operation: id.clone(),
@@ -673,6 +853,7 @@ mod tests {
                 MeaningDefinition {
                     boundary: false,
                     groups: vec![MeaningGroup {
+                        matching: None,
                         name: Some("record".into()),
                         calls: vec![call.clone()],
                         span: Span::default(),
@@ -768,6 +949,7 @@ mod tests {
             MeaningDefinition {
                 boundary: false,
                 groups: vec![MeaningGroup {
+                    matching: None,
                     name: None,
                     calls: vec![MeaningCall {
                         operation: "test/library#fail".into(),
@@ -817,6 +999,7 @@ mod tests {
         let mut definition = MeaningDefinition {
             boundary: false,
             groups: vec![MeaningGroup {
+                matching: None,
                 name: None,
                 calls: vec![MeaningCall {
                     operation: "test/library#record".into(),

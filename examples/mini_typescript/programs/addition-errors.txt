@@ -1,0 +1,3 @@
+let bad = true + false;
+
+let alsoBad = "value" + true;

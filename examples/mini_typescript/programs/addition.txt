@@ -1,0 +1,17 @@
+function sum(left: number, right: number): number {
+    return left + right;
+}
+
+function recursive(value: number): number {
+    return recursive(value);
+}
+
+let numberSum: number = sum(20, 22);
+
+let stringSum = "hello" + " world";
+
+let mixedLeft = "value: " + 42;
+
+let mixedRight = 42 + " is the answer";
+
+let enabled: boolean = true;
