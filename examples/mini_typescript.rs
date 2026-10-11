@@ -14,9 +14,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or("program");
     if choice == "examples" {
         let engine = inference::engine();
-        let language = engine.compile(definition::ENTRY, &definition::sources())
+        let language = engine
+            .compile(definition::ENTRY, &definition::sources())
             .map_err(|errors| format!("{errors:?}"))?;
-        println!("{}", serde_json::to_string_pretty(&language.example_previews())?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&language.example_previews())?
+        );
         return Ok(());
     }
     let source = match choice {

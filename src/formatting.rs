@@ -16,6 +16,7 @@ pub fn format_yl(file: &str, source: &str) -> CompileResult<String> {
     for declaration in &module.declarations {
         layout.declaration(declaration, true);
     }
+    let tokens = layout.prepare_meanings(&tokens);
     layout.attach_leading_comments(&tokens, source);
     let formatted = layout.render(&tokens, source);
     let output_tokens =
@@ -72,6 +73,7 @@ struct Layout {
     enums: Vec<Span>,
     grammar_ends: BTreeSet<usize>,
     choice_separators: Vec<Span>,
+    meanings: Vec<Meanings>,
 }
 impl Layout {
     fn line(&mut self, span: &Span, blank: bool) {
@@ -193,6 +195,7 @@ impl Layout {
         }
     }
     fn meanings(&mut self, meanings: &Meanings) {
+        self.meanings.push(meanings.clone());
         for group in &meanings.groups {
             self.line(&group.span, false);
             for call in &group.calls {
@@ -223,6 +226,63 @@ impl Layout {
                 self.constraint(item);
             }
         }
+    }
+    fn prepare_meanings(&mut self, tokens: &[Token]) -> Vec<Token> {
+        let mut tokens = tokens.to_vec();
+        // Meanings stores boundary as a structural boolean, independent of its
+        // source position. Move ONLY that marker; preserve every operation and
+        // all other raw tokens in their original order. The token guard compares
+        // against this canonical order and AST equivalence is still mandatory.
+        for meanings in self.meanings.clone() {
+            let span = &meanings.span;
+            let Some(open) = tokens
+                .iter()
+                .position(|token| token.span.start == span.start)
+            else {
+                continue;
+            };
+            let mut braces = 0usize;
+            let mut parentheses = 0usize;
+            let mut boundary = None;
+            for (index, token) in tokens.iter().enumerate().skip(open) {
+                if token.span.end > span.end {
+                    break;
+                }
+                match &token.kind {
+                    TokenKind::Symbol(symbol) => match symbol.as_str() {
+                        "{" => braces += 1,
+                        "}" => braces = braces.saturating_sub(1),
+                        "(" => parentheses += 1,
+                        ")" => parentheses = parentheses.saturating_sub(1),
+                        _ => {}
+                    },
+                    TokenKind::Word(word)
+                        if braces == 1
+                            && parentheses == 0
+                            && !meanings.groups.iter().any(|group| {
+                                group.span.start <= token.span.start
+                                    && token.span.end <= group.span.end
+                            }) =>
+                    {
+                        if word == "boundary" {
+                            boundary = Some(index);
+                            self.line(&token.span, false);
+                        } else if word == "precedence" {
+                            self.line(&token.span, false);
+                        }
+                    }
+                    _ => {}
+                }
+                if braces == 0 {
+                    break;
+                }
+            }
+            if let Some(index) = boundary {
+                let marker = tokens.remove(index);
+                tokens.insert(open + 1, marker);
+            }
+        }
+        tokens
     }
     fn attach_leading_comments(&mut self, tokens: &[Token], source: &str) {
         let breaks: Vec<_> = self
@@ -346,7 +406,6 @@ impl Layout {
                 {
                     output.line(false);
                 }
-                if raw == "boundary" && previous.is_some_and(|previous| matches!(&previous.kind,TokenKind::Symbol(symbol) if symbol=="{")) { output.line(false); }
                 if space_between(previous, token) {
                     output.space();
                 }

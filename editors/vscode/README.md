@@ -66,3 +66,12 @@ npm test
 ```
 
 On Unix, set `YL_TEST_CLI` to the absolute path of `../../target/debug/yl`. CI builds the CLI and runs these integration tests on Windows and Linux. The extension has no runtime npm dependencies and does not bundle the CLI.
+
+## Experimental inline examples
+
+On the example-metadata experiment branch, set `yourLanguage.exampleEntry` to an
+absolute language entry `.yl` path. A CLI with `yl examples` generates parser-checked
+inlay labels beside node/pattern definitions. Explicit `example "42"` metadata wins
+over bounded automatic generation. Saved modules only; previews disappear while
+editing an unsaved buffer. Generation never runs meaning operations. See
+[the experiment notes](../../examples/example_metadata/README.md) for limits.

@@ -122,7 +122,8 @@ fn formatting_metadata_is_idempotent() {
 #[test]
 fn metadata_has_no_effect_on_target_ast_or_syntax_diagnostics() {
     let plain = language("pattern Item = /[0-9]+/ node Program = Item entry Program");
-    let metadata = language(r#"pattern Item = /[0-9]+/ { example "42" } node Program = Item entry Program"#);
+    let metadata =
+        language(r#"pattern Item = /[0-9]+/ { example "42" } node Program = Item entry Program"#);
     assert_eq!(parse(&plain, "7"), parse(&metadata, "7"));
     assert_eq!(parse(&plain, "bad"), parse(&metadata, "bad"));
 }
