@@ -1,0 +1,39 @@
+import { lexicalScope, declare, use, variable, function } from "std/semantics"
+import { solve } from "prototype/types"
+import { separatedBy } from "std/parser"
+import { Name, Whitespace } from "./lexical"
+
+node Annotation = ":" name: /number|string|boolean/
+node Parameter = name: Name annotation: Annotation? {
+    meanings { declare(variable, name) }
+}
+node Reference = name: Name {
+    meanings { use(name) }
+}
+node Call = callee: Reference "(" arguments: Expression* |> separatedBy(",") ")"
+node Number = value: /[0-9]+/
+node String = value: /"[^"\n]*"/
+node Boolean = value: /true|false/
+node Expression { node Call node Boolean node Number node String node Reference }
+node FunctionBody = "{" locals: LetDeclaration* "return" result: Expression ";" "}" {
+    meanings { boundary }
+}
+pattern FunctionContents = "(" parameters: Parameter* |> separatedBy(",") ")"
+    annotation: Annotation? body: FunctionBody {
+    meanings { lexicalScope() }
+}
+node FunctionDeclaration = "function" name: Name contents: FunctionContents {
+    meanings { group Register { declare(function, name, reassignable=false) } }
+}
+node LetDeclaration = "let" name: Name annotation: Annotation? "=" initializer: Expression ";" {
+    meanings { group Register { declare(variable, name) } }
+}
+node Program = statements: (FunctionDeclaration | LetDeclaration)* {
+    meanings {
+        boundary
+        lexicalScope()
+        solve()
+        precedence { FunctionDeclaration > LetDeclaration > FunctionBody }
+    }
+}
+entry Program { trivia Whitespace }

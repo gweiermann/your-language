@@ -162,3 +162,19 @@ cargo run --example semantic_analysis -- unresolved --json
 The default output reports success briefly, or renders semantic diagnostics to stderr with the same source underlines as the CLI. `--json` writes the complete analysis result to stdout and suppresses human diagnostics. Error outcomes exit with code 1 in either mode. Color follows stderr's terminal status; `CLICOLOR_FORCE=1` forces color and `NO_COLOR` takes precedence to disable it.
 
 Rust consumers can reuse `diagnostic_render::print_diagnostics`, providing a source lookup function for diagnostic spans, or call `render_diagnostics` with an explicit color setting to obtain a string. Rendering does not change structured diagnostic data or source offsets.
+
+## Separate inference experiment
+
+The throwaway Mini TypeScript consumer runs constraint collection and unification
+as a native library after lexical traversal. Run `cargo run --example mini_typescript`
+or add `-- errors` for source diagnostics and `-- --json` for full state. It implements
+primitive literals, monomorphic bindings/functions/calls, annotations and recursive
+constraints; it does not implement TypeScript compatibility, flow or ownership.
+The exact policies, error-recovery limits and provisional alternatives live in
+`examples/mini_typescript/README.md`.
+
+`OperationContext::attachment(occurrence, key)` reads the latest attachment from
+this analysis, or returns `None`. Native libraries can consume another occurrence's
+identity links without accessing another library's private context globals. The
+method does not add scheduling dependencies; the consumer must run after its
+producer. The inference operation uses its root owner's `after` lifecycle hook.

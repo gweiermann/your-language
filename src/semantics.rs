@@ -231,6 +231,17 @@ pub struct OperationContext<'a> {
     pub(crate) state: &'a mut AnalysisState,
 }
 impl OperationContext<'_> {
+    /// Read the latest attachment published by an operation on an occurrence.
+    /// Handles are local to this analysis; absent attachments remain absent.
+    pub fn attachment(&self, occurrence: usize, key: &str) -> Option<&SemanticValue> {
+        self.state
+            .graph
+            .attachments
+            .iter()
+            .rev()
+            .find(|attachment| attachment.occurrence == occurrence && attachment.key == key)
+            .map(|attachment| &attachment.value)
+    }
     pub fn argument(&self, name: &str) -> Option<&SemanticValue> {
         self.arguments.get(name)
     }
