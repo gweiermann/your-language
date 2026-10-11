@@ -74,14 +74,21 @@ For inline VS Code previews, build/install this branch's CLI and VSIX, then set:
 }
 ```
 
-The extension adds inlay hints such as `example: "42"` at declaration ends.
-Previews are opt-in, require workspace trust, and launch the CLI without a shell.
-Dirty buffers, cancelled requests, stale document versions, missing candidates and
-compiler failures yield no hints. Spans are converted from UTF-8 to VS Code UTF-16.
-This initial editor adapter works for saved modules in one configured language
-entry graph. Unsaved overlays, multiple entry configurations and caching are future
-editor improvements. Unsupported native libraries can use the Rust interface or
-export an artifact for CLI inspection; the editor currently expects a source entry.
+The extension connects to `yl lsp` and adds inlay hints such as `example: "42"`
+at declaration ends. It requires workspace trust and launches without a shell.
+Open modules declaring `entry` are detected automatically; the setting above is
+useful when editing only helper modules. Unsaved buffers override imports on disk.
+Closing a buffer restores the disk source. Diagnostics, formatting and hints share
+one LSP session with UTF-16 positions, cancellation and stale-result rejection.
+Queued changes are coalesced; analysis is otherwise full-graph reanalysis. In-progress
+compiler work finishes before cancellation is acknowledged. Untitled buffers receive
+syntax diagnostics and formatting; save them for module resolution and hints.
+
+The server registers `std/variables` contracts and never executes meanings. Other
+native libraries, including the Mini TypeScript host's `std/types`, are not currently
+registered: missing contracts produce definition diagnostics. The Rust consumer API
+and compiled-artifact CLI previews remain available for these languages. Completion,
+rename, navigation, incremental parsing and target-language LSPs remain future work.
 
 Validation covers explicit composition, imports, reload, constraints, regex limits,
 productive/nonproductive recursion, optional/repetition/pipe behavior, AST invariance,

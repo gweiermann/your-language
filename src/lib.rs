@@ -18,3 +18,4 @@ mod formatting;
 pub use formatting::format_yl;
 
 pub mod examples;
+pub mod language_server;

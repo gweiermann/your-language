@@ -113,10 +113,10 @@ impl Layout {
         self.grammar.push(expression.span.clone());
         self.grammar_ends.insert(expression.span.end);
     }
-    fn declaration(&mut self, declaration: &Declaration, top: bool) {
+    fn declaration(&mut self, declaration: &Declaration, blank: bool) {
         self.line(
             &declaration.span,
-            !matches!(declaration.kind, DeclKind::Import { .. }),
+            blank && !matches!(declaration.kind, DeclKind::Import { .. }),
         );
         match &declaration.kind {
             DeclKind::Import { .. } => self.inline.push(declaration.span.clone()),
@@ -135,8 +135,10 @@ impl Layout {
                 if let Some(example) = example {
                     self.line(&example.span, false);
                 }
-                for member in members {
-                    self.declaration(member, false);
+                // Sibling declarations are separated, but the first child starts
+                // directly after the opening brace, including its leading comments.
+                for (index, member) in members.iter().enumerate() {
+                    self.declaration(member, index != 0);
                 }
                 for constraint in constraints {
                     self.constraint(constraint);
@@ -189,9 +191,6 @@ impl Layout {
                 }
             }
             DeclKind::Entry { .. } | DeclKind::Symbol { .. } => {}
-        }
-        if !top {
-            self.breaks.insert(declaration.span.start, true);
         }
     }
     fn meanings(&mut self, meanings: &Meanings) {

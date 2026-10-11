@@ -1,62 +1,48 @@
 import * as vscode from 'vscode';
-import { loadPreviews, documentPreviews, byteOffsetToPosition } from './examples';
 import { isAbsolute } from 'node:path';
-import { formatBuffer, FormattingCancelled } from './formatter';
+import { LanguageClient, LanguageClientOptions, ServerOptions } from 'vscode-languageclient/node';
 
-export function activate(context: vscode.ExtensionContext): void {
+let client: LanguageClient | undefined;
+
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
     const output = vscode.window.createOutputChannel('Your Language');
-    context.subscriptions.push(output, vscode.languages.registerDocumentFormattingEditProvider(
-        [{ language: 'yl', scheme: 'file' }, { language: 'yl', scheme: 'untitled' }],
-        {
-            async provideDocumentFormattingEdits(document, _options, token) {
-                if (!vscode.workspace.isTrusted) {
-                    void vscode.window.showWarningMessage('Trust this workspace to enable YL CLI formatting.');
-                    return [];
-                }
-                const version = document.version;
-                const source = document.getText();
-                const executable = vscode.workspace.getConfiguration('yourLanguage', document.uri).get<string>('cliPath', 'yl');
-                try {
-                    if (!executable.trim() || (!isAbsolute(executable) && /[\\/]/.test(executable))) {
-                        throw new Error('Set yourLanguage.cliPath to an absolute executable path or an executable name on PATH.');
-                    }
-                    const formatted = await formatBuffer(source, executable, token);
-                    if (token.isCancellationRequested || document.isClosed || document.version !== version || formatted === source) return [];
-                    return [vscode.TextEdit.replace(new vscode.Range(document.positionAt(0), document.positionAt(source.length)), formatted)];
-                } catch (error) {
-                    if (error instanceof FormattingCancelled || token.isCancellationRequested) return [];
-                    const message = error instanceof Error ? error.message : String(error);
-                    output.appendLine(message);
-                    void vscode.window.showErrorMessage('YL formatting failed. Your document was not changed.', 'Show Details').then(action => {
-                        if (action === 'Show Details') output.show();
-                    });
-                    return [];
-                }
-            },
-        },
-    ));
-    context.subscriptions.push(vscode.languages.registerInlayHintsProvider({ language: 'yl', scheme: 'file' }, {
-        async provideInlayHints(document, range, token) {
-            const config = vscode.workspace.getConfiguration('yourLanguage', document.uri);
-            const entry = config.get<string>('exampleEntry', '');
-            if (!entry || !vscode.workspace.isTrusted || document.isDirty || token.isCancellationRequested) return [];
-            const version = document.version;
-            try {
-                const previews = await loadPreviews(config.get<string>('cliPath', 'yl'), entry, token);
-                if (document.isClosed || document.isDirty || document.version !== version || token.isCancellationRequested) return [];
-                return documentPreviews(previews, entry, document.uri.fsPath, Buffer.byteLength(document.getText(), 'utf8')).flatMap(preview => {
-                    const position = document.positionAt(byteOffsetToPosition(document.getText(), preview.span.end));
-                    if (!range.contains(position)) return [];
-                    const hint = new vscode.InlayHint(position, ` example: ${JSON.stringify(preview.text)}`, vscode.InlayHintKind.Type);
-                    hint.paddingLeft = true;
-                    hint.tooltip = 'Experimental parser-validated syntax example. Optional parts are omitted; * and + contain one item.';
-                    return [hint];
-                });
-            } catch (error) {
-                output.appendLine(`Example preview unavailable: ${error instanceof Error ? error.message : String(error)}`);
-                return [];
-            }
-        },
+    const watcher = vscode.workspace.createFileSystemWatcher('**/*.yl');
+    context.subscriptions.push(output, watcher);
+    async function start(): Promise<void> {
+        if (!vscode.workspace.isTrusted || client) return;
+        const config = vscode.workspace.getConfiguration('yourLanguage');
+        const command = config.get<string>('cliPath', 'yl');
+        if (!command.trim() || (!isAbsolute(command) && /[\\/]/.test(command))) {
+            output.appendLine('Set yourLanguage.cliPath to an absolute executable path or a name on PATH.');
+            return;
+        }
+        const server: ServerOptions = { command, args: ['lsp'], options: { shell: false } };
+        const options: LanguageClientOptions = {
+            documentSelector: [{ language: 'yl', scheme: 'file' }, { language: 'yl', scheme: 'untitled' }],
+            outputChannel: output,
+            initializationOptions: { entry: config.get<string>('exampleEntry', '') },
+            synchronize: { fileEvents: watcher },
+        };
+        client = new LanguageClient('yourLanguage', 'Your Language', server, options);
+        try { await client.start(); }
+        catch (error) { output.appendLine(`Language server failed: ${String(error)}`); client = undefined; }
+    }
+    context.subscriptions.push(vscode.workspace.onDidGrantWorkspaceTrust(() => { void start(); }));
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+        if (event.affectsConfiguration('yourLanguage.exampleEntry')) {
+            void client?.sendNotification('workspace/didChangeConfiguration', {
+                settings: { entry: vscode.workspace.getConfiguration('yourLanguage').get<string>('exampleEntry', '') },
+            });
+        }
+        if (event.affectsConfiguration('yourLanguage.cliPath')) {
+            const previous = client; client = undefined;
+            void (async () => { await previous?.stop(); await start(); })();
+        }
     }));
+    await start();
+}
 
+export async function deactivate(): Promise<void> {
+    const previous = client; client = undefined;
+    await previous?.stop();
 }

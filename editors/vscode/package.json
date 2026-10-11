@@ -1,8 +1,8 @@
 {
   "name": "your-language",
   "displayName": "Your Language",
-  "description": "Syntax highlighting and CLI-backed formatting for YL language definitions.",
-  "version": "0.1.0",
+  "description": "YL syntax highlighting, live diagnostics, formatting and example hints.",
+  "version": "0.2.0",
   "publisher": "gweiermann",
   "license": "UNLICENSED",
   "repository": {
@@ -24,7 +24,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "Syntax highlighting is available. CLI formatting requires a trusted workspace."
+      "description": "Syntax highlighting is available. The language server requires a trusted workspace."
     },
     "virtualWorkspaces": false
   },
@@ -56,13 +56,13 @@
           "type": "string",
           "default": "yl",
           "scope": "machine-overridable",
-          "description": "YL executable path (or executable name on PATH), without arguments. Requires a CLI with the fmt command."
+          "description": "YL executable path or name on PATH, without arguments. Requires the lsp command."
         },
         "yourLanguage.exampleEntry": {
           "type": "string",
           "default": "",
           "scope": "resource",
-          "description": "Experimental inline syntax previews: absolute language entry .yl path. Requires a CLI with the examples command. Saved documents only; empty disables previews."
+          "description": "Optional absolute language entry .yl path for import-graph validation and example hints. Open modules declaring entry are detected automatically; unsaved buffers are supported."
         }
       }
     }
@@ -81,5 +81,8 @@
     "typescript": "^5.9.0",
     "vscode-oniguruma": "^2.0.1",
     "vscode-textmate": "^9.2.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
   }
 }
