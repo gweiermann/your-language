@@ -51,6 +51,7 @@ pub fn registry() -> OperationRegistry {
                     id,
                     parameters,
                     provides_context,
+                    finalization_only: false,
                 },
                 factory,
             ),
@@ -61,6 +62,28 @@ pub fn registry() -> OperationRegistry {
         vec![],
         true,
         Arc::new(|| Box::new(LexicalScope::default())),
+    );
+    add(
+        "identity",
+        vec![parameter(
+            "value",
+            ParameterKind::Value,
+            Some(MeaningValue::Absent),
+        )],
+        false,
+        Arc::new(|| Box::new(Identity { list: false })),
+    );
+    add(
+        "childIdentity",
+        vec![],
+        false,
+        Arc::new(|| Box::new(ChildIdentity)),
+    );
+    add(
+        "identities",
+        vec![parameter("value", ParameterKind::Value, None)],
+        false,
+        Arc::new(|| Box::new(Identity { list: true })),
     );
     let binding_parameters = || {
         vec![
@@ -249,5 +272,77 @@ impl NativeOperation for Use {
             name.span,
         ));
         Ok(())
+    }
+}
+
+/// One analysis-local identity, shared by declarations and resolved references.
+fn occurrence_identity(context: &OperationContext<'_>, occurrence: usize) -> SemanticValue {
+    for role in ["declaration", "reference"] {
+        if let Some(SemanticValue::Record(binding)) = context.attachment(occurrence, &symbol(role))
+        {
+            return SemanticValue::Identity(SemanticIdentity::Binding(*binding));
+        }
+    }
+    SemanticValue::Identity(SemanticIdentity::Occurrence(occurrence))
+}
+struct Identity {
+    list: bool,
+}
+impl NativeOperation for Identity {
+    fn evaluate(&mut self, context: &mut OperationContext<'_>) -> Result<Evaluation, Diagnostic> {
+        let value = match context.argument("value") {
+            None | Some(SemanticValue::Absent) => {
+                occurrence_identity(context, context.occurrence.id)
+            }
+            Some(SemanticValue::Source(source)) => {
+                if matches!(source.value, AstValue::None) {
+                    SemanticValue::Absent
+                } else if self.list {
+                    SemanticValue::List(
+                        source
+                            .occurrences
+                            .iter()
+                            .map(|id| occurrence_identity(context, *id))
+                            .collect(),
+                    )
+                } else if source.occurrences.len() > 1 {
+                    return Err(Diagnostic::error(
+                        "semantic.identity",
+                        "This capture contains multiple identities; use identities(value)",
+                        source.span.clone(),
+                    ));
+                } else if let Some(id) = source.occurrences.first() {
+                    occurrence_identity(context, *id)
+                } else {
+                    return Err(Diagnostic::error(
+                        "semantic.identity",
+                        "This capture has no syntax occurrence identity",
+                        source.span.clone(),
+                    ));
+                }
+            }
+            Some(SemanticValue::Identity(identity)) => SemanticValue::Identity(identity.clone()),
+            _ => {
+                return Err(Diagnostic::error(
+                    "semantic.identity",
+                    "Expected a syntax capture or identity",
+                    context.occurrence.span.clone(),
+                ))
+            }
+        };
+        Ok(Evaluation::Ready(value))
+    }
+}
+struct ChildIdentity;
+impl NativeOperation for ChildIdentity {
+    fn evaluate(&mut self, context: &mut OperationContext<'_>) -> Result<Evaluation, Diagnostic> {
+        Ok(Evaluation::Ready(
+            context
+                .occurrence
+                .children
+                .first()
+                .map(|child| occurrence_identity(context, child.id))
+                .unwrap_or(SemanticValue::Absent),
+        ))
     }
 }

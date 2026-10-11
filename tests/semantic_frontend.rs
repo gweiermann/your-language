@@ -124,6 +124,7 @@ fn mixed_named_and_ungrouped_operations_preserve_source_order() {
             "record",
             OperationSignature {
                 id: "test#record".into(),
+                finalization_only: false,
                 provides_context: false,
                 parameters: vec![OperationParameter {
                     name: "value".into(),

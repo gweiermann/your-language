@@ -177,11 +177,12 @@ pub(super) fn execute(
             }
             let mut instances = vec![];
             for call in &group.calls {
-                if call
-                    .arguments
-                    .values()
-                    .any(|value| matches!(value, MeaningValue::Call(_)))
-                {
+                if call.arguments.values().any(|value| {
+                    matches!(
+                        value,
+                        MeaningValue::Call(_) | MeaningValue::Tuple(_) | MeaningValue::List(_)
+                    )
+                }) {
                     deferred.push(Deferred {
                         task: tasks.len(),
                         owner,
@@ -214,7 +215,10 @@ pub(super) fn execute(
                 let mut arguments = BTreeMap::new();
                 for (name, value) in &call.arguments {
                     let value = match value {
-                        MeaningValue::Call(_) => unreachable!("nested calls are deferred"),
+                        MeaningValue::Call(_) | MeaningValue::Tuple(_) | MeaningValue::List(_) => {
+                            unreachable!("nested calls are deferred")
+                        }
+                        MeaningValue::Absent => SemanticValue::Absent,
                         MeaningValue::Capture(capture) => {
                             let Some(capture) = owner.captures.get(capture) else {
                                 diagnostics.push(Diagnostic::error(
@@ -443,7 +447,13 @@ pub(super) fn execute(
             if !visited.insert(required) {
                 continue;
             }
-            if deferred.iter().any(|job| job.task == required) {
+            if deferred.iter().any(|job| {
+                job.task == required
+                    && match &job.kind {
+                        DeferredKind::Call(call) => !call.contract.finalization_only,
+                        DeferredKind::Match(_) => true,
+                    }
+            }) {
                 let primary = visited
                     .iter()
                     .find_map(|id| chain_spans.get(id))
@@ -842,6 +852,22 @@ fn evaluate(
         ));
     }
     Ok(Evaluation::Ready(match value {
+        MeaningValue::Absent => SemanticValue::Absent,
+        MeaningValue::Tuple(values) | MeaningValue::List(values) => {
+            let mut output = Vec::new();
+            for value in values {
+                let Evaluation::Ready(value) = evaluate(value, owner, registry, state, depth + 1)?
+                else {
+                    return Ok(Evaluation::Pending);
+                };
+                output.push(value);
+            }
+            if matches!(value, MeaningValue::Tuple(_)) {
+                SemanticValue::Tuple(output)
+            } else {
+                SemanticValue::List(output)
+            }
+        }
         MeaningValue::Capture(name) => SemanticValue::Source(
             owner
                 .captures
@@ -914,9 +940,25 @@ fn prepare(
         let Evaluation::Ready(value) = evaluate(value, owner, registry, state, depth)? else {
             return Ok(None);
         };
+        let value = if parameter.kind == ParameterKind::Value {
+            value
+        } else {
+            let arguments = BTreeMap::new();
+            let mut ctx = OperationContext {
+                occurrence: owner,
+                arguments: &arguments,
+                operation_span: &call.span,
+                state,
+            };
+            let Evaluation::Ready(value) = ctx.resolve(&value)? else {
+                return Ok(None);
+            };
+            value
+        };
         let valid = matches!(
             (&parameter.kind, &value),
-            (ParameterKind::Capture, SemanticValue::Source(_))
+            (ParameterKind::Value, _)
+                | (ParameterKind::Capture, SemanticValue::Source(_))
                 | (ParameterKind::Text, SemanticValue::Text(_))
                 | (ParameterKind::Bool, SemanticValue::Bool(_))
                 | (ParameterKind::Symbol, SemanticValue::Symbol(_))
@@ -983,6 +1025,16 @@ fn advance(
                 for input in &matching.inputs {
                     let Evaluation::Ready(value) = evaluate(input, job.owner, registry, state, 0)?
                     else {
+                        return Ok(false);
+                    };
+                    let arguments = BTreeMap::new();
+                    let mut context = OperationContext {
+                        occurrence: job.owner,
+                        arguments: &arguments,
+                        operation_span: &matching.span,
+                        state,
+                    };
+                    let Evaluation::Ready(value) = context.resolve(&value)? else {
                         return Ok(false);
                     };
                     values.push(value);

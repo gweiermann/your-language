@@ -73,6 +73,7 @@ fn recording_engine(events: &Events, fail_enter: Option<usize>) -> SemanticEngin
                     id: format!("test/native#{name}"),
                     parameters: vec![],
                     provides_context,
+                    finalization_only: false,
                 },
                 move || {
                     Box::new(Recording {
@@ -427,6 +428,7 @@ fn generic_references() -> (SemanticEngine, your_language::CompiledLanguage) {
             OperationSignature {
                 id: "test/native#action".into(),
                 parameters: vec![],
+                finalization_only: false,
                 provides_context: false,
             },
             move || {
@@ -971,6 +973,7 @@ fn absent_pipe_input_keeps_an_empty_original_source_span() {
             "observe",
             OperationSignature {
                 id: "test/provenance#observe".into(),
+                finalization_only: false,
                 provides_context: false,
                 parameters: vec![OperationParameter {
                     name: "value".into(),

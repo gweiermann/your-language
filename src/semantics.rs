@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::{any::Any, collections::BTreeMap, sync::Arc};
 pub mod lexical;
 mod scheduler;
+pub mod types;
 use scheduler::execute;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -30,9 +31,18 @@ impl MeaningGroup {
         fn add<'a>(call: &'a MeaningCall, calls: &mut Vec<&'a MeaningCall>) {
             calls.push(call);
             for value in call.arguments.values() {
-                if let MeaningValue::Call(call) = value {
-                    add(call, calls);
+                add_value(value, calls);
+            }
+        }
+        fn add_value<'a>(value: &'a MeaningValue, calls: &mut Vec<&'a MeaningCall>) {
+            match value {
+                MeaningValue::Call(call) => add(call, calls),
+                MeaningValue::Tuple(values) | MeaningValue::List(values) => {
+                    for value in values {
+                        add_value(value, calls);
+                    }
                 }
+                _ => {}
             }
         }
         let mut calls = vec![];
@@ -41,9 +51,7 @@ impl MeaningGroup {
         }
         if let Some(matching) = &self.matching {
             for value in &matching.inputs {
-                if let MeaningValue::Call(call) = value {
-                    add(call, &mut calls);
-                }
+                add_value(value, &mut calls);
             }
             for case in &matching.cases {
                 for action in &case.actions {
@@ -65,6 +73,9 @@ pub struct MeaningCall {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MeaningValue {
+    Absent,
+    Tuple(Vec<MeaningValue>),
+    List(Vec<MeaningValue>),
     Call(Box<MeaningCall>),
     Capture(String),
     Text(String),
@@ -130,12 +141,25 @@ pub struct Occurrence {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum SemanticValue {
+    Identity(SemanticIdentity),
+    Tuple(Vec<SemanticValue>),
+    List(Vec<SemanticValue>),
+    Deferred {
+        service: String,
+        key: Box<SemanticValue>,
+        span: Span,
+    },
     Absent,
     Text(String),
     Bool(bool),
     Symbol(String),
     Record(usize),
     Source(SourceCapture),
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum SemanticIdentity {
+    Occurrence(usize),
+    Binding(usize),
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum SemanticKey {
@@ -168,6 +192,7 @@ pub struct AnalysisResult {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ParameterKind {
+    Value,
     Capture,
     Text,
     Bool,
@@ -179,12 +204,19 @@ pub struct OperationParameter {
     pub kind: ParameterKind,
     pub default: Option<MeaningValue>,
 }
+fn is_false(value: &bool) -> bool {
+    !value
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OperationSignature {
     pub id: String,
     pub parameters: Vec<OperationParameter>,
     /// Context providers enclose the owning occurrence's semantic descendants.
     pub provides_context: bool,
+    /// A collector whose effects belong to finalization, never live traversal.
+    /// Relative collector ordering is retained, while lifecycle hooks run first.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub finalization_only: bool,
 }
 type Factory = Arc<dyn Fn() -> Box<dyn NativeOperation> + Send + Sync>;
 type ServiceFactory = Arc<dyn Fn() -> Box<dyn AnalysisService> + Send + Sync>;
@@ -226,6 +258,9 @@ impl OperationRegistry {
         {
             return Err(format!("Duplicate operation {module}::{name}"));
         }
+        if signature.provides_context && signature.finalization_only {
+            return Err("A context provider cannot be finalization-only".into());
+        }
         let mut parameters = std::collections::BTreeSet::new();
         for parameter in &signature.parameters {
             if !parameters.insert(&parameter.name) {
@@ -234,6 +269,7 @@ impl OperationRegistry {
             let compatible = matches!(
                 (&parameter.kind, &parameter.default),
                 (_, None)
+                    | (ParameterKind::Value, Some(_))
                     | (ParameterKind::Text, Some(MeaningValue::Text(_)))
                     | (ParameterKind::Bool, Some(MeaningValue::Bool(_)))
                     | (ParameterKind::Symbol, Some(MeaningValue::Symbol(_)))
@@ -311,6 +347,19 @@ pub enum Evaluation {
 /// No target-language policy is built into this lifecycle.
 pub trait AnalysisService: Any {
     fn as_any_mut(&mut self) -> &mut dyn Any;
+    /// Resolve an opaque analysis-local handle without effects. Matches await
+    /// these values; generic value parameters can retain the handle itself.
+    fn resolve_value(
+        &mut self,
+        _key: &SemanticValue,
+        context: &mut OperationContext<'_>,
+    ) -> Result<Evaluation, Diagnostic> {
+        Err(Diagnostic::error(
+            "semantic.unknown_handle",
+            "This library does not resolve deferred values",
+            context.occurrence.span.clone(),
+        ))
+    }
     fn progress(&mut self, _context: &mut OperationContext<'_>) -> Result<bool, Diagnostic> {
         Ok(false)
     }
@@ -381,6 +430,59 @@ pub struct OperationContext<'a> {
     pub(crate) state: &'a mut AnalysisState,
 }
 impl OperationContext<'_> {
+    /// Locate this occurrence's use of an identity, preserving capture origins.
+    pub fn identity_span(&self, value: &SemanticValue) -> Span {
+        let identity = match value {
+            SemanticValue::Identity(identity) => identity,
+            SemanticValue::Tuple(values) | SemanticValue::List(values) => {
+                return values
+                    .first()
+                    .map(|value| self.identity_span(value))
+                    .unwrap_or_else(|| self.occurrence.span.clone())
+            }
+            SemanticValue::Deferred { span, .. } => return span.clone(),
+            _ => return self.occurrence.span.clone(),
+        };
+        for capture in self.occurrence.captures.values() {
+            for occurrence in &capture.occurrences {
+                let matches = match identity {
+                    SemanticIdentity::Occurrence(id) => id == occurrence,
+                    SemanticIdentity::Binding(binding) => {
+                        self.state.graph.attachments.iter().any(|attachment| {
+                            attachment.occurrence == *occurrence
+                                && attachment.value == SemanticValue::Record(*binding)
+                        })
+                    }
+                };
+                if matches {
+                    return capture.span.clone();
+                }
+            }
+        }
+        self.occurrence.span.clone()
+    }
+    pub fn resolve(&mut self, value: &SemanticValue) -> Result<Evaluation, Diagnostic> {
+        let SemanticValue::Deferred {
+            service: id, key, ..
+        } = value
+        else {
+            return Ok(Evaluation::Ready(value.clone()));
+        };
+        if self.state.failed_services.contains(id) {
+            return Ok(Evaluation::Pending);
+        }
+        let Some(mut service) = self.state.services.remove(id) else {
+            return Err(Diagnostic::error(
+                "semantic.unknown_handle",
+                "Deferred value library is unavailable",
+                self.occurrence.span.clone(),
+            ));
+        };
+        let result = service.resolve_value(key, self);
+        self.state.services.insert(id.clone(), service);
+        result
+    }
+
     /// Borrow one library's analysis-local service while retaining graph access.
     pub fn with_service<T: AnalysisService, R>(
         &mut self,
@@ -477,7 +579,9 @@ pub struct SemanticEngine {
 }
 impl Default for SemanticEngine {
     fn default() -> Self {
-        Self::new(lexical::registry())
+        let mut registry = lexical::registry();
+        types::register(&mut registry).expect("standard modules have disjoint exports");
+        Self::new(registry)
     }
 }
 impl SemanticEngine {
@@ -831,6 +935,7 @@ mod tests {
                 OperationSignature {
                     id: "test/library#record".into(),
                     parameters: vec![],
+                    finalization_only: false,
                     provides_context: true,
                 },
                 move || {
@@ -934,6 +1039,7 @@ mod tests {
                 OperationSignature {
                     id: "test/library#fail".into(),
                     parameters: vec![],
+                    finalization_only: false,
                     provides_context: true,
                 },
                 move || {
@@ -986,6 +1092,7 @@ mod tests {
                 OperationSignature {
                     id: "test/library#record".into(),
                     parameters: vec![],
+                    finalization_only: false,
                     provides_context: false,
                 },
                 move || {
