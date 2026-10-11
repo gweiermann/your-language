@@ -2,6 +2,38 @@
 
 Expression languages often contain recursive prefix, postfix, and infix forms. Declare them as ordinary members of an abstract node and use a `precedence` block to specify their binding relationships.
 
+## A single operator
+
+An abstract family with exactly one recursive operator does not need a precedence
+block. The compiler infers one binding level with the usual left associativity:
+
+```yl
+node Expression {
+    node Number = value: /[0-9]+/
+
+    node Addition =
+        left: Expression
+        "+"
+        right: Expression
+}
+
+entry Expression
+```
+
+`1+2+3` parses as `(1+2)+3`. This is equivalent to adding
+`precedence { Addition }`. Prefix and postfix operators also support this default.
+Use an explicit block for `right` or `nonassoc` behavior.
+
+An operator is a concrete member whose lowered grammar refers to this abstract
+family at its left or right edge. Imports, member aliases, and nested abstract
+members retain their canonical identities when candidates are counted. A grouping
+member such as `"(" value: Expression ")"` is not an operator because its recursive
+reference is enclosed by tokens.
+
+With more than one recursive operator, an explicit precedence block is required;
+the compiler reports `yl.missing_precedence` instead of guessing an order. Families
+without recursive operators continue to try their members in declaration order.
+
 ## An expression family
 
 ```yl

@@ -2,7 +2,7 @@
   "name": "your-language",
   "displayName": "Your Language",
   "description": "YL syntax highlighting, live diagnostics, formatting and example hints.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "gweiermann",
   "license": "UNLICENSED",
   "repository": {
@@ -63,8 +63,33 @@
           "default": "",
           "scope": "resource",
           "description": "Optional absolute language entry .yl path for import-graph validation and example hints. Open modules declaring entry are detected automatically; unsaved buffers are supported."
+        },
+        "yourLanguage.exampleDisplay": {
+          "type": "string",
+          "enum": [
+            "above",
+            "inline",
+            "off"
+          ],
+          "default": "above",
+          "scope": "window",
+          "description": "Display parser-validated examples above declarations as clickable CodeLens (copy full example), inline as inlay hints, or hide them. Above requires editor.codeLens enabled."
         }
       }
+    },
+    "commands": [
+      {
+        "command": "yourLanguage.copyExample",
+        "title": "Your Language: Copy Example"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "yourLanguage.copyExample",
+          "when": "false"
+        }
+      ]
     }
   },
   "scripts": {

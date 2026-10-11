@@ -21,7 +21,8 @@ accepted syntax, target ASTs, or meaning operations.
 When no example is authored, the prototype searches bounded candidates:
 
 - Literals use their text; supported Rust regex HIR produces its shortest witness.
-- Choices try shortest candidates first; declaration order breaks ties.
+- Choices try short candidates first; readable spacing takes priority when selected
+  trivia accepts it, and declaration order breaks ties.
 - Optional grammar is omitted. Both `*` and `+` include one original item.
 - Pipes generate from normalized grammar and preserve one list item, omitting the
   normalized separator tail. Candidate provenance counts original projection markers
@@ -50,11 +51,11 @@ cargo run -- examples examples/mini-js/minijs.yl
 cargo run --example mini_typescript -- examples
 ```
 
-The first command generates `let name=42;` for `Program` and `42` for `List`.
-MiniJS generates `function A(A){0}` for a function declaration. Mini TypeScript
+The first command generates `let name = 42 ;` for `Program` and `42` for `List`.
+MiniJS generates `function A ( A ) { 0 }` for a function declaration. Mini TypeScript
 uses its native library registry for compilation, then performs syntax-only
 example generation; the CLI cannot compile externally registered libraries.
-It produces `(A){letA=0;return0;}` for `FunctionContents`. This is valid according
+It produces `( A ) { let A = 0 ; return 0 ; }` for `FunctionContents`. This is valid according
 to that experimental grammar; examples do not impose extra keyword boundaries.
 
 `yl examples <entry.yl|language.ylc>` emits a JSON array. Each result contains its
@@ -75,7 +76,9 @@ For inline VS Code previews, build/install this branch's CLI and VSIX, then set:
 ```
 
 The extension connects to `yl lsp` and adds inlay hints such as `example: "42"`
-at declaration ends. It requires workspace trust and launches without a shell.
+above declarations by default. Clicking a CodeLens label copies the complete example;
+`yourLanguage.exampleDisplay` selects `above`, `inline` or `off`. CodeLens must be
+enabled in VS Code (`editor.codeLens`). No comments are inserted. It requires workspace trust and launches without a shell.
 Open modules declaring `entry` are detected automatically; the setting above is
 useful when editing only helper modules. Unsaved buffers override imports on disk.
 Closing a buffer restores the disk source. Diagnostics, formatting and hints share
@@ -84,9 +87,8 @@ Queued changes are coalesced; analysis is otherwise full-graph reanalysis. In-pr
 compiler work finishes before cancellation is acknowledged. Untitled buffers receive
 syntax diagnostics and formatting; save them for module resolution and hints.
 
-The server registers `std/variables` contracts and never executes meanings. Other
-native libraries, including the Mini TypeScript host's `std/types`, are not currently
-registered: missing contracts produce definition diagnostics. The Rust consumer API
+The server registers `std/variables` and `std/types` contracts and never executes
+meanings. Other unavailable native-library contracts produce definition diagnostics. The Rust consumer API
 and compiled-artifact CLI previews remain available for these languages. Completion,
 rename, navigation, incremental parsing and target-language LSPs remain future work.
 
@@ -94,3 +96,13 @@ Validation covers explicit composition, imports, reload, constraints, regex limi
 productive/nonproductive recursion, optional/repetition/pipe behavior, AST invariance,
 formatting idempotence, Unicode editor offsets, and a real CLI/editor bridge.
 No extension was globally installed or published to the Marketplace by this task.
+
+Selected trivia that accepts a single space enables readable spaces between grammar
+fragments. Spaces are never inserted inside a literal or regex match. The fixture
+uses an ordinary `"let"` literal and explicitly selects `Whitespace` at its entry;
+its composed Program example is `let name = 42 ;`. This does not add keyword
+boundaries: the same grammar still accepts `letname=42;`. Without selected whitespace
+trivia (including comments-only trivia), fragments concatenate. Explicit examples
+keep their authored text. Every composed candidate is validated; adjacency constraints
+can force an unspaced fallback within the same generation budget. Representatives
+are short and readable, not a proof of globally shortest accepted source.

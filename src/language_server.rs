@@ -30,6 +30,33 @@ struct Workspace {
     entry: Option<String>,
     published: BTreeSet<String>,
     hints: BTreeMap<String, Vec<Value>>,
+    lenses: BTreeMap<String, Vec<Value>>,
+    display: ExampleDisplay,
+}
+#[derive(Default, PartialEq)]
+enum ExampleDisplay {
+    #[default]
+    Above,
+    Inline,
+    Off,
+}
+fn example_display(options: &Value) -> ExampleDisplay {
+    match options["exampleDisplay"].as_str() {
+        Some("inline") => ExampleDisplay::Inline,
+        Some("off") => ExampleDisplay::Off,
+        _ => ExampleDisplay::Above,
+    }
+}
+fn example_title(text: &str) -> String {
+    let line = text
+        .replace('\r', "\\r")
+        .replace('\n', "\\n")
+        .replace('\t', "\\t");
+    let mut title: String = line.chars().take(120).collect();
+    if line.chars().count() > 120 {
+        title.push('…');
+    }
+    format!("example: {title}")
 }
 
 /// Start a stdio LSP session. Stdout is reserved for framed protocol messages.
@@ -38,15 +65,17 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let (id, params) = connection.initialize_start()?;
     let params: Value = serde_json::from_value(params)?;
     let refresh_hints = params["capabilities"]["workspace"]["inlayHint"]["refreshSupport"] == true;
+    let refresh_lenses = params["capabilities"]["workspace"]["codeLens"]["refreshSupport"] == true;
     connection.initialize_finish(
         id,
         json!({"capabilities": {
         "positionEncoding":"utf-16", "textDocumentSync":{"openClose":true,"change":1},
-        "documentFormattingProvider":true, "inlayHintProvider":true
+        "documentFormattingProvider":true, "inlayHintProvider":true, "codeLensProvider":{"resolveProvider":false}
     },"serverInfo":{"name":"Your Language","version":env!("CARGO_PKG_VERSION")}}),
     )?;
     let mut workspace = Workspace {
         entry: entry_option(&params["initializationOptions"]),
+        display: example_display(&params["initializationOptions"]),
         ..Workspace::default()
     };
     let revision = Arc::new(AtomicU64::new(0));
@@ -110,9 +139,17 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                                     Value::Null,
                                 )))?;
                             }
+                            if refresh_lenses {
+                                protocol_sender.send(Message::Request(Request::new(
+                                    RequestId::from(format!("yl-lenses-{epoch}")),
+                                    "workspace/codeLens/refresh".into(),
+                                    Value::Null,
+                                )))?;
+                            }
                         } else {
                             workspace.published = published;
                             workspace.hints.clear();
+                            workspace.lenses.clear();
                         }
                     }
                 }
@@ -281,11 +318,13 @@ impl Workspace {
             }
             "workspace/didChangeConfiguration" => {
                 self.entry = entry_option(&p["settings"]);
+                self.display = example_display(&p["settings"]);
             }
             "workspace/didChangeWatchedFiles" => {}
             _ => return false,
         }
         self.hints.clear();
+        self.lenses.clear();
         true
     }
     fn source(&self, uri: &str) -> Option<String> {
@@ -301,6 +340,7 @@ impl Workspace {
     }
     fn analyze(&mut self) -> Vec<Notification> {
         self.hints.clear();
+        self.lenses.clear();
         let mut sources: BTreeMap<String, String> = self
             .documents
             .iter()
@@ -403,6 +443,13 @@ impl Workspace {
                         if !hints.contains(&hint) {
                             hints.push(hint);
                         }
+                        let lens = json!({"range":range(source,span.start,span.start),"command":{
+                            "title":example_title(&text),"command":"yourLanguage.copyExample","arguments":[text]
+                        }});
+                        let lenses = self.lenses.entry(uri.clone()).or_default();
+                        if !lenses.contains(&lens) {
+                            lenses.push(lens);
+                        }
                     }
                 }
                 Err(errors) => {
@@ -466,6 +513,9 @@ impl Workspace {
                 Ok(json!([{"range":range(&source,0,source.len()),"newText":text}]))
             }
             "textDocument/inlayHint" => {
+                if self.display != ExampleDisplay::Inline {
+                    return Ok(json!([]));
+                }
                 let start = &params["range"]["start"];
                 let end = &params["range"]["end"];
                 let key = |p: &Value| {
@@ -482,6 +532,12 @@ impl Workspace {
                     .filter(|hint| key(&hint["position"]) >= key(start)
                         && key(&hint["position"]) <= key(end))
                     .collect::<Vec<_>>()))
+            }
+            "textDocument/codeLens" => {
+                if self.display != ExampleDisplay::Above {
+                    return Ok(json!([]));
+                }
+                Ok(json!(self.lenses.get(uri).cloned().unwrap_or_default()))
             }
             _ => Err((-32601, format!("Unsupported method {method}"))),
         }

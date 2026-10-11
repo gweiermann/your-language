@@ -252,3 +252,110 @@ fn nullable_star_does_not_silently_preview_zero_occurrences() {
         None
     );
 }
+
+#[test]
+fn readable_spacing_uses_only_selected_single_space_trivia() {
+    let spaced = r#"trivia Space = / +/
+pattern Name = /[a-z]+/ { example "name" }
+node Number = /[0-9]+/ { example "42" }
+node Program = "let" Name "=" Number ";"
+entry Program { trivia Space }"#;
+    assert_eq!(
+        preview(spaced, "Program").as_deref(),
+        Some("let name = 42 ;")
+    );
+    let compiled = language(spaced);
+    // Preview readability does not change accepted syntax or invent keyword boundaries.
+    assert!(!parse(&compiled, "letname=42;").has_errors());
+    let loaded = load_compiled_language(&compiled.to_bytes().unwrap()).unwrap();
+    assert_eq!(compiled.example_previews(), loaded.example_previews());
+    assert_eq!(
+        preview(r#"node Pair = "a" "b" entry Pair"#, "Pair").as_deref(),
+        Some("ab")
+    );
+    assert_eq!(
+        preview(
+            r#"trivia Comment = /\/\*x\*\// node Pair = "a" "b" entry Pair { trivia Comment }"#,
+            "Pair"
+        )
+        .as_deref(),
+        Some("ab")
+    );
+    assert_eq!(
+        preview(
+            r#"trivia Space = / +/ node Pair = "a" "b" entry Pair"#,
+            "Pair"
+        )
+        .as_deref(),
+        Some("ab")
+    );
+    assert_eq!(
+        preview(
+            r#"trivia Space = / +/ node Word = /[a-z]{2}/ entry Word { trivia Space }"#,
+            "Word"
+        )
+        .as_deref(),
+        Some("aa")
+    );
+    assert_eq!(
+        preview(r#"node Pair = "a" " " "b" entry Pair"#, "Pair").as_deref(),
+        Some("a b")
+    );
+}
+
+#[test]
+fn spacing_retries_adjacent_candidates_under_the_same_budget() {
+    let source = r#"trivia Space = / +/
+node Pair = left: "a" right: "b" {
+    constraints { when trivia.between(left, right) { error("Adjacent only") } }
+}
+entry Pair { trivia Space }"#;
+    assert_eq!(preview(source, "Pair").as_deref(), Some("ab"));
+    let compiled = language(source);
+    assert!(parse(&compiled, "a b").has_errors());
+    assert!(!parse(&compiled, "ab").has_errors());
+}
+
+#[test]
+fn checked_in_fixture_cli_and_reload_generate_readable_trivia_examples() {
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("examples/example_metadata/language.yl");
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_yl"))
+        .arg("examples")
+        .arg(&fixture)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let previews: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(
+        previews
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["definition"] == "language.yl#Program")
+            .unwrap()["text"],
+        "let name = 42 ;"
+    );
+    let compiled = your_language::compile_language(fixture).unwrap();
+    let reloaded = load_compiled_language(&compiled.to_bytes().unwrap()).unwrap();
+    assert_eq!(compiled.example_previews(), reloaded.example_previews());
+    assert!(!parse(&reloaded, "let name = 42 ;").has_errors());
+}
+
+#[test]
+fn spacing_fallback_survives_a_full_concat_pruned_from_the_readability_beam() {
+    let source = r#"trivia Space = / +/
+node Chain = a:"a" b:"b" c:"c" d:"d" e:"e" f:"f" {
+    constraints {
+        when trivia.between(a,b) || trivia.between(b,c) || trivia.between(c,d) || trivia.between(d,e) || trivia.between(e,f) {
+            error("Adjacent only")
+        }
+    }
+}
+entry Chain { trivia Space }"#;
+    assert_eq!(preview(source, "Chain").as_deref(), Some("abcdef"));
+}

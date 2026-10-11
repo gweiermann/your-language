@@ -968,6 +968,62 @@ impl Compiler {
                         .collect::<Result<Vec<_>>>()?;
                     let mut operators = vec![];
                     let mut listed = BTreeSet::new();
+                    if precedence.is_empty() {
+                        for member in &all_leaves {
+                            let member_symbol = self.symbols[member].clone();
+                            let DeclKind::Node {
+                                grammar: Some(grammar),
+                                ..
+                            } = &member_symbol.declaration.kind
+                            else {
+                                continue;
+                            };
+                            // Candidate discovery does not emit a runtime term. Keep
+                            // projection IDs and warnings owned by actual lowering.
+                            let next_marker = self.next_marker;
+                            let diagnostic_count = self.diagnostics.len();
+                            let term = self.lower(
+                                &member_symbol.module,
+                                &member_symbol.name,
+                                grammar,
+                                &Environment::new(),
+                                0,
+                            );
+                            self.next_marker = next_marker;
+                            self.diagnostics.truncate(diagnostic_count);
+                            let term = term?;
+                            let left = edge_ref(&term, false) == Some(id.as_str());
+                            let right = edge_ref(&term, true) == Some(id.as_str());
+                            if left || right {
+                                listed.insert(member.clone());
+                                operators.push(Operator {
+                                    rule: member.clone(),
+                                    binding_power: 1,
+                                    associativity: Associativity::Left,
+                                    left,
+                                    right,
+                                });
+                            }
+                        }
+                        if operators.len() > 1 {
+                            let mut diagnostic = Diagnostic::error(
+                                "yl.missing_precedence",
+                                "Multiple recursive operators require explicit precedence",
+                                symbol.declaration.span.clone(),
+                            );
+                            diagnostic.secondary = operators
+                                .iter()
+                                .map(|operator| {
+                                    self.symbols[&operator.rule].declaration.span.clone()
+                                })
+                                .collect();
+                            diagnostic.help = Some(
+                                "Add a precedence block listing the recursive operators in binding order"
+                                    .into(),
+                            );
+                            return Err(diagnostic);
+                        }
+                    }
                     for (level_index, level) in precedence.iter().enumerate() {
                         for name in &level.members {
                             let member = self.member_path(&id, name, &level.span, 0).map_err(

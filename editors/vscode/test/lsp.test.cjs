@@ -7,13 +7,15 @@ const {join, resolve} = require('node:path');
 const {pathToFileURL} = require('node:url');
 const rpc = require('vscode-jsonrpc/node');
 const executable = process.env.YL_TEST_CLI || resolve(__dirname, '../../../target/debug/yl' + (process.platform === 'win32' ? '.exe' : ''));
-async function session(t, entry) {
+async function session(t, entry, exampleDisplay = "inline") {
     const child=spawn(executable,['lsp'],{windowsHide:true});
     let stderr=''; child.stderr.on('data',chunk=>stderr+=chunk);
     const connection=rpc.createMessageConnection(new rpc.StreamMessageReader(child.stdout),new rpc.StreamMessageWriter(child.stdin));
-    const notices=[]; connection.onNotification('textDocument/publishDiagnostics',p=>notices.push(p)); connection.listen();
+    const notices=[],refreshes=[]; connection.onNotification('textDocument/publishDiagnostics',p=>notices.push(p));
+    for(const method of ['workspace/codeLens/refresh','workspace/inlayHint/refresh']) connection.onRequest(method,()=>{refreshes.push(method);return null;});
+    connection.listen();
     t.after(async()=> { try { await connection.sendRequest('shutdown'); await connection.sendNotification('exit'); await Promise.race([new Promise(resolve=>child.once('close',resolve)),new Promise((_,reject)=>{const timer=setTimeout(()=>reject(Error('Server did not exit with stdin open')),3000);timer.unref();})]); } finally { connection.dispose(); child.kill(); } });
-    const init=await connection.sendRequest('initialize',{processId:process.pid,capabilities:{},initializationOptions:{entry}});
+    const init=await connection.sendRequest('initialize',{processId:process.pid,capabilities:{workspace:{codeLens:{refreshSupport:true},inlayHint:{refreshSupport:true}}},initializationOptions:{entry,...(exampleDisplay===null?{}:{exampleDisplay})}});
     assert.equal(init.capabilities.positionEncoding,'utf-16'); assert.equal(init.capabilities.textDocumentSync.change,1);
     connection.sendNotification('initialized',{});
     async function diagnostic(uri,version) {
@@ -24,7 +26,7 @@ async function session(t, entry) {
     function open(uri,text,version=1) { connection.sendNotification('textDocument/didOpen',{textDocument:{uri,text,version,languageId:'yl'}}); }
     function change(uri,text,version) { connection.sendNotification('textDocument/didChange',{textDocument:{uri,version},contentChanges:[{text}]}); }
     async function hints(uri) { return connection.sendRequest('textDocument/inlayHint',{textDocument:{uri},range:{start:{line:0,character:0},end:{line:10000,character:10000}}}); }
-    return {connection,open,change,diagnostic,hints,notices};
+    return {connection,open,change,diagnostic,hints,notices,refreshes};
 }
 test('real LSP client: unsaved imports, hints, diagnostics, formatting and close fallback',async t=> {
     const dir=await mkdtemp(join(tmpdir(),'yl-lsp-')); t.after(()=>rm(dir,{recursive:true,force:true}));
@@ -34,9 +36,9 @@ test('real LSP client: unsaved imports, hints, diagnostics, formatting and close
     const s=await session(t,entry);
     s.open(root,'import { Name } from "./name"\nnode Root = Name\nentry Root'); await s.diagnostic(root,1);
     assert.match(JSON.stringify(await s.hints(root)),/disk/);
-    s.open(dep,'// 😀\nexport pattern Name = "buffer"'); await s.diagnostic(dep,1);
+    s.open(dep,'// \u{1f600}\nexport pattern Name = "buffer"'); await s.diagnostic(dep,1);
     assert.match(JSON.stringify(await s.hints(root)),/buffer/);
-    s.change(dep,'// 😀\nexport pattern Name = @',2);
+    s.change(dep,'// \u{1f600}\nexport pattern Name = @',2);
     assert.ok((await s.diagnostic(dep,2)).diagnostics.some(d=>d.severity===1));
     assert.deepEqual(await s.hints(root),[]);
     s.change(dep,'export pattern Name="new"',3); await s.diagnostic(dep,3);
@@ -56,7 +58,7 @@ test('native contracts validated without effects; incomplete untitled files and 
     assert.match(JSON.stringify(await s.hints(uri)),/example/);
     s.change(uri,'import { missing } from "custom/native"\nnode Root="x"\nentry Root',2);
     assert.ok((await s.diagnostic(uri,2)).diagnostics.length);
-    s.open('untitled:bad','node Root = "😀" @');
+    s.open('untitled:bad','node Root = "\u{1f600}" @');
     const diag=(await s.diagnostic('untitled:bad',1)).diagnostics[0]; assert.equal(diag.range.start.character,17);
 });
 test('cyclic graph terminates and newer document versions invalidate old results',async t=> {
@@ -84,6 +86,37 @@ test('cancellation suppresses a long formatting result',async t=> {
     await assert.rejects(request,error=>error.code===-32800);
 });
 
+test('above CodeLens defaults to declaration start, composes unsaved imports and switches without duplicates',async t=> {
+    const dir=await mkdtemp(join(tmpdir(),'yl-lenses-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+    const entry=join(dir,'language.yl'),helper=join(dir,'item.yl'); await writeFile(helper,'export node Item = "disk"');
+    const uri=pathToFileURL(entry).href,dep=pathToFileURL(helper).href;
+    const s=await session(t,entry,null);
+    const lenses=()=>s.connection.sendRequest('textDocument/codeLens',{textDocument:{uri}});
+    s.open(uri,'// \u{1f600}\nimport { Item } from "./item"\nexport node Root = "let" Item\ntrivia Space = / +/\nentry Root { trivia Space }'); await s.diagnostic(uri,1);
+    const initial=await lenses(); assert.equal(initial.length,1);
+    assert.ok(s.refreshes.includes('workspace/codeLens/refresh'));assert.ok(s.refreshes.includes('workspace/inlayHint/refresh'));
+    assert.deepEqual(initial[0].range,{start:{line:2,character:0},end:{line:2,character:0}});
+    assert.equal(initial[0].command.title,'example: let disk');assert.equal(initial[0].command.command,'yourLanguage.copyExample');assert.deepEqual(initial[0].command.arguments,['let disk']);
+    assert.deepEqual(await s.hints(uri),[]);
+    s.open(dep,'export node Item = "buffer"');await s.diagnostic(dep,1);assert.equal((await lenses())[0].command.title,'example: let buffer');
+    await s.connection.sendNotification('workspace/didChangeConfiguration',{settings:{entry,exampleDisplay:'inline'}});
+    assert.deepEqual(await lenses(),[]);assert.match(JSON.stringify(await s.hints(uri)),/buffer/);
+    await s.connection.sendNotification('workspace/didChangeConfiguration',{settings:{entry,exampleDisplay:'off'}});
+    assert.deepEqual(await lenses(),[]);assert.deepEqual(await s.hints(uri),[]);
+    s.change(dep,'export node Item = @',2);assert.ok((await s.diagnostic(dep,2)).diagnostics.length);
+    await s.connection.sendNotification('workspace/didChangeConfiguration',{settings:{entry,exampleDisplay:'above'}});
+    assert.deepEqual(await lenses(),[]);
+    s.change(dep,'export node Item = "x"',3);await s.diagnostic(dep,3);assert.equal((await lenses())[0].command.title,'example: let x');
+});
+
+test('CodeLens labels normalize and truncate text while copy retains complete example',async t=> {
+    const dir=await mkdtemp(join(tmpdir(),'yl-lens-long-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+    const entry=join(dir,'language.yl'),uri=pathToFileURL(entry).href;const text='a\n'+ 'b'.repeat(160);
+    const s=await session(t,entry,null);s.open(uri,`node Root = ${JSON.stringify(text)}\nentry Root`);await s.diagnostic(uri,1);
+    const [lens]=await s.connection.sendRequest('textDocument/codeLens',{textDocument:{uri}});
+    assert.ok(lens.command.title.startsWith('example: a\\n'));assert.ok(lens.command.title.endsWith('\u2026'));assert.ok(!lens.command.title.includes('\n'));assert.equal(lens.command.arguments[0],text);
+
+});
 
 test('identity typing namespaces and authored wrappers validate and format without executing effects',async t=> {
     const s=await session(t);

@@ -15,7 +15,7 @@ npm run package
 code --install-extension your-language.vsix --force
 ```
 
-You can also select **Extensions: Install from VSIX…**. Reload the window after upgrading. The extension is packaged locally, without a Marketplace release.
+You can also select **Extensions: Install from VSIXâ€¦**. Reload the window after upgrading. The extension is packaged locally, without a Marketplace release.
 
 ## Configure
 
@@ -38,10 +38,17 @@ The server uses the buffer formatter directly. Diagnostics appear as underlines 
 
 ## Example hints
 
+Examples appear above each declaration as a CodeLens label, such as `example: let name = 42 ;`. Click the label to copy the complete example. This is an editor overlay and does not insert a comment into the source. Long labels are shortened and line breaks are displayed as `\n`; copying preserves the full original text.
+
+`yourLanguage.exampleDisplay` selects `above` (default), `inline` or `off`. Above-line previews require `editor.codeLens` to be enabled. The inline option uses inlay hints; the two displays are never shown together. Hiding examples leaves diagnostics and formatting active.
+
+
 Explicit `example "..."` metadata takes priority over bounded generation. The generator composes examples across nodes and patterns, omits optional parts, and includes one item for both `*` and `+`. Every candidate is parser-validated. Unsupported or nonterminating cases receive no hint. Meaning operations are never executed during editing.
 
 ## Experimental scope
 
-The initial server supports YL definitions, UTF-16 positions, full-document synchronization, diagnostics, formatting, inlay hints and imported-file invalidation. Untitled buffers support syntax diagnostics and formatting; save them for import resolution. Completion, navigation, rename, incremental parsing and target-language servers remain future work.
+The initial server supports YL definitions, UTF-16 positions, full-document synchronization, diagnostics, formatting, CodeLens, inlay hints and imported-file invalidation. Untitled buffers support syntax diagnostics and formatting; save them for import resolution. Completion, navigation, rename, incremental parsing and target-language servers remain future work.
 
 Definition validation registers `std/variables` and `std/types` contracts. Unavailable custom native libraries produce diagnostics. The CLI [`fmt`](/api/cli#format-yl-definitions) and `examples` commands remain independent tools for scripts and agents.
+
+Selected trivia accepting one space permits readable spacing between grammar fragments. No keyword rules are inferred; parser validation and bounded unspaced fallbacks preserve adjacency requirements.

@@ -66,9 +66,8 @@ export node Expression {
 
     node String
 
-    node Reference precedence {
-        Addition
-    }
+    node Reference
+
     meanings {
         inheritType()
     }

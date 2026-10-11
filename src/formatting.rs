@@ -17,6 +17,7 @@ pub fn format_yl(file: &str, source: &str) -> CompileResult<String> {
         layout.declaration(declaration, true);
     }
     let tokens = layout.prepare_meanings(&tokens);
+    layout.prepare_container_sections(&tokens);
     layout.attach_leading_comments(&tokens, source);
     let formatted = layout.render(&tokens, source);
     let output_tokens =
@@ -65,6 +66,10 @@ fn normalized(module: &Module) -> serde_json::Value {
     strip(&mut value);
     value
 }
+struct DeclarationContainer {
+    span: Span,
+    members: Vec<Span>,
+}
 #[derive(Default)]
 struct Layout {
     breaks: BTreeMap<usize, bool>,
@@ -74,6 +79,7 @@ struct Layout {
     grammar_ends: BTreeSet<usize>,
     choice_separators: Vec<Span>,
     meanings: Vec<Meanings>,
+    containers: Vec<DeclarationContainer>,
 }
 impl Layout {
     fn line(&mut self, span: &Span, blank: bool) {
@@ -135,6 +141,10 @@ impl Layout {
                 example,
                 ..
             } => {
+                self.containers.push(DeclarationContainer {
+                    span: declaration.span.clone(),
+                    members: members.iter().map(|member| member.span.clone()).collect(),
+                });
                 if let Some(grammar) = grammar {
                     self.grammar(grammar);
                 }
@@ -295,6 +305,39 @@ impl Layout {
             }
         }
         tokens
+    }
+    fn prepare_container_sections(&mut self, tokens: &[Token]) {
+        for container in &self.containers {
+            let mut depth = 0usize;
+            for token in tokens.iter().filter(|token| {
+                container.span.start <= token.span.start && token.span.end <= container.span.end
+            }) {
+                match &token.kind {
+                    TokenKind::Symbol(symbol) if symbol == "{" => depth += 1,
+                    TokenKind::Symbol(symbol) if symbol == "}" => depth = depth.saturating_sub(1),
+                    TokenKind::Word(word)
+                        if depth == 1
+                            && matches!(
+                                word.as_str(),
+                                "meanings" | "precedence" | "constraints"
+                            )
+                            && !container.members.iter().any(|member| {
+                                member.start <= token.span.start && token.span.end <= member.end
+                            }) =>
+                    {
+                        // The parser owns these sections at this container depth.
+                        // Member aliases can end with no body, so their following
+                        // section must receive its own line as well as paragraph spacing.
+                        let blank = container
+                            .members
+                            .iter()
+                            .any(|member| member.end <= token.span.start);
+                        self.breaks.insert(token.span.start, blank);
+                    }
+                    _ => {}
+                }
+            }
+        }
     }
     fn attach_leading_comments(&mut self, tokens: &[Token], source: &str) {
         let breaks: Vec<_> = self

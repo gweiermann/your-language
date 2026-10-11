@@ -23,6 +23,14 @@ pub struct Preview {
 impl CompiledLanguage {
     /// One bounded, parser-validated representative per node and parameterless pattern.
     pub fn example_previews(&self) -> Vec<Preview> {
+        // Check the selected trivia itself, without automatic trivia skipping.
+        // This is a presentation choice at fragment boundaries, never a keyword rule.
+        let mut trivia_language = self.clone();
+        trivia_language.trivia.clear();
+        let spaces = self
+            .trivia
+            .iter()
+            .any(|id| accepts(&trivia_language, &Term::Ref(id.clone()), " "));
         let mut definitions: BTreeMap<_, _> = self
             .rules
             .iter()
@@ -41,8 +49,14 @@ impl CompiledLanguage {
         definitions.extend(self.examples.clone());
         definitions.into_iter().map(|(id, definition)| {
             let text = if let Some(explicit) = &definition.explicit { Some(explicit.text.clone()) } else {
-                let mut generator = Generator { language: self, steps: 0, active: BTreeSet::new(), projection: None };
-                generator.term(&definition.term, 0).into_iter().find(|candidate| accepts(self, &definition.term, &candidate.text)).map(|candidate| candidate.text)
+                let mut generator = Generator { language: self, spaces, steps: 0, active: BTreeSet::new(), projection: None };
+                let readable = generator.term(&definition.term, 0).into_iter().find(|candidate| accepts(self, &definition.term, &candidate.text)).map(|candidate| candidate.text);
+                if readable.is_some() || !spaces { readable } else {
+                    // Keep a concatenation pass within the same step budget so a
+                    // many-fragment adjacency constraint is not starved by the beam.
+                    generator.spaces = false;
+                    generator.term(&definition.term, 0).into_iter().find(|candidate| accepts(self, &definition.term, &candidate.text)).map(|candidate| candidate.text)
+                }
             };
             Preview { definition: id, span: definition.span, reason: text.is_none().then(|| "No valid representative within generation limits; supply an explicit example".into()), text }
         }).collect()
@@ -118,17 +132,20 @@ struct Generator<'a> {
     steps: usize,
     active: BTreeSet<String>,
     projection: Option<u32>,
+    spaces: bool,
 }
 #[derive(Clone)]
 struct Candidate {
     text: String,
     marks: BTreeMap<u32, usize>,
+    unspaced: usize,
 }
 impl Candidate {
     fn new(text: String) -> Self {
         Self {
             text,
             marks: BTreeMap::new(),
+            unspaced: 0,
         }
     }
     fn join(&self, other: &Self, separator: &str) -> Self {
@@ -139,12 +156,15 @@ impl Candidate {
         Self {
             text: format!("{}{separator}{}", self.text, other.text),
             marks,
+            unspaced: self.unspaced + other.unspaced,
         }
     }
 }
 fn bounded(mut candidates: Vec<Candidate>) -> Vec<Candidate> {
     candidates.retain(|s| s.text.len() <= BYTES);
-    candidates.sort_by_key(|s| s.text.len()); // stable: declaration order breaks ties
+    // Prefer readable separation when selected trivia permits it. Keep bounded
+    // concatenated alternatives for adjacency-sensitive syntax/constraints.
+    candidates.sort_by_key(|s| (s.unspaced, s.text.len())); // stable: declaration order breaks ties
     let mut seen = BTreeSet::new();
     candidates.retain(|s| seen.insert((s.text.clone(), s.marks.clone())));
     candidates.truncate(CANDIDATES);
@@ -210,13 +230,17 @@ impl Generator<'_> {
                     let mut combined = vec![];
                     for prefix in &candidates {
                         for suffix in &next {
-                            combined.push(prefix.join(suffix, ""));
-                            if !self.language.trivia.is_empty()
+                            let gap = self.spaces
                                 && !prefix.text.is_empty()
                                 && !suffix.text.is_empty()
-                            {
+                                && !prefix.text.ends_with(char::is_whitespace)
+                                && !suffix.text.starts_with(char::is_whitespace);
+                            let mut adjacent = prefix.join(suffix, "");
+                            if gap {
+                                adjacent.unspaced += 1;
                                 combined.push(prefix.join(suffix, " "));
                             }
+                            combined.push(adjacent);
                         }
                     }
                     candidates = bounded(combined);
