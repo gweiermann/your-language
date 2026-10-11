@@ -1,0 +1,27 @@
+let caller = read;
+
+function read() {
+    return later;
+}
+
+function identity(later) {
+    return later;
+}
+
+let f = function() {
+    return f;
+};
+
+let local = function() {
+    let later = 1;
+
+    return later;
+};
+
+let capture = function() {
+    let inner = later;
+
+    return inner;
+};
+
+let later = 1;

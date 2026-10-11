@@ -1,4 +1,5 @@
-use std::{env, fs, io::IsTerminal, path::Path, process::ExitCode};
+use std::{env, fs, path::Path, process::ExitCode};
+use your_language::diagnostic_render::print_diagnostics;
 use your_language::{
     compile_language,
     diagnostic::{Diagnostic, Span},
@@ -53,7 +54,7 @@ fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
             } else if args.get(4).is_some_and(|flag| flag == "--json") {
                 println!("{}", json(&result.diagnostics)?);
             } else {
-                render_diagnostics(&result.diagnostics, |span| {
+                print_diagnostics(&result.diagnostics, |span| {
                     if span.file == args[3] {
                         Some(source.clone())
                     } else {
@@ -99,7 +100,7 @@ fn main() -> ExitCode {
                     args.get(1).map(String::as_str).unwrap_or("."),
                 );
             } else {
-                render_diagnostics(&diagnostics, |span| fs::read_to_string(&span.file).ok());
+                print_diagnostics(&diagnostics, |span| fs::read_to_string(&span.file).ok());
             }
             ExitCode::FAILURE
         }
@@ -110,95 +111,9 @@ fn print_definition_diagnostics(language: &your_language::CompiledLanguage, entr
     render_definition_diagnostics(language.diagnostics(), entry);
 }
 
-struct DiagnosticLine {
-    file: String,
-    line: usize,
-    text: String,
-    ranges: Vec<(usize, usize)>,
-}
 fn render_definition_diagnostics(diagnostics: &[Diagnostic], entry: &str) {
     let root = Path::new(entry).parent().unwrap_or(Path::new("."));
-    render_diagnostics(diagnostics, |span| {
+    print_diagnostics(diagnostics, |span| {
         fs::read_to_string(root.join(&span.file)).ok()
     });
-}
-
-fn render_diagnostics(diagnostics: &[Diagnostic], source_for: impl Fn(&Span) -> Option<String>) {
-    use your_language::diagnostic::Severity;
-    for diagnostic in diagnostics {
-        eprintln!(
-            "{:?}[{}]: {}",
-            diagnostic.severity, diagnostic.code, diagnostic.message
-        );
-        let mut lines: Vec<DiagnosticLine> = vec![];
-        for span in std::iter::once(diagnostic.primary.as_ref()).chain(&diagnostic.secondary) {
-            let Some(source) = source_for(span) else {
-                continue;
-            };
-            if span.start > span.end
-                || span.end > source.len()
-                || !source.is_char_boundary(span.start)
-                || !source.is_char_boundary(span.end)
-            {
-                continue;
-            }
-            let line_start = source[..span.start].rfind('\n').map_or(0, |p| p + 1);
-            let line_end = source[span.start..]
-                .find('\n')
-                .map_or(source.len(), |p| span.start + p);
-            let line = source[..line_start].bytes().filter(|b| *b == b'\n').count() + 1;
-            let column = source[line_start..span.start].chars().count();
-            let length = source[span.start..span.end.min(line_end)]
-                .chars()
-                .count()
-                .max(1);
-            if let Some(record) = lines
-                .iter_mut()
-                .find(|record| record.file == span.file && record.line == line)
-            {
-                record.ranges.push((column, length));
-            } else {
-                lines.push(DiagnosticLine {
-                    file: span.file.clone(),
-                    line,
-                    text: source[line_start..line_end].trim_end_matches('\r').into(),
-                    ranges: vec![(column, length)],
-                });
-            }
-        }
-        if lines.is_empty() && !diagnostic.primary.file.is_empty() {
-            eprintln!("  --> {}", diagnostic.primary.file);
-        }
-        for DiagnosticLine {
-            file,
-            line,
-            text,
-            ranges: spans,
-        } in lines
-        {
-            eprintln!("  --> {file}:{line}");
-            eprintln!("  {line} | {text}");
-            let mut markers = vec![' '; text.chars().count() + 1];
-            for (start, length) in spans {
-                for column in start..start.saturating_add(length).min(markers.len()) {
-                    markers[column] = '^';
-                }
-            }
-            let underline: String = markers.into_iter().collect();
-            let gutter = " ".repeat(2 + line.to_string().len());
-            if std::io::stderr().is_terminal() {
-                let color = if diagnostic.severity == Severity::Error {
-                    31
-                } else {
-                    33
-                };
-                eprintln!("{gutter} | \x1b[{color}m{}\x1b[0m", underline.trim_end());
-            } else {
-                eprintln!("{gutter} | {}", underline.trim_end());
-            }
-        }
-        if let Some(help) = &diagnostic.help {
-            eprintln!("  help: {help}");
-        }
-    }
 }

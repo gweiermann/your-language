@@ -1,8 +1,18 @@
-node Name = value: /[A-Za-z_][A-Za-z_0-9]*/
-node Number = value: /[0-9]+/
-node Declaration = "let" name: Name "=" initializer: Number
-node Program = declarations: Declaration*
-trivia Whitespace = /[ \t\r\n]+/
+node Name =
+    value: /[A-Za-z_][A-Za-z_0-9]*/
+
+node Number =
+    value: /[0-9]+/
+
+node Declaration =
+    "let" name: Name "=" initializer: Number
+
+node Program =
+    declarations: Declaration*
+
+trivia Whitespace =
+    /[ \t\r\n]+/
+
 entry Program {
     trivia Whitespace
 }
