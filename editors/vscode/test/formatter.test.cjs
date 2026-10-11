@@ -69,7 +69,7 @@ test('cancellation before launch and during execution', async t => {
 test('real yl fmt formats valid buffers and rejects malformed syntax', { skip: !process.env.YL_TEST_CLI }, async () => {
   const executable = process.env.YL_TEST_CLI;
   const input = 'node A="a" entry A';
-  const expected = 'node A =\n    "a"\n\nentry A\n';
+  const expected = 'node A = "a"\n\nentry A\n';
   assert.equal(await formatBuffer(input, executable, cancellation()), expected);
   assert.equal(await formatBuffer(expected, executable, cancellation()), expected);
   await assert.rejects(formatBuffer('node A = (', executable, cancellation()), /YL formatting failed/);
