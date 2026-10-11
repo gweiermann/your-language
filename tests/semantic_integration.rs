@@ -126,6 +126,7 @@ fn precedence_remains_transitive_when_optional_middle_level_is_absent() {
             "record",
             OperationSignature {
                 id: "test/order#record".into(),
+                finalization_only: false,
                 provides_context: false,
                 parameters: vec![OperationParameter {
                     name: "value".into(),

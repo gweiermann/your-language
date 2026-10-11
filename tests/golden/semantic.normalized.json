@@ -127,8 +127,8 @@
       "constraints": [],
       "span": {
         "file": "definition/function.yl",
-        "start": 320,
-        "end": 456
+        "start": 290,
+        "end": 426
       }
     },
     "definition/function.yl#FunctionDeclaration": {
@@ -230,8 +230,8 @@
       "constraints": [],
       "span": {
         "file": "definition/function.yl",
-        "start": 696,
-        "end": 898
+        "start": 666,
+        "end": 858
       }
     },
     "definition/function.yl#FunctionExpression": {
@@ -325,8 +325,8 @@
       "constraints": [],
       "span": {
         "file": "definition/function.yl",
-        "start": 620,
-        "end": 694
+        "start": 590,
+        "end": 664
       }
     },
     "definition/function.yl#Parameter": {
@@ -345,8 +345,8 @@
       "constraints": [],
       "span": {
         "file": "definition/function.yl",
-        "start": 230,
-        "end": 318
+        "start": 210,
+        "end": 288
       }
     },
     "definition/language.yl#Program": {
@@ -418,8 +418,8 @@
       "constraints": [],
       "span": {
         "file": "definition/let.yl",
-        "start": 179,
-        "end": 469
+        "start": 169,
+        "end": 449
       }
     },
     "definition/lexical.yl#Name": {
@@ -523,15 +523,15 @@
               "arguments": {},
               "span": {
                 "file": "definition/function.yl",
-                "start": 596,
-                "end": 610
+                "start": 566,
+                "end": 580
               }
             }
           ],
           "span": {
             "file": "definition/function.yl",
-            "start": 596,
-            "end": 610
+            "start": 566,
+            "end": 580
           }
         }
       ],
@@ -549,11 +549,6 @@
                 "id": "std/variables#declare",
                 "parameters": [
                   {
-                    "name": "kind",
-                    "kind": "Symbol",
-                    "default": null
-                  },
-                  {
                     "name": "name",
                     "kind": "Capture",
                     "default": null
@@ -569,9 +564,6 @@
                 "provides_context": false
               },
               "arguments": {
-                "kind": {
-                  "Symbol": "std/variables#function"
-                },
                 "name": {
                   "Capture": "name"
                 },
@@ -581,15 +573,15 @@
               },
               "span": {
                 "file": "definition/function.yl",
-                "start": 837,
-                "end": 880
+                "start": 807,
+                "end": 840
               }
             }
           ],
           "span": {
             "file": "definition/function.yl",
-            "start": 808,
-            "end": 890
+            "start": 778,
+            "end": 850
           }
         }
       ],
@@ -607,11 +599,6 @@
                 "id": "std/variables#declare",
                 "parameters": [
                   {
-                    "name": "kind",
-                    "kind": "Symbol",
-                    "default": null
-                  },
-                  {
                     "name": "name",
                     "kind": "Capture",
                     "default": null
@@ -627,9 +614,6 @@
                 "provides_context": false
               },
               "arguments": {
-                "kind": {
-                  "Symbol": "std/variables#variable"
-                },
                 "name": {
                   "Capture": "name"
                 },
@@ -639,15 +623,15 @@
               },
               "span": {
                 "file": "definition/function.yl",
-                "start": 287,
-                "end": 310
+                "start": 267,
+                "end": 280
               }
             }
           ],
           "span": {
             "file": "definition/function.yl",
-            "start": 287,
-            "end": 310
+            "start": 267,
+            "end": 280
           }
         }
       ],
@@ -734,11 +718,6 @@
                 "id": "std/variables#declare",
                 "parameters": [
                   {
-                    "name": "kind",
-                    "kind": "Symbol",
-                    "default": null
-                  },
-                  {
                     "name": "name",
                     "kind": "Capture",
                     "default": null
@@ -754,9 +733,6 @@
                 "provides_context": false
               },
               "arguments": {
-                "kind": {
-                  "Symbol": "std/variables#variable"
-                },
                 "name": {
                   "Capture": "name"
                 },
@@ -766,15 +742,15 @@
               },
               "span": {
                 "file": "definition/let.yl",
-                "start": 330,
-                "end": 353
+                "start": 320,
+                "end": 333
               }
             }
           ],
           "span": {
             "file": "definition/let.yl",
-            "start": 301,
-            "end": 363
+            "start": 291,
+            "end": 343
           }
         }
       ],
@@ -796,8 +772,8 @@
           ],
           "span": {
             "file": "definition/let.yl",
-            "start": 398,
-            "end": 451
+            "start": 378,
+            "end": 431
           }
         }
       ]
@@ -874,8 +850,8 @@
       "explicit": null,
       "span": {
         "file": "definition/function.yl",
-        "start": 458,
-        "end": 618
+        "start": 428,
+        "end": 588
       }
     }
   }

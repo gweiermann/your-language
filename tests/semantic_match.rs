@@ -34,6 +34,7 @@ fn engine() -> SemanticEngine {
             "echo",
             OperationSignature {
                 id: "native#echo".into(),
+                finalization_only: false,
                 provides_context: false,
                 parameters: vec![OperationParameter {
                     name: "value".into(),
@@ -206,6 +207,7 @@ fn pending_values_wait_for_settlement_without_repeating_effects() {
             OperationSignature {
                 id: "native#waiting".into(),
                 parameters: vec![],
+                finalization_only: false,
                 provides_context: false,
             },
             || Box::new(Waiting),
@@ -217,6 +219,7 @@ fn pending_values_wait_for_settlement_without_repeating_effects() {
             "echo",
             OperationSignature {
                 id: "native#echo".into(),
+                finalization_only: false,
                 provides_context: false,
                 parameters: vec![OperationParameter {
                     name: "value".into(),

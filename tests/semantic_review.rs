@@ -73,6 +73,7 @@ fn recording_engine(events: &Events, fail_enter: Option<usize>) -> SemanticEngin
                     id: format!("test/native#{name}"),
                     parameters: vec![],
                     provides_context,
+                    finalization_only: false,
                 },
                 move || {
                     Box::new(Recording {
@@ -201,9 +202,9 @@ fn descendant_ordering_diagnoses_scope_provider_cycles() {
             "language.yl",
             &sources(
                 r#"
-        import { lexicalScope, declareVariable } from "std/variables"
+        import { lexicalScope, declare } from "std/variables"
         node LetDeclaration = "let" name: /[a-z]+/ ";" {
-            meanings { declareVariable(name) }
+            meanings { declare(name) }
         }
         node FunctionBody = "{" children: LetDeclaration* "}" {
             meanings { lexicalScope() }
@@ -235,9 +236,9 @@ fn enclosing_pattern_scope_is_independent_of_deferred_body_operations() {
             "language.yl",
             &sources(
                 r#"
-        import { lexicalScope, declareVariable, use } from "std/variables"
+        import { lexicalScope, declare, use } from "std/variables"
         node LetDeclaration = "let" name: /[a-z]+/ ";" {
-            meanings { declareVariable(name) }
+            meanings { declare(name) }
         }
         node FunctionBody = "{" children: LetDeclaration* "return" returnName: /[a-z]+/ ";}" {
             meanings { use(returnName) }
@@ -427,6 +428,7 @@ fn generic_references() -> (SemanticEngine, your_language::CompiledLanguage) {
             OperationSignature {
                 id: "test/native#action".into(),
                 parameters: vec![],
+                finalization_only: false,
                 provides_context: false,
             },
             move || {
@@ -441,7 +443,7 @@ fn generic_references() -> (SemanticEngine, your_language::CompiledLanguage) {
         .unwrap();
     let engine = SemanticEngine::new(registry);
     let grammar = r#"
-        import { lexicalScope, declareVariable, use } from "std/variables"
+        import { lexicalScope, declare, use } from "std/variables"
         import { action } from "test/native"
         node Name = /[a-z]+/
         node Reference = name: Name { meanings { use(name) } }
@@ -450,7 +452,7 @@ fn generic_references() -> (SemanticEngine, your_language::CompiledLanguage) {
         node FunctionExpression = "function()" body: FunctionContents
         node Expression { node FunctionExpression node Reference node Number = /[0-9]+/ }
         node LetDeclaration = "let" name: Name "=" value: Expression ";" {
-            meanings { declareVariable(name) }
+            meanings { declare(name) }
         }
         node Program = declarations: LetDeclaration* {
             meanings { lexicalScope() precedence { LetDeclaration > FunctionBody } }
@@ -666,50 +668,37 @@ fn compatible_and_conflicting_nested_rules_accumulate_over_deeper_occurrences() 
 }
 
 #[test]
-fn equally_named_categories_from_distinct_libraries_keep_distinct_identity() {
-    let mut engine = SemanticEngine::default();
-    let first = engine
-        .registry_mut()
-        .export_symbol("native/first", "category")
-        .unwrap();
-    let second = engine
-        .registry_mut()
-        .export_symbol("native/second", "category")
-        .unwrap();
-    let language = engine
-        .compile(
-            "language.yl",
-            &sources(
-                r#"
-        import { lexicalScope, declare } from "std/variables"
-        import { category as First } from "native/first"
-        import { category as Second } from "native/second"
-        node A = name: "a" { meanings { declare(First, name) } }
-        node B = name: "b" { meanings { declare(Second, name) } }
-        node Root = A B { meanings { lexicalScope() } }
+fn equally_named_authored_symbols_from_distinct_modules_keep_distinct_identity() {
+    let engine = SemanticEngine::default();
+    let source = r#"
+        import * as types from "std/types"
+        import * as variables from "std/variables"
+        import { category as First } from "first"
+        import { category as Second } from "second"
+        node A = "a" { meanings { types::ensure(variables::identity(), First) } }
+        node B = "b" { meanings { types::ensure(variables::identity(), Second) } }
+        node Root = a: A b: B {
+            meanings {
+                match (types::typeof(variables::identityOf(a)), types::typeof(variables::identityOf(b))) {
+                    First, Second => {},
+                    _ => error("Authored symbol identities were lost")
+                }
+            }
+        }
         entry Root
-    "#,
-            ),
-        )
-        .unwrap();
-    let result = engine.analyze(&language, "source", "ab");
+    "#;
+    let modules = BTreeMap::from([
+        ("language.yl".into(), source.into()),
+        ("first.yl".into(), "export symbol category".into()),
+        ("second.yl".into(), "export symbol category".into()),
+    ]);
+    let language = engine.compile("language.yl", &modules).unwrap();
+    let loaded = engine.load(&language.to_bytes().unwrap()).unwrap();
+    let result = engine.analyze(&loaded, "source", "ab");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    let mut categories: Vec<_> = result
-        .graph
-        .records
-        .iter()
-        .flat_map(|record| &record.entries)
-        .filter_map(|(key, value)| match (key, value) {
-            (
-                your_language::semantics::SemanticKey::Symbol(key),
-                your_language::semantics::SemanticValue::Symbol(category),
-            ) if key == "std/variables#kindSymbol" => Some(category.clone()),
-            _ => None,
-        })
-        .collect();
-    categories.sort();
-    assert_ne!(first, second);
-    assert_eq!(categories, [first, second]);
+    let normalized = String::from_utf8(loaded.to_bytes().unwrap()).unwrap();
+    assert!(normalized.contains("first.yl#category"));
+    assert!(normalized.contains("second.yl#category"));
 }
 
 #[test]
@@ -858,10 +847,10 @@ fn lexical_name_arguments_observe_preserved_pipe_values() {
         let engine = SemanticEngine::default();
         let grammar = format!(
             r#"
-            import {{ lexicalScope, declareVariable, use }} from "std/variables"
+            import {{ lexicalScope, declare, use }} from "std/variables"
             pipe wrapped() {{ rewrite value => "(" value ")" }}
             {construct} Name = value: /[a-z]+/
-            node Declaration = "let" name: Name |> wrapped() ";" {{ meanings {{ declareVariable(name) }} }}
+            node Declaration = "let" name: Name |> wrapped() ";" {{ meanings {{ declare(name) }} }}
             node Reference = name: Name ";" {{ meanings {{ use(name) }} }}
             node Root = Declaration Reference {{ meanings {{ lexicalScope() }} }}
             entry Root
@@ -971,6 +960,7 @@ fn absent_pipe_input_keeps_an_empty_original_source_span() {
             "observe",
             OperationSignature {
                 id: "test/provenance#observe".into(),
+                finalization_only: false,
                 provides_context: false,
                 parameters: vec![OperationParameter {
                     name: "value".into(),
@@ -1303,21 +1293,21 @@ fn repeated_boundary_marker_is_a_structured_definition_error() {
 fn nested_function_regions_resolve_mutual_names_and_later_local_bindings() {
     let engine = SemanticEngine::default();
     let grammar = r#"
-        import { lexicalScope, declareVariable, declareFunction, use } from "std/variables"
+        import { lexicalScope, declare, use } from "std/variables"
         node Name = /[a-z]+/
         trivia Spaces = /\s+/
         node Reference = name: Name { meanings { use(name) } }
         node Expression { node FunctionExpression node Reference node Number = /[0-9]+/ }
         node ExpressionDeclaration = Expression
         node LetDeclaration = "let" name: Name "=" ExpressionDeclaration ";" {
-            meanings { declareVariable(name) precedence { ExpressionDeclaration > LetDeclaration > FunctionBody } }
+            meanings { declare(name) precedence { ExpressionDeclaration > LetDeclaration > FunctionBody } }
         }
         node FunctionBody = "{" (FunctionDeclaration | LetDeclaration)* "return" Reference ";" "}" {
             meanings { boundary precedence { FunctionDeclaration > LetDeclaration > FunctionBody } }
         }
         pattern FunctionContents = "(" ")" FunctionBody { meanings { lexicalScope() } }
         node FunctionExpression = "function" FunctionContents
-        node FunctionDeclaration = "function" name: Name FunctionContents { meanings { declareFunction(name) } }
+        node FunctionDeclaration = "function" name: Name FunctionContents { meanings { declare(name) } }
         node Program = (FunctionDeclaration | LetDeclaration)* {
             meanings { boundary lexicalScope() precedence { FunctionDeclaration > ExpressionDeclaration FunctionDeclaration > LetDeclaration > FunctionBody } }
         }

@@ -85,14 +85,6 @@
       "entries": [
         [
           {
-            "Symbol": "std/variables#kindSymbol"
-          },
-          {
-            "Symbol": "std/variables#function"
-          }
-        ],
-        [
-          {
             "Symbol": "std/variables#nameSymbol"
           },
           {
@@ -164,14 +156,6 @@
       "entries": [
         [
           {
-            "Symbol": "std/variables#kindSymbol"
-          },
-          {
-            "Symbol": "std/variables#variable"
-          }
-        ],
-        [
-          {
             "Symbol": "std/variables#nameSymbol"
           },
           {
@@ -222,14 +206,6 @@
       "entries": [
         [
           {
-            "Symbol": "std/variables#kindSymbol"
-          },
-          {
-            "Symbol": "std/variables#function"
-          }
-        ],
-        [
-          {
             "Symbol": "std/variables#nameSymbol"
           },
           {
@@ -278,14 +254,6 @@
     {
       "id": 6,
       "entries": [
-        [
-          {
-            "Symbol": "std/variables#kindSymbol"
-          },
-          {
-            "Symbol": "std/variables#variable"
-          }
-        ],
         [
           {
             "Symbol": "std/variables#nameSymbol"
@@ -349,14 +317,6 @@
     {
       "id": 8,
       "entries": [
-        [
-          {
-            "Symbol": "std/variables#kindSymbol"
-          },
-          {
-            "Symbol": "std/variables#variable"
-          }
-        ],
         [
           {
             "Symbol": "std/variables#nameSymbol"
@@ -430,14 +390,6 @@
       "entries": [
         [
           {
-            "Symbol": "std/variables#kindSymbol"
-          },
-          {
-            "Symbol": "std/variables#variable"
-          }
-        ],
-        [
-          {
             "Symbol": "std/variables#nameSymbol"
           },
           {
@@ -509,14 +461,6 @@
       "entries": [
         [
           {
-            "Symbol": "std/variables#kindSymbol"
-          },
-          {
-            "Symbol": "std/variables#variable"
-          }
-        ],
-        [
-          {
             "Symbol": "std/variables#nameSymbol"
           },
           {
@@ -565,14 +509,6 @@
     {
       "id": 13,
       "entries": [
-        [
-          {
-            "Symbol": "std/variables#kindSymbol"
-          },
-          {
-            "Symbol": "std/variables#variable"
-          }
-        ],
         [
           {
             "Symbol": "std/variables#nameSymbol"
@@ -625,14 +561,6 @@
       "entries": [
         [
           {
-            "Symbol": "std/variables#kindSymbol"
-          },
-          {
-            "Symbol": "std/variables#variable"
-          }
-        ],
-        [
-          {
             "Symbol": "std/variables#nameSymbol"
           },
           {
@@ -681,14 +609,6 @@
     {
       "id": 15,
       "entries": [
-        [
-          {
-            "Symbol": "std/variables#kindSymbol"
-          },
-          {
-            "Symbol": "std/variables#variable"
-          }
-        ],
         [
           {
             "Symbol": "std/variables#nameSymbol"

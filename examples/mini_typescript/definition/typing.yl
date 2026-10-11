@@ -1,0 +1,30 @@
+import * as types from "std/types"
+import * as variables from "std/variables"
+import { Function, parameters, returnType } from "./types"
+
+export operation annotateWithType(value) {
+    types::ensure(variables::identity(), value)
+}
+
+export operation typeof(value) = types::typeof(variables::identityOf(value))
+
+export operation inheritType() {
+    types::ensure(variables::identity(), types::typeof(variables::childIdentity()))
+}
+
+export operation restrictTypeTo(value) {
+    types::ensure(variables::identity(), typeof(value), requirement = true)
+}
+
+export operation functionSignature(arguments, body, annotation) {
+    types::ensure(variables::identity(), Function)
+    types::ensure((variables::identity(), parameters), types::typeof(variables::identities(arguments)))
+    types::ensure((variables::identity(), returnType), typeof(body))
+    types::ensure((variables::identity(), returnType), typeof(annotation), requirement = true)
+}
+
+export operation call(callee, arguments) {
+    types::ensure(variables::identityOf(callee), Function)
+    types::ensure((variables::identityOf(callee), parameters), types::typeof(variables::identities(arguments)))
+    types::ensure(variables::identity(), types::typeof((variables::identityOf(callee), returnType)))
+}

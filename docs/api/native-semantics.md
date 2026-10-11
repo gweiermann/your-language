@@ -23,16 +23,16 @@ Compilation and analysis require no artifact file. `engine.compile(...)` can als
 Nodes and patterns accept a grammar-following body:
 
 ```yl
-import { declareVariable, useVariable, lexicalScope } from "std/variables"
+import { declare, use, lexicalScope } from "std/variables"
 
 node Declaration = "let" name: Name ";" {
     meanings {
-        group Register { declareVariable(name) }
+        group Register { declare(name) }
     }
 }
 
 node Reference = name: Name ";" {
-    meanings { useVariable(name) }
+    meanings { use(name) }
 }
 
 pattern FunctionContents = "{" (Declaration | Reference)* "}" {
@@ -91,7 +91,7 @@ Ordering describes static analysis, not target-language execution or initializat
 
 ## Registering a library
 
-`OperationRegistry` connects a virtual import module and exported operation name to a typed interface and a factory. `SemanticEngine::new(registry)` uses that registry for compilation and analysis. `SemanticEngine::default()` includes the bundled lexical adapter; `registry_mut()` allows additional registration before compiling.
+`OperationRegistry` connects a virtual import module and exported operation name to a typed interface and a factory. `SemanticEngine::new(registry)` uses that registry for compilation and analysis. `SemanticEngine::default()` includes the bundled lexical adapter and identity-keyed type service; `registry_mut()` allows additional registration before compiling.
 
 ```rust
 use your_language::{
@@ -119,7 +119,7 @@ engine.registry_mut().register(
 )?;
 ```
 
-The YL definition imports `audit` from `"example/audit"`. The compiler rejects missing exports, incompatible arguments, missing captures, and unknown meaning groups. There is no YL operation implementation language in this slice: native implementations are explicit dependencies.
+The YL definition imports `audit` from `"example/audit"`. The compiler rejects missing exports, incompatible arguments, missing captures, and unknown meaning groups. Authored YL operations can compose calls to native dependencies through action wrappers and query aliases, as described below.
 
 ## Lifecycle and state
 
@@ -133,13 +133,13 @@ Parsing must produce an AST with no error-severity syntax diagnostics before nat
 
 ## Lexical library policy
 
-The bundled `std/variables` adapter exports `lexicalScope`, generic `declare`, `declareVariable`, `declareFunction`, `use`, and `useVariable`. `declare` accepts an imported category symbol, a name capture, and `reassignable` (default `true`). The `variable` and `function` category symbols classify declarations; they do not create separate namespaces or target-language types.
+The bundled `std/variables` adapter exports `lexicalScope`, `declare(name, reassignable=true)` and `use(name)`, plus the identity queries described below. Declaration categories are not required: both variables and functions create ordinary named bindings. Function behavior is expressed by language-authored types, slots and meaning order.
 
-Its explicit policy is one namespace per scope, errors for duplicate names in the same scope, and nearest-scope shadowing. `useVariable` is a convenience alias for general name lookup and can resolve function-category bindings too. The `reassignable` attribute records binding metadata; assignment checking and object mutation are outside this slice.
+Its explicit policy is one namespace per scope, errors for duplicate names in the same scope, and nearest-scope shadowing. `use` performs general name lookup, including bindings whose language-defined type is a function. The `reassignable` attribute records binding metadata; assignment checking and object mutation are outside this slice.
 
 Scope, declaration, and reference attachments point to record IDs. Reference attachments reuse declaration records, preserving symbol identity independently of spelling. Records use separate identity-symbol metadata keys and text identifier keys. Unresolved references point to the name capture; duplicate declarations also retain the previous declaration's source span.
 
-This API does not yet provide a CLI semantic session, host bindings, generated backends, type analysis, flow analysis, or ownership analysis.
+This API does not yet provide a CLI semantic session, host bindings, generated backends, flow analysis, or ownership analysis.
 
 ## Running the Rust consumer
 
@@ -165,34 +165,55 @@ Rust consumers can reuse `diagnostic_render::print_diagnostics`, providing a sou
 
 ## Separate composable inference experiment
 
-The throwaway Mini TypeScript consumer publishes local constraints through imported
-native meanings. Literals use `type(number)`/`type(string)` identity symbols;
-addition declares its operand combinations in a tuple `match` over
-`typeof(left)`/`typeof(right)`. The native type library has no grammar node names,
-root traversal or addition policy. Run `cargo run --example mini_typescript -- addition`,
-use `-- addition-errors` for underlined operand diagnostics, or add `--json` for full state.
-Exact policies and limitations live in `examples/mini_typescript/README.md`.
+The Mini TypeScript consumer demonstrates identity-keyed type constraints. The
+native `std/types` module exports `ensure(key, type)`, `typeof(key)` and the
+`unknown` symbol. Primitive identities and named slots belong to the language.
+Authored operation wrappers connect literals, bindings, function signatures and
+calls without target node names in the native library. See the checked-in
+[Mini TypeScript example](https://github.com/gweiermann/your-language/tree/main/examples/mini_typescript).
 
-These syntax extensions are experimental: nested semantic value calls, tuple-match
-alternatives, a required final wildcard, void `{}` branches and interpolated
-`error(...)`/`warning(...)` actions. Pending value inputs delay branch selection;
-settled unknown is an ordinary language-authored identity symbol. The example configures it explicitly through `types(unknown, functionTypeSymbol)`. Branch effects run once.
-A void branch does not publish a type; `type(unknown)` does so explicitly.
+## Operation wrappers and namespaces
 
-`SourceCapture::occurrences` exposes original retained capture roots, including
-aliases, transparent patterns, repetition and pipe projections. Terminal/absent
-captures have no handles. `OperationContext::attachment(occurrence, key)` reads
-published identity links without inspecting another library's private context.
+```yl
+import * as types from "std/types"
+import * as variables from "std/variables"
 
-Registered `AnalysisService` factories supply fresh per-analysis state. Their
-`progress`, `settle` and `finish` hooks define automatic fixed-point completion;
-there is no grammar-level `solve()` call. Native `evaluate` returns `Pending` or
-`Ready(SemanticValue)`, separately from effect hooks. Deferred expressions and
-matches run after ordinary lifecycle traversal, without enclosing context
-activation. Context providers and incompatible mixed-phase ordering are rejected.
-Value readers must be observational: retries can create fresh instances, and readers
-must not emit diagnostics or external effects. Keep persistent query state in an
-analysis service. Match blocks currently live directly in `meanings`; named groups
-support native calls but not nested match blocks.
-The prototype tests second native libraries at the capture/service interfaces,
-repeated/concurrent analyses and optional artifact reload.
+export operation annotateWithType(value) {
+    types::ensure(variables::identity(), value)
+}
+
+export operation typeof(value) =
+    types::typeof(variables::identityOf(value))
+```
+
+Namespace imports expose exported module members through `::`; private source
+members remain inaccessible. Named imports and aliases retain the same canonical
+identities. Imported action wrappers and query aliases expand hygienically before
+normalization, including named arguments and defaults. Recursive expansion is a
+structured compile error. Unused wrappers are also checked for unresolved names
+and recursive expansion. Wrapper parameters are untyped semantic values; their
+arguments can use positional names, named arguments, and defaults. Action bodies
+currently contain operation calls. Query aliases must expand to a native query;
+constant-only query returns and matches inside wrapper bodies are not supported.
+The runtime does not interpret wrapper declarations.
+
+Semantic tuple/list values are available in operation arguments. Type keys use
+an identity or `(identity, authoredSlotSymbol)`. Deferred handles can be passed
+through generic native `ParameterKind::Value` parameters. Matches resolve handles
+through `AnalysisService::resolve_value`; pending values defer case selection.
+
+A native operation can declare `finalization_only` for an analysis collector.
+Such an operation runs after ordinary lifecycle hooks, while relative collector
+ordering is preserved. This cannot be combined with `provides_context`.
+
+`std/variables` supplies identity queries: `identity()` for the current occurrence,
+`identityOf(capture)` for one retained capture root, `identities(capture)` for an
+ordered list, and `childIdentity()` for explicit first-child inheritance.
+Declarations and resolved references return the same binding identity.
+
+The Mini TypeScript wrappers `annotateWithType` and `restrictTypeTo` currently use the same equality kernel. Separate accumulation of possible types and universal compatibility requirements remains future work; the names do not imply union inference in this prototype. `identity()` accepts no arguments. `identityOf(value)` requires an explicit capture or identity and preserves absence rather than selecting the current occurrence.
+
+The declaration API replaces the experimental category-taking `declare`, `declareVariable`, `declareFunction` and `useVariable` helpers. `variable`, `function` and `kindSymbol` are no longer native exports or binding metadata. Recompile artifacts containing the previous native contracts.
+
+
+`std/types::ensure(key, type, requirement=false)` accepts optional diagnostic-role metadata. Setting `requirement=true` marks the source annotation as a related requirement when an equality conflicts. It does not change which types unify. The Mini TypeScript `restrictTypeTo` wrapper and explicit function return annotation check use this metadata; `annotateWithType` and `inheritType` preserve value provenance. Diagnostics underline the incompatible value first and retain the required annotation as a secondary span with explanatory help. Provenance follows identities, lists, authored slots, aliases and projected syntax through artifact reload.

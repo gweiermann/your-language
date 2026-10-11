@@ -19,6 +19,8 @@ pub enum ExprKind {
     Variant(String),
     Call(String, Vec<Argument>),
     Group(Box<Expr>),
+    Tuple(Vec<Expr>),
+    List(Vec<Expr>),
     Sequence(Vec<Expr>),
     Choice(Vec<Expr>),
     Repeat(Box<Expr>, Quantifier),
@@ -63,6 +65,15 @@ pub enum DeclKind {
     Import {
         names: Vec<(String, String)>,
         path: String,
+    },
+    NamespaceImport {
+        name: String,
+        path: String,
+    },
+    Operation {
+        name: String,
+        parameters: Vec<Parameter>,
+        body: OperationBody,
     },
     Node {
         name: String,
@@ -199,4 +210,10 @@ pub struct MeaningSyntaxCase {
 pub struct Example {
     pub text: String,
     pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum OperationBody {
+    Actions(Vec<MeaningSyntaxCall>),
+    Query(Expr),
 }
