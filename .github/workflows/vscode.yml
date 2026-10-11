@@ -1,0 +1,41 @@
+name: VS Code extension
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - uses: dtolnay/rust-toolchain@1.85.0
+      - run: cargo build --locked --bin yl
+      - name: Test extension and real CLI
+        shell: bash
+        working-directory: editors/vscode
+        run: |
+          npm ci
+          if [ "$RUNNER_OS" = Windows ]; then
+            export YL_TEST_CLI="$GITHUB_WORKSPACE/target/debug/yl.exe"
+          else
+            export YL_TEST_CLI="$GITHUB_WORKSPACE/target/debug/yl"
+          fi
+          npm test
+          npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: your-language-vscode-${{ matrix.os }}
+          path: editors/vscode/your-language.vsix
