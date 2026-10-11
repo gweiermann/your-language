@@ -6,6 +6,7 @@ pub enum TokenKind {
     String(String),
     Regex(String),
     Symbol(String),
+    Comment,
     End,
 }
 #[derive(Clone, Debug)]
@@ -15,6 +16,14 @@ pub struct Token {
 }
 
 pub fn lex(file: &str, source: &str) -> Result<Vec<Token>, Diagnostic> {
+    tokenize(file, source, false)
+}
+
+pub(crate) fn lex_with_comments(file: &str, source: &str) -> Result<Vec<Token>, Diagnostic> {
+    tokenize(file, source, true)
+}
+
+fn tokenize(file: &str, source: &str, comments: bool) -> Result<Vec<Token>, Diagnostic> {
     let mut tokens = vec![];
     let mut i = 0;
     while i < source.len() {
@@ -26,11 +35,28 @@ pub fn lex(file: &str, source: &str) -> Result<Vec<Token>, Diagnostic> {
         }
         if source[i..].starts_with("//") {
             i += source[i..].find('\n').unwrap_or(source.len() - i);
+            if comments {
+                let end = if source.as_bytes().get(i.wrapping_sub(1)) == Some(&b'\r') {
+                    i - 1
+                } else {
+                    i
+                };
+                tokens.push(Token {
+                    kind: TokenKind::Comment,
+                    span: Span::new(file, start, end),
+                });
+            }
             continue;
         }
         if source[i..].starts_with("/*") {
             if let Some(end) = source[i + 2..].find("*/") {
                 i += end + 4;
+                if comments {
+                    tokens.push(Token {
+                        kind: TokenKind::Comment,
+                        span: Span::new(file, start, i),
+                    });
+                }
                 continue;
             }
             return Err(Diagnostic::error(
