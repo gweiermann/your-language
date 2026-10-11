@@ -1,6 +1,7 @@
 import { declare, variable } from "std/semantics"
 import { Name } from "./lexical"
 import { ExpressionDeclaration } from "./expression"
+import { FunctionBody } from "./function"
 
 export node LetDeclaration =
     "let" name: Name "="
@@ -12,10 +13,8 @@ export node LetDeclaration =
         }
 
         precedence {
-            ExpressionDeclaration > LetDeclaration
+            ExpressionDeclaration > LetDeclaration > FunctionBody
         }
     }
 }
 
-export pattern TopLevelDeclaration =
-    LetDeclaration

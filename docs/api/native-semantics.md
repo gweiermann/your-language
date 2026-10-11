@@ -55,25 +55,39 @@ meanings {
 }
 ```
 
-A bare node or pattern selects all its own named and ungrouped meanings. `Node::meanings::Group` selects a named group. Selection searches occurrences under the declaration that owns the precedence block; enclosing and local chains both contribute dependencies. A chain remains transitive when an optional middle construct is absent.
+A bare node or pattern selects all its own named and ungrouped meanings. `Node::meanings::Group` selects a named group. Each clause searches the actual retained occurrence tree throughout its owner's region, at every wrapper depth. Enclosing and local chains contribute dependencies, and chains remain transitive when an optional middle construct is absent.
 
-Bare selectors defer the whole matched node or pattern, including nested meanings. Named-group selectors order only the selected own operations. Explicit earlier descendants are exceptions: their own prerequisites and traversal can proceed before the deferred construct. Strict self-dependencies and contradictory accumulated chains produce structured cycle diagnostics before any native hook runs.
-
-Ordinary operations follow source-order depth-first completion: an initializer's nested references run before the declaration's own registration. Context-provider setup precedes semantic descendants. A provider ordered after its descendants creates a cycle; extract a scoped pattern around the ordered construct to keep setup distinct.
-
-Selectors distinguish roles through normal YL composition. For example:
+## Explicit boundaries
 
 ```yl
-pattern TopLevelDeclaration = LetDeclaration
-node Program = (FunctionDeclaration | TopLevelDeclaration)* {
+node Program = (FunctionDeclaration | LetDeclaration)* {
     meanings {
+        boundary
         lexicalScope()
-        precedence { FunctionDeclaration > TopLevelDeclaration > FunctionBody }
+        precedence {
+            FunctionDeclaration > LetDeclaration > FunctionBody
+        }
+    }
+}
+
+node FunctionBody = "{" LetDeclaration* "return" Expression ";" "}" {
+    meanings {
+        boundary
     }
 }
 ```
 
-Only program-level declarations use `TopLevelDeclaration`. Function-body locals remain `LetDeclaration`, so their initializers stay within deferred bodies. A broad `LetDeclaration > FunctionBody` chain would explicitly pull body-local declarations and their initializer traversal earlier as well. Ordering controls static analysis, not target-language execution or initialization safety.
+`boundary` is a standalone structural marker on the containing node or pattern. It is compiled before native hooks execute. An enclosing search can select the nested boundary occurrence itself, but does not search below it. An owner's boundary does not hide its own contents: its local clauses search the interior and stop at the next nested boundaries.
+
+Thus Program can find named and lambda bodies at different depths without collecting their local declarations as outer peers. A selected body is deferred as a whole; once its outer prerequisites finish, local clauses order its declarations and nested functions. Local ordering cannot release boundary contents before its ancestor entry requirements are satisfied.
+
+The marker is independent of `lexicalScope()`: a boundary does not create a scope, and a scope operation does not automatically create a boundary. Extracting a scoped pattern around a body can establish context while keeping context setup separate from the body's ordered work. A context provider ordered after its own descendants is contradictory and produces a cycle diagnostic.
+
+Wrappers without `boundary` do not stop the search. Named patterns retain occurrences without adding AST nodes; capture and repetition syntax do not create regions. Explicit patterns can still group reusable syntax roles, but are not needed to compensate for varying wrapper depths.
+
+Ordinary operations follow source-order depth-first completion: initializer references run before the declaration's own registration. Bare selectors defer complete node/pattern traversal; named-group selectors order only the chosen own operations. Within a non-boundary construct, explicit earlier subconstructs can proceed before deferred work. Strict self-dependencies and contradictory chains produce structured cycle diagnostics before any native hook runs.
+
+Ordering describes static analysis, not target-language execution or initialization safety. The search uses committed matches, so failed alternatives, probes, and unreachable grammar alternatives cannot produce semantic effects.
 
 ## Registering a library
 

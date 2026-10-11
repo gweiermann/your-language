@@ -2,17 +2,18 @@ import { lexicalScope } from "std/semantics"
 import { Whitespace } from "./lexical"
 import { ExpressionDeclaration } from "./expression"
 import { FunctionDeclaration, FunctionBody } from "./function"
-import { TopLevelDeclaration } from "./let"
+import { LetDeclaration } from "./let"
 
 node Program =
-    statements: (FunctionDeclaration | TopLevelDeclaration)*
+    statements: (FunctionDeclaration | LetDeclaration)*
 {
     meanings {
+        boundary
         lexicalScope()
 
         precedence {
             FunctionDeclaration > ExpressionDeclaration
-            FunctionDeclaration > TopLevelDeclaration > FunctionBody
+            FunctionDeclaration > LetDeclaration > FunctionBody
         }
     }
 }

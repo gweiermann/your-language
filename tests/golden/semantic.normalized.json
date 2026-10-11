@@ -128,7 +128,7 @@
       "span": {
         "file": "definition/function.yl",
         "start": 320,
-        "end": 426
+        "end": 456
       }
     },
     "definition/function.yl#FunctionDeclaration": {
@@ -230,8 +230,8 @@
       "constraints": [],
       "span": {
         "file": "definition/function.yl",
-        "start": 666,
-        "end": 868
+        "start": 696,
+        "end": 898
       }
     },
     "definition/function.yl#FunctionExpression": {
@@ -325,8 +325,8 @@
       "constraints": [],
       "span": {
         "file": "definition/function.yl",
-        "start": 590,
-        "end": 664
+        "start": 620,
+        "end": 694
       }
     },
     "definition/function.yl#Parameter": {
@@ -364,12 +364,7 @@
                       "Ref": "definition/function.yl#FunctionDeclaration"
                     },
                     {
-                      "Meaning": {
-                        "definition": "definition/let.yl#TopLevelDeclaration",
-                        "term": {
-                          "Ref": "definition/let.yl#LetDeclaration"
-                        }
-                      }
+                      "Ref": "definition/let.yl#LetDeclaration"
                     }
                   ]
                 },
@@ -382,8 +377,8 @@
       "constraints": [],
       "span": {
         "file": "definition/language.yl",
-        "start": 245,
-        "end": 525
+        "start": 240,
+        "end": 527
       }
     },
     "definition/let.yl#LetDeclaration": {
@@ -423,8 +418,8 @@
       "constraints": [],
       "span": {
         "file": "definition/let.yl",
-        "start": 137,
-        "end": 412
+        "start": 179,
+        "end": 469
       }
     },
     "definition/lexical.yl#Name": {
@@ -468,6 +463,7 @@
   ],
   "meanings": {
     "definition/expression.yl#Reference": {
+      "boundary": false,
       "groups": [
         {
           "name": "Resolve",
@@ -506,7 +502,13 @@
       ],
       "precedence": []
     },
+    "definition/function.yl#FunctionBody": {
+      "boundary": true,
+      "groups": [],
+      "precedence": []
+    },
     "definition/function.yl#FunctionContents": {
+      "boundary": false,
       "groups": [
         {
           "name": null,
@@ -521,21 +523,22 @@
               "arguments": {},
               "span": {
                 "file": "definition/function.yl",
-                "start": 566,
-                "end": 580
+                "start": 596,
+                "end": 610
               }
             }
           ],
           "span": {
             "file": "definition/function.yl",
-            "start": 566,
-            "end": 580
+            "start": 596,
+            "end": 610
           }
         }
       ],
       "precedence": []
     },
     "definition/function.yl#FunctionDeclaration": {
+      "boundary": false,
       "groups": [
         {
           "name": "Register",
@@ -578,21 +581,22 @@
               },
               "span": {
                 "file": "definition/function.yl",
-                "start": 807,
-                "end": 850
+                "start": 837,
+                "end": 880
               }
             }
           ],
           "span": {
             "file": "definition/function.yl",
-            "start": 778,
-            "end": 860
+            "start": 808,
+            "end": 890
           }
         }
       ],
       "precedence": []
     },
     "definition/function.yl#Parameter": {
+      "boundary": false,
       "groups": [
         {
           "name": null,
@@ -650,6 +654,7 @@
       "precedence": []
     },
     "definition/language.yl#Program": {
+      "boundary": true,
       "groups": [
         {
           "name": null,
@@ -664,15 +669,15 @@
               "arguments": {},
               "span": {
                 "file": "definition/language.yl",
-                "start": 346,
-                "end": 360
+                "start": 353,
+                "end": 367
               }
             }
           ],
           "span": {
             "file": "definition/language.yl",
-            "start": 346,
-            "end": 360
+            "start": 353,
+            "end": 367
           }
         }
       ],
@@ -690,8 +695,8 @@
           ],
           "span": {
             "file": "definition/language.yl",
-            "start": 395,
-            "end": 438
+            "start": 402,
+            "end": 445
           }
         },
         {
@@ -701,7 +706,7 @@
               "group": null
             },
             {
-              "definition": "definition/let.yl#TopLevelDeclaration",
+              "definition": "definition/let.yl#LetDeclaration",
               "group": null
             },
             {
@@ -711,13 +716,14 @@
           ],
           "span": {
             "file": "definition/language.yl",
-            "start": 451,
-            "end": 507
+            "start": 458,
+            "end": 509
           }
         }
       ]
     },
     "definition/let.yl#LetDeclaration": {
+      "boundary": false,
       "groups": [
         {
           "name": "Register",
@@ -760,15 +766,15 @@
               },
               "span": {
                 "file": "definition/let.yl",
-                "start": 288,
-                "end": 311
+                "start": 330,
+                "end": 353
               }
             }
           ],
           "span": {
             "file": "definition/let.yl",
-            "start": 259,
-            "end": 321
+            "start": 301,
+            "end": 363
           }
         }
       ],
@@ -782,19 +788,19 @@
             {
               "definition": "definition/let.yl#LetDeclaration",
               "group": null
+            },
+            {
+              "definition": "definition/function.yl#FunctionBody",
+              "group": null
             }
           ],
           "span": {
             "file": "definition/let.yl",
-            "start": 356,
-            "end": 394
+            "start": 398,
+            "end": 451
           }
         }
       ]
-    },
-    "definition/let.yl#TopLevelDeclaration": {
-      "groups": [],
-      "precedence": []
     }
   }
 }

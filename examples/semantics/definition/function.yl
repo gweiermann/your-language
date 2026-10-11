@@ -17,6 +17,9 @@ export node FunctionBody =
     locals: LetDeclaration*
     "return" result: Expression ";"
     "}"
+{
+    meanings { boundary }
+}
 
 pattern FunctionContents =
     "("

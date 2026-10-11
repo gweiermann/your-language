@@ -43,18 +43,10 @@
         ],
         [
           {
-            "Text": "later"
-          },
-          {
-            "Record": 11
-          }
-        ],
-        [
-          {
             "Text": "local"
           },
           {
-            "Record": 13
+            "Record": 10
           }
         ],
         [
@@ -62,7 +54,15 @@
             "Text": "capture"
           },
           {
-            "Record": 15
+            "Record": 12
+          }
+        ],
+        [
+          {
+            "Text": "later"
+          },
+          {
+            "Record": 13
           }
         ]
       ]
@@ -405,144 +405,13 @@
             "Text": "later"
           },
           {
-            "Record": 12
-          }
-        ]
-      ]
-    },
-    {
-      "id": 10,
-      "entries": [
-        [
-          {
-            "Symbol": "std/semantics#parentSymbol"
-          },
-          {
-            "Record": 0
-          }
-        ],
-        [
-          {
-            "Text": "inner"
-          },
-          {
             "Record": 14
           }
         ]
       ]
     },
     {
-      "id": 11,
-      "entries": [
-        [
-          {
-            "Symbol": "std/semantics#kindSymbol"
-          },
-          {
-            "Symbol": "std/semantics#variable"
-          }
-        ],
-        [
-          {
-            "Symbol": "std/semantics#nameSymbol"
-          },
-          {
-            "Text": "later"
-          }
-        ],
-        [
-          {
-            "Symbol": "std/semantics#originSymbol"
-          },
-          {
-            "Source": {
-              "value": {
-                "type": "Name",
-                "fields": {
-                  "value": "later"
-                },
-                "span": {
-                  "file": "programs/program.txt",
-                  "start": 290,
-                  "end": 295
-                }
-              },
-              "span": {
-                "file": "programs/program.txt",
-                "start": 290,
-                "end": 295
-              },
-              "text": "later"
-            }
-          }
-        ],
-        [
-          {
-            "Symbol": "std/semantics#reassignableSymbol"
-          },
-          {
-            "Bool": true
-          }
-        ]
-      ]
-    },
-    {
-      "id": 12,
-      "entries": [
-        [
-          {
-            "Symbol": "std/semantics#kindSymbol"
-          },
-          {
-            "Symbol": "std/semantics#variable"
-          }
-        ],
-        [
-          {
-            "Symbol": "std/semantics#nameSymbol"
-          },
-          {
-            "Text": "later"
-          }
-        ],
-        [
-          {
-            "Symbol": "std/semantics#originSymbol"
-          },
-          {
-            "Source": {
-              "value": {
-                "type": "Name",
-                "fields": {
-                  "value": "later"
-                },
-                "span": {
-                  "file": "programs/program.txt",
-                  "start": 179,
-                  "end": 184
-                }
-              },
-              "span": {
-                "file": "programs/program.txt",
-                "start": 179,
-                "end": 184
-              },
-              "text": "later"
-            }
-          }
-        ],
-        [
-          {
-            "Symbol": "std/semantics#reassignableSymbol"
-          },
-          {
-            "Bool": true
-          }
-        ]
-      ]
-    },
-    {
-      "id": 13,
+      "id": 10,
       "entries": [
         [
           {
@@ -597,62 +466,28 @@
       ]
     },
     {
-      "id": 14,
+      "id": 11,
       "entries": [
         [
           {
-            "Symbol": "std/semantics#kindSymbol"
+            "Symbol": "std/semantics#parentSymbol"
           },
           {
-            "Symbol": "std/semantics#variable"
+            "Record": 0
           }
         ],
         [
-          {
-            "Symbol": "std/semantics#nameSymbol"
-          },
           {
             "Text": "inner"
-          }
-        ],
-        [
-          {
-            "Symbol": "std/semantics#originSymbol"
           },
           {
-            "Source": {
-              "value": {
-                "type": "Name",
-                "fields": {
-                  "value": "inner"
-                },
-                "span": {
-                  "file": "programs/program.txt",
-                  "start": 248,
-                  "end": 253
-                }
-              },
-              "span": {
-                "file": "programs/program.txt",
-                "start": 248,
-                "end": 253
-              },
-              "text": "inner"
-            }
-          }
-        ],
-        [
-          {
-            "Symbol": "std/semantics#reassignableSymbol"
-          },
-          {
-            "Bool": true
+            "Record": 15
           }
         ]
       ]
     },
     {
-      "id": 15,
+      "id": 12,
       "entries": [
         [
           {
@@ -705,6 +540,171 @@
           }
         ]
       ]
+    },
+    {
+      "id": 13,
+      "entries": [
+        [
+          {
+            "Symbol": "std/semantics#kindSymbol"
+          },
+          {
+            "Symbol": "std/semantics#variable"
+          }
+        ],
+        [
+          {
+            "Symbol": "std/semantics#nameSymbol"
+          },
+          {
+            "Text": "later"
+          }
+        ],
+        [
+          {
+            "Symbol": "std/semantics#originSymbol"
+          },
+          {
+            "Source": {
+              "value": {
+                "type": "Name",
+                "fields": {
+                  "value": "later"
+                },
+                "span": {
+                  "file": "programs/program.txt",
+                  "start": 290,
+                  "end": 295
+                }
+              },
+              "span": {
+                "file": "programs/program.txt",
+                "start": 290,
+                "end": 295
+              },
+              "text": "later"
+            }
+          }
+        ],
+        [
+          {
+            "Symbol": "std/semantics#reassignableSymbol"
+          },
+          {
+            "Bool": true
+          }
+        ]
+      ]
+    },
+    {
+      "id": 14,
+      "entries": [
+        [
+          {
+            "Symbol": "std/semantics#kindSymbol"
+          },
+          {
+            "Symbol": "std/semantics#variable"
+          }
+        ],
+        [
+          {
+            "Symbol": "std/semantics#nameSymbol"
+          },
+          {
+            "Text": "later"
+          }
+        ],
+        [
+          {
+            "Symbol": "std/semantics#originSymbol"
+          },
+          {
+            "Source": {
+              "value": {
+                "type": "Name",
+                "fields": {
+                  "value": "later"
+                },
+                "span": {
+                  "file": "programs/program.txt",
+                  "start": 179,
+                  "end": 184
+                }
+              },
+              "span": {
+                "file": "programs/program.txt",
+                "start": 179,
+                "end": 184
+              },
+              "text": "later"
+            }
+          }
+        ],
+        [
+          {
+            "Symbol": "std/semantics#reassignableSymbol"
+          },
+          {
+            "Bool": true
+          }
+        ]
+      ]
+    },
+    {
+      "id": 15,
+      "entries": [
+        [
+          {
+            "Symbol": "std/semantics#kindSymbol"
+          },
+          {
+            "Symbol": "std/semantics#variable"
+          }
+        ],
+        [
+          {
+            "Symbol": "std/semantics#nameSymbol"
+          },
+          {
+            "Text": "inner"
+          }
+        ],
+        [
+          {
+            "Symbol": "std/semantics#originSymbol"
+          },
+          {
+            "Source": {
+              "value": {
+                "type": "Name",
+                "fields": {
+                  "value": "inner"
+                },
+                "span": {
+                  "file": "programs/program.txt",
+                  "start": 248,
+                  "end": 253
+                }
+              },
+              "span": {
+                "file": "programs/program.txt",
+                "start": 248,
+                "end": 253
+              },
+              "text": "inner"
+            }
+          }
+        ],
+        [
+          {
+            "Symbol": "std/semantics#reassignableSymbol"
+          },
+          {
+            "Bool": true
+          }
+        ]
+      ]
     }
   ],
   "attachments": [
@@ -716,155 +716,155 @@
       }
     },
     {
-      "occurrence": 10,
+      "occurrence": 9,
       "key": "std/semantics#scope",
       "value": {
         "Record": 1
       }
     },
     {
-      "occurrence": 8,
+      "occurrence": 7,
       "key": "std/semantics#declaration",
       "value": {
         "Record": 2
       }
     },
     {
-      "occurrence": 17,
+      "occurrence": 16,
       "key": "std/semantics#scope",
       "value": {
         "Record": 3
       }
     },
     {
-      "occurrence": 18,
+      "occurrence": 17,
       "key": "std/semantics#declaration",
       "value": {
         "Record": 4
       }
     },
     {
-      "occurrence": 15,
+      "occurrence": 14,
       "key": "std/semantics#declaration",
       "value": {
         "Record": 5
       }
     },
     {
-      "occurrence": 6,
+      "occurrence": 5,
       "key": "std/semantics#reference",
       "value": {
         "Record": 2
       }
     },
     {
-      "occurrence": 2,
+      "occurrence": 1,
       "key": "std/semantics#declaration",
       "value": {
         "Record": 6
       }
     },
     {
-      "occurrence": 30,
+      "occurrence": 28,
       "key": "std/semantics#scope",
       "value": {
         "Record": 7
       }
     },
     {
-      "occurrence": 25,
+      "occurrence": 23,
       "key": "std/semantics#declaration",
       "value": {
         "Record": 8
       }
     },
     {
-      "occurrence": 41,
+      "occurrence": 38,
       "key": "std/semantics#scope",
       "value": {
         "Record": 9
       }
     },
     {
-      "occurrence": 57,
-      "key": "std/semantics#scope",
+      "occurrence": 33,
+      "key": "std/semantics#declaration",
       "value": {
         "Record": 10
       }
     },
     {
-      "occurrence": 69,
-      "key": "std/semantics#declaration",
+      "occurrence": 53,
+      "key": "std/semantics#scope",
       "value": {
         "Record": 11
       }
     },
     {
-      "occurrence": 13,
-      "key": "std/semantics#reference",
-      "value": {
-        "Record": 11
-      }
-    },
-    {
-      "occurrence": 22,
-      "key": "std/semantics#reference",
-      "value": {
-        "Record": 4
-      }
-    },
-    {
-      "occurrence": 33,
-      "key": "std/semantics#reference",
-      "value": {
-        "Record": 8
-      }
-    },
-    {
-      "occurrence": 43,
+      "occurrence": 48,
       "key": "std/semantics#declaration",
       "value": {
         "Record": 12
       }
     },
     {
-      "occurrence": 49,
-      "key": "std/semantics#reference",
-      "value": {
-        "Record": 12
-      }
-    },
-    {
-      "occurrence": 36,
+      "occurrence": 64,
       "key": "std/semantics#declaration",
       "value": {
         "Record": 13
       }
     },
     {
-      "occurrence": 63,
+      "occurrence": 12,
       "key": "std/semantics#reference",
       "value": {
-        "Record": 11
+        "Record": 13
+      }
+    },
+    {
+      "occurrence": 21,
+      "key": "std/semantics#reference",
+      "value": {
+        "Record": 4
+      }
+    },
+    {
+      "occurrence": 31,
+      "key": "std/semantics#reference",
+      "value": {
+        "Record": 8
+      }
+    },
+    {
+      "occurrence": 40,
+      "key": "std/semantics#declaration",
+      "value": {
+        "Record": 14
+      }
+    },
+    {
+      "occurrence": 46,
+      "key": "std/semantics#reference",
+      "value": {
+        "Record": 14
       }
     },
     {
       "occurrence": 59,
-      "key": "std/semantics#declaration",
-      "value": {
-        "Record": 14
-      }
-    },
-    {
-      "occurrence": 66,
       "key": "std/semantics#reference",
       "value": {
-        "Record": 14
+        "Record": 13
       }
     },
     {
-      "occurrence": 52,
+      "occurrence": 55,
       "key": "std/semantics#declaration",
+      "value": {
+        "Record": 15
+      }
+    },
+    {
+      "occurrence": 62,
+      "key": "std/semantics#reference",
       "value": {
         "Record": 15
       }
