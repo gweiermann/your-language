@@ -728,3 +728,132 @@ enum Kind {
     assert_eq!(tree(source), tree(&formatted));
     assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
 }
+
+#[test]
+fn owner_meanings_are_separated_from_nested_definitions() {
+    let source = r#"export node Type {
+node NumberType = "number" { meanings { annotate(number) } }
+node BooleanType = "boolean" { meanings { annotate(boolean) } }
+meanings { inherit() }
+}"#;
+    let expected = r#"export node Type {
+    node NumberType = "number" {
+        meanings {
+            annotate(number)
+        }
+    }
+
+    node BooleanType = "boolean" {
+        meanings {
+            annotate(boolean)
+        }
+    }
+
+    meanings {
+        inherit()
+    }
+}
+"#;
+    let formatted = format_yl("source", source).unwrap();
+    assert_eq!(formatted, expected);
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+
+#[test]
+fn owner_meaning_spacing_keeps_comments_and_first_section_layout() {
+    let source = r#"node Outer {
+node Inner {
+pattern Name = "x" { meanings { annotate(string) } }
+// owner documentation
+meanings { inherit() }
+}
+/* outer documentation */
+meanings { inherit() }
+}
+node Only { // first section
+meanings { inherit() }
+}
+node Early {
+meanings { inherit() }
+node Child = "x"
+}"#;
+    let formatted = format_yl("source", source).unwrap();
+    assert!(
+        formatted.contains("        }\n\n        // owner documentation\n        meanings {"),
+        "{formatted}"
+    );
+    assert!(
+        formatted.contains("    }\n\n    /* outer documentation */\n    meanings {"),
+        "{formatted}"
+    );
+    assert!(
+        formatted.contains("node Only {\n    // first section\n    meanings {"),
+        "{formatted}"
+    );
+    assert!(
+        formatted.contains("node Early {\n    meanings {"),
+        "{formatted}"
+    );
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+
+#[test]
+fn alias_members_are_separate_from_owner_precedence_and_meanings() {
+    let source = r#"node Expression {
+node Addition = left: Expression "+" right: Expression
+node Reference
+precedence { Addition }
+meanings { inherit() }
+}"#;
+    let expected = r#"node Expression {
+    node Addition =
+        left: Expression
+        "+"
+        right: Expression
+
+    node Reference
+
+    precedence {
+        Addition
+    }
+
+    meanings {
+        inherit()
+    }
+}
+"#;
+    let formatted = format_yl("source", source).unwrap();
+    assert_eq!(formatted, expected);
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+
+#[test]
+fn owner_sections_preserve_comments_and_ignore_member_names() {
+    let source = r#"node Parent {
+node meanings
+node precedence
+node constraints
+// owner operator ordering
+precedence { precedence }
+// owner checks
+constraints { when true { warning("owner") } }
+meanings { inherit() }
+}
+node Empty { precedence { Other } constraints { } meanings { inherit() } }"#;
+    let formatted = format_yl("source", source).unwrap();
+    assert!(formatted.contains("    node meanings\n\n    node precedence\n\n    node constraints\n\n    // owner operator ordering\n    precedence {"), "{formatted}");
+    assert!(
+        formatted.contains("    }\n\n    // owner checks\n    constraints {"),
+        "{formatted}"
+    );
+    assert!(
+        formatted.contains("node Empty {\n    precedence {"),
+        "{formatted}"
+    );
+    assert!(!formatted.contains("{\n\n"), "{formatted}");
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
