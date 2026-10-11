@@ -64,6 +64,13 @@ yl check examples/mini-js/minijs.yl
 yl compile examples/mini-js/minijs.yl -o minijs.ylc
 ```
 
+Format YL definition files or check their layout:
+
+```sh
+yl fmt examples/getting-started/language.yl
+yl fmt --check examples/getting-started/language.yl
+```
+
 Generate an AST or check a source file for diagnostics:
 
 ```sh
