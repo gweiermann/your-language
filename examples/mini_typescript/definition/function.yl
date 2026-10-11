@@ -17,7 +17,7 @@ export node FunctionBody =
 {
     meanings {
         boundary
-        restrictTypeTo(result)
+        annotateWithType(typeof(result))
     }
 }
 

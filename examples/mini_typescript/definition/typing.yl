@@ -8,19 +8,19 @@ export operation annotateWithType(value) {
 
 export operation typeof(value) = types::typeof(variables::identityOf(value))
 
-export operation inherit() {
+export operation inheritType() {
     types::ensure(variables::identity(), types::typeof(variables::childIdentity()))
 }
 
 export operation restrictTypeTo(value) {
-    types::ensure(variables::identity(), typeof(value))
+    types::ensure(variables::identity(), typeof(value), requirement = true)
 }
 
 export operation functionSignature(arguments, body, annotation) {
     types::ensure(variables::identity(), Function)
     types::ensure((variables::identity(), parameters), types::typeof(variables::identities(arguments)))
     types::ensure((variables::identity(), returnType), typeof(body))
-    types::ensure((variables::identity(), returnType), typeof(annotation))
+    types::ensure((variables::identity(), returnType), typeof(annotation), requirement = true)
 }
 
 export operation call(callee, arguments) {

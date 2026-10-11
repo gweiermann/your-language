@@ -1,5 +1,5 @@
 import { use } from "std/variables"
-import { annotateWithType, typeof, call, inherit } from "./typing"
+import { annotateWithType, typeof, call, inheritType } from "./typing"
 import { unknown } from "std/types"
 import { separatedBy } from "std/parser"
 import { Name } from "./lexical"
@@ -70,6 +70,6 @@ export node Expression {
         Addition
     }
     meanings {
-        inherit()
+        inheritType()
     }
 }

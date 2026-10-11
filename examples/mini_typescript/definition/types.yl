@@ -1,4 +1,4 @@
-import { annotateWithType, inherit, restrictTypeTo } from "./typing"
+import { annotateWithType, inheritType, restrictTypeTo } from "./typing"
 
 export symbol number
 
@@ -31,7 +31,7 @@ export node TypeName {
         }
     }
     meanings {
-        inherit()
+        inheritType()
     }
 }
 
