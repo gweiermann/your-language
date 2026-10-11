@@ -1,0 +1,13 @@
+function identity(value) {
+    return value;
+}
+
+function apply(action, value) {
+    return action(value);
+}
+
+let alias = identity;
+
+let count: number = alias(42);
+
+let result = apply(alias, count);

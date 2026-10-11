@@ -1,5 +1,5 @@
 import { declare, variable } from "std/variables"
-import { declarationType, sameType } from "std/types"
+import { ensure } from "./typing"
 import { Name } from "./lexical"
 import { Annotation } from "./types"
 
@@ -9,7 +9,6 @@ export node Parameter =
 {
     meanings {
         declare(variable, name)
-        declarationType()
-        sameType(annotation)
+        ensure(annotation)
     }
 }

@@ -55,6 +55,21 @@ entry Value
         "x",
     );
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    use your_language::semantics::{SemanticKey, SemanticValue};
+    assert!(result
+        .graph
+        .records
+        .iter()
+        .any(|record| record.entries.iter().any(|(key, value)| *key
+            == SemanticKey::Symbol("std/types#type".into())
+            && *value == SemanticValue::Symbol("language.yl#Red".into()))));
+    assert!(result
+        .graph
+        .records
+        .iter()
+        .any(|record| record.entries.iter().any(|(key, value)| *key
+            == SemanticKey::Symbol("std/types#key".into())
+            && matches!(value, SemanticValue::Tuple(_)))));
 }
 #[test]
 fn equality_of_types_propagates_language_authored_slots() {
@@ -145,8 +160,9 @@ fn a_live_context_cannot_claim_finalization_only_effects() {
 
 #[test]
 fn a_known_fact_is_preserved_when_linked_to_settled_unknown() {
-    for (left,right) in [("first","second"),("second","first")] {
-        let definition=format!(r#"
+    for (left, right) in [("first", "second"), ("second", "first")] {
+        let definition = format!(
+            r#"
 import * as types from "std/types"
 import * as variables from "std/variables"
 symbol Red
@@ -162,14 +178,16 @@ node Root = first: First second: Second {{
  }}
 }}
 entry Root
-"#);
-        let result=analyze(&definition,"xy");
-        assert!(result.diagnostics.is_empty(),"{:?}",result.diagnostics);
+"#
+        );
+        let result = analyze(&definition, "xy");
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     }
 }
 #[test]
 fn a_branch_after_unknown_settlement_can_publish_a_positive_result() {
-    let result=analyze(r#"
+    let result = analyze(
+        r#"
 import * as types from "std/types"
 import * as variables from "std/variables"
 symbol Red
@@ -182,7 +200,30 @@ node Root = "x" {
  }
 }
 entry Root
-"#,"x");
-    assert!(result.diagnostics.is_empty(),"{:?}",result.diagnostics);
-    assert!(result.graph.records.iter().any(|record| record.entries.iter().any(|(_,value)| *value == your_language::semantics::SemanticValue::Text("Red".into()))));
+"#,
+        "x",
+    );
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert!(result
+        .graph
+        .records
+        .iter()
+        .any(|record| record.entries.iter().any(
+            |(_, value)| *value == your_language::semantics::SemanticValue::Text("Red".into())
+        )));
+}
+
+#[test]
+fn invalid_key_after_a_type_query_does_not_emit_internal_unsettled_errors() {
+    let result = analyze(
+        r#"
+import * as types from "std/types"
+import * as variables from "std/variables"
+node Root = "x" { meanings { types::ensure("invalid", types::typeof(variables::identity())) } }
+entry Root
+"#,
+        "x",
+    );
+    assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
+    assert_eq!(result.diagnostics[0].code, "types.key");
 }

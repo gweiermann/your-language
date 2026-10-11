@@ -167,7 +167,10 @@ impl Constraints {
             let a = self.substitutions.remove(&left);
             let b = self.substitutions.remove(&right);
             self.parents[right] = left;
-            if let Some(a) = a.clone().filter(|value| !matches!(value, Type::Unknown) || b.is_none()) {
+            if let Some(a) = a
+                .clone()
+                .filter(|value| !matches!(value, Type::Unknown) || b.is_none())
+            {
                 self.substitutions.insert(left, a);
             } else if let Some(b) = b.clone() {
                 self.substitutions.insert(left, b);
@@ -196,10 +199,14 @@ impl Constraints {
         }
         for (variable, requirement) in [(&left, &right), (&right, &left)] {
             if let Type::Variable(id) = variable {
-                if matches!(self.head(variable), Type::Unknown) && !matches!(self.head(requirement), Type::Unknown) {
+                if matches!(self.head(variable), Type::Unknown)
+                    && !matches!(self.head(requirement), Type::Unknown)
+                {
                     let id = self.root(*id);
                     self.substitutions.insert(id, self.head(requirement));
-                    if self.cyclic(id, &mut std::collections::BTreeSet::new()) { return Err("Recursive constraint requires an infinite type".into()); }
+                    if self.cyclic(id, &mut std::collections::BTreeSet::new()) {
+                        return Err("Recursive constraint requires an infinite type".into());
+                    }
                     return Ok(());
                 }
             }
@@ -336,7 +343,12 @@ impl AnalysisService for Constraints {
         if self.variables.is_empty() {
             return Ok(());
         }
+        // Cleanup also runs after a failed native action, without normal settle.
+        if !self.settled {
+            self.settle(context)?;
+        }
         let report = context.record();
+        let typed_report = context.record();
         let mut reported = self.variables.clone();
         for (key, value) in &self.variables {
             if key.slot.is_none() {
@@ -356,6 +368,27 @@ impl AnalysisService for Constraints {
             }
         }
         for (key, value) in &reported {
+            let typed = context.record();
+            let identity = SemanticValue::Identity(key.identity.clone());
+            let identity = if let Some(slot) = &key.slot {
+                SemanticValue::Tuple(vec![identity, SemanticValue::Symbol(slot.clone())])
+            } else {
+                identity
+            };
+            context.set(typed, SemanticKey::Symbol("std/types#key".into()), identity)?;
+            let Evaluation::Ready(ready) = self.evaluation(value) else {
+                return Err(Diagnostic::error(
+                    "types.unsettled",
+                    "A type remained pending after finalization",
+                    context.occurrence.span.clone(),
+                ));
+            };
+            context.set(typed, SemanticKey::Symbol("std/types#type".into()), ready)?;
+            context.set(
+                typed_report,
+                SemanticKey::Text(format!("{:?}/{:?}", key.identity, key.slot)),
+                SemanticValue::Record(typed),
+            )?;
             let value = SemanticValue::Text(Self::display(&self.resolved(value)));
             if let SemanticIdentity::Binding(binding) = key.identity {
                 let field = key
@@ -371,6 +404,7 @@ impl AnalysisService for Constraints {
             )?;
         }
         context.attach("std/types#inferredTypes", SemanticValue::Record(report));
+        context.attach("std/types#typeValues", SemanticValue::Record(typed_report));
         Ok(())
     }
 }
@@ -385,6 +419,7 @@ impl NativeOperation for Ensure {
             .argument("type")
             .cloned()
             .unwrap_or(SemanticValue::Absent);
+        key(&target, context.operation_span)?;
         if matches!(requirement, SemanticValue::Absent) {
             return Ok(());
         }

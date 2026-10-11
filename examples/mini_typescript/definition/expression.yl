@@ -1,13 +1,13 @@
 import { use } from "std/variables"
-import { type, typeof, referenceType, callType, inheritType } from "std/types"
+import { annotate, typeof, call, inherit } from "./typing"
+import { unknown } from "std/types"
 import { separatedBy } from "std/parser"
 import { Name } from "./lexical"
-import { number, string, boolean, unknown } from "./types"
+import { number, string, boolean } from "./types"
 
 node Reference = name: Name {
     meanings {
         use(name)
-        referenceType()
     }
 }
 
@@ -18,25 +18,25 @@ node Call =
     ")"
 {
     meanings {
-        callType(callee, arguments)
+        call(callee, arguments)
     }
 }
 
 node Number = value: /[0-9]+/ {
     meanings {
-        type(number)
+        annotate(number)
     }
 }
 
 node String = value: /"[^"\n]*"/ {
     meanings {
-        type(string)
+        annotate(string)
     }
 }
 
 node Boolean = value: /true|false/ {
     meanings {
-        type(boolean)
+        annotate(boolean)
     }
 }
 
@@ -47,9 +47,9 @@ node Addition =
 {
     meanings {
         match (typeof(left), typeof(right)) {
-            string, string | string, number | number, string => type(string),
-            number, number => type(number),
-            unknown, _ | _, unknown => type(unknown),
+            string, string | string, number | number, string => annotate(string),
+            number, number => annotate(number),
+            unknown, _ | _, unknown => annotate(unknown),
             _ => error("${left} + ${right} is not possible")
         }
     }
@@ -71,6 +71,6 @@ export node Expression {
         Addition
     }
     meanings {
-        inheritType()
+        inherit()
     }
 }
