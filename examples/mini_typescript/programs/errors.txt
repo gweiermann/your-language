@@ -1,6 +1,9 @@
 function echo(value: number): string {
     return value;
 }
+
 let count: number = "wrong";
+
 let bad = echo(true);
+
 let notCallable = count(1);
