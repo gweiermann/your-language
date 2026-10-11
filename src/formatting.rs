@@ -439,6 +439,9 @@ fn space_between(previous: Option<&Token>, token: &Token) -> bool {
     }
     let before = symbol(previous);
     let current = symbol(token);
+    if current == Some("*") && matches!(&previous.kind, TokenKind::Word(word) if word == "import") {
+        return true;
+    }
     // Avoid coalescing two tokens into optional chaining when a postfix optional
     // pattern is followed by a contextual variant.
     if before == Some("?") && current == Some(".") {

@@ -28,6 +28,7 @@ fn engine() -> SemanticEngine {
             "value",
             OperationSignature {
                 id: "test#value".into(),
+                finalization_only: false,
                 provides_context: false,
                 parameters: vec![OperationParameter {
                     name: "value".into(),
@@ -196,4 +197,40 @@ fn semantic_tuples_and_operations_format_idempotently() {
         your_language::format_yl("language.yl", &formatted).unwrap()
     );
     assert!(formatted.contains("operation emit"));
+}
+
+#[test]
+fn unused_wrappers_reject_unresolved_references_and_cycles() {
+    for operation in [
+        "operation unused() { missing() }",
+        "operation unused() { native::value(missing) }",
+        "operation unused() { unused() }",
+    ] {
+        let source = format!(
+            "import * as native from \"test\"\n{operation}\nnode Program=\"x\"\nentry Program"
+        );
+        assert!(
+            engine()
+                .compile("language.yl", &graph(&source, &[]))
+                .is_err(),
+            "{operation}"
+        );
+    }
+}
+
+#[test]
+fn namespace_aliases_cannot_shadow_local_or_named_imports() {
+    for conflict in [
+        "symbol native",
+        "import { value as native } from \"test\"",
+        "import * as native from \"test\"",
+    ] {
+        let source = format!(
+            "import * as native from \"test\"\n{conflict}\nnode Program=\"x\"\nentry Program"
+        );
+        let errors = engine()
+            .compile("language.yl", &graph(&source, &[]))
+            .unwrap_err();
+        assert_eq!(errors[0].code, "yl.duplicate_declaration");
+    }
 }

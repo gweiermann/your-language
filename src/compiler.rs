@@ -831,8 +831,6 @@ impl Compiler {
                     ));
                 }
             }
-            self.validate_declarations()?;
-            self.validate_pipe_matches()?;
             if delayed.len() == previous {
                 let (_, from, name, _, span, _) = &delayed[0];
                 return Err(Diagnostic::error(
@@ -843,6 +841,9 @@ impl Compiler {
             }
             pending = delayed;
         }
+        self.validate_declarations()?;
+        self.validate_pipe_matches()?;
+        self.validate_semantic_wrappers()?;
         let mut entries = vec![];
         for (module, ast) in &self.modules {
             for d in &ast.declarations {
@@ -1799,6 +1800,48 @@ impl Compiler {
                 Ok(term)
             }
         })
+    }
+    fn validate_semantic_wrappers(&self) -> Result<()> {
+        for wrapper in self.symbols.values() {
+            let DeclKind::Operation {
+                parameters, body, ..
+            } = &wrapper.declaration.kind
+            else {
+                continue;
+            };
+            let mut bindings = BTreeMap::new();
+            for parameter in parameters {
+                if let Some(default) = &parameter.default {
+                    self.expand_semantic_expr(wrapper, default, &bindings, &mut vec![])?;
+                }
+                bindings.insert(
+                    parameter.name.clone(),
+                    Expr {
+                        kind: ExprKind::Absent,
+                        span: parameter.span.clone(),
+                    },
+                );
+            }
+            let mut stack = vec![format!("{}#{}", wrapper.module, wrapper.name)];
+            match body {
+                OperationBody::Actions(calls) => {
+                    for call in calls {
+                        self.expand_semantic_actions(wrapper, call, &bindings, &mut stack)?;
+                    }
+                }
+                OperationBody::Query(expr) => {
+                    let value = self.expand_semantic_expr(wrapper, expr, &bindings, &mut stack)?;
+                    if !matches!(value.kind, ExprKind::Call(_, _)) {
+                        return Err(Diagnostic::error(
+                            "yl.invalid_operation_query",
+                            "Query wrapper must expand to a native query",
+                            expr.span.clone(),
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(())
     }
     fn expand_semantic_expr(
         &self,
@@ -3412,6 +3455,13 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                 }
             }
             for call in group.all_calls() {
+                if call.contract.finalization_only && call.contract.provides_context {
+                    return Err(Diagnostic::error(
+                        "yl.artifact",
+                        "Finalization-only operations cannot provide lifecycle contexts",
+                        call.span.clone(),
+                    ));
+                }
                 if call.operation.is_empty() || call.operation != call.contract.id {
                     return Err(Diagnostic::error(
                         "yl.artifact",
@@ -3439,8 +3489,7 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                         ));
                     }
                     if parameter.default.as_ref().is_some_and(|value| {
-                        matches!(value, MeaningValue::Call(_))
-                            || !meaning_value_matches(value, &parameter.kind)
+                        semantic_has_query(value) || !meaning_value_matches(value, &parameter.kind)
                     }) {
                         return Err(Diagnostic::error(
                             "yl.artifact",
@@ -3530,9 +3579,18 @@ fn semantic_has_context_query(value: &MeaningValue) -> bool {
         _ => false,
     }
 }
+fn semantic_value_is_well_formed(value: &MeaningValue) -> bool {
+    match value {
+        MeaningValue::Capture(name) | MeaningValue::Symbol(name) => !name.is_empty(),
+        MeaningValue::Tuple(values) | MeaningValue::List(values) => {
+            values.iter().all(semantic_value_is_well_formed)
+        }
+        _ => true,
+    }
+}
 fn meaning_value_matches(value: &MeaningValue, kind: &ParameterKind) -> bool {
     match (value, kind) {
-        (_, ParameterKind::Value) => true,
+        (_, ParameterKind::Value) => semantic_value_is_well_formed(value),
         (MeaningValue::Call(_), _) => true,
         (MeaningValue::Capture(name), ParameterKind::Capture)
         | (MeaningValue::Symbol(name), ParameterKind::Symbol) => !name.is_empty(),
@@ -4233,6 +4291,7 @@ mod semantic_artifact_tests {
                         operation: "native#register".into(),
                         contract: OperationSignature {
                             id: "native#register".into(),
+                            finalization_only: false,
                             provides_context: false,
                             parameters: vec![OperationParameter {
                                 name: "name".into(),
@@ -4279,5 +4338,36 @@ mod semantic_artifact_tests {
             .arguments
             .insert("name".into(), MeaningValue::Bool(true));
         assert!(crate::load_compiled_language(&language.to_bytes().unwrap()).is_err());
+    }
+    #[test]
+    fn semantic_artifacts_reject_nested_missing_captures_and_illegal_lifecycles() {
+        let mut language = artifact();
+        let call = &mut language.meanings.get_mut("test.yl#Program").unwrap().groups[0].calls[0];
+        call.contract.parameters[0].kind = ParameterKind::Value;
+        call.arguments.insert(
+            "name".into(),
+            MeaningValue::Tuple(vec![MeaningValue::List(vec![MeaningValue::Capture(
+                "missing".into(),
+            )])]),
+        );
+        assert!(
+            crate::load_compiled_language(&language.to_bytes().unwrap()).unwrap_err()[0]
+                .message
+                .contains("unavailable capture")
+        );
+        let call = &mut language.meanings.get_mut("test.yl#Program").unwrap().groups[0].calls[0];
+        call.arguments
+            .insert("name".into(), MeaningValue::Symbol(String::new()));
+        assert!(crate::load_compiled_language(&language.to_bytes().unwrap()).is_err());
+        let call = &mut language.meanings.get_mut("test.yl#Program").unwrap().groups[0].calls[0];
+        call.arguments
+            .insert("name".into(), MeaningValue::Capture("name".into()));
+        call.contract.finalization_only = true;
+        call.contract.provides_context = true;
+        assert!(
+            crate::load_compiled_language(&language.to_bytes().unwrap()).unwrap_err()[0]
+                .message
+                .contains("Finalization-only")
+        );
     }
 }
