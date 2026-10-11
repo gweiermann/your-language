@@ -83,3 +83,24 @@ test('cancellation suppresses a long formatting result',async t=> {
     token.cancel();
     await assert.rejects(request,error=>error.code===-32800);
 });
+
+
+test('identity typing namespaces and authored wrappers validate and format without executing effects',async t=> {
+    const s=await session(t);
+    const dir=await mkdtemp(join(tmpdir(),'yl-lsp-types-')); t.after(()=>rm(dir,{recursive:true,force:true}));
+    const uri=pathToFileURL(join(dir,'lang.yl')).href;
+    const text=`import * as types from "std/types"
+import * as variables from "std/variables"
+symbol number
+operation annotate(value) { types::ensure(variables::identity(),value) }
+node Root="x" { meanings { annotate(number) types::ensure("invalid-key",number) } }
+entry Root`;
+    s.open(uri,text);
+    assert.deepEqual((await s.diagnostic(uri,1)).diagnostics,[]);
+    assert.match(JSON.stringify(await s.hints(uri)),/example/);
+    const edits=await s.connection.sendRequest('textDocument/formatting',{textDocument:{uri},options:{tabSize:4,insertSpaces:true}});
+    assert.match(edits[0].newText,/import \* as types/);
+    assert.match(edits[0].newText,/operation annotate\(value\)/);
+    s.change(uri,text.replace('types::ensure(variables::identity(),value)','types::ensure(variables::identity())'),2);
+    assert.ok((await s.diagnostic(uri,2)).diagnostics.some(d=>d.severity===1));
+});

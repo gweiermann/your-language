@@ -116,10 +116,11 @@ impl Layout {
     fn declaration(&mut self, declaration: &Declaration, blank: bool) {
         self.line(
             &declaration.span,
-            blank && !matches!(
-                declaration.kind,
-                DeclKind::Import { .. } | DeclKind::NamespaceImport { .. }
-            ),
+            blank
+                && !matches!(
+                    declaration.kind,
+                    DeclKind::Import { .. } | DeclKind::NamespaceImport { .. }
+                ),
         );
         match &declaration.kind {
             DeclKind::Import { .. } | DeclKind::NamespaceImport { .. } => {

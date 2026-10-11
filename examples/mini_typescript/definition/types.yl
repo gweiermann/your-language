@@ -13,7 +13,6 @@ export symbol parameters
 export symbol returnType
 
 export node TypeName {
-
     node NumberType = "number" {
         meanings {
             annotate(number)

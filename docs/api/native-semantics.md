@@ -91,7 +91,7 @@ Ordering describes static analysis, not target-language execution or initializat
 
 ## Registering a library
 
-`OperationRegistry` connects a virtual import module and exported operation name to a typed interface and a factory. `SemanticEngine::new(registry)` uses that registry for compilation and analysis. `SemanticEngine::default()` includes the bundled lexical adapter; `registry_mut()` allows additional registration before compiling.
+`OperationRegistry` connects a virtual import module and exported operation name to a typed interface and a factory. `SemanticEngine::new(registry)` uses that registry for compilation and analysis. `SemanticEngine::default()` includes the bundled lexical adapter and identity-keyed type service; `registry_mut()` allows additional registration before compiling.
 
 ```rust
 use your_language::{
@@ -119,7 +119,7 @@ engine.registry_mut().register(
 )?;
 ```
 
-The YL definition imports `audit` from `"example/audit"`. The compiler rejects missing exports, incompatible arguments, missing captures, and unknown meaning groups. There is no YL operation implementation language in this slice: native implementations are explicit dependencies.
+The YL definition imports `audit` from `"example/audit"`. The compiler rejects missing exports, incompatible arguments, missing captures, and unknown meaning groups. Authored YL operations can compose calls to native dependencies through action wrappers and query aliases, as described below.
 
 ## Lifecycle and state
 
