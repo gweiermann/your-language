@@ -20,7 +20,7 @@ Successful runs print inferred binding types. Errors use source underlines and e
 
 `std/types` exports exactly:
 
-- `ensure(key, type)`: equates the type associated with a key with a primitive symbol, deferred type, or list of types.
+- `ensure(key, type, requirement=false)`: equates the type associated with a key with a primitive symbol, deferred type, or list of types.
 - `typeof(key)`: returns a deferred type handle. Constraint collectors can link the handle before its type is known; matches wait until it is resolved.
 - `unknown`: the only type identity supplied by the library. The language authors all other identities.
 
@@ -47,7 +47,7 @@ export operation annotateWithType(value) {
 export operation typeof(value) =
     types::typeof(variables::identityOf(value))
 
-export operation inherit() {
+export operation inheritType() {
     types::ensure(variables::identity(), types::typeof(variables::childIdentity()))
 }
 ```
@@ -106,3 +106,6 @@ The example's Rust consumer only selects standard libraries and formats its auth
 Inference is monomorphic. Calling the same unannotated identity function with incompatible argument types reports a conflict. Generic instantiation, unions, directional assignability, guards, literal/range narrowing, ownership and target execution remain future experiments. Explicit `unknown` follows this prototype's permissive policy rather than TypeScript's full assignability rules.
 
 The current wrapper syntax deliberately supports action call blocks and query aliases. Match statements inside wrapper definitions and constant-only query definitions are not yet supported; matches remain available in node/pattern meanings.
+
+
+Conflicting explicit annotations underline the incompatible initializer, argument or returned expression. A related span identifies the annotation and the diagnostic help explains its requirement. The authored `restrictTypeTo` wrapper passes `requirement=true` to the native equality collector as diagnostic metadata; this flag does not implement directional assignability or union inference.

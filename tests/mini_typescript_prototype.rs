@@ -56,8 +56,9 @@ fn annotation_and_call_errors_have_original_spans() {
         && d.primary.end <= source.len()));
     assert_eq!(
         &source[result.diagnostics[0].primary.start..result.diagnostics[0].primary.end],
-        ": number"
+        "\"wrong\""
     );
+    assert_annotation_related(source, &result.diagnostics[0], ": number");
 }
 #[test]
 fn declarations_references_keep_identity_across_shadowing() {
@@ -222,4 +223,106 @@ fn function_arguments_propagate_signature_slots_through_parameters() {
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(types(&result, "identity"), ["(number) => number"]);
     assert_eq!(types(&result, "result"), ["number"]);
+}
+
+fn assert_annotation_related(
+    source: &str,
+    diagnostic: &your_language::diagnostic::Diagnostic,
+    expected: &str,
+) {
+    assert!(
+        diagnostic
+            .secondary
+            .iter()
+            .any(|span| &source[span.start..span.end] == expected),
+        "Expected related annotation {expected:?}: {diagnostic:?}"
+    );
+    assert!(
+        diagnostic
+            .help
+            .as_ref()
+            .is_some_and(|help| !help.is_empty()),
+        "Annotation relationship needs an explanation: {diagnostic:?}"
+    );
+}
+
+#[test]
+fn literal_initializer_is_primary_and_annotation_is_related() {
+    let source = "let count: number = \"wrong\";";
+    let result = analyze(source);
+    assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
+    let diagnostic = &result.diagnostics[0];
+    assert_eq!(diagnostic.code, "types.mismatch");
+    assert_eq!(
+        &source[diagnostic.primary.start..diagnostic.primary.end],
+        "\"wrong\""
+    );
+    assert_annotation_related(source, diagnostic, ": number");
+    let valid = analyze("let count: number = 42;");
+    assert!(valid.diagnostics.is_empty(), "{:?}", valid.diagnostics);
+    assert_eq!(types(&valid, "count"), ["number"]);
+}
+
+#[test]
+fn parameter_annotation_points_to_actual_argument() {
+    let source = "function id(value: number) { return value; } let result = id(\"wrong\");";
+    let result = analyze(source);
+    assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
+    let diagnostic = &result.diagnostics[0];
+    assert_eq!(
+        &source[diagnostic.primary.start..diagnostic.primary.end],
+        "\"wrong\""
+    );
+    assert_annotation_related(source, diagnostic, ": number");
+}
+
+#[test]
+fn return_annotation_points_to_returned_expression() {
+    let source = "function bad(): number { return \"wrong\"; }";
+    let result = analyze(source);
+    assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
+    let diagnostic = &result.diagnostics[0];
+    assert_eq!(
+        &source[diagnostic.primary.start..diagnostic.primary.end],
+        "\"wrong\""
+    );
+    assert_annotation_related(source, diagnostic, ": number");
+}
+
+#[test]
+fn binding_alias_keeps_the_original_type_fact_location() {
+    let source = "let original = \"wrong\"; let alias = original; let count: number = alias;";
+    let result = analyze(source);
+    assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
+    let diagnostic = &result.diagnostics[0];
+    assert_eq!(
+        &source[diagnostic.primary.start..diagnostic.primary.end],
+        "\"wrong\""
+    );
+    assert_annotation_related(source, diagnostic, ": number");
+}
+
+#[test]
+fn initializer_pipe_keeps_original_expression_provenance() {
+    let mut sources = definition::sources();
+    let grammar = sources.get_mut("definition/let.yl").unwrap();
+    *grammar = format!(
+        "pipe wrapped() {{ rewrite value => \"(\" value \")\" }}\n{}",
+        grammar.replace(
+            "initializer: Expression",
+            "initializer: Expression |> wrapped()"
+        )
+    );
+    let engine = inference::engine();
+    let language = engine.compile(definition::ENTRY, &sources).unwrap();
+    let loaded = engine.load(&language.to_bytes().unwrap()).unwrap();
+    let source = "let count: number = (\"wrong\");";
+    let result = engine.analyze(&loaded, "test.ts", source);
+    assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
+    let diagnostic = &result.diagnostics[0];
+    assert_eq!(
+        &source[diagnostic.primary.start..diagnostic.primary.end],
+        "\"wrong\""
+    );
+    assert_annotation_related(source, diagnostic, ": number");
 }

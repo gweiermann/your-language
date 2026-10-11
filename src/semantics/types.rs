@@ -39,6 +39,50 @@ enum Type {
     Atom(String),
     List(Vec<Type>),
 }
+/// Diagnostic provenance does not participate in type compatibility.
+#[derive(Clone, Debug, Default)]
+struct Origin {
+    fact: Option<Span>,
+    requirement: Option<Span>,
+}
+impl Origin {
+    fn merge(&self, other: &Self) -> Self {
+        Self {
+            fact: self.fact.clone().or_else(|| other.fact.clone()),
+            requirement: self
+                .requirement
+                .clone()
+                .or_else(|| other.requirement.clone()),
+        }
+    }
+}
+struct Mismatch {
+    message: String,
+    left: Origin,
+    right: Origin,
+}
+impl Mismatch {
+    fn diagnostic(self, fallback: Span) -> Diagnostic {
+        let (primary, related, requirement) = if self.right.requirement.is_some() {
+            (self.left.fact, self.right.requirement, true)
+        } else if self.left.requirement.is_some() {
+            (self.right.fact, self.left.requirement, true)
+        } else {
+            (self.right.fact, self.left.fact, false)
+        };
+        let mut diagnostic =
+            Diagnostic::error("types.mismatch", self.message, primary.unwrap_or(fallback));
+        if let Some(related) = related.filter(|span| span != diagnostic.primary.as_ref()) {
+            diagnostic.secondary.push(related);
+            diagnostic.help = Some(if requirement {
+                "The related location requires the incompatible type".into()
+            } else {
+                "The related location contributed the conflicting type".into()
+            });
+        }
+        diagnostic
+    }
+}
 #[derive(Clone, Default)]
 struct Constraints {
     next: usize,
@@ -46,7 +90,8 @@ struct Constraints {
     projections: BTreeMap<(usize, String), usize>,
     variables: BTreeMap<TypeKey, Type>,
     substitutions: BTreeMap<usize, Type>,
-    equalities: Vec<(Type, Type, Span)>,
+    equalities: Vec<(Type, Type, Origin, Span)>,
+    origins: BTreeMap<usize, Origin>,
     settled: bool,
 }
 impl Constraints {
@@ -158,7 +203,48 @@ impl Constraints {
             value.clone()
         }
     }
-    fn unify(&mut self, left: Type, right: Type) -> Result<(), String> {
+    fn origin(&self, value: &Type, fallback: &Origin, as_value: bool) -> Origin {
+        if let Type::Variable(id) = value {
+            let inherited = self
+                .origins
+                .get(&self.root(*id))
+                .cloned()
+                .unwrap_or_default();
+            // A check's explicit requirement must describe this use, not an
+            // unrelated fact originally stored in the queried annotation node.
+            if fallback.requirement.is_some() {
+                Origin {
+                    fact: None,
+                    requirement: fallback.requirement.clone(),
+                }
+            } else if as_value && fallback.fact.is_some() && inherited.requirement.is_some() {
+                Origin {
+                    fact: inherited.fact.or_else(|| fallback.fact.clone()),
+                    requirement: None,
+                }
+            } else {
+                inherited.merge(fallback)
+            }
+        } else {
+            fallback.clone()
+        }
+    }
+    fn unify(
+        &mut self,
+        left: Type,
+        right: Type,
+        left_origin: Origin,
+        right_origin: Origin,
+    ) -> Result<(), Box<Mismatch>> {
+        let left_origin = self.origin(&left, &left_origin, false);
+        let right_origin = self.origin(&right, &right_origin, true);
+        let fail = |message: String| {
+            Box::new(Mismatch {
+                message,
+                left: left_origin.clone(),
+                right: right_origin.clone(),
+            })
+        };
         if let (Type::Variable(left), Type::Variable(right)) = (&left, &right) {
             let (left, right) = (self.root(*left), self.root(*right));
             if left == right {
@@ -166,7 +252,25 @@ impl Constraints {
             }
             let a = self.substitutions.remove(&left);
             let b = self.substitutions.remove(&right);
+            let stored_requirement = self
+                .origins
+                .get(&left)
+                .and_then(|origin| origin.requirement.clone())
+                .or_else(|| {
+                    self.origins
+                        .get(&right)
+                        .and_then(|origin| origin.requirement.clone())
+                });
             self.parents[right] = left;
+            self.origins.remove(&right);
+            let mut merged_origin = left_origin.merge(&right_origin);
+            // When positive information replaces unknown, its source replaces
+            // the unknown contribution's source as well.
+            if matches!(a, Some(Type::Unknown)) && !matches!(b, None | Some(Type::Unknown)) {
+                merged_origin.fact = right_origin.fact.clone();
+            }
+            merged_origin.requirement = merged_origin.requirement.or(stored_requirement);
+            self.origins.insert(left, merged_origin);
             if let Some(a) = a
                 .clone()
                 .filter(|value| !matches!(value, Type::Unknown) || b.is_none())
@@ -184,16 +288,23 @@ impl Constraints {
             for (slot, value) in moved {
                 self.projections.remove(&(right, slot.clone()));
                 if let Some(existing) = self.projections.get(&(left, slot.clone())).copied() {
-                    self.unify(Type::Variable(existing), Type::Variable(value))?;
+                    self.unify(
+                        Type::Variable(existing),
+                        Type::Variable(value),
+                        left_origin.clone(),
+                        right_origin.clone(),
+                    )?;
                 } else {
                     self.projections.insert((left, slot), value);
                 }
             }
             if let (Some(a), Some(b)) = (a, b) {
-                self.unify(a, b)?;
+                self.unify(a, b, left_origin.clone(), right_origin.clone())?;
             }
             if self.cyclic(left, &mut std::collections::BTreeSet::new()) {
-                return Err("Recursive constraint requires an infinite type".into());
+                return Err(fail(
+                    "Recursive constraint requires an infinite type".into(),
+                ));
             }
             return Ok(());
         }
@@ -203,9 +314,18 @@ impl Constraints {
                     && !matches!(self.head(requirement), Type::Unknown)
                 {
                     let id = self.root(*id);
+                    let mut origin = left_origin.merge(&right_origin);
+                    origin.fact = if matches!(self.head(&left), Type::Unknown) {
+                        right_origin.fact.clone()
+                    } else {
+                        left_origin.fact.clone()
+                    };
                     self.substitutions.insert(id, self.head(requirement));
+                    self.origins.insert(id, origin);
                     if self.cyclic(id, &mut std::collections::BTreeSet::new()) {
-                        return Err("Recursive constraint requires an infinite type".into());
+                        return Err(fail(
+                            "Recursive constraint requires an infinite type".into(),
+                        ));
                     }
                     return Ok(());
                 }
@@ -219,26 +339,31 @@ impl Constraints {
             (Type::Variable(id), value) | (value, Type::Variable(id)) => {
                 let id = self.root(id);
                 if Self::occurs(id, &value) {
-                    return Err("Recursive constraint requires an infinite type".into());
+                    return Err(fail(
+                        "Recursive constraint requires an infinite type".into(),
+                    ));
                 }
                 self.substitutions.insert(id, value);
+                self.origins.insert(id, left_origin.merge(&right_origin));
                 if self.cyclic(id, &mut std::collections::BTreeSet::new()) {
-                    return Err("Recursive constraint requires an infinite type".into());
+                    return Err(fail(
+                        "Recursive constraint requires an infinite type".into(),
+                    ));
                 }
                 Ok(())
             }
             (Type::Unknown, _) | (_, Type::Unknown) => Ok(()),
             (Type::List(left), Type::List(right)) if left.len() == right.len() => {
                 for (left, right) in left.into_iter().zip(right) {
-                    self.unify(left, right)?;
+                    self.unify(left, right, left_origin.clone(), right_origin.clone())?;
                 }
                 Ok(())
             }
-            (left, right) => Err(format!(
+            (left, right) => Err(fail(format!(
                 "Type {} does not match {}",
                 Self::display(&left),
                 Self::display(&right)
-            )),
+            ))),
         }
     }
     fn cyclic(&self, id: usize, path: &mut std::collections::BTreeSet<usize>) -> bool {
@@ -321,11 +446,11 @@ impl AnalysisService for Constraints {
     fn progress(&mut self, context: &mut OperationContext<'_>) -> Result<bool, Diagnostic> {
         let equations = std::mem::take(&mut self.equalities);
         let changed = !equations.is_empty();
-        for (left, right, span) in equations {
+        for (left, right, origin, span) in equations {
             let snapshot = self.clone();
-            if let Err(message) = self.unify(left, right) {
+            if let Err(mismatch) = self.unify(left, right, Origin::default(), origin) {
                 *self = snapshot;
-                context.emit(Diagnostic::error("types.mismatch", message, span));
+                context.emit(mismatch.diagnostic(span));
             }
         }
         Ok(changed)
@@ -423,12 +548,24 @@ impl NativeOperation for Ensure {
         if matches!(requirement, SemanticValue::Absent) {
             return Ok(());
         }
-        let origin = context.identity_span(&requirement);
+        let span = context.identity_span(&requirement);
+        let is_requirement = context.argument("requirement") == Some(&SemanticValue::Bool(true));
+        let origin = if is_requirement {
+            Origin {
+                fact: None,
+                requirement: Some(span.clone()),
+            }
+        } else {
+            Origin {
+                fact: Some(span.clone()),
+                requirement: None,
+            }
+        };
         context
             .with_service::<Constraints, _>(MODULE, |state, context| {
                 let target = state.read(&target, context.operation_span)?;
                 let requirement = state.value(&requirement, context.operation_span)?;
-                state.equalities.push((target, requirement, origin));
+                state.equalities.push((target, requirement, origin, span));
                 Ok(())
             })
             .unwrap_or_else(|| {
@@ -492,14 +629,24 @@ pub fn register(registry: &mut OperationRegistry) -> Result<(), String> {
                 id: format!("{MODULE}#{name}"),
                 finalization_only: true,
                 provides_context: false,
-                parameters: parameters
-                    .into_iter()
-                    .map(|name| OperationParameter {
-                        name: name.into(),
-                        kind: ParameterKind::Value,
-                        default: None,
-                    })
-                    .collect(),
+                parameters: {
+                    let mut parameters: Vec<_> = parameters
+                        .into_iter()
+                        .map(|name| OperationParameter {
+                            name: name.into(),
+                            kind: ParameterKind::Value,
+                            default: None,
+                        })
+                        .collect();
+                    if name == "ensure" {
+                        parameters.push(OperationParameter {
+                            name: "requirement".into(),
+                            kind: ParameterKind::Bool,
+                            default: Some(MeaningValue::Bool(false)),
+                        });
+                    }
+                    parameters
+                },
             },
             move || factory(),
         )?;
