@@ -654,3 +654,77 @@ fn cli_json_readonly_batch_has_io_diagnostic_and_no_changes() {
     assert_eq!(fs::read_to_string(&earlier).unwrap(), source);
     assert_eq!(fs::read_to_string(&readonly).unwrap(), source);
 }
+
+#[test]
+fn declaration_containers_start_without_a_blank_line_and_separate_siblings() {
+    let source = r#"export trivia Comment {
+
+    trivia Line = /\/\/[^\n]*/
+
+    trivia Block = /\/\*[\s\S]*?\*\//
+
+}"#;
+    let expected = r#"export trivia Comment {
+    trivia Line = /\/\/[^\n]*/
+
+    trivia Block = /\/\*[\s\S]*?\*\//
+}
+"#;
+    let formatted = format_yl("source", source).unwrap();
+    assert_eq!(formatted, expected);
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+
+#[test]
+fn nested_containers_keep_leading_comments_and_comment_contents() {
+    let source = r#"node Outer {
+
+// first member
+node Inner {
+
+/* nested documentation
+
+   preserved blank line */
+node First = "a"
+
+// second member
+node Second = "b"
+
+}
+
+pattern Tail = "c"
+
+}
+enum Kind {
+
+A
+
+B
+
+}"#;
+    let expected = r#"node Outer {
+    // first member
+    node Inner {
+        /* nested documentation
+
+   preserved blank line */
+        node First = "a"
+
+        // second member
+        node Second = "b"
+    }
+
+    pattern Tail = "c"
+}
+
+enum Kind {
+    A
+    B
+}
+"#;
+    let formatted = format_yl("source", source).unwrap();
+    assert_eq!(formatted, expected);
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
