@@ -6,10 +6,27 @@ use crate::{
     syntax::*,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use unicode_width::UnicodeWidthStr;
+
+/// Experimental presentation options. The default preserves canonical layout.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct FormatOptions {
+    /// Align single-line meaning-match case arrows within each match block.
+    pub align_match_arrows: bool,
+}
 
 /// Format one YL definition module. Comments and raw literals are preserved;
 /// syntax errors return diagnostics instead of formatted output. Imports are not loaded.
 pub fn format_yl(file: &str, source: &str) -> CompileResult<String> {
+    format_yl_with_options(file, source, FormatOptions::default())
+}
+
+/// Format with opt-in presentation experiments; token/AST guards still apply.
+pub fn format_yl_with_options(
+    file: &str,
+    source: &str,
+    options: FormatOptions,
+) -> CompileResult<String> {
     let module = parse_yl(file, source)?;
     let tokens = lex_with_comments(file, source).map_err(|error| vec![error])?;
     let mut layout = Layout::default();
@@ -19,7 +36,10 @@ pub fn format_yl(file: &str, source: &str) -> CompileResult<String> {
     let tokens = layout.prepare_meanings(&tokens);
     layout.prepare_container_sections(&tokens);
     layout.attach_leading_comments(&tokens, source);
-    let formatted = layout.render(&tokens, source);
+    let mut formatted = layout.render(&tokens, source);
+    if options.align_match_arrows {
+        formatted = align_match_arrows(file, &formatted)?;
+    }
     let output_tokens =
         lex_with_comments(file, &formatted).map_err(|_| vec![contract_error(file, source)])?;
     let raw_tokens = |tokens: &[Token], text: &str| {
@@ -37,6 +57,71 @@ pub fn format_yl(file: &str, source: &str) -> CompileResult<String> {
         return Err(vec![contract_error(file, source)]);
     }
     Ok(formatted)
+}
+fn align_match_arrows(file: &str, source: &str) -> CompileResult<String> {
+    let module = parse_yl(file, source)?;
+    let tokens = lex_with_comments(file, source).map_err(|error| vec![error])?;
+    let mut layout = Layout::default();
+    for declaration in &module.declarations {
+        layout.declaration(declaration, true);
+    }
+    let mut padding = BTreeMap::new();
+    let mut added_spaces = 0usize;
+    for meanings in &layout.meanings {
+        for matching in meanings
+            .groups
+            .iter()
+            .filter_map(|group| group.matching.as_ref())
+        {
+            let mut arrows = vec![];
+            for case in &matching.cases {
+                let first = tokens.partition_point(|token| token.span.start < case.span.start);
+                let Some(arrow) = tokens[first..]
+                    .iter()
+                    .take_while(|token| token.span.end <= case.span.end)
+                    .find(
+                        |token| matches!(&token.kind, TokenKind::Symbol(symbol) if symbol == "=>"),
+                    )
+                else {
+                    continue;
+                };
+                // Do not guess layout for comments or raw literals that split a
+                // header across lines, or contain font/tab-dependent tab stops.
+                if source[case.span.start..arrow.span.start].contains(['\n', '\r', '\t']) {
+                    continue;
+                }
+                let line = source[..arrow.span.start]
+                    .rfind('\n')
+                    .map_or(0, |start| start + 1);
+                arrows.push((arrow.span.start, source[line..arrow.span.start].width()));
+            }
+            if let Some(column) = arrows.iter().map(|(_, width)| *width).max() {
+                for (start, width) in arrows {
+                    if width < column {
+                        let spaces = column - width;
+                        added_spaces = added_spaces.saturating_add(spaces);
+                        if added_spaces > 1024 * 1024 {
+                            return Err(vec![Diagnostic::error(
+                                "yl.format_alignment_limit",
+                                "Match alignment exceeds the experimental one-MiB padding limit",
+                                Span::new(file, 0, 0),
+                            )]);
+                        }
+                        padding.insert(start, spaces);
+                    }
+                }
+            }
+        }
+    }
+    let mut output = String::with_capacity(source.len() + padding.values().sum::<usize>());
+    let mut previous = 0;
+    for (start, spaces) in padding {
+        output.push_str(&source[previous..start]);
+        output.push_str(&" ".repeat(spaces));
+        previous = start;
+    }
+    output.push_str(&source[previous..]);
+    Ok(output)
 }
 fn contract_error(file: &str, source: &str) -> Diagnostic {
     Diagnostic::error(

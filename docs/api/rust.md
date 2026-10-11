@@ -149,4 +149,17 @@ let formatted = your_language::format_yl("language.yl", "node Name=/[a-z]+/ entr
 assert_eq!(your_language::format_yl("language.yl", &formatted)?, formatted);
 ```
 
-The formatter uses the actual lexer and parser. It preserves comments and raw string/regex spelling, then verifies token preservation and parse-equivalence apart from spans. The standalone structural `boundary` marker is normalized to the top of its `meanings` block; all other tokens retain their order, and meaning operations are never reordered. Invalid syntax returns the same structured frontend diagnostics. Unsupported preservation failures return `yl.format_equivalence` with no formatted output. Formatting is deterministic and idempotent; it has no style configuration or hard line wrapping. See [CLI formatting](/api/cli#format-yl-definitions) for file-writing and check modes.
+The formatter uses the actual lexer and parser. It preserves comments and raw string/regex spelling, then verifies token preservation and parse-equivalence apart from spans. The standalone structural `boundary` marker is normalized to the top of its `meanings` block; all other tokens retain their order, and meaning operations are never reordered. Invalid syntax returns the same structured frontend diagnostics. Unsupported preservation failures return `yl.format_equivalence` with no formatted output. Default formatting is deterministic and idempotent, with no hard line wrapping. See [CLI formatting](/api/cli#format-yl-definitions) for file-writing and check modes.
+
+
+## Experimental match alignment
+
+```rust
+use your_language::{format_yl_with_options, FormatOptions};
+
+let options = FormatOptions { align_match_arrows: true };
+let formatted = format_yl_with_options("language.yl", source, options)?;
+assert_eq!(format_yl_with_options("language.yl", &formatted, options)?, formatted);
+```
+
+`FormatOptions::default()` and `format_yl` keep the existing canonical layout. The optional pass aligns arrows only within individual meaning-match blocks, after canonical formatting; the normal token and AST preservation checks still apply. It has the same limits and header exclusions as the [CLI experiment](/api/cli#format-yl-definitions). This presentation option is experimental and is not enabled by the editor or language server.

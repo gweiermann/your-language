@@ -9,9 +9,19 @@ yl fmt <files...>
 yl fmt --check <files...>
 yl fmt --check --json <files...>
 yl fmt --json <files...>
+yl fmt --align-match-arrows <files...>
 ```
 
 `fmt` formats the supplied UTF-8 YL definition files in place. It uses four-space indentation, spaces around operators, separate declaration paragraphs, and expanded blocks. A single grammar unit stays after `=` on the declaration line. Sequences place each unit on a separate indented line; alternatives start separate lines with `|`. Captures, grouped expressions, postfix operators and pipes stay together. A body following a multiline grammar starts with `{` on its own line. Declaration containers begin with their first child immediately after the opening brace. Sibling declarations and parent `meanings`, `precedence`, and `constraints` sections following nested declarations are separated by a blank line. Comments and the raw spelling of strings and regexes are preserved. Nonempty output ends with a newline. There is no configurable line-width policy.
+
+`--align-match-arrows` is an optional formatting experiment. It pads the `=>` arrows of single-line meaning-match headers to the widest header in that match block. Each block is independent; rewrite arrows retain their usual spacing. Tuple alternatives and single/block actions are supported. It never edits literal, regex, or comment contents. Headers split across lines or containing raw tabs are excluded. Unicode displayed widths use the non-CJK convention of [unicode-width](https://docs.rs/unicode-width/0.2.2/unicode_width/trait.UnicodeWidthStr.html); font-dependent rendering can differ. The pass permits at most one MiB of added spaces per file, otherwise returns `yl.format_alignment_limit` without writing. Default formatting removes this optional padding.
+
+```sh
+yl fmt --check --json --align-match-arrows example.yl
+yl fmt --align-match-arrows example.yl
+```
+
+The same flag must be used for aligned write and check modes. The JSON report schema and exit policy are unchanged. See the dedicated `examples/formatting-alignment` fixture for a reproducible before/after comparison.
 
 `--check` makes no writes. Human output prints `Would format <file>` and renders a `yl.format_required` warning at the first layout difference, with a source underline and help. Check mode exits 1 when any file needs formatting, even though formatting warnings are separate from syntax errors. A clean human check is silent. Write mode prints `Formatted <file>` only for files it changes. Syntax and I/O errors use structured error diagnostics and exit 1.
 

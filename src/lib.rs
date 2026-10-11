@@ -15,4 +15,4 @@ pub mod semantics;
 pub mod syntax;
 
 mod formatting;
-pub use formatting::format_yl;
+pub use formatting::{format_yl, format_yl_with_options, FormatOptions};

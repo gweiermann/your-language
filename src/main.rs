@@ -10,7 +10,7 @@ use your_language::{
 
 fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
     let usage = || {
-        vec![Diagnostic::error("yl.cli","Usage: yl fmt [--check] [--json] <files...> | yl check <entry.yl> | yl compile <entry.yl> -o <language.ylc> | yl language <language.ylc> ast <source> | yl language <language.ylc> check <source> [--json]",Span::default())]
+        vec![Diagnostic::error("yl.cli","Usage: yl fmt [--check] [--json] [--align-match-arrows] <files...> | yl check <entry.yl> | yl compile <entry.yl> -o <language.ylc> | yl language <language.ylc> ast <source> | yl language <language.ylc> check <source> [--json]",Span::default())]
     };
     let io = |path: &str, e: std::io::Error| {
         vec![Diagnostic::error(
