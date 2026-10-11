@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "commonjs", "strict": true,
+    "outDir": "out", "rootDir": "src", "types": ["node", "vscode"],
+    "noUnusedLocals": true, "noUnusedParameters": true
+  },
+  "include": ["src/**/*.ts"]
+}
