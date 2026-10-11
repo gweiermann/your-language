@@ -23,16 +23,16 @@ Compilation and analysis require no artifact file. `engine.compile(...)` can als
 Nodes and patterns accept a grammar-following body:
 
 ```yl
-import { declareVariable, useVariable, lexicalScope } from "std/variables"
+import { declare, use, lexicalScope } from "std/variables"
 
 node Declaration = "let" name: Name ";" {
     meanings {
-        group Register { declareVariable(name) }
+        group Register { declare(name) }
     }
 }
 
 node Reference = name: Name ";" {
-    meanings { useVariable(name) }
+    meanings { use(name) }
 }
 
 pattern FunctionContents = "{" (Declaration | Reference)* "}" {
@@ -133,9 +133,9 @@ Parsing must produce an AST with no error-severity syntax diagnostics before nat
 
 ## Lexical library policy
 
-The bundled `std/variables` adapter exports `lexicalScope`, generic `declare`, `declareVariable`, `declareFunction`, `use`, and `useVariable`. `declare` accepts an imported category symbol, a name capture, and `reassignable` (default `true`). The `variable` and `function` category symbols classify declarations; they do not create separate namespaces or target-language types.
+The bundled `std/variables` adapter exports `lexicalScope`, `declare(name, reassignable=true)` and `use(name)`, plus the identity queries described below. Declaration categories are not required: both variables and functions create ordinary named bindings. Function behavior is expressed by language-authored types, slots and meaning order.
 
-Its explicit policy is one namespace per scope, errors for duplicate names in the same scope, and nearest-scope shadowing. `useVariable` is a convenience alias for general name lookup and can resolve function-category bindings too. The `reassignable` attribute records binding metadata; assignment checking and object mutation are outside this slice.
+Its explicit policy is one namespace per scope, errors for duplicate names in the same scope, and nearest-scope shadowing. `use` performs general name lookup, including bindings whose language-defined type is a function. The `reassignable` attribute records binding metadata; assignment checking and object mutation are outside this slice.
 
 Scope, declaration, and reference attachments point to record IDs. Reference attachments reuse declaration records, preserving symbol identity independently of spelling. Records use separate identity-symbol metadata keys and text identifier keys. Unresolved references point to the name capture; duplicate declarations also retain the previous declaration's source span.
 
@@ -178,12 +178,12 @@ calls without target node names in the native library. See the checked-in
 import * as types from "std/types"
 import * as variables from "std/variables"
 
-export operation annotate(value) {
+export operation annotateWithType(value) {
     types::ensure(variables::identity(), value)
 }
 
-export operation typeof(value = absent) =
-    types::typeof(variables::identity(value))
+export operation typeof(value) =
+    types::typeof(variables::identityOf(value))
 ```
 
 Namespace imports expose exported module members through `::`; private source
@@ -207,6 +207,10 @@ Such an operation runs after ordinary lifecycle hooks, while relative collector
 ordering is preserved. This cannot be combined with `provides_context`.
 
 `std/variables` supplies identity queries: `identity()` for the current occurrence,
-`identity(capture)` for one retained capture root, `identities(capture)` for an
+`identityOf(capture)` for one retained capture root, `identities(capture)` for an
 ordered list, and `childIdentity()` for explicit first-child inheritance.
 Declarations and resolved references return the same binding identity.
+
+The Mini TypeScript wrappers `annotateWithType` and `restrictTypeTo` currently use the same equality kernel. Separate accumulation of possible types and universal compatibility requirements remains future work; the names do not imply union inference in this prototype. `identity()` accepts no arguments. `identityOf(value)` requires an explicit capture or identity and preserves absence rather than selecting the current occurrence.
+
+The declaration API replaces the experimental category-taking `declare`, `declareVariable`, `declareFunction` and `useVariable` helpers. `variable`, `function` and `kindSymbol` are no longer native exports or binding metadata. Recompile artifacts containing the previous native contracts.

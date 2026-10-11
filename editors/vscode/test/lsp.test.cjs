@@ -92,15 +92,15 @@ test('identity typing namespaces and authored wrappers validate and format witho
     const text=`import * as types from "std/types"
 import * as variables from "std/variables"
 symbol number
-operation annotate(value) { types::ensure(variables::identity(),value) }
-node Root="x" { meanings { annotate(number) types::ensure("invalid-key",number) } }
+operation annotateWithType(value) { types::ensure(variables::identity(),value) }
+node Root="x" { meanings { annotateWithType(number) types::ensure("invalid-key",number) } }
 entry Root`;
     s.open(uri,text);
     assert.deepEqual((await s.diagnostic(uri,1)).diagnostics,[]);
     assert.match(JSON.stringify(await s.hints(uri)),/example/);
     const edits=await s.connection.sendRequest('textDocument/formatting',{textDocument:{uri},options:{tabSize:4,insertSpaces:true}});
     assert.match(edits[0].newText,/import \* as types/);
-    assert.match(edits[0].newText,/operation annotate\(value\)/);
+    assert.match(edits[0].newText,/operation annotateWithType\(value\)/);
     s.change(uri,text.replace('types::ensure(variables::identity(),value)','types::ensure(variables::identity())'),2);
     assert.ok((await s.diagnostic(uri,2)).diagnostics.some(d=>d.severity===1));
 });

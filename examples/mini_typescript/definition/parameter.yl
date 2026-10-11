@@ -1,5 +1,5 @@
-import { declare, variable } from "std/variables"
-import { ensure } from "./typing"
+import { declare } from "std/variables"
+import { restrictTypeTo } from "./typing"
 import { Name } from "./lexical"
 import { Annotation } from "./types"
 
@@ -8,7 +8,7 @@ export node Parameter =
     annotation: Annotation?
 {
     meanings {
-        declare(variable, name)
-        ensure(annotation)
+        declare(name)
+        restrictTypeTo(annotation)
     }
 }

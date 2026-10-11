@@ -49,8 +49,8 @@ fn addition_policy_lives_in_local_meanings() {
     }
     let changed = analyze_with("let result = 1 + 2;", |grammar| {
         *grammar = grammar.replace(
-            "number, number => annotate(number)",
-            "number, number => annotate(string)",
+            "number, number => annotateWithType(number)",
+            "number, number => annotateWithType(string)",
         )
     });
     assert!(changed.diagnostics.is_empty());
@@ -105,7 +105,10 @@ fn annotation_anchors_recursive_addition_constraints() {
 #[test]
 fn no_op_void_branch_does_not_implicitly_publish_a_type() {
     let result = analyze_with("let result = 1 + 2;", |grammar| {
-        *grammar = grammar.replace("number, number => annotate(number)", "number, number => {}")
+        *grammar = grammar.replace(
+            "number, number => annotateWithType(number)",
+            "number, number => {}",
+        )
     });
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(binding(&result, "result"), "unknown");
@@ -114,8 +117,8 @@ fn no_op_void_branch_does_not_implicitly_publish_a_type() {
 fn explicit_unknown_is_settled_and_propagates_to_next_match() {
     let result = analyze_with("let first = 1 + 2; let second = first + 3;", |grammar| {
         *grammar = grammar.replace(
-            "number, number => annotate(number)",
-            "number, number => annotate(unknown)",
+            "number, number => annotateWithType(number)",
+            "number, number => annotateWithType(unknown)",
         )
     });
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
@@ -129,7 +132,7 @@ fn warning_and_type_branch_effects_are_once_only() {
         |grammar| {
             *grammar = grammar.replace(
                 "_ => error(\"${left} + ${right} is not possible\")",
-                "_ => { warning(\"${left} + ${right} is experimental\") annotate(unknown) }",
+                "_ => { warning(\"${left} + ${right} is experimental\") annotateWithType(unknown) }",
             )
         },
     );

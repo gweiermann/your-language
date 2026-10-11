@@ -1,5 +1,5 @@
-import { lexicalScope, declare, function } from "std/variables"
-import { annotate, typeof, ensure, functionSignature } from "./typing"
+import { lexicalScope, declare } from "std/variables"
+import { annotateWithType, typeof, restrictTypeTo, functionSignature } from "./typing"
 import { separatedBy } from "std/parser"
 import { Name } from "./lexical"
 import { Annotation } from "./types"
@@ -17,7 +17,7 @@ export node FunctionBody =
 {
     meanings {
         boundary
-        ensure(result)
+        restrictTypeTo(result)
     }
 }
 
@@ -41,8 +41,8 @@ export node FunctionDeclaration =
 {
     meanings {
         group Register {
-            declare(function, name, reassignable = false)
-            annotate(typeof(contents))
+            declare(name, reassignable = false)
+            annotateWithType(typeof(contents))
         }
     }
 }

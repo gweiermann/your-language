@@ -83,7 +83,7 @@ symbol field
 node Item = "x" { meanings { types::ensure((variables::identity(), field), Red) } }
 node Root = item: Item {
  meanings {
-  types::ensure(variables::identity(), types::typeof(variables::identity(item)))
+  types::ensure(variables::identity(), types::typeof(variables::identityOf(item)))
   types::ensure((variables::identity(), field), Blue)
  }
 }
@@ -170,8 +170,8 @@ node First = "x" {{ meanings {{ types::ensure(variables::identity(), types::unkn
 node Second = "y" {{ meanings {{ types::ensure(variables::identity(), Red) }} }}
 node Root = first: First second: Second {{
  meanings {{
-  types::ensure(variables::identity({left}), types::typeof(variables::identity({right})))
-  match (types::typeof(variables::identity(first)), types::typeof(variables::identity(second))) {{
+  types::ensure(variables::identityOf({left}), types::typeof(variables::identityOf({right})))
+  match (types::typeof(variables::identityOf(first)), types::typeof(variables::identityOf(second))) {{
    Red, Red => {{}},
    _ => error("A known type was lost")
   }}

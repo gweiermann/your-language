@@ -16,12 +16,12 @@ fn sources(source: &str) -> BTreeMap<String, String> {
 #[test]
 fn meanings_compile_through_real_source_imports_and_pattern_boundaries() {
     let source = r#"
-import { lexicalScope, declareVariable, useVariable } from "std/variables"
+import { lexicalScope, declare, use } from "std/variables"
 node Name = /[a-z]+/
 node Declaration = "let" name: Name ";" {
-    meanings { group Register { declareVariable(name, reassignable=false) } }
+    meanings { group Register { declare(name, reassignable=false) } }
 }
-node Reference = name: Name ";" { meanings { useVariable(name) } }
+node Reference = name: Name ";" { meanings { use(name) } }
 pattern Contents = (Declaration | Reference)* { meanings { lexicalScope() } }
 node Program = Contents
 entry Program
@@ -52,13 +52,10 @@ entry Program
 fn source_meanings_validate_calls_captures_groups_and_selectors() {
     let engine = SemanticEngine::new(lexical::registry());
     let cases = [
-        ("useVariable(missing)", "yl.unknown_capture"),
-        ("useVariable()", "yl.invalid_argument"),
-        ("useVariable(name, name=name)", "yl.invalid_argument"),
-        (
-            "declareVariable(name, reassignable=\"yes\")",
-            "yl.invalid_argument",
-        ),
+        ("use(missing)", "yl.unknown_capture"),
+        ("use()", "yl.invalid_argument"),
+        ("use(name, name=name)", "yl.invalid_argument"),
+        ("declare(name, reassignable=\"yes\")", "yl.invalid_argument"),
         (
             "group Register {} group Register {}",
             "yl.duplicate_meaning_group",
@@ -70,7 +67,7 @@ fn source_meanings_validate_calls_captures_groups_and_selectors() {
         ("precedence { Program > _ }", "yl.invalid_meaning_selector"),
     ];
     for (body, expected) in cases {
-        let source = format!("import {{ useVariable, declareVariable }} from \"std/variables\" node Program = name: /[a-z]+/ {{ meanings {{ {body} }} }} entry Program");
+        let source = format!("import {{ use, declare }} from \"std/variables\" node Program = name: /[a-z]+/ {{ meanings {{ {body} }} }} entry Program");
         let errors = engine
             .compile("language.yl", &sources(&source))
             .unwrap_err();
@@ -82,9 +79,9 @@ fn source_meanings_validate_calls_captures_groups_and_selectors() {
 fn source_precedence_uses_resolved_definition_and_named_group_identity() {
     let engine = SemanticEngine::new(lexical::registry());
     let source = r#"
-import { lexicalScope, declareVariable, useVariable } from "std/variables"
-node Declaration = "let" name: /[a-z]+/ ";" { meanings { group Register { declareVariable(name) } } }
-node Reference = name: /[a-z]+/ ";" { meanings { useVariable(name) } }
+import { lexicalScope, declare, use } from "std/variables"
+node Declaration = "let" name: /[a-z]+/ ";" { meanings { group Register { declare(name) } } }
+node Reference = name: /[a-z]+/ ";" { meanings { use(name) } }
 node Program = Reference Declaration {
     meanings {
         lexicalScope()
@@ -205,7 +202,7 @@ fn semantic_operation_and_group_aliases_resolve_across_source_modules() {
             "main.yl".into(),
             r#"
 import { Binder as Binding } from "./bindings"
-import { lexicalScope as scope, useVariable as lookup } from "std/variables"
+import { lexicalScope as scope, use as lookup } from "std/variables"
 node Reference = name: /[a-z]+/ ";" { meanings { lookup(name) } }
 pattern Scoped(item) = item* { meanings { scope() } }
 node Program = Scoped(Binding | Reference) {
@@ -218,7 +215,7 @@ entry Program
         (
             "bindings.yl".into(),
             r#"
-import { declareVariable as register } from "std/variables"
+import { declare as register } from "std/variables"
 export node Binder = "let" name: /[a-z]+/ ";" {
     meanings { group Register { register(name) } }
 }
@@ -242,9 +239,9 @@ export node Binder = "let" name: /[a-z]+/ ";" {
 fn selected_unannotated_patterns_keep_their_occurrence_boundary() {
     let engine = SemanticEngine::new(lexical::registry());
     let source = r#"
-import { lexicalScope, declareVariable, useVariable } from "std/variables"
-node Declaration = "let" name: /[a-z]+/ ";" { meanings { declareVariable(name) } }
-node Reference = name: /[a-z]+/ ";" { meanings { useVariable(name) } }
+import { lexicalScope, declare, use } from "std/variables"
+node Declaration = "let" name: /[a-z]+/ ";" { meanings { declare(name) } }
+node Reference = name: /[a-z]+/ ";" { meanings { use(name) } }
 pattern Uses = Reference*
 node Program = Declaration Uses {
     meanings { lexicalScope() precedence { Declaration > Uses } }

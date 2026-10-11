@@ -1,4 +1,4 @@
-import { annotate, inherit, ensure } from "./typing"
+import { annotateWithType, inherit, restrictTypeTo } from "./typing"
 
 export symbol number
 
@@ -15,19 +15,19 @@ export symbol returnType
 export node TypeName {
     node NumberType = "number" {
         meanings {
-            annotate(number)
+            annotateWithType(number)
         }
     }
 
     node StringType = "string" {
         meanings {
-            annotate(string)
+            annotateWithType(string)
         }
     }
 
     node BooleanType = "boolean" {
         meanings {
-            annotate(boolean)
+            annotateWithType(boolean)
         }
     }
     meanings {
@@ -40,6 +40,6 @@ export node Annotation =
     value: TypeName
 {
     meanings {
-        ensure(value)
+        restrictTypeTo(value)
     }
 }

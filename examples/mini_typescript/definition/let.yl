@@ -1,5 +1,5 @@
-import { declare, variable } from "std/variables"
-import { annotate, typeof, ensure } from "./typing"
+import { declare } from "std/variables"
+import { annotateWithType, typeof, restrictTypeTo } from "./typing"
 import { Name } from "./lexical"
 import { Annotation } from "./types"
 import { Expression } from "./expression"
@@ -14,9 +14,9 @@ export node LetDeclaration =
 {
     meanings {
         group Register {
-            declare(variable, name)
-            annotate(typeof(initializer))
-            ensure(annotation)
+            declare(name)
+            annotateWithType(typeof(initializer))
+            restrictTypeTo(annotation)
         }
     }
 }

@@ -758,7 +758,7 @@ mod tests {
             "Declare".into(),
             definition(
                 &registry,
-                "declareVariable",
+                "declare",
                 BTreeMap::from([
                     ("name".into(), MeaningValue::Capture("name".into())),
                     ("reassignable".into(), MeaningValue::Bool(true)),

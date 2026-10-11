@@ -21,11 +21,8 @@ fn parameter(name: &str, kind: ParameterKind, default: Option<MeaningValue>) -> 
 pub fn registry() -> OperationRegistry {
     let mut registry = OperationRegistry::new();
     for name in [
-        "variable",
-        "function",
         "scope",
         "parentSymbol",
-        "kindSymbol",
         "nameSymbol",
         "originSymbol",
         "reassignableSymbol",
@@ -65,11 +62,13 @@ pub fn registry() -> OperationRegistry {
     );
     add(
         "identity",
-        vec![parameter(
-            "value",
-            ParameterKind::Value,
-            Some(MeaningValue::Absent),
-        )],
+        vec![],
+        false,
+        Arc::new(|| Box::new(OwnIdentity)),
+    );
+    add(
+        "identityOf",
+        vec![parameter("value", ParameterKind::Value, None)],
         false,
         Arc::new(|| Box::new(Identity { list: false })),
     );
@@ -96,41 +95,17 @@ pub fn registry() -> OperationRegistry {
         ]
     };
     add(
-        "declareVariable",
-        binding_parameters(),
-        false,
-        Arc::new(|| {
-            Box::new(Declare {
-                kind: Some(symbol("variable")),
-            })
-        }),
-    );
-    add(
-        "declareFunction",
-        binding_parameters(),
-        false,
-        Arc::new(|| {
-            Box::new(Declare {
-                kind: Some(symbol("function")),
-            })
-        }),
-    );
-    let mut generic = vec![parameter("kind", ParameterKind::Symbol, None)];
-    generic.extend(binding_parameters());
-    add(
         "declare",
-        generic,
+        binding_parameters(),
         false,
-        Arc::new(|| Box::new(Declare { kind: None })),
+        Arc::new(|| Box::new(Declare)),
     );
-    for name in ["use", "useVariable"] {
-        add(
-            name,
-            vec![parameter("name", ParameterKind::Capture, None)],
-            false,
-            Arc::new(|| Box::new(Use)),
-        );
-    }
+    add(
+        "use",
+        vec![parameter("name", ParameterKind::Capture, None)],
+        false,
+        Arc::new(|| Box::new(Use)),
+    );
     registry
 }
 
@@ -190,9 +165,7 @@ fn current(context: &OperationContext<'_>) -> Result<usize, Diagnostic> {
         )),
     }
 }
-struct Declare {
-    kind: Option<String>,
-}
+struct Declare;
 impl NativeOperation for Declare {
     fn before(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
         let name = name(context)?;
@@ -212,22 +185,11 @@ impl NativeOperation for Declare {
             context.emit(diagnostic);
             return Ok(());
         }
-        let kind = match (&self.kind, context.argument("kind")) {
-            (Some(kind), _) | (None, Some(SemanticValue::Symbol(kind))) => kind.clone(),
-            _ => {
-                return Err(Diagnostic::error(
-                    "semantic.argument",
-                    "Expected a declaration category symbol",
-                    context.occurrence.span.clone(),
-                ))
-            }
-        };
         let reassignable = context
             .argument("reassignable")
             .cloned()
             .unwrap_or(SemanticValue::Bool(true));
         let binding = context.record();
-        context.set(binding, key("kindSymbol"), SemanticValue::Symbol(kind))?;
         context.set(
             binding,
             key("nameSymbol"),
@@ -285,15 +247,22 @@ fn occurrence_identity(context: &OperationContext<'_>, occurrence: usize) -> Sem
     }
     SemanticValue::Identity(SemanticIdentity::Occurrence(occurrence))
 }
+struct OwnIdentity;
+impl NativeOperation for OwnIdentity {
+    fn evaluate(&mut self, context: &mut OperationContext<'_>) -> Result<Evaluation, Diagnostic> {
+        Ok(Evaluation::Ready(occurrence_identity(
+            context,
+            context.occurrence.id,
+        )))
+    }
+}
 struct Identity {
     list: bool,
 }
 impl NativeOperation for Identity {
     fn evaluate(&mut self, context: &mut OperationContext<'_>) -> Result<Evaluation, Diagnostic> {
         let value = match context.argument("value") {
-            None | Some(SemanticValue::Absent) => {
-                occurrence_identity(context, context.occurrence.id)
-            }
+            Some(SemanticValue::Absent) => SemanticValue::Absent,
             Some(SemanticValue::Source(source)) => {
                 if matches!(source.value, AstValue::None) {
                     SemanticValue::Absent

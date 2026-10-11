@@ -1,5 +1,5 @@
 import { use } from "std/variables"
-import { annotate, typeof, call, inherit } from "./typing"
+import { annotateWithType, typeof, call, inherit } from "./typing"
 import { unknown } from "std/types"
 import { separatedBy } from "std/parser"
 import { Name } from "./lexical"
@@ -24,19 +24,19 @@ node Call =
 
 node Number = value: /[0-9]+/ {
     meanings {
-        annotate(number)
+        annotateWithType(number)
     }
 }
 
 node String = value: /"[^"\n]*"/ {
     meanings {
-        annotate(string)
+        annotateWithType(string)
     }
 }
 
 node Boolean = value: /true|false/ {
     meanings {
-        annotate(boolean)
+        annotateWithType(boolean)
     }
 }
 
@@ -47,9 +47,9 @@ node Addition =
 {
     meanings {
         match (typeof(left), typeof(right)) {
-            string, string | string, number | number, string => annotate(string),
-            number, number => annotate(number),
-            unknown, _ | _, unknown => annotate(unknown),
+            string, string | string, number | number, string => annotateWithType(string),
+            number, number => annotateWithType(number),
+            unknown, _ | _, unknown => annotateWithType(unknown),
             _ => error("${left} + ${right} is not possible")
         }
     }

@@ -26,9 +26,11 @@ Successful runs print inferred binding types. Errors use source underlines and e
 
 There is no visible solver call or configuration operation. The engine drives propagation automatically, settles remaining unconstrained variables as `unknown`, resumes matches, and publishes the final records. Pending information and settled `unknown` remain distinct.
 
-A key is an analysis-local identity, or `(identity, slotSymbol)`. A list of keys reads the corresponding list of types. `std/variables::identity()` selects the current declaration/reference identity when available, otherwise the current syntax occurrence. A declaration and its resolved references share one identity. `identity(value)` selects a captured occurrence; `identities(value)` selects a repeated capture's ordered identities. `childIdentity()` selects the first retained child for explicit inheritance.
+A key is an analysis-local identity, or `(identity, slotSymbol)`. A list of keys reads the corresponding list of types. `std/variables::identity()` selects the current declaration/reference identity when available, otherwise the current syntax occurrence. A declaration and its resolved references share one identity. `identityOf(value)` selects a captured occurrence; `identities(value)` selects a repeated capture's ordered identities. `childIdentity()` selects the first retained child for explicit inheritance.
 
 A scalar identity query rejects captures containing multiple occurrence roots. It does not silently choose one. Captures preserve their original occurrence roots through pipes.
+
+The current `annotateWithType` and `restrictTypeTo` wrappers both use equality constraints. Multiple annotations do not yet collect a union. Distinguishing accumulated possibilities from hard requirements remains a pending inference change; union-valued matching must be specified first.
 
 ## Authored wrappers
 
@@ -38,12 +40,12 @@ The language defines conveniences in ordinary imported YL:
 import * as types from "std/types"
 import * as variables from "std/variables"
 
-export operation annotate(value) {
+export operation annotateWithType(value) {
     types::ensure(variables::identity(), value)
 }
 
-export operation typeof(value = absent) =
-    types::typeof(variables::identity(value))
+export operation typeof(value) =
+    types::typeof(variables::identityOf(value))
 
 export operation inherit() {
     types::ensure(variables::identity(), types::typeof(variables::childIdentity()))
@@ -58,7 +60,7 @@ Literal nodes can now state their meaning locally:
 export symbol number
 
 node Number = /[0-9]+/ {
-    meanings { annotate(number) }
+    meanings { annotateWithType(number) }
 }
 ```
 
@@ -76,20 +78,20 @@ types::ensure((variables::identity(), returnType), typeof(annotation))
 
 The authored call wrapper requires the same marker, equates the callee's parameter slot with its arguments, and equates the current expression with the callee's return slot. A function declaration links its binding to its contents' type. Generic projection-aware equality propagates authored slots through that link, through function aliases, and through function-valued parameters. Renaming the slot symbols preserves inference; reload tests cover this.
 
-Absent optional annotations contribute no requirement: `typeof(absent)` returns absence, and `ensure(key, absent)` is a no-op. Explicit `unknown` is a separate, permissive type marker. It contributes no incompatibility against a known type and does not erase known information.
+Absent optional annotations contribute no requirement: `identityOf(absent)` and native `typeof(absent)` return absence, and `ensure(key, absent)` is a no-op. Explicit `unknown` is a separate, permissive type marker. It contributes no incompatibility against a known type and does not erase known information.
 
 ## Addition policy remains in YL
 
 ```yl
 match (typeof(left), typeof(right)) {
-    string, string | string, number | number, string => annotate(string),
-    number, number => annotate(number),
-    unknown, _ | _, unknown => annotate(unknown),
+    string, string | string, number | number, string => annotateWithType(string),
+    number, number => annotateWithType(number),
+    unknown, _ | _, unknown => annotateWithType(unknown),
     _ => error("${left} + ${right} is not possible")
 }
 ```
 
-Changing this definition changes the language's accepted combinations. The native library contains no arithmetic or primitive-name rules. A `=> {}` branch performs no action; explicit `annotate(unknown)` publishes an unknown result.
+Changing this definition changes the language's accepted combinations. The native library contains no arithmetic or primitive-name rules. A `=> {}` branch performs no action; explicit `annotateWithType(unknown)` publishes an unknown result.
 
 ## Native implementation and limits
 
