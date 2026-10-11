@@ -26,8 +26,8 @@ fn binding(result: &AnalysisResult, name: &str) -> String {
                 .map(|(_, v)| v)
         };
         if get("std/variables#nameSymbol") == Some(&SemanticValue::Text(name.into())) {
-            if let Some(SemanticValue::Text(ty)) = get("std/types#inferredType") {
-                return ty.clone();
+            if let Some(ty) = inference::display_type(record) {
+                return ty;
             }
         }
     }
@@ -49,8 +49,8 @@ fn addition_policy_lives_in_local_meanings() {
     }
     let changed = analyze_with("let result = 1 + 2;", |grammar| {
         *grammar = grammar.replace(
-            "number, number => type(number)",
-            "number, number => type(string)",
+            "number, number => annotateWithType(number)",
+            "number, number => annotateWithType(string)",
         )
     });
     assert!(changed.diagnostics.is_empty());
@@ -105,7 +105,10 @@ fn annotation_anchors_recursive_addition_constraints() {
 #[test]
 fn no_op_void_branch_does_not_implicitly_publish_a_type() {
     let result = analyze_with("let result = 1 + 2;", |grammar| {
-        *grammar = grammar.replace("number, number => type(number)", "number, number => {}")
+        *grammar = grammar.replace(
+            "number, number => annotateWithType(number)",
+            "number, number => {}",
+        )
     });
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(binding(&result, "result"), "unknown");
@@ -114,8 +117,8 @@ fn no_op_void_branch_does_not_implicitly_publish_a_type() {
 fn explicit_unknown_is_settled_and_propagates_to_next_match() {
     let result = analyze_with("let first = 1 + 2; let second = first + 3;", |grammar| {
         *grammar = grammar.replace(
-            "number, number => type(number)",
-            "number, number => type(unknown)",
+            "number, number => annotateWithType(number)",
+            "number, number => annotateWithType(unknown)",
         )
     });
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
@@ -129,7 +132,7 @@ fn warning_and_type_branch_effects_are_once_only() {
         |grammar| {
             *grammar = grammar.replace(
                 "_ => error(\"${left} + ${right} is not possible\")",
-                "_ => { warning(\"${left} + ${right} is experimental\") type(unknown) }",
+                "_ => { warning(\"${left} + ${right} is experimental\") annotateWithType(unknown) }",
             )
         },
     );
@@ -197,15 +200,55 @@ fn authored_symbols_obey_export_visibility_and_duplicate_rules() {
     );
 }
 #[test]
-fn missing_type_symbol_configuration_is_a_structured_diagnostic() {
+fn primitive_symbols_are_language_owned_and_unknown_is_library_owned() {
+    let engine = inference::engine();
+    for name in ["number", "string", "boolean", "Function"] {
+        assert!(engine.registry().symbol_id("std/types", name).is_none());
+    }
+    assert_eq!(
+        engine.registry().symbol_id("std/types", "unknown"),
+        Some("std/types#unknown")
+    );
+    let result = analyze("let value = 1;");
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(binding(&result, "value"), "number");
+}
+
+#[test]
+fn arbitrary_function_slot_names_preserve_inference_through_reload() {
     let mut sources = definition::sources();
-    *sources.get_mut(definition::ENTRY).unwrap() =
-        sources[definition::ENTRY].replace("types(unknown, functionTypeSymbol)", "");
-    let result = inference::engine()
-        .compile_and_analyze(definition::ENTRY, &sources, "input.ts", "let result = 1;")
-        .unwrap();
-    assert!(result
-        .diagnostics
+    for source in sources.values_mut() {
+        *source = source
+            .replace("parameters", "inputs")
+            .replace("returnType", "output");
+    }
+    let engine = inference::engine();
+    let language = engine.compile(definition::ENTRY, &sources).unwrap();
+    let reloaded = engine.load(&language.to_bytes().unwrap()).unwrap();
+    let result = engine.analyze(
+        &reloaded,
+        "input.ts",
+        "function id(value) { return value; } let result = id(1);",
+    );
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(binding(&result, "result"), "number");
+    let function = result
+        .graph
+        .records
         .iter()
-        .any(|d| d.code == "types.configuration"));
+        .find(|record| {
+            record.entries.contains(&(
+                SemanticKey::Symbol("std/variables#nameSymbol".into()),
+                SemanticValue::Text("id".into()),
+            ))
+        })
+        .unwrap();
+    assert!(function.entries.contains(&(
+        SemanticKey::Symbol("definition/types.yl#inputs".into()),
+        SemanticValue::Text("[number]".into())
+    )));
+    assert!(function.entries.contains(&(
+        SemanticKey::Symbol("definition/types.yl#output".into()),
+        SemanticValue::Text("number".into())
+    )));
 }

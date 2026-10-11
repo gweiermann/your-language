@@ -1,4 +1,4 @@
-import { declare, variable } from "std/variables"
+import { declare } from "std/variables"
 import { Name } from "./lexical"
 import { ExpressionDeclaration } from "./expression"
 import { FunctionBody } from "./function"
@@ -9,7 +9,7 @@ export node LetDeclaration =
 {
     meanings {
         group Register {
-            declare(variable, name)
+            declare(name)
         }
 
         precedence {

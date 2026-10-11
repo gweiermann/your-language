@@ -123,3 +123,78 @@ fn semantic_example_defaults_to_human_output_and_json_is_explicit() {
         }
     }
 }
+
+#[test]
+fn mini_typescript_consumer_renders_initializer_origin_and_json_uses_same_span() {
+    let build = Command::new(env!("CARGO"))
+        .args(["build", "--quiet", "--example", "mini_typescript"])
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .output()
+        .unwrap();
+    assert!(
+        build.status.success(),
+        "{}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+    let executable = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("target/debug/examples")
+        .join(format!("mini_typescript{}", std::env::consts::EXE_SUFFIX));
+    let human = Command::new(&executable)
+        .arg("errors")
+        .env_remove("NO_COLOR")
+        .env("CLICOLOR_FORCE", "1")
+        .output()
+        .unwrap();
+    assert_eq!(human.status.code(), Some(1));
+    let colored = String::from_utf8(human.stderr).unwrap();
+    assert!(colored.contains("\x1b[31m"));
+    let plain = colored.replace("\x1b[31m", "").replace("\x1b[0m", "");
+    let lines: Vec<_> = plain.lines().collect();
+    let row = lines
+        .iter()
+        .position(|line| line.contains("let count: number = \"wrong\";"))
+        .unwrap();
+    let type_column = lines[row].find("number").unwrap();
+    assert_eq!(
+        &lines[row + 1][type_column - 2..type_column + 7],
+        "  ^^^^^^ ",
+        "{plain}"
+    );
+    let column = lines[row].find("\"wrong\"").unwrap();
+    assert_eq!(&lines[row + 1][column..column + 7], "^^^^^^^", "{plain}");
+    let json = Command::new(&executable)
+        .args(["errors", "--json"])
+        .output()
+        .unwrap();
+    assert_eq!(json.status.code(), Some(1));
+    assert!(json.stderr.is_empty());
+    let value: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
+    let source = include_str!("../examples/mini_typescript/programs/errors.txt");
+    let diagnostics = value["diagnostics"].as_array().unwrap();
+    let diagnostic = diagnostics
+        .iter()
+        .find(|diagnostic| {
+            let primary = &diagnostic["primary"];
+            let (start, end) = (
+                primary["start"].as_u64().unwrap() as usize,
+                primary["end"].as_u64().unwrap() as usize,
+            );
+            &source[start..end] == "\"wrong\""
+        })
+        .expect("Initializer is the primary JSON location");
+    assert_eq!(diagnostic["code"], "types.mismatch");
+    assert!(diagnostic["help"]
+        .as_str()
+        .is_some_and(|help| !help.is_empty()));
+    assert!(diagnostic["secondary"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|span| {
+            let (start, end) = (
+                span["start"].as_u64().unwrap() as usize,
+                span["end"].as_u64().unwrap() as usize,
+            );
+            &source[start..end] == "number"
+        }));
+}

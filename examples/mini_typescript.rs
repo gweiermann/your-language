@@ -26,13 +26,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let source = match choice {
         "program" => include_str!("mini_typescript/programs/program.txt"),
         "errors" => include_str!("mini_typescript/programs/errors.txt"),
+        "higher-order" => include_str!("mini_typescript/programs/higher-order.txt"),
         "addition" => include_str!("mini_typescript/programs/addition.txt"),
         "addition-errors" => include_str!("mini_typescript/programs/addition-errors.txt"),
-        _ => {
-            return Err(
-                "Choose program, errors, addition or addition-errors, optionally --json".into(),
-            )
-        }
+        _ => return Err(
+            "Choose program, errors, higher-order, addition or addition-errors, optionally --json"
+                .into(),
+        ),
     };
     let sources = definition::sources();
     let engine = inference::engine();
@@ -68,16 +68,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ) if key == "std/variables#nameSymbol" => Some(value),
                     _ => None,
                 });
-            let ty = record
-                .entries
-                .iter()
-                .find_map(|(key, value)| match (key, value) {
-                    (
-                        your_language::semantics::SemanticKey::Symbol(key),
-                        your_language::semantics::SemanticValue::Text(value),
-                    ) if key == "std/types#inferredType" => Some(value),
-                    _ => None,
-                });
+            let ty = inference::display_type(record);
             if let (Some(name), Some(ty)) = (name, ty) {
                 println!("{name}: {ty}");
             }

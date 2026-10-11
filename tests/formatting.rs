@@ -728,3 +728,15 @@ enum Kind {
     assert_eq!(tree(source), tree(&formatted));
     assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
 }
+
+#[test]
+fn namespace_import_star_is_spaced_without_changing_repetition() {
+    let source = "import * as types from \"std/types\"\nnode Program = Item*\nentry Program";
+    let formatted = format_yl("source", source).unwrap();
+    assert!(
+        formatted.starts_with("import * as types from"),
+        "{formatted}"
+    );
+    assert!(formatted.contains("Item*"), "{formatted}");
+    assert_eq!(formatted, format_yl("source", &formatted).unwrap());
+}

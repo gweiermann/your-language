@@ -60,6 +60,7 @@ fn engine() -> SemanticEngine {
             OperationSignature {
                 id: "test/service#collect".into(),
                 parameters: vec![],
+                finalization_only: false,
                 provides_context: false,
             },
             || Box::new(Collect),
