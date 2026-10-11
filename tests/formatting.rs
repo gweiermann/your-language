@@ -376,3 +376,100 @@ fn authored_symbols_have_one_declaration_per_paragraph() {
     assert_eq!(tree(source), tree(&formatted));
     assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
 }
+
+#[test]
+fn meaning_metadata_is_first_and_each_operation_has_its_own_line() {
+    let expected = r#"node Program = Statements* {
+    meanings {
+        boundary
+        types(unknown, functionTypeSymbol)
+        lexicalScope()
+        precedence {
+            FunctionDeclaration > LetDeclaration > FunctionBody
+        }
+    }
+}
+"#;
+    for body in [
+        "boundary types(unknown,functionTypeSymbol) lexicalScope() precedence{FunctionDeclaration>LetDeclaration>FunctionBody}",
+        "types(unknown,functionTypeSymbol) boundary lexicalScope() precedence{FunctionDeclaration>LetDeclaration>FunctionBody}",
+        "types(unknown,functionTypeSymbol) lexicalScope() precedence{FunctionDeclaration>LetDeclaration>FunctionBody} boundary",
+    ] {
+        let source = format!("node Program=Statements*{{meanings{{{body}}}}}");
+        let formatted = format_yl("source", &source).unwrap();
+        assert_eq!(formatted, expected);
+        assert_eq!(tree(&source), tree(&formatted));
+        assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+    }
+}
+
+#[test]
+fn meaning_layout_keeps_groups_matches_and_precedence_separate() {
+    let source = r#"node Program=Statements*{meanings{first() group Register{register() check()} precedence{Register>Body} match(typeof(value)){number=>type(number),_=>{}} boundary last()}}"#;
+    let expected = r#"node Program = Statements* {
+    meanings {
+        boundary
+        first()
+        group Register {
+            register()
+            check()
+        }
+        precedence {
+            Register > Body
+        }
+        match (typeof(value)) {
+            number => type(number),
+            _ => {
+            }
+        }
+        last()
+    }
+}
+"#;
+    let formatted = format_yl("source", source).unwrap();
+    assert_eq!(formatted, expected);
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+
+#[test]
+fn metadata_movement_preserves_comments_literals_and_operation_order() {
+    let source = r#"node A=/a/{meanings{first("boundary", /boundary/) // first stays first
+// metadata explanation
+boundary // boundary note
+second(value=boundary) precedence{A>B} third()}}"#;
+    let formatted = format_yl("source", source).unwrap();
+    assert!(formatted.contains("meanings {\n        boundary\n        first(\"boundary\", /boundary/) // first stays first\n"), "{formatted}");
+    for comment in ["// metadata explanation", "// boundary note"] {
+        assert!(formatted.contains(comment));
+    }
+    assert!(
+        formatted.contains("second(value = boundary)\n        precedence {"),
+        "{formatted}"
+    );
+    assert!(formatted.find("first(").unwrap() < formatted.find("second(").unwrap());
+    assert!(formatted.find("second(").unwrap() < formatted.find("third(").unwrap());
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+
+#[test]
+fn meaning_boundary_does_not_move_other_boundary_words() {
+    let source = "symbol boundary node A=/a/{meanings{first(value=boundary) group G{second(boundary)} boundary last(\"boundary\")}}";
+    let formatted = format_yl("source", source).unwrap();
+    assert!(formatted.starts_with("symbol boundary\n\nnode A = /a/ {\n    meanings {\n        boundary\n        first(value = boundary)"), "{formatted}");
+    assert!(formatted.contains("second(boundary)"));
+    assert!(formatted.contains("last(\"boundary\")"));
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+
+#[test]
+fn qualified_operations_named_like_metadata_are_not_moved_or_split() {
+    let source =
+        "node A=/a/{meanings{lib::boundary() lib::precedence() boundary other() precedence{A>B}}}";
+    let formatted = format_yl("source", source).unwrap();
+    assert!(formatted.contains("meanings {\n        boundary\n        lib::boundary()\n        lib::precedence()\n        other()\n        precedence {"), "{formatted}");
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
