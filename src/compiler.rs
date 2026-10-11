@@ -36,6 +36,7 @@ struct Compiler {
     modules: BTreeMap<String, Module>,
     dependencies: BTreeMap<(String, String), String>,
     imports: BTreeMap<(String, String), String>,
+    namespaces: BTreeMap<(String, String), String>,
     symbols: BTreeMap<String, Symbol>,
     exports: BTreeMap<(String, String), String>,
     members: BTreeMap<(String, String), String>,
@@ -353,7 +354,9 @@ impl Compiler {
             .declarations
             .iter()
             .filter_map(|d| {
-                if let DeclKind::Import { path, .. } = &d.kind {
+                if let DeclKind::Import { path, .. } | DeclKind::NamespaceImport { path, .. } =
+                    &d.kind
+                {
                     Some((path.clone(), import_path(id, path), d.span.clone()))
                 } else {
                     None
@@ -404,7 +407,9 @@ impl Compiler {
             .declarations
             .iter()
             .filter_map(|d| {
-                if let DeclKind::Import { path, .. } = &d.kind {
+                if let DeclKind::Import { path, .. } | DeclKind::NamespaceImport { path, .. } =
+                    &d.kind
+                {
                     Some((path.clone(), d.span.clone()))
                 } else {
                     None
@@ -449,7 +454,8 @@ impl Compiler {
         declaration: &Declaration,
     ) -> Result<Option<String>> {
         let name = match &declaration.kind {
-            DeclKind::Symbol { name }
+            DeclKind::Operation { name, .. }
+            | DeclKind::Symbol { name }
             | DeclKind::Node { name, .. }
             | DeclKind::Pattern { name, .. }
             | DeclKind::Pipe { name, .. }
@@ -461,6 +467,18 @@ impl Compiler {
             }
             _ => return Ok(None),
         };
+        if let DeclKind::Operation { parameters, .. } = &declaration.kind {
+            let mut names = BTreeSet::new();
+            for parameter in parameters {
+                if !names.insert(&parameter.name) {
+                    return Err(Diagnostic::error(
+                        "yl.duplicate_parameter",
+                        "Duplicate operation parameter",
+                        parameter.span.clone(),
+                    ));
+                }
+            }
+        }
         let local = if scope.is_empty() {
             name.clone()
         } else {
@@ -570,6 +588,49 @@ impl Compiler {
                 span.clone(),
             ));
         }
+        // Canonical names are generated only by hygienic wrapper expansion.
+        if self.symbols.contains_key(name)
+            || self.registry.signature(name).is_some()
+            || self.registry.symbols.values().any(|id| id == name)
+        {
+            return Ok(name.into());
+        }
+        if let Some((namespace, member)) = name.split_once("::") {
+            if let Some(from) = self.namespaces.get(&(module.into(), namespace.into())) {
+                if self.registry.contains_module(from) {
+                    return self
+                        .registry
+                        .operation_id(from, member)
+                        .or_else(|| self.registry.symbol_id(from, member))
+                        .map(str::to_owned)
+                        .ok_or_else(|| {
+                            Diagnostic::error(
+                                "yl.non_exported_import",
+                                format!("{from} does not export {member}"),
+                                span.clone(),
+                            )
+                        });
+                }
+                let (head, tail) = member
+                    .split_once("::")
+                    .map_or((member, None), |(head, tail)| (head, Some(tail)));
+                let root = self
+                    .exports
+                    .get(&(from.clone(), head.into()))
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "yl.non_exported_import",
+                            format!("{from} does not export {head}"),
+                            span.clone(),
+                        )
+                    })?;
+                return if let Some(tail) = tail {
+                    self.member_path(root, tail, span, depth + 1)
+                } else {
+                    Ok(root.clone())
+                };
+            }
+        }
         let original_scope = scope;
         let mut scope = scope.to_owned();
         loop {
@@ -651,6 +712,25 @@ impl Compiler {
                 self.register(&module, "", declaration)?;
             }
         }
+        for (module, ast) in &self.modules {
+            for declaration in &ast.declarations {
+                if let DeclKind::NamespaceImport { name, path } = &declaration.kind {
+                    let from = self.dependencies[&(module.clone(), path.clone())].clone();
+                    if self.symbols.contains_key(&format!("{module}#{name}"))
+                        || self
+                            .namespaces
+                            .insert((module.clone(), name.clone()), from)
+                            .is_some()
+                    {
+                        return Err(Diagnostic::error(
+                            "yl.duplicate_declaration",
+                            "Namespace import conflicts with a declaration",
+                            declaration.span.clone(),
+                        ));
+                    }
+                }
+            }
+        }
         // Import cycles are safe: exports exist before any import is resolved.
         let mut pending = vec![];
         for (module, ast) in &self.modules {
@@ -672,69 +752,97 @@ impl Compiler {
                             name.clone(),
                             alias.clone(),
                             d.span.clone(),
+                            d.export,
                         ));
                     }
                 }
             }
         }
         // Root imports first; qualified imports can depend on those memberships.
-        pending.sort_by_key(|(_, _, name, _, _)| name.matches("::").count());
-        for (module, from, name, alias, span) in pending {
-            let id = if self.registry.contains_module(&from) {
-                self.registry
-                    .operation_id(&from, &name)
-                    .or_else(|| self.registry.symbol_id(&from, &name))
-                    .ok_or_else(|| {
-                        Diagnostic::error(
-                            "yl.non_exported_import",
-                            format!("{from} does not export {name}"),
-                            span.clone(),
-                        )
-                    })?
-                    .to_owned()
-            } else if from == "core/parser" {
-                if !["notAhead", "notBehind"].contains(&name.as_str()) {
+        pending.sort_by_key(|(_, _, name, _, _, _)| name.matches("::").count());
+        while !pending.is_empty() {
+            let previous = pending.len();
+            let mut delayed = vec![];
+            for (module, from, name, alias, span, exported) in pending {
+                if !self.registry.contains_module(&from) && from != "core/parser" {
+                    let head = name.split("::").next().unwrap_or(&name);
+                    if !self.exports.contains_key(&(from.clone(), head.into())) {
+                        delayed.push((module, from, name, alias, span, exported));
+                        continue;
+                    }
+                }
+                let id = if self.registry.contains_module(&from) {
+                    self.registry
+                        .operation_id(&from, &name)
+                        .or_else(|| self.registry.symbol_id(&from, &name))
+                        .ok_or_else(|| {
+                            Diagnostic::error(
+                                "yl.non_exported_import",
+                                format!("{from} does not export {name}"),
+                                span.clone(),
+                            )
+                        })?
+                        .to_owned()
+                } else if from == "core/parser" {
+                    if !["notAhead", "notBehind"].contains(&name.as_str()) {
+                        return Err(Diagnostic::error(
+                            "yl.unknown_reference",
+                            "Unknown core primitive",
+                            span,
+                        ));
+                    }
+                    format!("core/parser#{name}")
+                } else {
+                    let (head, tail) = name
+                        .split_once("::")
+                        .map(|(h, t)| (h, Some(t)))
+                        .unwrap_or((&name, None));
+                    let root = self
+                        .exports
+                        .get(&(from.clone(), head.into()))
+                        .ok_or_else(|| {
+                            Diagnostic::error(
+                                "yl.non_exported_import",
+                                format!("{from} does not export {head}"),
+                                span.clone(),
+                            )
+                        })?
+                        .clone();
+                    if let Some(tail) = tail {
+                        self.member_path(&root, tail, &span, 0)?
+                    } else {
+                        root
+                    }
+                };
+                if exported {
+                    self.exports
+                        .insert((module.clone(), alias.clone()), id.clone());
+                }
+                if self
+                    .namespaces
+                    .contains_key(&(module.clone(), alias.clone()))
+                    || self.symbols.contains_key(&format!("{module}#{alias}"))
+                    || self.imports.insert((module, alias), id).is_some()
+                {
                     return Err(Diagnostic::error(
-                        "yl.unknown_reference",
-                        "Unknown core primitive",
+                        "yl.duplicate_declaration",
+                        "Import conflicts with a local/imported declaration",
                         span,
                     ));
                 }
-                format!("core/parser#{name}")
-            } else {
-                let (head, tail) = name
-                    .split_once("::")
-                    .map(|(h, t)| (h, Some(t)))
-                    .unwrap_or((&name, None));
-                let root = self
-                    .exports
-                    .get(&(from.clone(), head.into()))
-                    .ok_or_else(|| {
-                        Diagnostic::error(
-                            "yl.non_exported_import",
-                            format!("{from} does not export {head}"),
-                            span.clone(),
-                        )
-                    })?
-                    .clone();
-                if let Some(tail) = tail {
-                    self.member_path(&root, tail, &span, 0)?
-                } else {
-                    root
-                }
-            };
-            if self.symbols.contains_key(&format!("{module}#{alias}"))
-                || self.imports.insert((module, alias), id).is_some()
-            {
+            }
+            self.validate_declarations()?;
+            self.validate_pipe_matches()?;
+            if delayed.len() == previous {
+                let (_, from, name, _, span, _) = &delayed[0];
                 return Err(Diagnostic::error(
-                    "yl.duplicate_declaration",
-                    "Import conflicts with a local/imported declaration",
-                    span,
+                    "yl.non_exported_import",
+                    format!("{from} does not export {name}"),
+                    span.clone(),
                 ));
             }
+            pending = delayed;
         }
-        self.validate_declarations()?;
-        self.validate_pipe_matches()?;
         let mut entries = vec![];
         for (module, ast) in &self.modules {
             for d in &ast.declarations {
@@ -1335,7 +1443,9 @@ impl Compiler {
                     collect_lists,
                 }
             }
-            ExprKind::EnumConstant(_, _)
+            ExprKind::Tuple(_)
+            | ExprKind::List(_)
+            | ExprKind::EnumConstant(_, _)
             | ExprKind::Bool(_)
             | ExprKind::Absent
             | ExprKind::Not(_)
@@ -1690,6 +1800,235 @@ impl Compiler {
             }
         })
     }
+    fn expand_semantic_expr(
+        &self,
+        context: &Symbol,
+        expr: &Expr,
+        bindings: &BTreeMap<String, Expr>,
+        stack: &mut Vec<String>,
+    ) -> Result<Expr> {
+        let mut result = expr.clone();
+        result.kind = match &expr.kind {
+            ExprKind::Ref(name) => {
+                if let Some(value) = bindings.get(name) {
+                    return Ok(value.clone());
+                }
+                if name == "absent" {
+                    ExprKind::Absent
+                } else if matches!(name.as_str(), "true" | "false") {
+                    ExprKind::Bool(name == "true")
+                } else {
+                    let grammar = match &context.declaration.kind {
+                        DeclKind::Node { grammar, .. } => grammar.as_ref(),
+                        DeclKind::Pattern { grammar, .. } => Some(grammar),
+                        _ => None,
+                    };
+                    if grammar.is_some_and(|grammar| syntax_has_capture(grammar, name)) {
+                        ExprKind::Ref(name.clone())
+                    } else {
+                        match self.resolve(&context.module, &context.name, name, &expr.span) {
+                            Ok(id) => ExprKind::Ref(id),
+                            Err(error)
+                                if matches!(
+                                    context.declaration.kind,
+                                    DeclKind::Operation { .. }
+                                ) =>
+                            {
+                                return Err(error)
+                            }
+                            Err(_) => ExprKind::Ref(name.clone()),
+                        }
+                    }
+                }
+            }
+            ExprKind::Call(name, arguments) => {
+                let id = self.resolve(&context.module, &context.name, name, &expr.span)?;
+                let arguments = arguments
+                    .iter()
+                    .map(|argument| {
+                        Ok(Argument {
+                            value: self.expand_semantic_expr(
+                                context,
+                                &argument.value,
+                                bindings,
+                                stack,
+                            )?,
+                            ..argument.clone()
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                if let Some(wrapper) = self.symbols.get(&id) {
+                    if let DeclKind::Operation {
+                        parameters, body, ..
+                    } = &wrapper.declaration.kind
+                    {
+                        let OperationBody::Query(body) = body else {
+                            return Err(Diagnostic::error(
+                                "yl.invalid_operation_query",
+                                "Action operation cannot be used as a value",
+                                expr.span.clone(),
+                            ));
+                        };
+                        let env = self.bind_semantic_wrapper(
+                            wrapper, parameters, &arguments, &expr.span, stack,
+                        )?;
+                        let expanded = self.expand_semantic_expr(wrapper, body, &env, stack);
+                        stack.pop();
+                        return expanded.map(|mut value| {
+                            value.span = expr.span.clone();
+                            value
+                        });
+                    }
+                }
+                ExprKind::Call(id, arguments)
+            }
+            ExprKind::Tuple(values) => ExprKind::Tuple(
+                values
+                    .iter()
+                    .map(|value| self.expand_semantic_expr(context, value, bindings, stack))
+                    .collect::<Result<Vec<_>>>()?,
+            ),
+            ExprKind::List(values) => ExprKind::List(
+                values
+                    .iter()
+                    .map(|value| self.expand_semantic_expr(context, value, bindings, stack))
+                    .collect::<Result<Vec<_>>>()?,
+            ),
+            ExprKind::Group(value) => {
+                return self.expand_semantic_expr(context, value, bindings, stack)
+            }
+            _ => expr.kind.clone(),
+        };
+        Ok(result)
+    }
+    fn bind_semantic_wrapper(
+        &self,
+        wrapper: &Symbol,
+        parameters: &[Parameter],
+        arguments: &[Argument],
+        span: &Span,
+        stack: &mut Vec<String>,
+    ) -> Result<BTreeMap<String, Expr>> {
+        let id = format!("{}#{}", wrapper.module, wrapper.name);
+        if stack.contains(&id) || stack.len() >= 128 {
+            return Err(Diagnostic::error(
+                "yl.operation_cycle",
+                "Recursive semantic operation expansion",
+                span.clone(),
+            ));
+        }
+        stack.push(id);
+        let mut env = BTreeMap::new();
+        let mut position = 0;
+        let mut named = false;
+        for argument in arguments {
+            let parameter = if let Some(name) = &argument.name {
+                named = true;
+                parameters.iter().find(|parameter| &parameter.name == name)
+            } else {
+                if named {
+                    return Err(Diagnostic::error(
+                        "yl.invalid_argument",
+                        "Positional argument follows named argument",
+                        argument.span.clone(),
+                    ));
+                }
+                let parameter = parameters.get(position);
+                position += 1;
+                parameter
+            }
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "yl.invalid_argument",
+                    "Unknown or excess wrapper argument",
+                    argument.span.clone(),
+                )
+            })?;
+            if env
+                .insert(parameter.name.clone(), argument.value.clone())
+                .is_some()
+            {
+                return Err(Diagnostic::error(
+                    "yl.invalid_argument",
+                    "Duplicate wrapper argument",
+                    argument.span.clone(),
+                ));
+            }
+        }
+        for parameter in parameters {
+            if !env.contains_key(&parameter.name) {
+                let default = parameter.default.as_ref().ok_or_else(|| {
+                    Diagnostic::error(
+                        "yl.invalid_argument",
+                        format!("Missing operation argument {}", parameter.name),
+                        span.clone(),
+                    )
+                })?;
+                let value = self.expand_semantic_expr(wrapper, default, &env, stack)?;
+                env.insert(parameter.name.clone(), value);
+            }
+        }
+        Ok(env)
+    }
+    fn expand_semantic_actions(
+        &self,
+        context: &Symbol,
+        call: &MeaningSyntaxCall,
+        bindings: &BTreeMap<String, Expr>,
+        stack: &mut Vec<String>,
+    ) -> Result<Vec<MeaningSyntaxCall>> {
+        let id = self.resolve(&context.module, &context.name, &call.name, &call.span)?;
+        let arguments = call
+            .arguments
+            .iter()
+            .map(|argument| {
+                Ok(Argument {
+                    value: self.expand_semantic_expr(context, &argument.value, bindings, stack)?,
+                    ..argument.clone()
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        if let Some(wrapper) = self.symbols.get(&id) {
+            if let DeclKind::Operation {
+                parameters, body, ..
+            } = &wrapper.declaration.kind
+            {
+                let OperationBody::Actions(calls) = body else {
+                    return Err(Diagnostic::error(
+                        "yl.invalid_operation_action",
+                        "Query operation cannot be used as an action",
+                        call.span.clone(),
+                    ));
+                };
+                let env =
+                    self.bind_semantic_wrapper(wrapper, parameters, &arguments, &call.span, stack)?;
+                let mut expanded = vec![];
+                for nested in calls {
+                    expanded.extend(self.expand_semantic_actions(wrapper, nested, &env, stack)?);
+                }
+                stack.pop();
+                for nested in &mut expanded {
+                    nested.span = call.span.clone();
+                }
+                return Ok(expanded);
+            }
+        }
+        Ok(vec![MeaningSyntaxCall {
+            name: id,
+            arguments,
+            span: call.span.clone(),
+        }])
+    }
+    fn lower_meaning_actions(
+        &self,
+        symbol: &Symbol,
+        call: &MeaningSyntaxCall,
+    ) -> Result<Vec<MeaningCall>> {
+        self.expand_semantic_actions(symbol, call, &BTreeMap::new(), &mut vec![])?
+            .iter()
+            .map(|call| self.lower_meaning_call(symbol, call))
+            .collect()
+    }
     fn lower_meaning_call(&self, symbol: &Symbol, call: &MeaningSyntaxCall) -> Result<MeaningCall> {
         let id = self.resolve(&symbol.module, &symbol.name, &call.name, &call.span)?;
         let contract = self
@@ -1742,6 +2081,9 @@ impl Compiler {
                             span: argument.value.span.clone(),
                         },
                     )?))
+                }
+                (ParameterKind::Value, _) => {
+                    self.lower_meaning_value(symbol, &argument.value, false)?
                 }
                 (ParameterKind::Capture, ExprKind::Ref(name)) => {
                     MeaningValue::Capture(name.clone())
@@ -1801,11 +2143,7 @@ impl Compiler {
                 arguments.insert(parameter.name.clone(), value);
             }
         }
-        if contract.provides_context
-            && arguments
-                .values()
-                .any(|value| matches!(value, MeaningValue::Call(_)))
-        {
+        if contract.provides_context && arguments.values().any(semantic_has_query) {
             return Err(Diagnostic::error(
                 "yl.deferred_context",
                 "Context providers cannot depend on deferred value expressions",
@@ -1824,7 +2162,26 @@ impl Compiler {
         symbol: &Symbol,
         syntax: &MeaningSyntaxCall,
     ) -> Result<MeaningCall> {
-        let call = self.lower_meaning_call(symbol, syntax)?;
+        let expr = Expr {
+            kind: ExprKind::Call(syntax.name.clone(), syntax.arguments.clone()),
+            span: syntax.span.clone(),
+        };
+        let expanded = self.expand_semantic_expr(symbol, &expr, &BTreeMap::new(), &mut vec![])?;
+        let ExprKind::Call(name, arguments) = expanded.kind else {
+            return Err(Diagnostic::error(
+                "yl.invalid_operation_query",
+                "Query wrapper must expand to a native query",
+                syntax.span.clone(),
+            ));
+        };
+        let call = self.lower_meaning_call(
+            symbol,
+            &MeaningSyntaxCall {
+                name,
+                arguments,
+                span: syntax.span.clone(),
+            },
+        )?;
         if call.contract.provides_context {
             return Err(Diagnostic::error(
                 "yl.deferred_context",
@@ -1841,6 +2198,20 @@ impl Compiler {
         pattern: bool,
     ) -> Result<MeaningValue> {
         match &expr.kind {
+            ExprKind::Absent if !pattern => Ok(MeaningValue::Absent),
+            ExprKind::Group(value) if !pattern => self.lower_meaning_value(symbol, value, false),
+            ExprKind::Tuple(values) if !pattern => Ok(MeaningValue::Tuple(
+                values
+                    .iter()
+                    .map(|value| self.lower_meaning_value(symbol, value, false))
+                    .collect::<Result<Vec<_>>>()?,
+            )),
+            ExprKind::List(values) if !pattern => Ok(MeaningValue::List(
+                values
+                    .iter()
+                    .map(|value| self.lower_meaning_value(symbol, value, false))
+                    .collect::<Result<Vec<_>>>()?,
+            )),
             ExprKind::Call(name, arguments) if !pattern => {
                 Ok(MeaningValue::Call(Box::new(self.lower_meaning_query(
                     symbol,
@@ -1857,7 +2228,11 @@ impl Compiler {
                 Ok(MeaningValue::Bool(name == "true"))
             }
             ExprKind::Ref(name) => {
-                let id = self.resolve(&symbol.module, &symbol.name, name, &expr.span)?;
+                let id = match self.resolve(&symbol.module, &symbol.name, name, &expr.span) {
+                    Ok(id) => id,
+                    Err(_) if !pattern => return Ok(MeaningValue::Capture(name.clone())),
+                    Err(error) => return Err(error),
+                };
                 if !self.registry.symbols.values().any(|symbol| symbol == &id)
                     && !self
                         .symbols
@@ -1961,15 +2336,16 @@ impl Compiler {
                         span: call.span.clone(),
                     });
                 } else {
-                    let call = self.lower_meaning_call(symbol, call)?;
-                    if call.contract.provides_context {
-                        return Err(Diagnostic::error(
-                            "yl.deferred_context",
-                            "Deferred actions cannot provide lifecycle contexts",
-                            call.span,
-                        ));
+                    for call in self.lower_meaning_actions(symbol, call)? {
+                        if call.contract.provides_context {
+                            return Err(Diagnostic::error(
+                                "yl.deferred_context",
+                                "Deferred actions cannot provide lifecycle contexts",
+                                call.span,
+                            ));
+                        }
+                        actions.push(MeaningAction::Call(call));
                     }
-                    actions.push(MeaningAction::Call(call));
                 }
             }
             cases.push(MeaningCase {
@@ -2013,8 +2389,11 @@ impl Compiler {
             let calls = group
                 .calls
                 .iter()
-                .map(|call| self.lower_meaning_call(symbol, call))
-                .collect::<Result<Vec<_>>>()?;
+                .map(|call| self.lower_meaning_actions(symbol, call))
+                .collect::<Result<Vec<_>>>()?
+                .into_iter()
+                .flatten()
+                .collect();
             let matching = group
                 .matching
                 .as_ref()
@@ -3040,8 +3419,15 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                         call.span.clone(),
                     ));
                 }
-                if call.arguments.values().any(|value| matches!(value, MeaningValue::Call(query) if query.contract.provides_context)) || (call.contract.provides_context && call.arguments.values().any(|value| matches!(value, MeaningValue::Call(_)))) {
-                    return Err(Diagnostic::error("yl.artifact", "Deferred calls cannot provide lifecycle contexts", call.span.clone()));
+                if call.arguments.values().any(semantic_has_context_query)
+                    || (call.contract.provides_context
+                        && call.arguments.values().any(semantic_has_query))
+                {
+                    return Err(Diagnostic::error(
+                        "yl.artifact",
+                        "Deferred calls cannot provide lifecycle contexts",
+                        call.span.clone(),
+                    ));
                 }
                 let mut parameters = BTreeSet::new();
                 for parameter in &call.contract.parameters {
@@ -3123,8 +3509,30 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
     Ok(())
 }
 
+fn semantic_has_query(value: &MeaningValue) -> bool {
+    match value {
+        MeaningValue::Call(_) => true,
+        MeaningValue::Tuple(values) | MeaningValue::List(values) => {
+            values.iter().any(semantic_has_query)
+        }
+        _ => false,
+    }
+}
+fn semantic_has_context_query(value: &MeaningValue) -> bool {
+    match value {
+        MeaningValue::Call(call) => {
+            call.contract.provides_context
+                || call.arguments.values().any(semantic_has_context_query)
+        }
+        MeaningValue::Tuple(values) | MeaningValue::List(values) => {
+            values.iter().any(semantic_has_context_query)
+        }
+        _ => false,
+    }
+}
 fn meaning_value_matches(value: &MeaningValue, kind: &ParameterKind) -> bool {
     match (value, kind) {
+        (_, ParameterKind::Value) => true,
         (MeaningValue::Call(_), _) => true,
         (MeaningValue::Capture(name), ParameterKind::Capture)
         | (MeaningValue::Symbol(name), ParameterKind::Symbol) => !name.is_empty(),
@@ -3134,23 +3542,55 @@ fn meaning_value_matches(value: &MeaningValue, kind: &ParameterKind) -> bool {
     }
 }
 
+fn syntax_has_capture(expr: &Expr, name: &str) -> bool {
+    match &expr.kind {
+        ExprKind::Capture(capture, inner) => capture == name || syntax_has_capture(inner, name),
+        ExprKind::Group(inner) | ExprKind::Repeat(inner, _) | ExprKind::Pipe(inner, _, _) => {
+            syntax_has_capture(inner, name)
+        }
+        ExprKind::Sequence(values) | ExprKind::Choice(values) => {
+            values.iter().any(|value| syntax_has_capture(value, name))
+        }
+        _ => false,
+    }
+}
+fn validate_semantic_capture_value(
+    value: &MeaningValue,
+    captures: &BTreeSet<String>,
+    span: &Span,
+) -> Result<()> {
+    match value {
+        MeaningValue::Capture(name) if !captures.contains(name) => {
+            return Err(Diagnostic::error(
+                "yl.artifact",
+                format!("Meaning argument references unavailable capture {name}"),
+                span.clone(),
+            ))
+        }
+        MeaningValue::Call(call) => {
+            for value in call.arguments.values() {
+                validate_semantic_capture_value(value, captures, &call.span)?;
+            }
+        }
+        MeaningValue::Tuple(values) | MeaningValue::List(values) => {
+            for value in values {
+                validate_semantic_capture_value(value, captures, span)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
 fn validate_meaning_captures(
     meanings: &MeaningDefinition,
     captures: &BTreeSet<String>,
 ) -> Result<()> {
     for call in meanings.groups.iter().flat_map(MeaningGroup::all_calls) {
         for value in call.arguments.values() {
-            if let MeaningValue::Capture(name) = value {
-                if !captures.contains(name) {
-                    return Err(Diagnostic::error(
-                        "yl.artifact",
-                        format!("Meaning argument references unavailable capture {name}"),
-                        call.span.clone(),
-                    ));
-                }
-            }
+            validate_semantic_capture_value(value, captures, &call.span)?;
         }
     }
+
     for group in &meanings.groups {
         if let Some(matching) = &group.matching {
             for case in &matching.cases {
