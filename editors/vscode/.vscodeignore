@@ -1,0 +1,9 @@
+node_modules/**
+src/**
+test/**
+scripts/**
+.vscode/**
+tsconfig.json
+package-lock.json
+syntaxes/.gitkeep
+*.vsix

@@ -1,0 +1,42 @@
+{
+  "name": "your-language",
+  "displayName": "Your Language",
+  "description": "Syntax highlighting and CLI-backed formatting for YL language definitions.",
+  "version": "0.1.0",
+  "publisher": "gweiermann",
+  "license": "UNLICENSED",
+  "repository": { "type": "git", "url": "https://github.com/gweiermann/your-language.git", "directory": "editors/vscode" },
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Programming Languages", "Formatters"],
+  "main": "./out/extension.js",
+  "extensionKind": ["workspace"],
+  "capabilities": {
+    "untrustedWorkspaces": { "supported": "limited", "description": "Syntax highlighting is available. CLI formatting requires a trusted workspace." },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "languages": [{ "id": "yl", "aliases": ["Your Language", "YL"], "extensions": [".yl"], "configuration": "./language-configuration.json" }],
+    "grammars": [{ "language": "yl", "scopeName": "source.yl", "path": "./syntaxes/yl.tmLanguage.json" }],
+    "configuration": {
+      "title": "Your Language",
+      "properties": {
+        "yourLanguage.cliPath": { "type": "string", "default": "yl", "scope": "machine-overridable", "description": "YL executable path (or executable name on PATH), without arguments. Requires a CLI with the fmt command." }
+      }
+    }
+  },
+  "scripts": {
+    "grammar": "node scripts/sync-grammar.cjs",
+    "build": "npm run grammar && tsc -p .",
+    "test": "npm run build && node --test test/*.test.cjs",
+    "package": "vsce package --skip-license --out your-language.vsix",
+    "vscode:prepublish": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "@types/vscode": "1.85.0",
+    "@vscode/vsce": "^3.6.0",
+    "typescript": "^5.9.0",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.2.0"
+  }
+}
