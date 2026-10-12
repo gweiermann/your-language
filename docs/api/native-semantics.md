@@ -40,7 +40,7 @@ pattern FunctionContents = "{" (Declaration | Reference)* "}" {
 }
 ```
 
-An operation argument can be a local capture, string, boolean, or identity symbol, according to the registered interface. A language may declare `symbol name` and expose it with `export symbol name`; imports and aliases preserve its module-qualified identity. Native modules can also export symbols. A symbol is an identity value, not a grammar pattern or a target-language type chosen by the core. Positional and named arguments use existing YL argument syntax. Captures preserve their values, matched text, and UTF-8 source spans. A library does not need to depend on a target language's `Name` node type.
+An operation argument can be a local capture, string, boolean, identity symbol, tuple/list value or nested query result, according to the registered interface. A language may declare `symbol name` and expose it with `export symbol name`; imports and aliases preserve its module-qualified identity. Native modules can also export symbols. A symbol is an identity value, not a grammar pattern or a target-language type chosen by the core. Positional and named arguments use existing YL argument syntax. Captures preserve their values, matched text, and UTF-8 source spans. A library does not need to depend on a target language's `Name` node type.
 
 Patterns retain semantic occurrences without adding AST wrappers. Operations run only for committed original matches. Failed alternatives, lookaround/trivia probes, and pipe wrappers do not introduce additional semantic actions. Projection preserves the original input's occurrences instead of creating actions from projected copies.
 
@@ -114,6 +114,7 @@ engine.registry_mut().register(
         id: "example/audit#audit".into(),
         parameters: vec![],
         provides_context: false,
+        finalization_only: false,
     },
     || Box::new(Audit),
 )?;
@@ -163,13 +164,13 @@ The default output reports success briefly, or renders semantic diagnostics to s
 
 Rust consumers can reuse `diagnostic_render::print_diagnostics`, providing a source lookup function for diagnostic spans, or call `render_diagnostics` with an explicit color setting to obtain a string. Rendering does not change structured diagnostic data or source offsets.
 
-## Separate composable inference experiment
+## Composable inference
 
 The Mini TypeScript consumer demonstrates identity-keyed type constraints. The
 native `std/types` module exports `ensure(key, type)`, `typeof(key)` and the
 `unknown` symbol. Primitive identities and named slots belong to the language.
 Authored operation wrappers connect literals, bindings, function signatures and
-calls without target node names in the native library. See the checked-in
+calls without target node names in the native library. Follow the [inference tutorial](/tutorials/semantic-inference), consult the [library contracts](/reference/meaning-libraries), or inspect the checked-in
 [Mini TypeScript example](https://github.com/gweiermann/your-language/tree/main/examples/mini_typescript).
 
 ## Operation wrappers and namespaces
@@ -192,7 +193,7 @@ identities. Imported action wrappers and query aliases expand hygienically befor
 normalization, including named arguments and defaults. Recursive expansion is a
 structured compile error. Unused wrappers are also checked for unresolved names
 and recursive expansion. Wrapper parameters are untyped semantic values; their
-arguments can use positional names, named arguments, and defaults. Action bodies
+arguments can use positional arguments, named arguments, and defaults. Action bodies
 currently contain operation calls. Query aliases must expand to a native query;
 constant-only query returns and matches inside wrapper bodies are not supported.
 The runtime does not interpret wrapper declarations.
