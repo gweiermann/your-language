@@ -49,6 +49,7 @@ pub fn registry() -> OperationRegistry {
                     parameters,
                     provides_context,
                     finalization_only: false,
+                    contribution: false,
                 },
                 factory,
             ),

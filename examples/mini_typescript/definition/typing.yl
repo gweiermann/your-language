@@ -1,30 +1,51 @@
 import * as types from "std/types"
 import * as variables from "std/variables"
+import * as syntax from "std/syntax"
 import { Function, parameters, returnType } from "./types"
 
 export operation annotateWithType(value) {
-    types::ensure(variables::identity(), value)
+    types::annotate(syntax::identity(), value)
 }
 
-export operation typeof(value) = types::typeof(variables::identityOf(value))
+export operation typeof(value) = types::typeof(syntax::identityOf(value))
 
 export operation inheritType() {
-    types::ensure(variables::identity(), types::typeof(variables::childIdentity()))
+    types::annotate(syntax::identity(), types::typeof(syntax::childIdentity()))
 }
 
 export operation restrictTypeTo(value) {
-    types::ensure(variables::identity(), typeof(value), requirement = true)
+    types::restrictTo(syntax::identity(), typeof(value))
+}
+
+export operation bindingType(value, annotation = absent) {
+    types::annotate(variables::identity(), typeof(value))
+    types::annotate(variables::identity(), typeof(annotation))
+    types::restrictTo(variables::identity(), typeof(annotation))
+    types::annotate(syntax::identity(), types::typeof(variables::identity()))
+}
+
+export operation parameterType(annotation) {
+    types::annotate(variables::identity(), typeof(annotation))
+    types::restrictTo(variables::identity(), typeof(annotation))
+    types::annotate(syntax::identity(), types::typeof(variables::identity()))
+    types::annotate(variables::identity(), types::typeof(syntax::identity()))
+}
+
+export operation referenceType() {
+    types::annotate(syntax::identity(), types::typeof(variables::identity()))
 }
 
 export operation functionSignature(arguments, body, annotation) {
-    types::ensure(variables::identity(), Function)
-    types::ensure((variables::identity(), parameters), types::typeof(variables::identities(arguments)))
-    types::ensure((variables::identity(), returnType), typeof(body))
-    types::ensure((variables::identity(), returnType), typeof(annotation), requirement = true)
+    types::annotate(syntax::identity(), Function)
+    types::annotate((syntax::identity(), parameters), types::typeof(syntax::identities(arguments)))
+    types::annotate(syntax::identities(arguments), types::typeof((syntax::identity(), parameters)))
+    types::annotate((syntax::identity(), returnType), typeof(body))
+    types::annotate((syntax::identity(), returnType), typeof(annotation))
+    types::restrictTo((syntax::identity(), returnType), typeof(annotation))
 }
 
 export operation call(callee, arguments) {
-    types::ensure(variables::identityOf(callee), Function)
-    types::ensure((variables::identityOf(callee), parameters), types::typeof(variables::identities(arguments)))
-    types::ensure(variables::identity(), types::typeof((variables::identityOf(callee), returnType)))
+    types::restrictTo(syntax::identityOf(callee), Function)
+    types::annotate((syntax::identityOf(callee), parameters), types::typeof(syntax::identities(arguments)))
+    types::annotate(syntax::identity(), types::typeof((syntax::identityOf(callee), returnType)))
 }

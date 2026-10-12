@@ -74,6 +74,7 @@ fn recording_engine(events: &Events, fail_enter: Option<usize>) -> SemanticEngin
                     parameters: vec![],
                     provides_context,
                     finalization_only: false,
+                    contribution: false,
                 },
                 move || {
                     Box::new(Recording {
@@ -429,6 +430,7 @@ fn generic_references() -> (SemanticEngine, your_language::CompiledLanguage) {
                 id: "test/native#action".into(),
                 parameters: vec![],
                 finalization_only: false,
+                contribution: false,
                 provides_context: false,
             },
             move || {
@@ -675,8 +677,8 @@ fn equally_named_authored_symbols_from_distinct_modules_keep_distinct_identity()
         import * as variables from "std/variables"
         import { category as First } from "first"
         import { category as Second } from "second"
-        node A = "a" { meanings { types::ensure(variables::identity(), First) } }
-        node B = "b" { meanings { types::ensure(variables::identity(), Second) } }
+        node A = "a" { meanings { types::annotate(variables::identity(), First) } }
+        node B = "b" { meanings { types::annotate(variables::identity(), Second) } }
         node Root = a: A b: B {
             meanings {
                 match (types::typeof(variables::identityOf(a)), types::typeof(variables::identityOf(b))) {
@@ -961,6 +963,7 @@ fn absent_pipe_input_keeps_an_empty_original_source_span() {
             OperationSignature {
                 id: "test/provenance#observe".into(),
                 finalization_only: false,
+                contribution: false,
                 provides_context: false,
                 parameters: vec![OperationParameter {
                     name: "value".into(),

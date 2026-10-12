@@ -1,4 +1,4 @@
-import { annotateWithType, inheritType, restrictTypeTo } from "./typing"
+import { annotateWithType, inheritType, typeof } from "./typing"
 
 export symbol number
 
@@ -30,6 +30,7 @@ export node TypeName {
             annotateWithType(boolean)
         }
     }
+
     meanings {
         inheritType()
     }
@@ -40,6 +41,6 @@ export node Annotation =
     value: TypeName
 {
     meanings {
-        restrictTypeTo(value)
+        annotateWithType(typeof(value))
     }
 }

@@ -28,6 +28,7 @@ fn engine() -> SemanticEngine {
                 id: "test/bindings#inspect".into(),
                 provides_context: false,
                 finalization_only: false,
+                contribution: false,
                 parameters: vec![OperationParameter {
                     name: "value".into(),
                     kind: ParameterKind::Value,

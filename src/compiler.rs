@@ -3505,10 +3505,12 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                 }
             }
             for call in group.all_calls() {
-                if call.contract.finalization_only && call.contract.provides_context {
+                if (call.contract.finalization_only || call.contract.contribution)
+                    && call.contract.provides_context
+                {
                     return Err(Diagnostic::error(
                         "yl.artifact",
-                        "Finalization-only operations cannot provide lifecycle contexts",
+                        "Finalization-only operations and contributions cannot provide lifecycle contexts",
                         call.span.clone(),
                     ));
                 }
@@ -4350,6 +4352,7 @@ mod semantic_artifact_tests {
                         contract: OperationSignature {
                             id: "native#register".into(),
                             finalization_only: false,
+                            contribution: false,
                             provides_context: false,
                             parameters: vec![OperationParameter {
                                 name: "name".into(),

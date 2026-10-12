@@ -16,6 +16,18 @@ fn analyze_with(source: &str, edit: impl FnOnce(&mut String)) -> AnalysisResult 
         .compile_and_analyze(definition::ENTRY, &sources, "input.ts", source)
         .unwrap()
 }
+fn replace_action(grammar: &mut String, pattern: &str, action: &str) {
+    let original = grammar
+        .lines()
+        .find(|line| {
+            line.split_once("=>")
+                .is_some_and(|(head, _)| head.trim() == pattern)
+        })
+        .expect("fixture must contain the policy case")
+        .to_owned();
+    let replacement = format!("{}=> {action}", original.split_once("=>").unwrap().0);
+    *grammar = grammar.replace(&original, &replacement);
+}
 fn binding(result: &AnalysisResult, name: &str) -> String {
     for record in &result.graph.records {
         let get = |key: &str| {
@@ -48,10 +60,7 @@ fn addition_policy_lives_in_local_meanings() {
         assert_eq!(binding(&result, name), ty);
     }
     let changed = analyze_with("let result = 1 + 2;", |grammar| {
-        *grammar = grammar.replace(
-            "number, number => annotateWithType(number)",
-            "number, number => annotateWithType(string)",
-        )
+        replace_action(grammar, "number, number", "annotateWithType(string),")
     });
     assert!(changed.diagnostics.is_empty());
     assert_eq!(binding(&changed, "result"), "string");
@@ -105,10 +114,7 @@ fn annotation_anchors_recursive_addition_constraints() {
 #[test]
 fn no_op_void_branch_does_not_implicitly_publish_a_type() {
     let result = analyze_with("let result = 1 + 2;", |grammar| {
-        *grammar = grammar.replace(
-            "number, number => annotateWithType(number)",
-            "number, number => {}",
-        )
+        replace_action(grammar, "number, number", "{},")
     });
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(binding(&result, "result"), "unknown");
@@ -116,10 +122,7 @@ fn no_op_void_branch_does_not_implicitly_publish_a_type() {
 #[test]
 fn explicit_unknown_is_settled_and_propagates_to_next_match() {
     let result = analyze_with("let first = 1 + 2; let second = first + 3;", |grammar| {
-        *grammar = grammar.replace(
-            "number, number => annotateWithType(number)",
-            "number, number => annotateWithType(unknown)",
-        )
+        replace_action(grammar, "number, number", "annotateWithType(unknown),")
     });
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(binding(&result, "first"), "unknown");
@@ -130,9 +133,10 @@ fn warning_and_type_branch_effects_are_once_only() {
     let result = analyze_with(
         "let first = true + false; let second = first + 3;",
         |grammar| {
-            *grammar = grammar.replace(
-                "_ => error(\"${left} + ${right} is not possible\")",
-                "_ => { warning(\"${left} + ${right} is experimental\") annotateWithType(unknown) }",
+            replace_action(
+                grammar,
+                "_",
+                "{ warning(\"${left} + ${right} is experimental\") annotateWithType(unknown) }",
             )
         },
     );

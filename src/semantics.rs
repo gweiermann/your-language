@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::{any::Any, collections::BTreeMap, sync::Arc};
 pub mod lexical;
 mod scheduler;
+pub mod syntax;
 pub mod types;
 use scheduler::execute;
 
@@ -141,6 +142,12 @@ pub struct Occurrence {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum SemanticValue {
+    /// An observational query's growing set of possible values. Unlike List,
+    /// this opts a match into Cartesian, dependency-driven distribution.
+    Alternatives {
+        service: String,
+        values: Vec<SemanticValue>,
+    },
     Identity(SemanticIdentity),
     Tuple(Vec<SemanticValue>),
     List(Vec<SemanticValue>),
@@ -217,6 +224,10 @@ pub struct OperationSignature {
     /// Relative collector ordering is retained, while lifecycle hooks run first.
     #[serde(default, skip_serializing_if = "is_false")]
     pub finalization_only: bool,
+    /// Idempotent fact registration, safe once per distributed match tuple.
+    /// This capability is part of the compiled native operation contract.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub contribution: bool,
 }
 type Factory = Arc<dyn Fn() -> Box<dyn NativeOperation> + Send + Sync>;
 type ServiceFactory = Arc<dyn Fn() -> Box<dyn AnalysisService> + Send + Sync>;
@@ -260,6 +271,9 @@ impl OperationRegistry {
         }
         if signature.provides_context && signature.finalization_only {
             return Err("A context provider cannot be finalization-only".into());
+        }
+        if signature.provides_context && signature.contribution {
+            return Err("A contribution cannot provide a lifecycle context".into());
         }
         let mut parameters = std::collections::BTreeSet::new();
         for parameter in &signature.parameters {
@@ -347,6 +361,11 @@ pub enum Evaluation {
 /// No target-language policy is built into this lifecycle.
 pub trait AnalysisService: Any {
     fn as_any_mut(&mut self) -> &mut dyn Any;
+    /// Its handles resolve to growing alternative sets. This lets pending
+    /// readers release writers ordered after them without choosing a case early.
+    fn offers_alternatives(&self) -> bool {
+        false
+    }
     /// Resolve an opaque analysis-local handle without effects. Matches await
     /// these values; generic value parameters can retain the handle itself.
     fn resolve_value(
@@ -581,6 +600,7 @@ impl Default for SemanticEngine {
     fn default() -> Self {
         let mut registry = lexical::registry();
         types::register(&mut registry).expect("standard modules have disjoint exports");
+        syntax::register(&mut registry).expect("standard modules have disjoint exports");
         Self::new(registry)
     }
 }
@@ -936,6 +956,7 @@ mod tests {
                     id: "test/library#record".into(),
                     parameters: vec![],
                     finalization_only: false,
+                    contribution: false,
                     provides_context: true,
                 },
                 move || {
@@ -1040,6 +1061,7 @@ mod tests {
                     id: "test/library#fail".into(),
                     parameters: vec![],
                     finalization_only: false,
+                    contribution: false,
                     provides_context: true,
                 },
                 move || {
@@ -1093,6 +1115,7 @@ mod tests {
                     id: "test/library#record".into(),
                     parameters: vec![],
                     finalization_only: false,
+                    contribution: false,
                     provides_context: false,
                 },
                 move || {
