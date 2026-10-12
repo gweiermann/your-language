@@ -8,6 +8,7 @@ use std::{
 use your_language::{
     diagnostic::{Diagnostic, Severity, Span},
     diagnostic_render::print_diagnostics,
+    FormatOptions,
 };
 
 #[derive(Serialize)]
@@ -37,6 +38,7 @@ struct Options {
     check: bool,
     json: bool,
     files: Vec<String>,
+    format: FormatOptions,
 }
 impl Options {
     fn parse(args: &[String]) -> Result<Self, Diagnostic> {
@@ -44,6 +46,7 @@ impl Options {
             check: false,
             json: false,
             files: vec![],
+            format: FormatOptions::default(),
         };
         let mut options = true;
         for argument in args {
@@ -51,6 +54,7 @@ impl Options {
                 "--" if options => options = false,
                 "--check" if options => result.check = true,
                 "--json" if options => result.json = true,
+                "--align-match-arrows" if options => result.format.align_match_arrows = true,
                 argument if options && argument.starts_with('-') => return Err(usage()),
                 _ => result.files.push(argument.clone()),
             }
@@ -64,7 +68,7 @@ impl Options {
 fn usage() -> Diagnostic {
     Diagnostic::error(
         "yl.cli",
-        "Usage: yl fmt [--check] [--json] [--] <files...>",
+        "Usage: yl fmt [--check] [--json] [--align-match-arrows] [--] <files...>",
         Span::default(),
     )
 }
@@ -178,7 +182,8 @@ fn process(options: &Options, report: &mut Report, sources: &mut BTreeMap<String
             }
         };
         sources.insert(label.clone(), source.clone());
-        let formatted = match your_language::format_yl(label, &source) {
+        let formatted = match your_language::format_yl_with_options(label, &source, options.format)
+        {
             Ok(formatted) => formatted,
             Err(errors) => {
                 report.diagnostics.extend(errors);
