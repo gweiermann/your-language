@@ -1,99 +1,111 @@
-# Composable Mini TypeScript inference prototype (throwaway)
+# Mini TypeScript inference experiment
 
-Question: can local native type meanings, deferred semantic expressions and tuple matches compose into useful inference without a grammar-specific root traversal or native arithmetic rules?
-
-This slice answers yes for a small monomorphic language. It remains an experiment, not a TypeScript implementation or production type library. The type library has no target node names and never scans the Program tree. Each grammar construct publishes its own constraints, and an analysis-local service propagates them automatically. There is no `solve()` meaning.
+This example explores whether language-authored meanings can express type inference using a small native constraint library. It supports primitive annotations, bindings, references, function signatures, calls, recursive inference and language-defined addition rules. It remains a monomorphic experiment, not a TypeScript implementation.
 
 ```sh
 cargo run --example mini_typescript
 cargo run --example mini_typescript -- addition
+cargo run --example mini_typescript -- higher-order
 cargo run --example mini_typescript -- addition-errors
 cargo run --example mini_typescript -- addition --json
-cargo test --test mini_typescript_composable
 ```
 
-Definitions and programs live in separate directories. The definition is split into `types.yl`, `parameter.yl`, `expression.yl`, `function.yl`, `let.yl`, `lexical.yl` and the entry module `language.yl`. Compilation is directly in memory; tests additionally serialize/reload the optional `.ylc` representation. Default output prints inferred binding types and human underlined diagnostics. `--json` returns the complete AST, retained occurrences, lexical/type records and structured diagnostics. Error outcomes exit 1.
+Successful runs print inferred binding types. Errors use source underlines and exit 1; `--json` returns the AST, retained syntax occurrences, semantic records and structured diagnostics. Tests also compile, serialize `.ylc`, reload and analyze concurrently with isolated state.
 
-## Local meanings and library interface
+## Definition files
 
-The language authors its own type identity symbols; the native library does not choose the available primitive types. Literal and annotation nodes import these symbols and publish their types locally:
+`definition/language.yl` selects the entry and trivia. `types.yl` declares the language's type and slot symbols and annotation grammar. `typing.yl` defines reusable semantic wrappers. The remaining grammar lives in `lexical.yl`, `parameter.yl`, `expression.yl`, `function.yl` and `let.yl`. Programs live in `programs/`.
+
+## Two native type operations
+
+`std/types` exports exactly:
+
+- `ensure(key, type, requirement=false)`: equates the type associated with a key with a primitive symbol, deferred type, or list of types.
+- `typeof(key)`: returns a deferred type handle. Constraint collectors can link the handle before its type is known; matches wait until it is resolved.
+- `unknown`: the only type identity supplied by the library. The language authors all other identities.
+
+There is no visible solver call or configuration operation. The engine drives propagation automatically, settles remaining unconstrained variables as `unknown`, resumes matches, and publishes the final records. Pending information and settled `unknown` remain distinct.
+
+A key is an analysis-local identity, or `(identity, slotSymbol)`. A list of keys reads the corresponding list of types. `std/variables::identity()` selects the current declaration/reference identity when available, otherwise the current syntax occurrence. A declaration and its resolved references share one identity. `identityOf(value)` selects a captured occurrence; `identities(value)` selects a repeated capture's ordered identities. `childIdentity()` selects the first retained child for explicit inheritance.
+
+A scalar identity query rejects captures containing multiple occurrence roots. It does not silently choose one. Captures preserve their original occurrence roots through pipes.
+
+The current `annotateWithType` and `restrictTypeTo` wrappers both use equality constraints. Multiple annotations do not yet collect a union. Distinguishing accumulated possibilities from hard requirements remains a pending inference change; union-valued matching must be specified first.
+
+## Authored wrappers
+
+The language defines conveniences in ordinary imported YL:
 
 ```yl
-import { type } from "std/types"
-import { number, string } from "./types"
+import * as types from "std/types"
+import * as variables from "std/variables"
 
-// types.yl declares these identities:
-// export symbol number
-// export symbol string
-
-node Number = value: /[0-9]+/ {
-    meanings { type(number) }
+export operation annotateWithType(value) {
+    types::ensure(variables::identity(), value)
 }
 
-node String = value: /"[^"\n]*"/ {
-    meanings { type(string) }
+export operation typeof(value) =
+    types::typeof(variables::identityOf(value))
+
+export operation inheritType() {
+    types::ensure(variables::identity(), types::typeof(variables::childIdentity()))
 }
 ```
 
-`types(unknown, functionTypeSymbol)` configures the language-authored identities for settled unknown and function-category results at the entry node. It does not define which primitive types are available. `typeof` waits while a type is pending and uses the configured unknown identity only after settling.
+Action wrappers contain calls; query wrappers expand to a native query. Parameters support positional/named arguments and defaults. Expansion preserves definition-local imported symbols and caller captures. Recursive wrapper expansion is diagnosed. The normalized artifact contains native calls, not wrapper declarations. Namespace imports are optional; named imports and aliases remain available.
 
-`sameType(value)` connects an owner's type to its captured value. It handles both forwarding and explicit annotations: both publish an equality constraint. The former separate `aliasType` and `checkType` helpers have been consolidated. `inheritType()` explicitly connects a transparent abstract family's type to its selected retained member. `declarationType()`, `bindingType(value)` and `referenceType()` consume lexical identity attachments; `functionType(parameters, body, annotation)` and `callType(callee, arguments)` publish the remaining equalities. Each operation is imported normally through a registered native YL module. The library knows the operation contracts, not grammar role names.
-
-Addition policy lives entirely in the language definition:
+Literal nodes can now state their meaning locally:
 
 ```yl
-node Addition = left: Expression "+" right: Expression {
-    meanings {
-        match (typeof(left), typeof(right)) {
-            string, string | string, number | number, string => type(string),
-            number, number => type(number),
-            unknown, _ | _, unknown => type(unknown),
-            _ => error("${left} + ${right} is not possible")
-        }
-    }
+export symbol number
+
+node Number = /[0-9]+/ {
+    meanings { annotateWithType(number) }
 }
 ```
 
-A test changes only the `number, number` arm to `type(string)` and observes a string result. No Rust addition special case needs changing. `typeof(value)` is a native semantic value reader; its capture points to original occurrence identities instead of searching for equal source spans.
+## Functions are a language-defined slot protocol
 
-**Experimental syntax contract:** semantic calls may nest in arguments; tuple-match cases use imported identity symbols, text or boolean constants, `_` wildcards, and `|` alternatives. The first matching case runs. A final whole wildcard is required, even if the current cases appear exhaustive. `=> {}` is an ordinary void branch and publishes no result type. Use `type(unknown)` explicitly to publish a settled unknown result. A branch may contain native calls and `error(...)`/`warning(...)` diagnostics with `${capture}` interpolation. Error stops the remaining actions in that branch; warnings continue. These additions are experimental semantics syntax, not changes to grammar matching or the approved `boundary` marker.
+`types.yl` authors `Function`, `parameters` and `returnType`. The library does not know those names or treat them specially. `functionSignature` in `typing.yl` supplies the protocol:
 
-## Propagation and unknowns
+```yl
+types::ensure(variables::identity(), Function)
+types::ensure((variables::identity(), parameters),
+    types::typeof(variables::identities(arguments)))
+types::ensure((variables::identity(), returnType), typeof(body))
+types::ensure((variables::identity(), returnType), typeof(annotation))
+```
 
-- Literal types widen to `number`, `string` and `boolean`; there are no singleton literal types.
-- Declarations, parameters and references share type variables through the bundled lexical declaration records. Shadowed spellings remain distinct identities.
-- Each local operation publishes equalities over occurrence and declaration handles. Service progress consumes new equations once. Calls, returns and annotations can anchor variables that earlier references did not know.
-- `Pending` and settled `unknown` are different states. A tuple match waits until **all** its inputs are ready; it does not choose an unknown or fallback arm while a reader is pending.
-- The engine alternates service progress and deferred actions to a fixed point. Only when neither progresses does it call each service's `settle` once. The type service settles remaining unconstrained classes to `unknown`, then the engine resumes propagation and deferred actions. There are no promises waiting on recursive cycles.
-- Selected cases and action positions are retained. Each native branch effect, warning or error runs once, regardless of propagation rounds. Deferred native effects receive balanced own lifecycle hooks and cleanup attempts, while semantic value readers use the separate `evaluate` contract.
-- An uncalled `function add(value) { return value + 1; }` settles to `(unknown) => unknown`. Calling it with a number before settlement yields `(number) => number`. Mutually recursive results without an anchor remain unknown; explicit return annotations can anchor the cycle. Operand types are not inferred backwards from a tuple-match result.
-- Functions have fixed arity and are monomorphic across all call sites. An identity function called with both numbers and strings diagnoses a conflict. An occurs check rejects infinite types, such as a parameter called with itself.
-- The prototype's settled unknown is a permissive best-effort marker: equating it with a concrete type contributes no information and reports no mismatch. This is not TypeScript's directional assignability policy for `unknown`. Explicit unknown can therefore coexist with a known annotation, and it does not overwrite already known information.
-- Equations are processed in publication order. The first compatible equations determine a type; conflicting later equations diagnose without replacing it. Successful components of a failed function equation remain. Inference output after errors may be partially constrained or disagree with annotations. Production inference would need error types, annotation-priority rules, transactional unification and richer related diagnostics.
+The authored call wrapper requires the same marker, equates the callee's parameter slot with its arguments, and equates the current expression with the callee's return slot. A function declaration links its binding to its contents' type. Generic projection-aware equality propagates authored slots through that link, through function aliases, and through function-valued parameters. Renaming the slot symbols preserves inference; reload tests cover this.
 
-Original-source spans are carried by constraints and interpolated diagnostic operands. Lexical duplicate/unresolved diagnostics retain their existing origins and secondary locations. Syntax errors skip all native effects and services.
+Absent optional annotations contribute no requirement: `identityOf(absent)` and native `typeof(absent)` return absence, and `ensure(key, absent)` is a no-op. Explicit `unknown` is a separate, permissive type marker. It contributes no incompatibility against a known type and does not erase known information.
 
-## Generic seams and lifecycle limits
+## Addition policy remains in YL
 
-`SourceCapture::occurrences` records the original retained occurrence roots selected by a capture, in order. Terminals and absent optional values have no handles. Imported aliases, transparent patterns, repetition and pipes preserve original handles; tests cover their identities and spans through public analysis and reload.
+```yl
+match (typeof(left), typeof(right)) {
+    string, string | string, number | number, string => annotateWithType(string),
+    number, number => annotateWithType(number),
+    unknown, _ | _, unknown => annotateWithType(unknown),
+    _ => error("${left} + ${right} is not possible")
+}
+```
 
-`OperationContext::attachment(occurrence, key)` lets independent native libraries read identity links. `register_service(id, factory)` creates fresh per-analysis service state. `with_service` provides library-local state alongside normal graph access. `AnalysisService::{progress, settle, finish}` defines automatic completion: progress until stable, settle once, progress until stable, finish once. A service that returns an error stops receiving progress/settle polls and still gets one finish attempt; its error is not repeated every round. Independent audit-service tests exercise this interface without the type library.
+Changing this definition changes the language's accepted combinations. The native library contains no arithmetic or primitive-name rules. A `=> {}` branch performs no action; explicit `annotateWithType(unknown)` publishes an unknown result.
 
-Deferred matches and nested-value calls run during finalization, after ordinary meaning lifecycle hooks. They consume persistent records and analysis services; they do not reactivate enclosing lexical contexts. Context-providing operations are rejected in deferred expressions/actions. Deferred jobs preserve their explicit ordering; phase-incompatible precedence is diagnosed instead of silently executing effects in the opposite order. Full interleaving of pending effects with active lexical contexts is outside this experiment.
+## Native implementation and limits
 
-Native value readers must be observational and may be retried on fresh instances. They must not emit diagnostics or external effects; persistent query state belongs to an analysis service. Match blocks currently appear directly inside `meanings`; named `group` blocks support native calls, but not nested matches yet.
+The generic library uses equality constraints, variable equivalence classes, lists and symbolic slot projections. It checks list arity and cyclic type shapes. Failed unification rolls back its partial changes before reporting a diagnostic. Type queries preserve source origins so annotation errors underline the annotation.
 
-Types are stored as `std/types#inferredType` metadata on lexical declaration records. The root `std/types#expressionTypes` attachment points to a report keyed by occurrence IDs, which link to original source spans in structured output. Native factories, services, deferred jobs and variables are fresh per analysis; tests verify repeatability, concurrent isolation and optional artifact reload.
+Constraint collectors declare `finalization_only` in their native interface: their effects occur after ordinary traversal and retain their order relative to other collectors. They cannot provide live lifecycle contexts. Deferred handles are analysis-local; matches resolve them through their owning service. Query evaluation is retryable and publishes no external effects.
 
-## Gaps and possible next experiments
+Final `std/types#typeValues` records retain identity/slot keys and qualified primitive symbol identities or type lists; display strings are separate conveniences.
 
-No assignments, object/array types, generic polymorphism, overloads, unions, subtyping, narrowing, guards, ranges, control-flow analysis, implicit/multiple returns, function expressions, nested function declarations, target-language modules, ownership or code generation. Only addition is demonstrated; accepted operand combinations are exactly the local match above. The grammar has no comments or escapes, and keyword boundary behavior is limited. Static lexical visibility does not assess execution-time initialization safety.
+The example's Rust consumer only selects standard libraries and formats its authored function-slot schema for presentation. The native type implementation does not walk a grammar-specific tree or recognize target node names.
 
-Possible follow-ups, **not approved or implemented syntax/behavior**:
+Inference is monomorphic. Calling the same unannotated identity function with incompatible argument types reports a conflict. Generic instantiation, unions, directional assignability, guards, literal/range narrowing, ownership and target execution remain future experiments. Explicit `unknown` follows this prototype's permissive policy rather than TypeScript's full assignability rules.
 
-1. Add directional annotation/assignability constraints when unions or subtyping are needed.
-2. Infer operand information backwards through declared match relations rather than equality alone.
-3. Replace permissive unknown/error recovery with explicit unresolved/error records and related source locations.
-4. Explore active-context deferred effects only if a real library requires them, preserving lifecycle and ordering contracts.
+The current wrapper syntax deliberately supports action call blocks and query aliases. Match statements inside wrapper definitions and constant-only query definitions are not yet supported; matches remain available in node/pattern meanings.
 
-Keep this prototype separate while assessing these policies. Its result is evidence that local imported meanings and generic native service propagation can compose; it is not a claim of full TypeScript compatibility or optimal inference.
+
+Conflicting explicit annotations underline the incompatible initializer, argument or returned expression. A related span identifies the annotation and the diagnostic help explains its requirement. The authored `restrictTypeTo` wrapper passes `requirement=true` to the native equality collector as diagnostic metadata; this flag does not implement directional assignability or union inference.

@@ -136,7 +136,7 @@ fn tokenize(file: &str, source: &str, comments: bool) -> Result<Vec<Token>, Diag
             if let Some(s) = symbol {
                 i += s.len();
                 TokenKind::Symbol(s.into())
-            } else if "{}(),:=?*+|>.!".contains(ch) {
+            } else if "{}[](),:=?*+|>.!".contains(ch) {
                 i += ch.len_utf8();
                 TokenKind::Symbol(ch.to_string())
             } else {

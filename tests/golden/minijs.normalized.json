@@ -969,5 +969,81 @@
   "trivia": [
     "lexical.yl#Whitespace",
     "lexical.yl#Comment"
-  ]
+  ],
+  "examples": {
+    "lexical.yl#IdentifierPart": {
+      "term": {
+        "Regex": "[_a-zA-Z0-9]"
+      },
+      "explicit": null,
+      "span": {
+        "file": "lexical.yl",
+        "start": 198,
+        "end": 241
+      }
+    },
+    "minijs.yl#Parameters": {
+      "term": {
+        "Project": {
+          "id": 7,
+          "term": {
+            "Repeat": [
+              {
+                "Sequence": [
+                  {
+                    "Sequence": [
+                      {
+                        "Mark": {
+                          "id": 7,
+                          "term": {
+                            "Ref": "minijs.yl#Parameter"
+                          }
+                        }
+                      },
+                      {
+                        "Repeat": [
+                          {
+                            "Sequence": [
+                              {
+                                "Literal": ","
+                              },
+                              {
+                                "Mark": {
+                                  "id": 7,
+                                  "term": {
+                                    "Ref": "minijs.yl#Parameter"
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "Star"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "Repeat": [
+                      {
+                        "Literal": ","
+                      },
+                      "Optional"
+                    ]
+                  }
+                ]
+              },
+              "Optional"
+            ]
+          },
+          "quantifier": "Star"
+        }
+      },
+      "explicit": null,
+      "span": {
+        "file": "minijs.yl",
+        "start": 1122,
+        "end": 1201
+      }
+    }
+  }
 }

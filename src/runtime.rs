@@ -638,6 +638,7 @@ impl Runtime<'_> {
             }
         }
         match term {
+            Term::Example { term, .. } => self.term_with(term, start, raw, context),
             Term::Meaning { definition, term } => {
                 let mut matched = self.term_with(term, start, raw, context)?;
                 self.trace_occurrence(definition, start, &mut matched);

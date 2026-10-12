@@ -214,16 +214,23 @@ impl Layout {
     fn declaration(&mut self, declaration: &Declaration, blank: bool) {
         self.line(
             &declaration.span,
-            blank && !matches!(declaration.kind, DeclKind::Import { .. }),
+            blank
+                && !matches!(
+                    declaration.kind,
+                    DeclKind::Import { .. } | DeclKind::NamespaceImport { .. }
+                ),
         );
         match &declaration.kind {
-            DeclKind::Import { .. } => self.inline.push(declaration.span.clone()),
+            DeclKind::Import { .. } | DeclKind::NamespaceImport { .. } => {
+                self.inline.push(declaration.span.clone())
+            }
             DeclKind::Enum { .. } => self.enums.push(declaration.span.clone()),
             DeclKind::Node {
                 grammar,
                 members,
                 constraints,
                 meanings,
+                example,
                 ..
             } => {
                 self.containers.push(DeclarationContainer {
@@ -232,6 +239,9 @@ impl Layout {
                 });
                 if let Some(grammar) = grammar {
                     self.grammar(grammar);
+                }
+                if let Some(example) = example {
+                    self.line(&example.span, false);
                 }
                 // Sibling declarations are separated, but the first child starts
                 // directly after the opening brace, including its leading comments.
@@ -246,9 +256,15 @@ impl Layout {
                 }
             }
             DeclKind::Pattern {
-                grammar, meanings, ..
+                grammar,
+                meanings,
+                example,
+                ..
             } => {
                 self.grammar(grammar);
+                if let Some(example) = example {
+                    self.line(&example.span, false);
+                }
                 if let Some(meanings) = meanings {
                     self.meanings(meanings);
                 }
@@ -280,6 +296,13 @@ impl Layout {
             } => {
                 for constraint in body {
                     self.constraint(constraint);
+                }
+            }
+            DeclKind::Operation { body, .. } => {
+                if let crate::syntax::OperationBody::Actions(calls) = body {
+                    for call in calls {
+                        self.line(&call.span, false);
+                    }
                 }
             }
             DeclKind::Entry { .. } | DeclKind::Symbol { .. } => {}
@@ -552,6 +575,9 @@ fn space_between(previous: Option<&Token>, token: &Token) -> bool {
     }
     let before = symbol(previous);
     let current = symbol(token);
+    if current == Some("*") && matches!(&previous.kind, TokenKind::Word(word) if word == "import") {
+        return true;
+    }
     // Avoid coalescing two tokens into optional chaining when a postfix optional
     // pattern is followed by a contextual variant.
     if before == Some("?") && current == Some(".") {
@@ -559,15 +585,15 @@ fn space_between(previous: Option<&Token>, token: &Token) -> bool {
     }
     if matches!(
         current,
-        Some(")" | "," | ":" | "::" | "?." | "?" | "*" | "+")
+        Some(")" | "]" | "," | ":" | "::" | "?." | "?" | "*" | "+")
     ) {
         return false;
     }
     if current == Some(".") {
-        return !matches!(before, Some("(" | "::" | "?." | "."))
+        return !matches!(before, Some("(" | "[" | "::" | "?." | "."))
             && !matches!(previous.kind, TokenKind::Word(_));
     }
-    if matches!(before, Some("(" | "::" | "." | "?." | "!")) {
+    if matches!(before, Some("(" | "[" | "::" | "." | "?." | "!")) {
         return false;
     }
     if current == Some("(") {

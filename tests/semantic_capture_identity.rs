@@ -24,6 +24,7 @@ fn engine() -> SemanticEngine {
             "inspect",
             OperationSignature {
                 id: "test/identity#inspect".into(),
+                finalization_only: false,
                 provides_context: false,
                 parameters: vec![OperationParameter {
                     name: "value".into(),

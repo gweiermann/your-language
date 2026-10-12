@@ -3,6 +3,10 @@ pub const ENTRY: &str = "definition/language.yl";
 pub fn sources() -> BTreeMap<String, String> {
     BTreeMap::from([
         (
+            "definition/typing.yl".into(),
+            include_str!("definition/typing.yl").into(),
+        ),
+        (
             "definition/language.yl".into(),
             include_str!("definition/language.yl").into(),
         ),

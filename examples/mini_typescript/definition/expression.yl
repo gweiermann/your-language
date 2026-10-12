@@ -1,13 +1,13 @@
 import { use } from "std/variables"
-import { type, typeof, referenceType, callType, inheritType } from "std/types"
+import { annotateWithType, typeof, call, inheritType } from "./typing"
+import { unknown } from "std/types"
 import { separatedBy } from "std/parser"
 import { Name } from "./lexical"
-import { number, string, boolean, unknown } from "./types"
+import { number, string, boolean } from "./types"
 
 node Reference = name: Name {
     meanings {
         use(name)
-        referenceType()
     }
 }
 
@@ -18,25 +18,25 @@ node Call =
     ")"
 {
     meanings {
-        callType(callee, arguments)
+        call(callee, arguments)
     }
 }
 
 node Number = value: /[0-9]+/ {
     meanings {
-        type(number)
+        annotateWithType(number)
     }
 }
 
 node String = value: /"[^"\n]*"/ {
     meanings {
-        type(string)
+        annotateWithType(string)
     }
 }
 
 node Boolean = value: /true|false/ {
     meanings {
-        type(boolean)
+        annotateWithType(boolean)
     }
 }
 
@@ -47,16 +47,15 @@ node Addition =
 {
     meanings {
         match (typeof(left), typeof(right)) {
-            string, string | string, number | number, string => type(string),
-            number, number => type(number),
-            unknown, _ | _, unknown => type(unknown),
+            string, string | string, number | number, string => annotateWithType(string),
+            number, number => annotateWithType(number),
+            unknown, _ | _, unknown => annotateWithType(unknown),
             _ => error("${left} + ${right} is not possible")
         }
     }
 }
 
 export node Expression {
-
     node Addition
 
     node Call
@@ -67,9 +66,8 @@ export node Expression {
 
     node String
 
-    node Reference precedence {
-        Addition
-    }
+    node Reference
+
     meanings {
         inheritType()
     }

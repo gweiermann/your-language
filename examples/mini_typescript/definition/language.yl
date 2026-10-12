@@ -1,5 +1,3 @@
-import { types } from "std/types"
-import { unknown, functionTypeSymbol } from "./types"
 import { lexicalScope } from "std/variables"
 import { Whitespace } from "./lexical"
 import { FunctionDeclaration, FunctionBody } from "./function"
@@ -8,7 +6,6 @@ import { LetDeclaration } from "./let"
 node Program = statements: (FunctionDeclaration | LetDeclaration)* {
     meanings {
         boundary
-        types(unknown, functionTypeSymbol)
         lexicalScope()
         precedence {
             FunctionDeclaration > LetDeclaration > FunctionBody

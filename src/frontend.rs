@@ -100,6 +100,7 @@ impl Parser {
             "enum",
             "constraint",
             "symbol",
+            "operation",
         ]
         .iter()
         .any(|s| self.is(s))
@@ -116,21 +117,29 @@ impl Parser {
         }
         let export = self.take("export");
         let kind = if self.take("import") {
-            self.expect("{")?;
+            let namespace = if self.take("*") {
+                self.expect("as")?;
+                Some(self.word()?)
+            } else {
+                None
+            };
             let mut names = vec![];
-            while !self.is("}") {
-                let name = self.path()?;
-                let alias = if self.take("as") {
-                    self.word()?
-                } else {
-                    name.rsplit("::").next().unwrap_or(&name).into()
-                };
-                names.push((name, alias));
-                if !self.take(",") {
-                    break;
+            if namespace.is_none() {
+                self.expect("{")?;
+                while !self.is("}") {
+                    let name = self.path()?;
+                    let alias = if self.take("as") {
+                        self.word()?
+                    } else {
+                        name.rsplit("::").next().unwrap_or(&name).into()
+                    };
+                    names.push((name, alias));
+                    if !self.take(",") {
+                        break;
+                    }
                 }
+                self.expect("}")?;
             }
-            self.expect("}")?;
             self.expect("from")?;
             let t = self.bump();
             let TokenKind::String(path) = t.kind else {
@@ -140,7 +149,30 @@ impl Parser {
                     t.span,
                 ));
             };
-            DeclKind::Import { names, path }
+            if let Some(name) = namespace {
+                DeclKind::NamespaceImport { name, path }
+            } else {
+                DeclKind::Import { names, path }
+            }
+        } else if self.take("operation") {
+            let name = self.word()?;
+            let parameters = self.semantic_parameters()?;
+            let body = if self.take("=") {
+                OperationBody::Query(self.semantic_value()?)
+            } else {
+                self.expect("{")?;
+                let mut calls = vec![];
+                while !self.is("}") {
+                    calls.push(self.meaning_call()?);
+                }
+                self.expect("}")?;
+                OperationBody::Actions(calls)
+            };
+            DeclKind::Operation {
+                name,
+                parameters,
+                body,
+            }
         } else if self.take("symbol") {
             DeclKind::Symbol { name: self.word()? }
         } else if self.take("entry") {
@@ -181,12 +213,20 @@ impl Parser {
             let mut precedence = vec![];
             let mut constraints = vec![];
             let mut meanings = None;
+            let mut example = None;
             if self.take("=") {
                 grammar = Some(self.expression()?);
             }
             if self.take("{") {
                 while !self.is("}") {
-                    if self.take("meanings") {
+                    if self.take("example") {
+                        if example.is_some() {
+                            return Err(
+                                self.error("yl.duplicate_example", "Only one example is allowed")
+                            );
+                        }
+                        example = Some(self.example()?);
+                    } else if self.take("meanings") {
                         if meanings.is_some() {
                             return Err(
                                 self.error("yl.duplicate_member", "Duplicate meanings section")
@@ -239,25 +279,42 @@ impl Parser {
                 precedence,
                 constraints,
                 meanings,
+                example,
             }
         } else if self.take("pattern") {
             let name = self.word()?;
             let parameters = self.parameters()?;
             self.expect("=")?;
             let grammar = self.expression()?;
-            let meanings = if self.take("{") {
-                self.expect("meanings")?;
-                let meanings = self.meanings()?;
+            let mut meanings = None;
+            let mut example = None;
+            if self.take("{") {
+                while !self.is("}") {
+                    if self.take("example") {
+                        if example.is_some() {
+                            return Err(
+                                self.error("yl.duplicate_example", "Only one example is allowed")
+                            );
+                        }
+                        example = Some(self.example()?);
+                    } else {
+                        self.expect("meanings")?;
+                        if meanings.is_some() {
+                            return Err(
+                                self.error("yl.duplicate_member", "Duplicate meanings section")
+                            );
+                        }
+                        meanings = Some(self.meanings()?);
+                    }
+                }
                 self.expect("}")?;
-                Some(meanings)
-            } else {
-                None
-            };
+            }
             DeclKind::Pattern {
                 name,
                 parameters,
                 grammar,
                 meanings,
+                example,
             }
         } else if self.take("pipe") {
             let name = self.word()?;
@@ -379,10 +436,118 @@ impl Parser {
             span: self.span_from(&start),
         })
     }
+    fn semantic_parameters(&mut self) -> Result<Vec<Parameter>> {
+        self.expect("(")?;
+        let mut result = vec![];
+        while !self.is(")") {
+            let span = self.token().span.clone();
+            let name = self.word()?;
+            let default = if self.take("=") {
+                Some(self.semantic_value()?)
+            } else {
+                None
+            };
+            result.push(Parameter {
+                name,
+                ty: None,
+                default,
+                span: self.span_from(&span),
+            });
+            if !self.take(",") {
+                break;
+            }
+        }
+        self.expect(")")?;
+        Ok(result)
+    }
+    fn semantic_arguments(&mut self) -> Result<Vec<Argument>> {
+        self.expect("(")?;
+        let mut result = vec![];
+        while !self.is(")") {
+            let span = self.token().span.clone();
+            let name = if matches!(self.peek(0), TokenKind::Word(_))
+                && matches!(self.peek(1), TokenKind::Symbol(s) if s == "=")
+            {
+                let name = self.word()?;
+                self.expect("=")?;
+                Some(name)
+            } else {
+                None
+            };
+            let value = self.semantic_value()?;
+            result.push(Argument {
+                name,
+                value,
+                span: self.span_from(&span),
+            });
+            if !self.take(",") {
+                break;
+            }
+        }
+        self.expect(")")?;
+        Ok(result)
+    }
+    fn semantic_value(&mut self) -> Result<Expr> {
+        let start = self.token().span.clone();
+        self.depth += 1;
+        if self.depth > 128 {
+            return Err(self.error(
+                "yl.depth_limit",
+                "Semantic value nesting exceeds resource limit",
+            ));
+        }
+        let kind = if self.is("(") || self.is("[") {
+            let list = self.take("[");
+            if !list {
+                self.expect("(")?;
+            }
+            let end = if list { "]" } else { ")" };
+            let mut values = vec![];
+            while !self.is(end) {
+                values.push(self.semantic_value()?);
+                if !self.take(",") {
+                    break;
+                }
+            }
+            self.expect(end)?;
+            if list {
+                ExprKind::List(values)
+            } else if values.len() == 1 {
+                ExprKind::Group(Box::new(values.remove(0)))
+            } else {
+                ExprKind::Tuple(values)
+            }
+        } else {
+            match self.token().kind.clone() {
+                TokenKind::String(s) => {
+                    self.bump();
+                    ExprKind::Literal(s)
+                }
+                TokenKind::Regex(s) => {
+                    self.bump();
+                    ExprKind::Regex(s)
+                }
+                TokenKind::Word(_) => {
+                    let name = self.path()?;
+                    if self.is("(") {
+                        ExprKind::Call(name, self.semantic_arguments()?)
+                    } else {
+                        ExprKind::Ref(name)
+                    }
+                }
+                _ => return Err(self.error("yl.unexpected_token", "Expected semantic value")),
+            }
+        };
+        self.depth -= 1;
+        Ok(Expr {
+            kind,
+            span: self.span_from(&start),
+        })
+    }
     fn meaning_call(&mut self) -> Result<MeaningSyntaxCall> {
         let start = self.token().span.clone();
         let name = self.path()?;
-        let arguments = self.arguments()?;
+        let arguments = self.semantic_arguments()?;
         Ok(MeaningSyntaxCall {
             name,
             arguments,
@@ -391,9 +556,9 @@ impl Parser {
     }
     fn meaning_match(&mut self, start: Span) -> Result<MeaningSyntaxMatch> {
         self.expect("(")?;
-        let mut inputs = vec![self.atom()?];
+        let mut inputs = vec![self.semantic_value()?];
         while self.take(",") {
-            inputs.push(self.atom()?);
+            inputs.push(self.semantic_value()?);
         }
         self.expect(")")?;
         self.expect("{")?;
@@ -444,6 +609,18 @@ impl Parser {
             cases,
             span: self.span_from(&start),
         })
+    }
+    fn example(&mut self) -> Result<Example> {
+        let start = self.tokens[self.position.saturating_sub(1)].span.clone();
+        let token = self.bump();
+        if let TokenKind::String(text) = token.kind {
+            Ok(Example {
+                text,
+                span: self.span_from(&start),
+            })
+        } else {
+            Err(self.error("yl.example", "Expected example string"))
+        }
     }
     fn meanings(&mut self) -> Result<Meanings> {
         let start = self.token().span.clone();

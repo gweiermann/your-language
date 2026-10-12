@@ -10,7 +10,7 @@ use your_language::{
 
 fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
     let usage = || {
-        vec![Diagnostic::error("yl.cli","Usage: yl fmt [--check] [--json] [--align-match-arrows] <files...> | yl check <entry.yl> | yl compile <entry.yl> -o <language.ylc> | yl language <language.ylc> ast <source> | yl language <language.ylc> check <source> [--json]",Span::default())]
+        vec![Diagnostic::error("yl.cli","Usage: yl lsp | yl examples <entry.yl|language.ylc> | yl fmt [--check] [--json] [--align-match-arrows] <files...> | yl check <entry.yl> | yl compile <entry.yl> -o <language.ylc> | yl language <language.ylc> ast <source> | yl language <language.ylc> check <source> [--json]",Span::default())]
     };
     let io = |path: &str, e: std::io::Error| {
         vec![Diagnostic::error(
@@ -20,6 +20,15 @@ fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
         )]
     };
     match args.first().map(String::as_str) {
+        Some("examples") if args.len() == 2 => {
+            let language = if Path::new(&args[1]).extension().is_some_and(|e| e == "ylc") {
+                load_compiled_language(&fs::read(&args[1]).map_err(|e| io(&args[1], e))?)?
+            } else {
+                compile_language(&args[1])?
+            };
+            println!("{}", json(&language.example_previews())?);
+            Ok(true)
+        }
         Some("fmt") => format_command::run(&args[1..]),
         Some("check") if args.len() == 2 => {
             let language = compile_language(&args[1])?;
@@ -75,6 +84,15 @@ fn json(value: &impl serde::Serialize) -> Result<String, Vec<Diagnostic>> {
         .map_err(|e| vec![Diagnostic::error("yl.json", e.to_string(), Span::default())])
 }
 fn main() -> ExitCode {
+    if env::args().skip(1).eq(["lsp"]) {
+        return match your_language::language_server::run() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("YL language server: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     let args: Vec<_> = env::args().skip(1).collect();
     let diagnostic_json = args.first().is_some_and(|a| a == "language")
         && args.get(2).is_some_and(|a| a == "check")
@@ -94,10 +112,9 @@ fn main() -> ExitCode {
                     Ok(output) => eprintln!("{output}"),
                     Err(_) => eprintln!("Unable to serialize diagnostics"),
                 }
-            } else if args
-                .first()
-                .is_some_and(|command| command == "check" || command == "compile")
-            {
+            } else if args.first().is_some_and(|command| {
+                command == "check" || command == "compile" || command == "examples"
+            }) {
                 render_definition_diagnostics(
                     &diagnostics,
                     args.get(1).map(String::as_str).unwrap_or("."),

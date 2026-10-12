@@ -1,27 +1,95 @@
 {
   "name": "your-language",
   "displayName": "Your Language",
-  "description": "Syntax highlighting and CLI-backed formatting for YL language definitions.",
-  "version": "0.1.0",
+  "description": "YL syntax highlighting, live diagnostics, formatting and example hints.",
+  "version": "0.2.1",
   "publisher": "gweiermann",
   "license": "UNLICENSED",
-  "repository": { "type": "git", "url": "https://github.com/gweiermann/your-language.git", "directory": "editors/vscode" },
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["Programming Languages", "Formatters"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gweiermann/your-language.git",
+    "directory": "editors/vscode"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Formatters"
+  ],
   "main": "./out/extension.js",
-  "extensionKind": ["workspace"],
+  "extensionKind": [
+    "workspace"
+  ],
   "capabilities": {
-    "untrustedWorkspaces": { "supported": "limited", "description": "Syntax highlighting is available. CLI formatting requires a trusted workspace." },
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Syntax highlighting is available. The language server requires a trusted workspace."
+    },
     "virtualWorkspaces": false
   },
   "contributes": {
-    "languages": [{ "id": "yl", "aliases": ["Your Language", "YL"], "extensions": [".yl"], "configuration": "./language-configuration.json" }],
-    "grammars": [{ "language": "yl", "scopeName": "source.yl", "path": "./syntaxes/yl.tmLanguage.json" }],
+    "languages": [
+      {
+        "id": "yl",
+        "aliases": [
+          "Your Language",
+          "YL"
+        ],
+        "extensions": [
+          ".yl"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "yl",
+        "scopeName": "source.yl",
+        "path": "./syntaxes/yl.tmLanguage.json"
+      }
+    ],
     "configuration": {
       "title": "Your Language",
       "properties": {
-        "yourLanguage.cliPath": { "type": "string", "default": "yl", "scope": "machine-overridable", "description": "YL executable path (or executable name on PATH), without arguments. Requires a CLI with the fmt command." }
+        "yourLanguage.cliPath": {
+          "type": "string",
+          "default": "yl",
+          "scope": "machine-overridable",
+          "description": "YL executable path or name on PATH, without arguments. Requires the lsp command."
+        },
+        "yourLanguage.exampleEntry": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "Optional absolute language entry .yl path for import-graph validation and example hints. Open modules declaring entry are detected automatically; unsaved buffers are supported."
+        },
+        "yourLanguage.exampleDisplay": {
+          "type": "string",
+          "enum": [
+            "above",
+            "inline",
+            "off"
+          ],
+          "default": "above",
+          "scope": "window",
+          "description": "Display parser-validated examples above declarations as clickable CodeLens (copy full example), inline as inlay hints, or hide them. Above requires editor.codeLens enabled."
+        }
       }
+    },
+    "commands": [
+      {
+        "command": "yourLanguage.copyExample",
+        "title": "Your Language: Copy Example"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "yourLanguage.copyExample",
+          "when": "false"
+        }
+      ]
     }
   },
   "scripts": {
@@ -38,5 +106,8 @@
     "typescript": "^5.9.0",
     "vscode-oniguruma": "^2.0.1",
     "vscode-textmate": "^9.2.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
   }
 }

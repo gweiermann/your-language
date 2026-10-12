@@ -1,30 +1,29 @@
 # VS Code extension
 
-The Your Language extension provides syntax highlighting and CLI-backed formatting for `.yl` definitions. It registers **Your Language** as a language mode and formatter, including unsaved buffers.
+Your Language provides highlighting, live diagnostics, formatting and composed example hints for `.yl` definitions. The editor connects to the Rust language server through `yl lsp`; current buffers, including unsaved imports, participate in analysis.
 
-## Install from source
+## Install or upgrade
 
-First install the CLI from a repository revision that includes `yl fmt`:
+Build the CLI and extension from the same revision:
 
 ```sh
 cargo install --path . --locked
-```
-
-Build and install the extension:
-
-```sh
 cd editors/vscode
 npm ci
 npm test
 npm run package
-code --install-extension your-language.vsix
+code --install-extension your-language.vsix --force
 ```
 
-VS Code also accepts the package through **Extensions: Install from VSIX…**. Packages are built locally; there is no Marketplace release yet.
+You can also select **Extensions: Install from VSIXâ€¦**. Reload the window after upgrading. The extension is packaged locally, without a Marketplace release.
 
-## Configure formatting
+## Configure
 
-Run **Format Document** on a YL definition, or enable format on save:
+`yourLanguage.cliPath` selects the executable, defaulting to `yl` on PATH. Use an absolute path without arguments or shell quotes. In remote workspaces, install the executable in the remote environment. Highlighting works in untrusted workspaces; launching the server requires trust.
+
+Open a module declaring `entry` to discover its import graph automatically. Set `yourLanguage.exampleEntry` to an absolute entry `.yl` path when editing helper modules separately. Unsaved imported buffers override files on disk, and closing a buffer restores its disk contents.
+
+Run **Format Document** or enable formatting on save:
 
 ```json
 {
@@ -35,8 +34,21 @@ Run **Format Document** on a YL definition, or enable format on save:
 }
 ```
 
-The extension looks for `yl` on `PATH`. Set `yourLanguage.cliPath` to an absolute executable path if needed. Paths with spaces are supported; do not add shell quotes or arguments. In a remote workspace, the CLI must be installed in the remote environment.
+The server uses the buffer formatter directly. Diagnostics appear as underlines and in Problems. Changes invalidate stale responses; cancellation suppresses responses while in-progress analysis completes.
 
-The extension formats a temporary copy of the current buffer through [`yl fmt`](/api/cli#format-yl-definitions). It returns an editor edit only after successful completion and discards results when the buffer changes meanwhile. Failed requests leave the document unchanged; **Show Details** opens the CLI diagnostics in the **Your Language** output channel.
+## Example hints
 
-Highlighting works without a CLI and in untrusted workspaces. Formatting requires workspace trust and a CLI compatible with the definition's syntax. The extension supports file and untitled documents in desktop VS Code, including remote extension hosts. It does not format target-language programs or provide language-server features.
+Examples appear above each declaration as a CodeLens label, such as `example: let name = 42 ;`. Click the label to copy the complete example. This is an editor overlay and does not insert a comment into the source. Long labels are shortened and line breaks are displayed as `\n`; copying preserves the full original text.
+
+`yourLanguage.exampleDisplay` selects `above` (default), `inline` or `off`. Above-line previews require `editor.codeLens` to be enabled. The inline option uses inlay hints; the two displays are never shown together. Hiding examples leaves diagnostics and formatting active.
+
+
+Explicit `example "..."` metadata takes priority over bounded generation. The generator composes examples across nodes and patterns, omits optional parts, and includes one item for both `*` and `+`. Every candidate is parser-validated. Unsupported or nonterminating cases receive no hint. Meaning operations are never executed during editing.
+
+## Experimental scope
+
+The initial server supports YL definitions, UTF-16 positions, full-document synchronization, diagnostics, formatting, CodeLens, inlay hints and imported-file invalidation. Untitled buffers support syntax diagnostics and formatting; save them for import resolution. Completion, navigation, rename, incremental parsing and target-language servers remain future work.
+
+Definition validation registers `std/variables` and `std/types` contracts. Unavailable custom native libraries produce diagnostics. The CLI [`fmt`](/api/cli#format-yl-definitions) and `examples` commands remain independent tools for scripts and agents.
+
+Selected trivia accepting one space permits readable spacing between grammar fragments. No keyword rules are inferred; parser validation and bounded unspaced fallbacks preserve adjacency requirements.

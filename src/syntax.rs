@@ -19,6 +19,8 @@ pub enum ExprKind {
     Variant(String),
     Call(String, Vec<Argument>),
     Group(Box<Expr>),
+    Tuple(Vec<Expr>),
+    List(Vec<Expr>),
     Sequence(Vec<Expr>),
     Choice(Vec<Expr>),
     Repeat(Box<Expr>, Quantifier),
@@ -64,6 +66,15 @@ pub enum DeclKind {
         names: Vec<(String, String)>,
         path: String,
     },
+    NamespaceImport {
+        name: String,
+        path: String,
+    },
+    Operation {
+        name: String,
+        parameters: Vec<Parameter>,
+        body: OperationBody,
+    },
     Node {
         name: String,
         trivia: bool,
@@ -73,6 +84,8 @@ pub enum DeclKind {
         constraints: Vec<Constraint>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         meanings: Option<Meanings>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        example: Option<Example>,
     },
     Pattern {
         name: String,
@@ -80,6 +93,8 @@ pub enum DeclKind {
         grammar: Expr,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         meanings: Option<Meanings>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        example: Option<Example>,
     },
     Pipe {
         name: String,
@@ -189,4 +204,16 @@ pub struct MeaningSyntaxCase {
     pub alternatives: Vec<Vec<Option<Expr>>>,
     pub actions: Vec<MeaningSyntaxCall>,
     pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Example {
+    pub text: String,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum OperationBody {
+    Actions(Vec<MeaningSyntaxCall>),
+    Query(Expr),
 }
