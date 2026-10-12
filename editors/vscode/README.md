@@ -46,7 +46,7 @@ Examples appear above each declaration as a CodeLens label, such as `example: le
 
 The server handles YL definitions, file and untitled buffers, full-document synchronization, UTF-16 positions, cancellation, stale-result rejection, dependency invalidation, diagnostics, formatting, CodeLens and optional inlay hints. It performs full reanalysis, not incremental parsing. Cancellation suppresses the response; in-progress compiler work completes before the next request. The stdio transport assumes a trusted local client and does not impose a separate message or document allocation limit. Disk imports are read only within discovered graphs. Untitled buffers get syntax diagnostics and formatting; save them before import resolution or example generation.
 
-The built-in `std/variables` and `std/types` native contracts are registered for definition checking. Other host-provided native libraries must remain in their host consumer: unavailable contracts produce diagnostics, rather than being guessed or executed. No target-language language server, completion, navigation or rename is included in this experiment.
+The built-in `std/syntax`, `std/variables` and `std/types` native contracts are registered for definition checking. Other host-provided native libraries must remain in their host consumer: unavailable contracts produce diagnostics, rather than being guessed or executed. No target-language language server, completion, navigation or rename is included in this experiment.
 
 The CLI `fmt` and `examples` commands remain available independently. The extension uses `vscode-languageclient` and does not bundle Rust. See [the metadata experiment](../../examples/example_metadata/README.md) for generator limits.
 

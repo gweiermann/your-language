@@ -1,86 +1,68 @@
 # Mini TypeScript inference experiment
 
-This example explores whether language-authored meanings can express type inference using a small native constraint library. It supports primitive annotations, bindings, references, function signatures, calls, recursive inference and language-defined addition rules. It remains a monomorphic experiment, not a TypeScript implementation.
+This example demonstrates language-authored typing over a small native contribution library. It includes primitive annotations, bindings, references, function signatures, calls, recursive inference, aliases, higher-order parameters and locally defined addition rules. It is an analysis experiment, not a TypeScript implementation.
 
 ```sh
 cargo run --example mini_typescript
-cargo run --example mini_typescript -- addition
 cargo run --example mini_typescript -- higher-order
-cargo run --example mini_typescript -- addition-errors
-cargo run --example mini_typescript -- addition --json
+cargo run --example mini_typescript -- union
+cargo run --example mini_typescript -- union-errors
+cargo run --example mini_typescript -- errors
+cargo run --example mini_typescript -- union --json
 ```
 
-Successful runs print inferred binding types. Errors use source underlines and exit 1; `--json` returns the AST, retained syntax occurrences, semantic records and structured diagnostics. Tests also compile, serialize `.ylc`, reload and analyze concurrently with isolated state.
+Success prints inferred binding types. Error modes underline incompatible source values, retain related type annotations and exit 1. `--json` emits the AST, retained occurrences, semantic records and structured diagnostics. The public API tests also serialize `.ylc`, reload it and analyze concurrently with isolated state.
 
-## Definition files
+## Definition modules
 
-`definition/language.yl` selects the entry and trivia. `types.yl` declares the language's type and slot symbols and annotation grammar. `typing.yl` defines reusable semantic wrappers. The remaining grammar lives in `lexical.yl`, `parameter.yl`, `expression.yl`, `function.yl` and `let.yl`. Programs live in `programs/`.
+`language.yl` selects entry and trivia. `types.yl` authors primitive and slot identities. `typing.yl` contains reusable operation wrappers and the variable/type bridge. `lexical.yl`, `parameter.yl`, `expression.yl`, `function.yl` and `let.yl` organize grammar definitions. Programs are separate files in `programs/`.
 
-## Two native type operations
+## Native type mechanisms
 
-`std/types` exports exactly:
+`std/types` exports exactly `annotate`, `restrictTo`, `typeof` and the `unknown` identity. The language owns `number`, `string`, `boolean`, `Function`, `parameters` and `returnType`.
 
-- `ensure(key, type, requirement=false)`: equates the type associated with a key with a primitive symbol, deferred type, or list of types.
-- `typeof(key)`: returns a deferred type handle. Constraint collectors can link the handle before its type is known; matches wait until it is resolved.
-- `unknown`: the only type identity supplied by the library. The language authors all other identities.
+`annotate(key, type)` accumulates possible types and directed dependencies. Two contributions of number and string produce `number | string`. `restrictTo(key, number)` checks every known member; the string is diagnosed without removing it. Unknown remains explicit and permissive, while incompatible known members still fail.
 
-There is no visible solver call or configuration operation. The engine drives propagation automatically, settles remaining unconstrained variables as `unknown`, resumes matches, and publishes the final records. Pending information and settled `unknown` remain distinct.
+`typeof(key)` returns a managed deferred query. When no facts exist, an allowed contract provides static information. Multiple allowed contracts intersect structurally; incompatible contracts are diagnosed even without contributed facts. An unrestricted read remains pending until settlement, when its fallback is unknown. Explicit unknown contributions are retained even after known facts arrive. No visible solver call is required.
 
-A key is an analysis-local identity, or `(identity, slotSymbol)`. A list of keys reads the corresponding list of types. `std/variables::identity()` selects the current declaration/reference identity when available, otherwise the current syntax occurrence. A declaration and its resolved references share one identity. `identityOf(value)` selects a captured occurrence; `identities(value)` selects a repeated capture's ordered identities. `childIdentity()` selects the first retained child for explicit inheritance.
+A key is an identity or `(identity, slotSymbol)`. Ordered key lists provide explicit positional relationships. Structural list alternatives preserve their correlation. Base possibilities flow one way; references to a structural value share its authored slot handles, including slots added later.
 
-A scalar identity query rejects captures containing multiple occurrence roots. It does not silently choose one. Captures preserve their original occurrence roots through pipes.
+## Syntax-local facts and binding handles
 
-The current `annotateWithType` and `restrictTypeTo` wrappers both use equality constraints. Multiple annotations do not yet collect a union. Distinguishing accumulated possibilities from hard requirements remains a pending inference change; union-valued matching must be specified first.
-
-## Authored wrappers
-
-The language defines conveniences in ordinary imported YL:
+Syntax identity queries belong to `std/syntax`, independently of lexical name resolution. `identity()` selects the current original occurrence; `identityOf(value)` selects one captured root; `identities(value)` preserves repeated-root order. `childIdentity()` supports explicit transparent inheritance. Pipes retain original occurrence identities.
 
 ```yl
 import * as types from "std/types"
-import * as variables from "std/variables"
+import * as syntax from "std/syntax"
 
 export operation annotateWithType(value) {
-    types::ensure(variables::identity(), value)
+    types::annotate(syntax::identity(), value)
 }
 
-export operation typeof(value) =
-    types::typeof(variables::identityOf(value))
+export operation typeof(value) = types::typeof(syntax::identityOf(value))
 
 export operation inheritType() {
-    types::ensure(variables::identity(), types::typeof(variables::childIdentity()))
+    types::annotate(syntax::identity(), types::typeof(syntax::childIdentity()))
+}
+
+export operation restrictTypeTo(value) {
+    types::restrictTo(syntax::identity(), typeof(value))
 }
 ```
 
-Action wrappers contain calls; query wrappers expand to a native query. Parameters support positional/named arguments and defaults. Expansion preserves definition-local imported symbols and caller captures. Recursive wrapper expansion is diagnosed. The normalized artifact contains native calls, not wrapper declarations. Namespace imports are optional; named imports and aliases remain available.
+The variable library creates ordinary named bindings. Declarations and resolved references share a binding identity. `typing.yl` bridges those opaque handles to syntax-local contributions; the type kernel does not inspect scopes, declaration names or variable-library fields.
 
-Literal nodes can now state their meaning locally:
+Explicit annotations both contribute their declared type and restrict the binding. Initializer facts remain separate and flow into that binding. Consequently `let count: number = "wrong";` retains number and string, and diagnoses the string with primary `"wrong"` and related `number`.
 
-```yl
-export symbol number
+## Language-authored functions
 
-node Number = /[0-9]+/ {
-    meanings { annotateWithType(number) }
-}
-```
+`functionSignature` stores parameter and return relationships in authored slots. It explicitly contributes the parameter list into the parameter slot and provides a positional reverse relationship from that slot into formal parameter keys. Calls contribute argument evidence to the same structural slot; return facts flow into the call expression. There are no native function-specific operations or slot names.
 
-## Functions are a language-defined slot protocol
+Aliases retain structural handles, so higher-order evidence reaches the original parameter/return relationship. Renaming the slot symbols preserves behavior. This prototype still has shared signatures: calling an unannotated identity function with a number and a string makes its parameter and both call results `number | string`. Independent generic instantiation is a subsequent feature.
 
-`types.yl` authors `Function`, `parameters` and `returnType`. The library does not know those names or treat them specially. `functionSignature` in `typing.yl` supplies the protocol:
+## Addition and unions
 
-```yl
-types::ensure(variables::identity(), Function)
-types::ensure((variables::identity(), parameters),
-    types::typeof(variables::identities(arguments)))
-types::ensure((variables::identity(), returnType), typeof(body))
-types::ensure((variables::identity(), returnType), typeof(annotation))
-```
-
-The authored call wrapper requires the same marker, equates the callee's parameter slot with its arguments, and equates the current expression with the callee's return slot. A function declaration links its binding to its contents' type. Generic projection-aware equality propagates authored slots through that link, through function aliases, and through function-valued parameters. Renaming the slot symbols preserves inference; reload tests cover this.
-
-Absent optional annotations contribute no requirement: `identityOf(absent)` and native `typeof(absent)` return absence, and `ensure(key, absent)` is a no-op. Explicit `unknown` is a separate, permissive type marker. It contributes no incompatibility against a known type and does not erase known information.
-
-## Addition policy remains in YL
+Addition remains a local meaning rule:
 
 ```yl
 match (typeof(left), typeof(right)) {
@@ -91,21 +73,36 @@ match (typeof(left), typeof(right)) {
 }
 ```
 
-Changing this definition changes the language's accepted combinations. The native library contains no arithmetic or primitive-name rules. A `=> {}` branch performs no action; explicit `annotateWithType(unknown)` publishes an unknown result.
+The match checks every distinct possible pair. Supported pairs contribute result types; an unsupported known pair emits an error without cancelling supported pairs. Late facts trigger new pairs. Literal type-contribution effects are idempotent, and warnings/errors are emitted once per distinct pair and case/action at the source occurrence. Ordinary scalar matches and ordinary positional lists are unchanged.
 
-## Native implementation and limits
+`union` demonstrates widening and a union result. `union-errors` includes boolean and string possibilities: string-plus-number contributes string while boolean-plus-number emits an underlined error.
 
-The generic library uses equality constraints, variable equivalence classes, lists and symbolic slot projections. It checks list arity and cyclic type shapes. Failed unification rolls back its partial changes before reporting a diagnostic. Type queries preserve source origins so annotation errors underline the annotation.
+## PARKED distributed effects
 
-Constraint collectors declare `finalization_only` in their native interface: their effects occur after ordinary traversal and retain their order relative to other collectors. They cannot provide live lifecycle contexts. Deferred handles are analysis-local; matches resolve them through their owning service. Query evaluation is retryable and publishes no external effects.
+General native effects require a separate replay contract:
 
-Final `std/types#typeValues` records retain identity/slot keys and qualified primitive symbol identities or type lists; display strings are separate conveniences.
+```yl
+match (typeof(left)) {
+    _ => audit()
+}
+```
 
-The example's Rust consumer only selects standard libraries and formats its authored function-slot schema for presentation. The native type implementation does not walk a grammar-specific tree or recognize target node names.
+The engine reports `semantic.distributed_effect` before running that effect. It does not assume an arbitrary library operation can be repeated safely.
 
-Inference is monomorphic. Calling the same unannotated identity function with incompatible argument types reports a conflict. Generic instantiation, unions, directional assignability, guards, literal/range narrowing, ownership and target execution remain future experiments. Explicit `unknown` follows this prototype's permissive policy rather than TypeScript's full assignability rules.
+Rereading a query inside a case requires a combination-local view contract:
 
-The current wrapper syntax deliberately supports action call blocks and query aliases. Match statements inside wrapper definitions and constant-only query definitions are not yet supported; matches remain available in node/pattern meanings.
+```yl
+match (typeof(left)) {
+    _ => annotateWithType(typeof(left))
+}
+```
 
+This reports `semantic.distributed_argument`; the engine does not silently choose between the whole union and the selected member. Literal result contributions used by the checked-in addition rule are supported. Matches inside wrapper definitions and constant-only query bodies remain unsupported as before.
 
-Conflicting explicit annotations underline the incompatible initializer, argument or returned expression. A related span identifies the annotation and the diagnostic help explains its requirement. The authored `restrictTypeTo` wrapper passes `requirement=true` to the native equality collector as diagnostic metadata; this flag does not implement directional assignability or union inference.
+## Result contract and remaining scope
+
+Qualified identities and structural alternatives are preserved in `std/types#typeValues` records. Display strings are presentation conveniences. Restrictions retain every fact and its provenance, so downstream checks can produce additional diagnostics for an already-invalid possibility.
+
+The previous native `ensure` interface is replaced; experimental artifacts using it need recompilation. Bounded Cartesian products and fact sets prevent unbounded analysis, and recursive contributions requiring infinite types are diagnosed.
+
+Scoped control-flow narrowing, subtyping, ownership and target execution remain separate work. `useAsType` is not implemented. The experimental APIs remain subject to review.
