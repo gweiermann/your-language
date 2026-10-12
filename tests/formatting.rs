@@ -4,7 +4,7 @@ use std::{
     process::Command,
     sync::atomic::{AtomicU64, Ordering},
 };
-use your_language::{format_yl, frontend::parse_yl};
+use your_language::{format_yl, format_yl_with_options, frontend::parse_yl, FormatOptions};
 fn tree(source: &str) -> serde_json::Value {
     fn strip(value: &mut serde_json::Value) {
         match value {
@@ -99,6 +99,9 @@ fn every_valid_checked_in_definition_is_parse_equivalent_and_idempotent() {
             "{}",
             path.display()
         );
+        let aligned = aligned(&source);
+        assert_eq!(tree(&source), tree(&aligned), "{}", path.display());
+        assert_eq!(self::aligned(&aligned), aligned, "{}", path.display());
         checked += 1;
     }
     assert!(checked >= 10, "Only {checked} fixtures exercised");
@@ -351,11 +354,11 @@ fn deferred_meaning_matches_are_formatted_and_keep_noop_branches() {
         "{formatted}"
     );
     assert!(
-        formatted.contains("number, number => type(number),\n"),
+        formatted.contains("number, number                                   => type(number),\n"),
         "{formatted}"
     );
     assert!(
-        formatted.contains("_ => error(\"${left} + ${right} is not possible\")"),
+        formatted.contains("_                                                => error(\"${left} + ${right} is not possible\")"),
         "{formatted}"
     );
     assert_eq!(tree(source), tree(&formatted));
@@ -419,7 +422,7 @@ fn meaning_layout_keeps_groups_matches_and_precedence_separate() {
         }
         match (typeof(value)) {
             number => type(number),
-            _ => {
+            _      => {
             }
         }
         last()
@@ -868,4 +871,188 @@ node Empty { precedence { Other } constraints { } meanings { inherit() } }"#;
     assert!(!formatted.contains("{\n\n"), "{formatted}");
     assert_eq!(tree(source), tree(&formatted));
     assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+
+fn aligned(source: &str) -> String {
+    format_yl_with_options(
+        "source",
+        source,
+        FormatOptions {
+            align_match_arrows: true,
+        },
+    )
+    .unwrap()
+}
+#[test]
+fn meaning_match_alignment_is_default_and_aligns_tuple_alternatives() {
+    let source = include_str!("../examples/formatting-alignment/match-arrows.yl");
+    let canonical = format_yl("source", source).unwrap();
+    assert_eq!(
+        canonical,
+        format_yl_with_options("source", source, FormatOptions::default()).unwrap()
+    );
+    assert!(canonical.contains("number, number                                   => type(number)"));
+    let formatted = aligned(source);
+    assert!(
+        formatted.contains("number, number                                   => type(number)"),
+        "{formatted}"
+    );
+    assert!(
+        formatted.contains("_                                                => error("),
+        "{formatted}"
+    );
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(aligned(&formatted), formatted);
+    assert_eq!(format_yl("source", &formatted).unwrap(), canonical);
+}
+#[test]
+fn alignment_is_local_to_each_match_and_handles_unicode_and_blocks() {
+    let source = "node Container { node Outer=\"x\"{meanings{match(value){\"\u{4f60}\u{597d}\",veryLong => { first() second() } _=>{}}}} node Inner=\"y\"{meanings{match(value){\"\u{1f600}\"=>go() \"ab\"=>go() \"e\u{0301}\"=>go() _=>go()}}} }";
+    let formatted = aligned(source);
+    let columns: Vec<_> = formatted
+        .lines()
+        .filter_map(|line| {
+            line.find("=>")
+                .map(|index| unicode_width::UnicodeWidthStr::width(&line[..index]))
+        })
+        .collect();
+    assert_eq!(columns.len(), 6, "{formatted}");
+    assert_eq!(columns[0], columns[1], "{formatted}");
+    assert_eq!(columns[2], columns[3], "{formatted}");
+    assert_eq!(columns[3], columns[4], "{formatted}");
+    assert_eq!(columns[4], columns[5], "{formatted}");
+    assert_ne!(columns[0], columns[2], "{formatted}");
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(aligned(&formatted), formatted);
+}
+#[test]
+fn alignment_preserves_comments_multiline_headers_and_other_arrows() {
+    let source = r#"pipe keep() { rewrite value => value }
+node Root = /a=>b/ {
+meanings {
+match(value) {
+"a=>b" => write("literal => stays")
+_ /* same line */ => { first() second() }
+// case comment
+longer // split header
+=> go()
+}
+}
+}"#;
+    let formatted = aligned(source);
+    assert!(formatted.contains("rewrite value => value"), "{formatted}");
+    for raw in [
+        "/a=>b/",
+        "\"a=>b\"",
+        "\"literal => stays\"",
+        "/* same line */",
+        "// case comment",
+        "longer // split header\n",
+    ] {
+        assert!(formatted.contains(raw), "lost {raw}: {formatted}");
+    }
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(aligned(&formatted), formatted);
+}
+#[test]
+fn alignment_padding_is_bounded_with_a_structured_error() {
+    let source = format!(
+        "node Root=\"x\"{{meanings{{match(value){{\"{}\"=>go() {} }}}}}}",
+        "x".repeat(1000),
+        "_=>go() ".repeat(1100)
+    );
+    let errors = format_yl_with_options(
+        "source",
+        &source,
+        FormatOptions {
+            align_match_arrows: true,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(errors[0].code, "yl.format_alignment_limit");
+    assert!(format_yl_with_options(
+        "source",
+        &source,
+        FormatOptions {
+            align_match_arrows: false
+        }
+    )
+    .is_ok());
+}
+#[test]
+fn cli_default_alignment_check_json_write_and_legacy_flag_agree() {
+    let root = scratch();
+    let path = root.0.join("match.yl");
+    let source = format_yl_with_options(
+        "source",
+        include_str!("../examples/formatting-alignment/match-arrows.yl"),
+        FormatOptions {
+            align_match_arrows: false,
+        },
+    )
+    .unwrap();
+    fs::write(&path, &source).unwrap();
+    let check = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .args(["fmt", "--check", "--json"])
+        .arg(&path)
+        .output()
+        .unwrap();
+    assert_eq!(check.status.code(), Some(1));
+    assert!(check.stderr.is_empty());
+    let report: serde_json::Value = serde_json::from_slice(&check.stdout).unwrap();
+    assert_eq!(report["files"][0]["status"], "would_change");
+    assert!(report["diagnostics"][0]["help"]
+        .as_str()
+        .unwrap()
+        .contains("Run yl fmt without --check"));
+    assert_eq!(fs::read_to_string(&path).unwrap(), source);
+    let write = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .arg("fmt")
+        .arg(&path)
+        .output()
+        .unwrap();
+    assert!(write.status.success());
+    assert_eq!(fs::read_to_string(&path).unwrap(), aligned(&source));
+    let clean = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .args(["fmt", "--json", "--check"])
+        .arg(&path)
+        .output()
+        .unwrap();
+    assert!(clean.status.success());
+    let report: serde_json::Value = serde_json::from_slice(&clean.stdout).unwrap();
+    assert_eq!(report["files"][0]["status"], "clean");
+    let canonical = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .args(["fmt", "--check", "--align-match-arrows"])
+        .arg(&path)
+        .output()
+        .unwrap();
+    assert_eq!(canonical.status.code(), Some(0));
+    let literal = root.0.join("--align-match-arrows");
+    fs::write(&literal, "node A=\"a\"").unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_yl"))
+        .current_dir(&root.0)
+        .args(["fmt", "--", "--align-match-arrows"])
+        .output()
+        .unwrap();
+    assert!(result.status.success());
+}
+
+#[test]
+fn default_options_enable_alignment_and_explicit_library_override_preserves_ast() {
+    assert!(FormatOptions::default().align_match_arrows);
+    let source = "node Root=\"x\"{meanings{match(value){short=>go() longerName=>go()}}}";
+    let formatted = format_yl("source", source).unwrap();
+    assert!(formatted.contains("short      => go()"), "{formatted}");
+    let unaligned = format_yl_with_options(
+        "source",
+        &formatted,
+        FormatOptions {
+            align_match_arrows: false,
+        },
+    )
+    .unwrap();
+    assert!(unaligned.contains("short => go()"));
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(tree(source), tree(&unaligned));
+    assert_eq!(format_yl("source", &unaligned).unwrap(), formatted);
 }

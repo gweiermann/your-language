@@ -359,3 +359,38 @@ node Chain = a:"a" b:"b" c:"c" d:"d" e:"e" f:"f" {
 entry Chain { trivia Space }"#;
     assert_eq!(preview(source, "Chain").as_deref(), Some("abcdef"));
 }
+
+#[test]
+fn imported_child_previews_share_the_entries_selected_trivia() {
+    let sources=BTreeMap::from([
+        ("main.yl".into(),r#"import { Let } from "./let" import { Whitespace } from "./lexical" node Program = Let entry Program { trivia Whitespace }"#.into()),
+        ("let.yl".into(),r#"import { Name } from "./lexical" node Number = /[0-9]+/ { example "42" } export node Let = "let" Name "=" Number ";""#.into()),
+        ("lexical.yl".into(),r#"export trivia Whitespace = / +/ export pattern Name = /[a-z]+/ { example "name" }"#.into()),
+    ]);
+    let compiled = compile_sources("main.yl", &sources).unwrap();
+    for id in ["main.yl#Program", "let.yl#Let"] {
+        let previews = compiled.example_previews();
+        assert_eq!(
+            previews
+                .iter()
+                .find(|p| p.definition == id)
+                .unwrap()
+                .text
+                .as_deref(),
+            Some("let name = 42 ;")
+        );
+    }
+    let mut without_selection = sources;
+    without_selection.get_mut("main.yl").unwrap().replace_range(..,r#"import { Let } from "./let" import { Whitespace } from "./lexical" node Program = Let entry Program"#);
+    let compiled = compile_sources("main.yl", &without_selection).unwrap();
+    assert_eq!(
+        compiled
+            .example_previews()
+            .iter()
+            .find(|p| p.definition == "let.yl#Let")
+            .unwrap()
+            .text
+            .as_deref(),
+        Some("letname=42;")
+    );
+}

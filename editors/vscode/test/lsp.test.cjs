@@ -137,3 +137,27 @@ entry Root`;
     s.change(uri,text.replace('types::ensure(variables::identity(),value)','types::ensure(variables::identity())'),2);
     assert.ok((await s.diagnostic(uri,2)).diagnostics.some(d=>d.severity===1));
 });
+
+test('imported child CodeLens uses entry trivia and buffer changes preserve spaces',async t=> {
+    const dir=await mkdtemp(join(tmpdir(),'yl-child-trivia-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+    const entry=join(dir,'language.yl'),child=join(dir,'let.yl');
+    await writeFile(entry,'import { Let } from "./let"\ntrivia Space = / +/\nnode Root = Let\nentry Root { trivia Space }');
+    const text='pattern Name=/[a-z]+/ { example "name" }\nexport node Let = "let" Name "=" "42" ";"';
+    await writeFile(child,text);
+    const uri=pathToFileURL(child).href,s=await session(t,entry,null);
+    s.open(uri,text);await s.diagnostic(uri,1);
+    let lenses=await s.connection.sendRequest('textDocument/codeLens',{textDocument:{uri}});
+    assert.ok(lenses.some(l=>l.command.title==='example: let name = 42 ;'));
+    s.change(uri,text.replace('example "name"','example "other"'),2);await s.diagnostic(uri,2);
+    lenses=await s.connection.sendRequest('textDocument/codeLens',{textDocument:{uri}});
+    assert.ok(lenses.some(l=>l.command.title==='example: let other = 42 ;'));
+});
+
+test('LSP buffer formatting aligns match arrows by default',async t=> {
+    const s=await session(t),uri='untitled:alignment';
+    const text='node Root = "x" { meanings { match (a,b) { number,number => type(number), string,string | string,number | number,string => type(string), _ => {} } } }';
+    s.open(uri,text);await s.diagnostic(uri,1);
+    const [edit]=await s.connection.sendRequest('textDocument/formatting',{textDocument:{uri},options:{tabSize:4,insertSpaces:true}});
+    const lines=edit.newText.split('\n').filter(line=>line.includes('=>'));
+    assert.equal(lines.length,3);assert.equal(new Set(lines.map(line=>line.indexOf('=>'))).size,1);
+});
