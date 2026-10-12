@@ -706,3 +706,205 @@ entry Root"#
         [SemanticValue::List(vec![atom("Orchid"), atom("Quartz")])]
     );
 }
+
+#[test]
+fn scalar_and_positional_restrictions_join_on_the_same_canonical_key() {
+    for (scalar, valid) in [("Orchid", true), ("Quartz", false)] {
+        let result = analyze(
+            &format!(
+                r#"{IMPORTS}
+node First = "a"
+node Second = "b"
+node Root = first: First second: Second {{ meanings {{
+    types::restrictTo(syntax::identityOf(first), {scalar})
+    types::restrictTo([syntax::identityOf(first), syntax::identityOf(second)], [Orchid, Quartz])
+}} }}
+entry Root"#
+            ),
+            "ab",
+        );
+        if valid {
+            clean(&result);
+            assert_eq!(members(&result, "First", None), [atom("Orchid")]);
+            assert_eq!(members(&result, "Second", None), [atom("Quartz")]);
+        } else {
+            assert!(
+                result
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == "types.mismatch"),
+                "{:?}",
+                result.diagnostics
+            );
+        }
+    }
+}
+
+const JOINT_BOUNDS: &str = r#"
+node First = "a"
+node Second = "b"
+node Third = "c"
+node Same = "d" { meanings {
+    types::annotate(syntax::identity(), [Quartz, Quartz])
+    types::annotate(syntax::identity(), [Orchid, Orchid])
+} }
+node Different = "e" { meanings {
+    types::annotate(syntax::identity(), [Quartz, Orchid])
+    types::annotate(syntax::identity(), [Orchid, Quartz])
+} }
+"#;
+
+#[test]
+fn reordered_whole_list_bounds_detect_impossible_joint_rows_despite_common_marginals() {
+    let result = analyze(
+        &format!(
+            r#"{IMPORTS}
+{JOINT_BOUNDS}
+node Root = first: First second: Second third: Third same: Same different: Different {{ meanings {{
+    types::restrictTo([syntax::identityOf(first), syntax::identityOf(second)], types::typeof(syntax::identityOf(same)))
+    types::restrictTo([syntax::identityOf(second), syntax::identityOf(first)], types::typeof(syntax::identityOf(different)))
+}} }}
+entry Root"#
+        ),
+        "abcde",
+    );
+    // Both per-key marginals contain Quartz and Orchid. Nevertheless the first
+    // whole-list bound requires equal values and the reordered bound differs.
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "types.mismatch"),
+        "{:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn partially_overlapping_three_key_contracts_preserve_valid_rows_and_reject_global_conflicts() {
+    for (last_bound, valid) in [("different", true), ("same", false)] {
+        let read = if valid {
+            "types::annotate(syntax::identity(), types::typeof([syntax::identityOf(first), syntax::identityOf(second), syntax::identityOf(third)]))"
+        } else {
+            ""
+        };
+        let result = analyze(
+            &format!(
+                r#"{IMPORTS}
+{JOINT_BOUNDS}
+node Root = first: First second: Second third: Third same: Same different: Different {{ meanings {{
+    types::restrictTo([syntax::identityOf(first), syntax::identityOf(second)], types::typeof(syntax::identityOf(different)))
+    types::restrictTo([syntax::identityOf(second), syntax::identityOf(third)], types::typeof(syntax::identityOf(same)))
+    types::restrictTo([syntax::identityOf(first), syntax::identityOf(third)], types::typeof(syntax::identityOf({last_bound})))
+    {read}
+}} }}
+entry Root"#
+            ),
+            "abcde",
+        );
+        if valid {
+            clean(&result);
+            assert_eq!(
+                members(&result, "Root", None),
+                [
+                    SemanticValue::List(vec![atom("Orchid"), atom("Quartz"), atom("Quartz")]),
+                    SemanticValue::List(vec![atom("Quartz"), atom("Orchid"), atom("Orchid")]),
+                ]
+            );
+        } else {
+            // A!=B and B=C require A!=C; declaring A=C is jointly impossible
+            // although every individual key still has two overlapping choices.
+            assert!(
+                result
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == "types.mismatch"),
+                "{:?}",
+                result.diagnostics
+            );
+        }
+    }
+}
+
+#[test]
+fn extra_observed_key_in_full_query_does_not_destroy_two_key_contract_correlation() {
+    let result = analyze(
+        &format!(
+            r#"{IMPORTS}
+node First = "a"
+node Second = "b"
+node Third = "c" {{ meanings {{ types::annotate(syntax::identity(), Quartz) }} }}
+node Allowed = "d" {{ meanings {{
+    types::annotate(syntax::identity(), [Quartz, Orchid])
+    types::annotate(syntax::identity(), [Orchid, Quartz])
+}} }}
+node Root = first: First second: Second third: Third allowed: Allowed {{ meanings {{
+    types::restrictTo([syntax::identityOf(first), syntax::identityOf(second)], types::typeof(syntax::identityOf(allowed)))
+    types::annotate(syntax::identity(), types::typeof([syntax::identityOf(first), syntax::identityOf(second), syntax::identityOf(third)]))
+}} }}
+entry Root"#
+        ),
+        "abcd",
+    );
+    clean(&result);
+    assert_eq!(
+        members(&result, "Root", None),
+        [
+            SemanticValue::List(vec![atom("Orchid"), atom("Quartz"), atom("Quartz")]),
+            SemanticValue::List(vec![atom("Quartz"), atom("Orchid"), atom("Quartz")]),
+        ]
+    );
+}
+
+#[test]
+fn dynamic_known_bound_conflicts_with_an_overlapping_positional_contract() {
+    let result = analyze(
+        &format!(
+            r#"{IMPORTS}
+node First = "a" {{ meanings {{ types::annotate(syntax::identity(), Quartz) }} }}
+node Second = "b"
+node Root = first: First second: Second {{ meanings {{
+    types::restrictTo([syntax::identityOf(first), syntax::identityOf(second)], [Quartz, Orchid])
+    types::restrictTo(syntax::identityOf(second), types::typeof(syntax::identityOf(first)))
+}} }}
+entry Root"#
+        ),
+        "ab",
+    );
+    // The first bound requires B=Orchid; the dynamic bound reads observed
+    // A=Quartz and requires B=Quartz. Missing B evidence cannot hide the clash.
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "types.mismatch"),
+        "{:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn partially_observed_pair_query_selects_only_jointly_compatible_allowed_rows() {
+    let result = analyze(
+        &format!(
+            r#"{IMPORTS}
+node First = "a" {{ meanings {{ types::annotate(syntax::identity(), Quartz) }} }}
+node Second = "b"
+node Allowed = "c" {{ meanings {{
+    types::annotate(syntax::identity(), [Quartz, Orchid])
+    types::annotate(syntax::identity(), [Orchid, Quartz])
+}} }}
+node Root = first: First second: Second allowed: Allowed {{ meanings {{
+    types::restrictTo([syntax::identityOf(first), syntax::identityOf(second)], types::typeof(syntax::identityOf(allowed)))
+    types::annotate(syntax::identity(), types::typeof([syntax::identityOf(first), syntax::identityOf(second)]))
+}} }}
+entry Root"#
+        ),
+        "abc",
+    );
+    clean(&result);
+    assert_eq!(
+        members(&result, "Root", None),
+        [SemanticValue::List(vec![atom("Quartz"), atom("Orchid")])]
+    );
+}

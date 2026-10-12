@@ -22,6 +22,7 @@ export operation bindingType(value, annotation = absent) {
     types::annotate(variables::identity(), typeof(annotation))
     types::restrictTo(variables::identity(), typeof(annotation))
     types::annotate(syntax::identity(), types::typeof(variables::identity()))
+    types::annotate(variables::identity(), types::typeof(syntax::identity()))
 }
 
 export operation parameterType(annotation) {
@@ -33,6 +34,7 @@ export operation parameterType(annotation) {
 
 export operation referenceType() {
     types::annotate(syntax::identity(), types::typeof(variables::identity()))
+    types::annotate(variables::identity(), types::typeof(syntax::identity()))
 }
 
 export operation functionSignature(arguments, body, annotation) {

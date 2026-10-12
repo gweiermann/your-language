@@ -52,7 +52,7 @@ export operation restrictTypeTo(value) {
 
 The variable library creates ordinary named bindings. Declarations and resolved references share a binding identity. `typing.yl` bridges those opaque handles to syntax-local contributions; the type kernel does not inspect scopes, declaration names or variable-library fields.
 
-Explicit annotations both contribute their declared type and restrict the binding. Initializer facts remain separate and flow into that binding. Consequently `let count: number = "wrong";` retains number and string, and diagnoses the string with primary `"wrong"` and related `number`.
+Explicit annotations both contribute their declared type and restrict the binding. Initializer facts remain separate and flow into that binding. Declaration and reference occurrences share accumulated binding facts through explicit bidirectional authored bridges. Their original syntax identities remain distinct; initializer transfer is one way. Consequently `let count: number = "wrong";` retains number and string, and diagnoses the string with primary `"wrong"` and related `number`.
 
 ## Language-authored functions
 

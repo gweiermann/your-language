@@ -24,6 +24,8 @@ pub fn display_type(record: &SemanticRecord) -> Option<String> {
         let alternatives: Vec<_> = parameters
             .split(" | ")
             .map(|value| value.trim_start_matches('[').trim_end_matches(']'))
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
             .collect();
         let parameters = if alternatives.iter().all(|value| !value.contains(',')) {
             alternatives.join(" | ")

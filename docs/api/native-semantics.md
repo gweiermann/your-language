@@ -250,3 +250,5 @@ The previous experimental `ensure` contract is replaced by `annotate` and `restr
 The [Mini TypeScript example](https://github.com/gweiermann/your-language/tree/main/examples/mini_typescript) demonstrates literals, annotations, variable bridges, recursive functions, aliases, higher-order calls and language-authored addition. Unannotated functions currently collect evidence into a shared signature. Mixed calls widen parameter and return unions; they do not receive independently instantiated generic types.
 
 Generic instantiation, scoped control-flow narrowing, directional subtyping, ownership and target execution are separate work. `useAsType` is not implemented. The operation and serialized result contracts remain experimental.
+
+The MiniTS bridge shares accumulated type facts between a binding and its declaration/reference occurrences using two directed contributions. Syntax occurrence identities remain distinct; initializer evidence flows one way and is never retyped by these bridges.

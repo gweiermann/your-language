@@ -281,16 +281,121 @@ impl Possibilities {
             _ => None,
         }
     }
-    fn intersect(left: Vec<Fact>, right: Vec<Fact>) -> Vec<Fact> {
-        let mut facts = BTreeMap::new();
-        for a in &left {
-            for b in &right {
-                if let Some(fact) = Self::meet_fact(a, b) {
-                    facts.entry(fact.member.clone()).or_insert(fact);
+    fn destination_keys(destination: &Destination) -> Vec<Key> {
+        match destination {
+            Destination::One(key) => vec![key.clone()],
+            Destination::Positions(keys) => keys.clone(),
+        }
+    }
+    // Join connected restrictions on canonical keys. Keeping whole rows retains
+    // correlations even when positional key lists overlap or change order.
+    fn contract_rows(
+        &self,
+        keys: &[Key],
+        seen: &std::collections::BTreeSet<Key>,
+    ) -> Result<Option<Vec<BTreeMap<Key, Fact>>>, Diagnostic> {
+        let mut component: std::collections::BTreeSet<_> = keys.iter().cloned().collect();
+        let mut selected = vec![];
+        loop {
+            let mut added = false;
+            for (index, restriction) in self.restrictions.iter().enumerate() {
+                if selected.contains(&index) {
+                    continue;
+                }
+                let targets = Self::destination_keys(&restriction.destination);
+                if targets.iter().any(|key| component.contains(key)) {
+                    component.extend(targets);
+                    selected.push(index);
+                    added = true;
                 }
             }
+            if !added {
+                break;
+            }
         }
-        facts.into_values().collect()
+        if selected.is_empty() {
+            return Ok(None);
+        }
+        let mut nested = seen.clone();
+        nested.extend(component);
+        let mut rows = vec![BTreeMap::<Key, Fact>::new()];
+        let mut has_contract = false;
+        for index in selected {
+            let bound = &self.restrictions[index];
+            let values = self.eval(&bound.value, &mut nested)?;
+            if values.is_empty() {
+                continue;
+            }
+            has_contract = true;
+            let mut choices = vec![];
+            for fact in values {
+                let assignments = match &bound.destination {
+                    Destination::One(key) => vec![(key.clone(), fact)],
+                    Destination::Positions(keys) if fact.member == Member::Unknown => {
+                        keys.iter().map(|key| (key.clone(), fact.clone())).collect()
+                    }
+                    Destination::Positions(keys) if keys.len() == fact.children.len() => {
+                        keys.iter().cloned().zip(fact.children).collect()
+                    }
+                    _ => continue,
+                };
+                let mut row = BTreeMap::<Key, Fact>::new();
+                let mut valid = true;
+                for (key, fact) in assignments {
+                    if let Some(old) = row.get(&key) {
+                        if let Some(meet) = Self::meet_fact(old, &fact) {
+                            row.insert(key, meet);
+                        } else {
+                            valid = false;
+                            break;
+                        }
+                    } else {
+                        row.insert(key, fact);
+                    }
+                }
+                if valid {
+                    choices.push(row);
+                }
+            }
+            let mut joined = BTreeMap::new();
+            for row in &rows {
+                for choice in &choices {
+                    let mut next = row.clone();
+                    let mut valid = true;
+                    for (key, fact) in choice {
+                        if let Some(old) = next.get(key) {
+                            if let Some(meet) = Self::meet_fact(old, fact) {
+                                next.insert(key.clone(), meet);
+                            } else {
+                                valid = false;
+                                break;
+                            }
+                        } else {
+                            next.insert(key.clone(), fact.clone());
+                        }
+                    }
+                    if valid {
+                        let identity: Vec<_> = next
+                            .iter()
+                            .map(|(key, fact)| (key.clone(), fact.member.clone()))
+                            .collect();
+                        joined.entry(identity).or_insert(next);
+                        if joined.len() > LIMIT {
+                            return Err(Diagnostic::error(
+                                "types.complexity",
+                                "Restriction combinations exceeded the analysis limit",
+                                bound.span.clone(),
+                            ));
+                        }
+                    }
+                }
+            }
+            rows = joined.into_values().collect();
+            if rows.is_empty() {
+                break;
+            }
+        }
+        Ok(has_contract.then_some(rows))
     }
     fn register_expr(&mut self, value: &Expr) {
         let mut deps = vec![];
@@ -321,7 +426,13 @@ impl Possibilities {
             Expr::Constant(m, s) => Ok(vec![Fact::scalar(m.clone(), s.clone())]),
             Expr::Read(k, s) => {
                 if !seen.insert(k.clone()) {
-                    return Ok(vec![]);
+                    // A recursive bound may read finite contributed evidence;
+                    // only an unobserved fallback would reenter the contracts.
+                    return Ok(self
+                        .facts
+                        .get(k)
+                        .map(|facts| facts.values().cloned().collect())
+                        .unwrap_or_default());
                 }
                 let mut result = self
                     .facts
@@ -329,34 +440,12 @@ impl Possibilities {
                     .map(|fs| fs.values().cloned().collect::<Vec<_>>())
                     .unwrap_or_default();
                 if result.is_empty() {
-                    let mut contracts: Option<Vec<Fact>> = None;
-                    for bound in &self.restrictions {
-                        let choices = match &bound.destination {
-                            Destination::One(target) if target == k => {
-                                Some(self.eval(&bound.value, seen)?)
-                            }
-                            Destination::Positions(ks) => ks
-                                .iter()
-                                .position(|target| target == k)
-                                .map(|index| {
-                                    self.eval(&bound.value, seen).map(|lists| {
-                                        lists
-                                            .into_iter()
-                                            .filter_map(|list| list.children.get(index).cloned())
-                                            .collect()
-                                    })
-                                })
-                                .transpose()?,
-                            _ => None,
-                        };
-                        if let Some(choices) = choices.filter(|choices| !choices.is_empty()) {
-                            contracts = Some(match contracts {
-                                Some(old) => Self::intersect(old, choices),
-                                None => choices,
-                            });
-                        }
+                    if let Some(rows) = self.contract_rows(std::slice::from_ref(k), seen)? {
+                        result = rows
+                            .into_iter()
+                            .filter_map(|mut row| row.remove(k))
+                            .collect();
                     }
-                    result = contracts.unwrap_or_default();
                 }
                 if result.is_empty() && self.settled {
                     result.push(Fact::scalar(Member::Unknown, s.clone()));
@@ -396,26 +485,55 @@ impl Possibilities {
                     })
                     .collect();
                 if let Some(keys) = keys.filter(|keys| {
-                    keys.iter().all(|key| {
-                        !seen.contains(key) && self.facts.get(key).is_none_or(BTreeMap::is_empty)
-                    })
+                    keys.iter().all(|key| !seen.contains(key))
+                        && keys
+                            .iter()
+                            .any(|key| self.facts.get(key).is_none_or(BTreeMap::is_empty))
                 }) {
-                    let mut contracts: Option<Vec<Fact>> = None;
-                    let mut nested = seen.clone();
-                    nested.extend(keys.iter().cloned());
-                    for bound in &self.restrictions {
-                        if matches!(&bound.destination, Destination::Positions(targets) if targets == &keys)
-                        {
-                            let choices = self.eval(&bound.value, &mut nested)?;
-                            if !choices.is_empty() {
-                                contracts = Some(match contracts {
-                                    Some(old) => Self::intersect(old, choices),
-                                    None => choices,
-                                });
+                    if let Some(rows) = self.contract_rows(&keys, seen)? {
+                        let mut contracts = vec![];
+                        for row in rows {
+                            let mut product = vec![vec![]];
+                            for key in &keys {
+                                let choices =
+                                    if self.facts.get(key).is_some_and(|facts| !facts.is_empty()) {
+                                        self.eval(&Expr::Read(key.clone(), s.clone()), seen)?
+                                            .into_iter()
+                                            .filter(|fact| {
+                                                row.get(key).is_none_or(|bound| {
+                                                    fact.member.compatible(&bound.member)
+                                                })
+                                            })
+                                            .collect()
+                                    } else {
+                                        match row.get(key) {
+                                            Some(fact) => vec![fact.clone()],
+                                            None => self
+                                                .eval(&Expr::Read(key.clone(), s.clone()), seen)?,
+                                        }
+                                    };
+                                let mut next = vec![];
+                                for prefix in &product {
+                                    for choice in &choices {
+                                        if contracts.len() + next.len() >= LIMIT {
+                                            return Err(Diagnostic::error("types.complexity", "Restriction combinations exceeded the analysis limit", s.clone()));
+                                        }
+                                        let mut children = prefix.clone();
+                                        children.push(choice.clone());
+                                        next.push(children);
+                                    }
+                                }
+                                product = next;
                             }
+                            contracts.extend(product.into_iter().map(|children: Vec<Fact>| Fact {
+                                member: Member::List(
+                                    children.iter().map(|c| c.member.clone()).collect(),
+                                ),
+                                origin: s.clone(),
+                                anchors: vec![],
+                                children,
+                            }));
                         }
-                    }
-                    if let Some(contracts) = contracts {
                         return Ok(contracts);
                     }
                 }
@@ -548,13 +666,27 @@ impl Possibilities {
             .map(|a| a.member.display())
             .collect::<Vec<_>>()
             .join(" | ");
+        let origin = fact
+            .children
+            .iter()
+            .enumerate()
+            .find(|(index, child)| {
+                !allowed.iter().any(|bound| {
+                    bound.member == Member::Unknown
+                        || bound.children.get(*index).is_some_and(|allowed_child| {
+                            child.member.compatible(&allowed_child.member)
+                        })
+                })
+            })
+            .map(|(_, child)| child.origin.clone())
+            .unwrap_or_else(|| fact.origin.clone());
         let mut diagnostic = Diagnostic::error(
             "types.mismatch",
             format!("Type {} does not match {expected}", fact.member.display()),
-            fact.origin.clone(),
+            origin.clone(),
         );
         if let Some(bound) = allowed.first() {
-            if bound.origin != fact.origin {
+            if bound.origin != origin {
                 diagnostic.secondary.push(bound.origin.clone());
                 diagnostic.help =
                     Some("The related location requires the incompatible type".into());
@@ -678,7 +810,7 @@ impl AnalysisService for Possibilities {
     }
     fn finish(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
         self.settled = true;
-        let mut domains: Vec<(Destination, Vec<Fact>)> = vec![];
+        let mut checked_domains = std::collections::BTreeSet::new();
         for (index, bound) in self.restrictions.clone().into_iter().enumerate() {
             let mut allowed = self.eval(&bound.value, &mut Default::default())?;
             for fact in &mut allowed {
@@ -686,27 +818,42 @@ impl AnalysisService for Possibilities {
                     fact.origin = bound.span.clone();
                 }
             }
-            if !allowed.is_empty() {
-                if let Some((_, previous)) = domains
-                    .iter_mut()
-                    .find(|(destination, _)| destination == &bound.destination)
-                {
-                    let intersection = Self::intersect(previous.clone(), allowed.clone());
-                    if intersection.is_empty() && !previous.is_empty() {
-                        let mut diagnostic = Diagnostic::error(
-                            "types.mismatch",
-                            "Type restrictions have no compatible possibility",
-                            allowed[0].origin.clone(),
-                        );
-                        diagnostic.secondary.push(previous[0].origin.clone());
-                        diagnostic.help =
-                            Some("The related restriction requires an incompatible type".into());
-                        context.emit(diagnostic);
+            let keys = Self::destination_keys(&bound.destination);
+            if keys.iter().any(|key| !checked_domains.contains(key))
+                && self
+                    .contract_rows(&keys, &Default::default())?
+                    .is_some_and(|rows| rows.is_empty())
+            {
+                checked_domains.extend(keys.clone());
+                let primary = allowed
+                    .first()
+                    .map(|fact| fact.origin.clone())
+                    .unwrap_or_else(|| bound.span.clone());
+                let mut diagnostic = Diagnostic::error(
+                    "types.mismatch",
+                    "Type restrictions have no compatible possibility",
+                    primary.clone(),
+                );
+                for other in &self.restrictions {
+                    if other != &bound
+                        && Self::destination_keys(&other.destination)
+                            .iter()
+                            .any(|key| keys.contains(key))
+                    {
+                        if let Some(fact) =
+                            self.eval(&other.value, &mut Default::default())?.first()
+                        {
+                            if fact.origin != primary
+                                && !diagnostic.secondary.contains(&fact.origin)
+                            {
+                                diagnostic.secondary.push(fact.origin.clone());
+                            }
+                        }
                     }
-                    *previous = intersection;
-                } else {
-                    domains.push((bound.destination.clone(), allowed.clone()));
                 }
+                diagnostic.help =
+                    Some("The related restrictions require incompatible types".into());
+                context.emit(diagnostic);
             }
             match bound.destination {
                 Destination::One(k) => {
@@ -717,7 +864,13 @@ impl AnalysisService for Possibilities {
                 Destination::Positions(keys) => {
                     let value = Expr::List(
                         keys.iter()
-                            .map(|key| Expr::Read(key.clone(), bound.target_span.clone()))
+                            .map(|key| {
+                                if self.facts.get(key).is_some_and(|facts| !facts.is_empty()) {
+                                    Expr::Read(key.clone(), bound.target_span.clone())
+                                } else {
+                                    Expr::Constant(Member::Unknown, bound.target_span.clone())
+                                }
+                            })
                             .collect(),
                         bound.target_span.clone(),
                     );
@@ -725,7 +878,8 @@ impl AnalysisService for Possibilities {
                         identity: SemanticIdentity::Occurrence(context.occurrence.id),
                         slot: None,
                     });
-                    for fact in self.eval(&value, &mut Default::default())? {
+                    let mut observed_only = keys.iter().cloned().collect();
+                    for fact in self.eval(&value, &mut observed_only)? {
                         self.report_restriction(index, &identity, &fact, &allowed, context);
                     }
                 }

@@ -256,3 +256,47 @@ fn arbitrary_function_slot_names_preserve_inference_through_reload() {
         SemanticValue::Text("number".into())
     )));
 }
+
+#[test]
+fn references_and_declarations_share_type_facts_without_retyping_initializer() {
+    use your_language::semantics::{Occurrence, SemanticIdentity};
+    let result = analyze_with("let original = 1; let copied = original;", |grammar| {
+        assert!(grammar.contains("referenceType()"));
+        *grammar = grammar.replace(
+            "referenceType()",
+            "referenceType()\n        annotateWithType(string)",
+        );
+    });
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(binding(&result, "original"), "number | string");
+    assert_eq!(binding(&result, "copied"), "number | string");
+    fn number_id(occurrences: &[Occurrence]) -> Option<usize> {
+        for occurrence in occurrences {
+            if occurrence.definition.ends_with("#Number") {
+                return Some(occurrence.id);
+            }
+            if let Some(id) = number_id(&occurrence.children) {
+                return Some(id);
+            }
+        }
+        None
+    }
+    let key = SemanticValue::Identity(SemanticIdentity::Occurrence(
+        number_id(&result.occurrences).unwrap(),
+    ));
+    let record = result
+        .graph
+        .records
+        .iter()
+        .find(|record| {
+            record
+                .entries
+                .iter()
+                .any(|(k, v)| *k == SemanticKey::Symbol("std/types#key".into()) && *v == key)
+        })
+        .unwrap();
+    assert!(record.entries.contains(&(
+        SemanticKey::Symbol("std/types#type".into()),
+        SemanticValue::Symbol("definition/types.yl#number".into())
+    )));
+}
