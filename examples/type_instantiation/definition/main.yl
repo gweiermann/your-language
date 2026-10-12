@@ -1,0 +1,81 @@
+import * as types from "std/types"
+import * as syntax from "std/syntax"
+import * as host from "host"
+
+symbol number
+
+symbol string
+
+symbol Function
+
+symbol input
+
+symbol output
+
+trivia Whitespace = /\s+/
+
+node Parameter = "value"
+
+node Number = /[0-9]+/ {
+    meanings {
+        types::annotate(syntax::identity(), number)
+    }
+}
+
+node String = /"[^"\n]*"/ {
+    meanings {
+        types::annotate(syntax::identity(), string)
+    }
+}
+
+node RequiredNumber = "number" {
+    meanings {
+        types::annotate(syntax::identity(), number)
+    }
+}
+
+node Argument {
+    node Number
+
+    node String
+
+    meanings {
+        types::annotate(syntax::identity(), types::typeof(syntax::childIdentity()))
+    }
+}
+
+node Template =
+    "identity"
+    "("
+    local: Parameter
+    ")"
+{
+    meanings {
+        host::template(syntax::identityOf(local))
+        types::annotate(syntax::identity(), Function)
+        types::annotate((syntax::identity(), input), types::typeof(syntax::identityOf(local)))
+        types::annotate(syntax::identityOf(local), types::typeof((syntax::identity(), input)))
+        types::annotate((syntax::identity(), output), types::typeof(syntax::identityOf(local)))
+    }
+}
+
+operation instance(template, site) = types::instantiate(syntax::identityOf(template), syntax::identityOf(site))
+
+node Program =
+    template: Template
+    first: Argument
+    second: Argument
+    required: RequiredNumber
+{
+    meanings {
+        types::annotate((instance(template, first), input), types::typeof(syntax::identityOf(first)))
+        types::annotate((instance(template, second), input), types::typeof(syntax::identityOf(second)))
+        types::restrictTo((instance(template, first), output), types::typeof(syntax::identityOf(required)))
+        host::show("first", instance(template, first))
+        host::show("second", instance(template, second))
+    }
+}
+
+entry Program {
+    trivia Whitespace
+}

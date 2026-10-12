@@ -73,8 +73,10 @@ fn semantic_example_defaults_to_human_output_and_json_is_explicit() {
         "{}",
         String::from_utf8_lossy(&build.stderr)
     );
-    let executable = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("target/debug/examples")
+    let executable = std::path::Path::new(env!("CARGO_BIN_EXE_yl"))
+        .parent()
+        .unwrap()
+        .join("examples")
         .join(format!("semantic_analysis{}", std::env::consts::EXE_SUFFIX));
     let run = |args: &[&str], force: bool, no_color: bool| {
         let mut command = Command::new(&executable);
@@ -136,8 +138,10 @@ fn mini_typescript_consumer_renders_initializer_origin_and_json_uses_same_span()
         "{}",
         String::from_utf8_lossy(&build.stderr)
     );
-    let executable = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("target/debug/examples")
+    let executable = std::path::Path::new(env!("CARGO_BIN_EXE_yl"))
+        .parent()
+        .unwrap()
+        .join("examples")
         .join(format!("mini_typescript{}", std::env::consts::EXE_SUFFIX));
     let human = Command::new(&executable)
         .arg("errors")

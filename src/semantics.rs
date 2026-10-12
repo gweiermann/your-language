@@ -167,6 +167,11 @@ pub enum SemanticValue {
 pub enum SemanticIdentity {
     Occurrence(usize),
     Binding(usize),
+    /// Opaque analysis-local handle allocated by a native library.
+    Service {
+        service: String,
+        id: usize,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum SemanticKey {
@@ -437,6 +442,8 @@ pub(crate) fn run_services(
 pub(crate) struct AnalysisState {
     pub globals: BTreeMap<String, SemanticValue>,
     pub graph: SemanticGraph,
+    pub record_origins: BTreeMap<usize, usize>,
+    pub match_owners: std::collections::BTreeSet<usize>,
     pub diagnostics: Vec<Diagnostic>,
     pub hook_failed: bool,
     pub services: BTreeMap<String, Box<dyn AnalysisService>>,
@@ -472,6 +479,7 @@ impl OperationContext<'_> {
                                 && attachment.value == SemanticValue::Record(*binding)
                         })
                     }
+                    SemanticIdentity::Service { .. } => false,
                 };
                 if matches {
                     return capture.span.clone();
@@ -545,11 +553,16 @@ impl OperationContext<'_> {
     }
     pub fn record(&mut self) -> usize {
         let id = self.state.graph.records.len();
+        self.state.record_origins.insert(id, self.occurrence.id);
         self.state.graph.records.push(SemanticRecord {
             id,
             entries: vec![],
         });
         id
+    }
+    /// Original syntax owner of a record, independent of its fields or library.
+    pub fn record_origin(&self, record: usize) -> Option<usize> {
+        self.state.record_origins.get(&record).copied()
     }
     pub fn get(&self, record: usize, key: &SemanticKey) -> Option<&SemanticValue> {
         self.state

@@ -606,6 +606,10 @@ pub(super) fn execute(
         deferred_dependencies.insert(job.task, required);
     }
     let mut state = AnalysisState {
+        match_owners: deferred
+            .iter()
+            .filter_map(|job| matches!(job.kind, DeferredKind::Match(_)).then_some(job.owner.id))
+            .collect(),
         services: registry
             .services
             .iter()

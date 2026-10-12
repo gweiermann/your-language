@@ -1,0 +1,6 @@
+identity(value)
+
+"wrong"
+1
+
+number

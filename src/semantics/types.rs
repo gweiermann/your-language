@@ -1,6 +1,8 @@
 //! Directed possible-type contributions and independent universal restrictions.
 //! Identities and slot symbols are opaque; target-language policy lives in YL.
 use super::*;
+mod instantiation;
+pub use instantiation::register_template;
 const MODULE: &str = "std/types";
 const UNKNOWN: &str = "std/types#unknown";
 const LIMIT: usize = 4096;
@@ -186,6 +188,7 @@ struct Possibilities {
     reported: std::collections::BTreeSet<(usize, Key, Member)>,
     edges: std::collections::BTreeSet<(Key, Key, i32)>,
     settled: bool,
+    instances: instantiation::Instances,
 }
 impl Possibilities {
     fn connect(
@@ -743,7 +746,7 @@ impl AnalysisService for Possibilities {
         }))
     }
     fn progress(&mut self, context: &mut OperationContext<'_>) -> Result<bool, Diagnostic> {
-        let mut changed = false;
+        let mut changed = instantiation::refresh(self, context.operation_span)?;
         for transfer in self.transfers.clone() {
             for fact in self
                 .eval(&transfer.value, &mut Default::default())
@@ -1022,8 +1025,10 @@ impl NativeOperation for TypeOf {
 pub fn register(registry: &mut OperationRegistry) -> Result<(), String> {
     registry.export_symbol(MODULE, "unknown")?;
     registry.register_service(MODULE, || Box::<Possibilities>::default())?;
-    for name in ["annotate", "restrictTo", "typeof"] {
-        let parameters = if name == "typeof" {
+    for name in ["annotate", "restrictTo", "typeof", "instantiate"] {
+        let parameters = if name == "instantiate" {
+            vec!["template", "use"]
+        } else if name == "typeof" {
             vec!["key"]
         } else {
             vec!["key", "type"]
@@ -1035,7 +1040,7 @@ pub fn register(registry: &mut OperationRegistry) -> Result<(), String> {
                 id: format!("{MODULE}#{name}"),
                 provides_context: false,
                 finalization_only: true,
-                contribution: name != "typeof",
+                contribution: matches!(name, "annotate" | "restrictTo"),
                 parameters: parameters
                     .into_iter()
                     .map(|name| OperationParameter {
@@ -1047,6 +1052,7 @@ pub fn register(registry: &mut OperationRegistry) -> Result<(), String> {
             },
             move || match name {
                 "typeof" => Box::new(TypeOf) as Box<dyn NativeOperation>,
+                "instantiate" => Box::new(instantiation::Instantiate),
                 name => Box::new(Collect {
                     restriction: name == "restrictTo",
                 }),
