@@ -354,11 +354,11 @@ fn deferred_meaning_matches_are_formatted_and_keep_noop_branches() {
         "{formatted}"
     );
     assert!(
-        formatted.contains("number, number => type(number),\n"),
+        formatted.contains("number, number                                   => type(number),\n"),
         "{formatted}"
     );
     assert!(
-        formatted.contains("_ => error(\"${left} + ${right} is not possible\")"),
+        formatted.contains("_                                                => error(\"${left} + ${right} is not possible\")"),
         "{formatted}"
     );
     assert_eq!(tree(source), tree(&formatted));
@@ -422,7 +422,7 @@ fn meaning_layout_keeps_groups_matches_and_precedence_separate() {
         }
         match (typeof(value)) {
             number => type(number),
-            _ => {
+            _      => {
             }
         }
         last()
@@ -872,14 +872,14 @@ fn aligned(source: &str) -> String {
     .unwrap()
 }
 #[test]
-fn meaning_match_alignment_is_opt_in_and_aligns_tuple_alternatives() {
+fn meaning_match_alignment_is_default_and_aligns_tuple_alternatives() {
     let source = include_str!("../examples/formatting-alignment/match-arrows.yl");
     let canonical = format_yl("source", source).unwrap();
     assert_eq!(
         canonical,
         format_yl_with_options("source", source, FormatOptions::default()).unwrap()
     );
-    assert!(canonical.contains("number, number => type(number)"));
+    assert!(canonical.contains("number, number                                   => type(number)"));
     let formatted = aligned(source);
     assert!(
         formatted.contains("number, number                                   => type(number)"),
@@ -958,20 +958,30 @@ fn alignment_padding_is_bounded_with_a_structured_error() {
     )
     .unwrap_err();
     assert_eq!(errors[0].code, "yl.format_alignment_limit");
-    assert!(format_yl("source", &source).is_ok());
+    assert!(format_yl_with_options(
+        "source",
+        &source,
+        FormatOptions {
+            align_match_arrows: false
+        }
+    )
+    .is_ok());
 }
 #[test]
-fn cli_alignment_check_json_write_and_default_style_are_distinct() {
+fn cli_default_alignment_check_json_write_and_legacy_flag_agree() {
     let root = scratch();
     let path = root.0.join("match.yl");
-    let source = format_yl(
+    let source = format_yl_with_options(
         "source",
         include_str!("../examples/formatting-alignment/match-arrows.yl"),
+        FormatOptions {
+            align_match_arrows: false,
+        },
     )
     .unwrap();
     fs::write(&path, &source).unwrap();
     let check = Command::new(env!("CARGO_BIN_EXE_yl"))
-        .args(["fmt", "--check", "--json", "--align-match-arrows"])
+        .args(["fmt", "--check", "--json"])
         .arg(&path)
         .output()
         .unwrap();
@@ -982,18 +992,17 @@ fn cli_alignment_check_json_write_and_default_style_are_distinct() {
     assert!(report["diagnostics"][0]["help"]
         .as_str()
         .unwrap()
-        .contains("--align-match-arrows"));
+        .contains("Run yl fmt without --check"));
     assert_eq!(fs::read_to_string(&path).unwrap(), source);
     let write = Command::new(env!("CARGO_BIN_EXE_yl"))
         .arg("fmt")
         .arg(&path)
-        .arg("--align-match-arrows")
         .output()
         .unwrap();
     assert!(write.status.success());
     assert_eq!(fs::read_to_string(&path).unwrap(), aligned(&source));
     let clean = Command::new(env!("CARGO_BIN_EXE_yl"))
-        .args(["fmt", "--align-match-arrows", "--json", "--check"])
+        .args(["fmt", "--json", "--check"])
         .arg(&path)
         .output()
         .unwrap();
@@ -1001,11 +1010,11 @@ fn cli_alignment_check_json_write_and_default_style_are_distinct() {
     let report: serde_json::Value = serde_json::from_slice(&clean.stdout).unwrap();
     assert_eq!(report["files"][0]["status"], "clean");
     let canonical = Command::new(env!("CARGO_BIN_EXE_yl"))
-        .args(["fmt", "--check"])
+        .args(["fmt", "--check", "--align-match-arrows"])
         .arg(&path)
         .output()
         .unwrap();
-    assert_eq!(canonical.status.code(), Some(1));
+    assert_eq!(canonical.status.code(), Some(0));
     let literal = root.0.join("--align-match-arrows");
     fs::write(&literal, "node A=\"a\"").unwrap();
     let result = Command::new(env!("CARGO_BIN_EXE_yl"))
@@ -1014,4 +1023,24 @@ fn cli_alignment_check_json_write_and_default_style_are_distinct() {
         .output()
         .unwrap();
     assert!(result.status.success());
+}
+
+#[test]
+fn default_options_enable_alignment_and_explicit_library_override_preserves_ast() {
+    assert!(FormatOptions::default().align_match_arrows);
+    let source = "node Root=\"x\"{meanings{match(value){short=>go() longerName=>go()}}}";
+    let formatted = format_yl("source", source).unwrap();
+    assert!(formatted.contains("short      => go()"), "{formatted}");
+    let unaligned = format_yl_with_options(
+        "source",
+        &formatted,
+        FormatOptions {
+            align_match_arrows: false,
+        },
+    )
+    .unwrap();
+    assert!(unaligned.contains("short => go()"));
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(tree(source), tree(&unaligned));
+    assert_eq!(format_yl("source", &unaligned).unwrap(), formatted);
 }

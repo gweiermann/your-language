@@ -72,5 +72,8 @@ test('real yl fmt formats valid buffers and rejects malformed syntax', { skip: !
   const expected = 'node A = "a"\n\nentry A\n';
   assert.equal(await formatBuffer(input, executable, cancellation()), expected);
   assert.equal(await formatBuffer(expected, executable, cancellation()), expected);
+  const matched = await formatBuffer('node A="a"{meanings{match(value){short=>go() longname=>go()}}}', executable, cancellation());
+  assert.ok(matched.includes('short    => go()'), matched);
+  assert.ok(matched.includes('longname => go()'), matched);
   await assert.rejects(formatBuffer('node A = (', executable, cancellation()), /YL formatting failed/);
 });

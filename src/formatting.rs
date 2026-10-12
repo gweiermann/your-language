@@ -8,11 +8,18 @@ use crate::{
 use std::collections::{BTreeMap, BTreeSet};
 use unicode_width::UnicodeWidthStr;
 
-/// Experimental presentation options. The default preserves canonical layout.
-#[derive(Clone, Copy, Debug, Default)]
+/// Presentation options. Canonical formatting aligns meaning-match case arrows.
+#[derive(Clone, Copy, Debug)]
 pub struct FormatOptions {
     /// Align single-line meaning-match case arrows within each match block.
     pub align_match_arrows: bool,
+}
+impl Default for FormatOptions {
+    fn default() -> Self {
+        Self {
+            align_match_arrows: true,
+        }
+    }
 }
 
 /// Format one YL definition module. Comments and raw literals are preserved;
@@ -21,7 +28,7 @@ pub fn format_yl(file: &str, source: &str) -> CompileResult<String> {
     format_yl_with_options(file, source, FormatOptions::default())
 }
 
-/// Format with opt-in presentation experiments; token/AST guards still apply.
+/// Format with explicit presentation options; token/AST guards still apply.
 pub fn format_yl_with_options(
     file: &str,
     source: &str,
@@ -103,7 +110,7 @@ fn align_match_arrows(file: &str, source: &str) -> CompileResult<String> {
                         if added_spaces > 1024 * 1024 {
                             return Err(vec![Diagnostic::error(
                                 "yl.format_alignment_limit",
-                                "Match alignment exceeds the experimental one-MiB padding limit",
+                                "Match alignment exceeds the one-MiB padding limit",
                                 Span::new(file, 0, 0),
                             )]);
                         }

@@ -80,7 +80,7 @@ fn flag(args: &[String], name: &str) -> bool {
 fn io(path: &str, error: std::io::Error) -> Diagnostic {
     Diagnostic::error("yl.io", error.to_string(), Span::new(path, 0, 0))
 }
-fn required(path: &str, source: &str, formatted: &str, options: FormatOptions) -> Diagnostic {
+fn required(path: &str, source: &str, formatted: &str) -> Diagnostic {
     let start = source
         .chars()
         .zip(formatted.chars())
@@ -94,11 +94,7 @@ fn required(path: &str, source: &str, formatted: &str, options: FormatOptions) -
         Span::new(path, start, end),
     );
     diagnostic.severity = Severity::Warning;
-    diagnostic.help = Some(if options.align_match_arrows {
-        "Run yl fmt --align-match-arrows without --check to apply the requested layout".into()
-    } else {
-        "Run yl fmt without --check to apply the canonical layout".into()
-    });
+    diagnostic.help = Some("Run yl fmt without --check to apply the canonical layout".into());
     diagnostic
 }
 struct Pending {
@@ -220,7 +216,7 @@ fn process(options: &Options, report: &mut Report, sources: &mut BTreeMap<String
         } else {
             report
                 .diagnostics
-                .push(required(label, &source, &formatted, options.format));
+                .push(required(label, &source, &formatted));
         }
         report.files[index].status = Status::WouldChange;
         pending.push(Pending {
