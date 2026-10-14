@@ -18,8 +18,9 @@ fn run(actions: &str) -> your_language::semantics::AnalysisResult {
 
 #[test]
 fn transient_failure_should_not_remain() {
-    let result =
-        run(r#"when first(facts("flag")) { contribute("result", "yes") } contribute("flag", true)"#);
+    let result = run(
+        r#"when first(facts("flag")) { contribute("result", "yes") } contribute("flag", true)"#,
+    );
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
 }
 

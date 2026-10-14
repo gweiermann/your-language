@@ -218,7 +218,10 @@ fn separate_unnamed_groups_keep_their_own_schedule_position() {
             "declareName(self, name) group Divider {} connectReference(self, name)",
             false,
         ),
-        ("connectReference(self, name) group Divider {} declareName(self, name)", true),
+        (
+            "connectReference(self, name) group Divider {} declareName(self, name)",
+            true,
+        ),
     ] {
         let source = format!(
             r#"

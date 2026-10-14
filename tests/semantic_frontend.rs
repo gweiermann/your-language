@@ -51,7 +51,10 @@ fn source_meanings_validate_calls_captures_groups_and_selectors() {
     let cases = [
         ("connectReference(self, missing)", "yl.artifact"),
         ("connectReference(self, )", "yl.invalid_argument"),
-        ("connectReference(self, name, name=name)", "yl.invalid_argument"),
+        (
+            "connectReference(self, name, name=name)",
+            "yl.invalid_argument",
+        ),
         (
             "group Register {} group Register {}",
             "yl.duplicate_meaning_group",

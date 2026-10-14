@@ -130,6 +130,10 @@ node Program = "x" { semantics { contribute("result",getEarlier("other")) } } en
         let errors = engine
             .load(&serde_json::to_vec(&json).unwrap())
             .unwrap_err();
-        assert!((errors[0].message.contains("version 4") || errors[0].message.contains("version 5")), "{:?}", errors);
+        assert!(
+            (errors[0].message.contains("version 4") || errors[0].message.contains("version 5")),
+            "{:?}",
+            errors
+        );
     }
 }

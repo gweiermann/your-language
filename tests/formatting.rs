@@ -1067,8 +1067,14 @@ operation attach(target,value){ result:=value return result }
 node Root="x" {semantics{ref:=attach(self,true) when ref {error("example")}}}
 entry Root"#;
     let formatted = format_yl("source", source).unwrap();
-    assert!(formatted.contains("    result := value\n    return result"), "{formatted}");
-    assert!(formatted.contains("        ref := attach(self, true)\n        when ref {"), "{formatted}");
+    assert!(
+        formatted.contains("    result := value\n    return result"),
+        "{formatted}"
+    );
+    assert!(
+        formatted.contains("        ref := attach(self, true)\n        when ref {"),
+        "{formatted}"
+    );
     assert_eq!(tree(source), tree(&formatted));
     assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
 }

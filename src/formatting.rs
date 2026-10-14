@@ -348,7 +348,8 @@ impl Layout {
     fn meaning_action(&mut self, action: &MeaningSyntaxAction) {
         match action {
             MeaningSyntaxAction::Call(call) => self.line(&call.span, false),
-            MeaningSyntaxAction::Binding { span, .. } | MeaningSyntaxAction::Return { span, .. } => self.line(span, false),
+            MeaningSyntaxAction::Binding { span, .. }
+            | MeaningSyntaxAction::Return { span, .. } => self.line(span, false),
             MeaningSyntaxAction::If {
                 actions,
                 otherwise,
@@ -452,10 +453,7 @@ impl Layout {
                     TokenKind::Symbol(symbol) if symbol == "}" => depth = depth.saturating_sub(1),
                     TokenKind::Word(word)
                         if depth == 1
-                            && matches!(
-                                word.as_str(),
-                                "semantics" | "precedence" | "checks"
-                            )
+                            && matches!(word.as_str(), "semantics" | "precedence" | "checks")
                             && !container.members.iter().any(|member| {
                                 member.start <= token.span.start && token.span.end <= member.end
                             }) =>

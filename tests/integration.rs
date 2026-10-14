@@ -463,8 +463,16 @@ fn cli_language_tools_handle_relative_paths_eof_and_constraint_errors() {
         "{diagnostic}"
     );
     assert!(diagnostic.contains('^'));
-    let constrained=compile_sources("checks.yl",&BTreeMap::from([("checks.yl".into(),r#"import { error, warn, hint } from "core/diagnostics"
-node P = value: /x/ { checks { when true { error("Rejected value") } } } entry P"#.into())])).unwrap();
+    let constrained = compile_sources(
+        "checks.yl",
+        &BTreeMap::from([(
+            "checks.yl".into(),
+            r#"import { error, warn, hint } from "core/diagnostics"
+node P = value: /x/ { checks { when true { error("Rejected value") } } } entry P"#
+                .into(),
+        )]),
+    )
+    .unwrap();
     fs::write(&artifact, constrained.to_bytes().unwrap()).unwrap();
     let input = fixture("target/cli-human-constrained.txt");
     fs::write(&input, "x").unwrap();
@@ -541,7 +549,8 @@ fn language_ast_failures_are_json_and_checks_never_emit_an_ast() {
         &BTreeMap::from([(
             "checks.yl".into(),
             r#"import { error, warn, hint } from "core/diagnostics"
-node P = /x/ { checks { when true { error("Rejected") } } } entry P"#.into(),
+node P = /x/ { checks { when true { error("Rejected") } } } entry P"#
+                .into(),
         )]),
     )
     .unwrap();

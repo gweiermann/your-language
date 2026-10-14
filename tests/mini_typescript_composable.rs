@@ -51,7 +51,11 @@ fn addition_policy_lives_in_authored_meanings() {
         assert_eq!(binding(&result, name), expected);
     }
     let changed = analyze_with("let result = 1 + 2;", |grammar| {
-        replace_action(grammar, "Type::number, Type::number", "annotateWithType(self, Type::string),")
+        replace_action(
+            grammar,
+            "Type::number, Type::number",
+            "annotateWithType(self, Type::string),",
+        )
     });
     assert!(changed.diagnostics.is_empty(), "{:?}", changed.diagnostics);
     assert_eq!(binding(&changed, "result"), "Type::string");

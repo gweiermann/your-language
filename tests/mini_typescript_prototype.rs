@@ -39,7 +39,10 @@ fn literals_annotations_and_calls() {
 fn multiple_parameters_nested_calls_and_zero_arguments() {
     let result = analyze("function pair(a: number, b: string) { return b; } function zero() { return 1; } let result = pair(zero(), \"yes\");");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(binding(&result, "pair"), ["(Type::number, Type::string) => Type::string"]);
+    assert_eq!(
+        binding(&result, "pair"),
+        ["(Type::number, Type::string) => Type::string"]
+    );
     assert_eq!(binding(&result, "result"), ["Type::string"]);
 }
 
@@ -70,7 +73,10 @@ fn rejected_annotation_does_not_become_an_inferred_generic_call_type() {
     let result = analyze(source);
     assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
     let diagnostic = &result.diagnostics[0];
-    assert_eq!(diagnostic.message, "Type Type::number does not match Type::string");
+    assert_eq!(
+        diagnostic.message,
+        "Type Type::number does not match Type::string"
+    );
     assert_eq!(
         &source[diagnostic.primary.start..diagnostic.primary.end],
         "identity(42)"
@@ -127,7 +133,10 @@ fn generic_error_fixture_keeps_nested_returns_and_outer_types_independent() {
     let result = analyze(source);
     assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
     let diagnostic = &result.diagnostics[0];
-    assert_eq!(diagnostic.message, "Type Type::number does not match Type::string");
+    assert_eq!(
+        diagnostic.message,
+        "Type Type::number does not match Type::string"
+    );
     assert_eq!(
         &source[diagnostic.primary.start..diagnostic.primary.end],
         "identity(42)"
