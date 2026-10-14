@@ -49,11 +49,11 @@ test('real LSP client: unsaved imports, hints, diagnostics, formatting and close
     const limit=Date.now()+10000; while(Date.now()<limit) { if(JSON.stringify(await s.hints(root)).includes('disk')) break; await new Promise(r=>setTimeout(r,20)); }
     assert.match(JSON.stringify(await s.hints(root)),/disk/);
 });
-test('native contracts validated without effects; incomplete untitled files and UTF16 diagnostics',async t=> {
+test('standard contracts validated without effects; incomplete untitled files and UTF16 diagnostics',async t=> {
     const s=await session(t);
     const dir=await mkdtemp(join(tmpdir(),'yl-lsp-')); t.after(()=>rm(dir,{recursive:true,force:true}));
     const uri=pathToFileURL(join(dir,'lang.yl')).href;
-    s.open(uri,'import { lexicalScope } from "std/variables"\nnode Root = "x" { meanings { lexicalScope() } }\nentry Root');
+    s.open(uri,'import { lexicalScope } from "std/variables"\nnode Root = "x" { meanings { lexicalScope(self) } }\nentry Root');
     assert.deepEqual((await s.diagnostic(uri,1)).diagnostics,[]);
     assert.match(JSON.stringify(await s.hints(uri)),/example/);
     s.change(uri,'import { missing } from "custom/native"\nnode Root="x"\nentry Root',2);
@@ -127,13 +127,13 @@ test('type contributions, syntax identities and authored wrappers validate witho
     const text=`import * as types from "std/types"
 import { children, first } from "std/query"
 symbol number
-operation annotateWithType(value) { types::annotate(self,value) }
-operation restrictTypeTo(value) { types::restrictTo(self,value) }
+operation annotateWithType(target,value) { types::annotate(target,value) }
+operation restrictTypeTo(target,value) { types::restrictTo(target,value) }
 operation typeof(value) = types::typeof(value)
-node Value="x" { meanings { annotateWithType(number) } }
+node Value="x" { meanings { annotateWithType(self,number) } }
 node Root=value: Value { meanings {
-    annotateWithType(typeof(value))
-    restrictTypeTo(number)
+    annotateWithType(self,typeof(value))
+    restrictTypeTo(self,number)
     types::annotate(value,[number])
     types::annotate(first(children(self)),number)
     types::annotate("invalid-key",number)
@@ -151,12 +151,12 @@ entry Root`;
     const edits=await s.connection.sendRequest('textDocument/formatting',{textDocument:{uri},options:{tabSize:4,insertSpaces:true}});
     assert.match(edits[0].newText,/import \* as types/);
     assert.match(edits[0].newText,/from "std\/query"/);
-    assert.match(edits[0].newText,/operation annotateWithType\(value\)/);
+    assert.match(edits[0].newText,/operation annotateWithType\(target, value\)/);
     assert.match(edits[0].newText,/types::restrictTo/);
     assert.match(edits[0].newText,/types::typeof/);
-    s.change(uri,text.replace('types::annotate(self,value)','types::annotate(self)'),2);
+    s.change(uri,text.replace('types::annotate(target,value)','types::annotate(target)'),2);
     assert.ok((await s.diagnostic(uri,2)).diagnostics.some(d=>d.severity===1));
-    s.change(uri,text.replace('types::restrictTo(self,value)','types::restrictTo(self)'),3);
+    s.change(uri,text.replace('types::restrictTo(target,value)','types::restrictTo(target)'),3);
     assert.ok((await s.diagnostic(uri,3)).diagnostics.some(d=>d.severity===1));
     s.change(uri,text.replace('first(children(self))','first()'),4);
     assert.ok((await s.diagnostic(uri,4)).diagnostics.some(d=>d.severity===1));
@@ -164,6 +164,10 @@ entry Root`;
     assert.ok((await s.diagnostic(uri,5)).diagnostics.some(d=>d.severity===1));
     s.change(uri,text,6);
     assert.deepEqual((await s.diagnostic(uri,6)).diagnostics,[]);
+    s.change(uri,text.replace('types::annotate(target,value)','types::annotate(self,value)'),7);
+    assert.ok((await s.diagnostic(uri,7)).diagnostics.some(d=>d.code==='yl.operation_self'));
+    s.change(uri,text,8);
+    assert.deepEqual((await s.diagnostic(uri,8)).diagnostics,[]);
 });
 
 test('imported child CodeLens uses entry trivia and buffer changes preserve spaces',async t=> {
