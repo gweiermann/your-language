@@ -10,25 +10,25 @@ The compiler bundles `std/references` and `std/types` as ordinary YL modules. Th
 import { lexicalScope, declare, use, referenceOf } from "std/references"
 
 node Declaration = "let" name: Name ";" {
-    meanings { declare(name) }
+    meanings { declare(self, name) }
 }
 
 node Reference = name: Name {
-    meanings { use(name) }
+    meanings { use(self, name) }
 }
 
 node Program = (Declaration | Reference)* {
-    meanings { lexicalScope() }
+    meanings { lexicalScope(self) }
 }
 ```
 
-`lexicalScope()` contributes `(self, scope) -> self`. Scope identities are attached to syntax; they are not a mutable current-scope stack. `declare(name, reassignable = true)` contributes `(scopeIdentity, declarations, text(name)) -> declarationIdentity` and associates the exact name capture with that identity. `use(name)` resolves enclosing scopes, associates the use and its name capture, and reports an unknown-name diagnostic if no declaration exists.
+`lexicalScope(target)` contributes `(target, scope) -> target`. Call it as `lexicalScope(self)` inside meanings; operations have no implicit `self`. Scope identities are attached to syntax; they are not a mutable current-scope stack. `declare(target, name, reassignable = true)` contributes `(scopeIdentity, declarations, text(name)) -> declarationIdentity` and associates the exact name capture with that identity. `use(target, name)` resolves enclosing scopes, associates the use and its name capture, and reports an unknown-name diagnostic if no declaration exists.
 
-`reference()` reads the association of `self`. `referenceOf(value)` reads the association of a capture or syntax identity. An unassociated value returns `absent`. Dollar signs, prefixes and other target-language syntax can remain outside the supplied name capture.
+`reference(target)` reads the association of the supplied syntax occurrence. `referenceOf(value)` reads the association of a capture or syntax identity. An unassociated value returns `absent`. Dollar signs, prefixes and other target-language syntax can remain outside the supplied name capture.
 
 The library diagnoses same-scope duplicates and preserves inner shadowing. Declaration visibility uses the static meaning schedule: a declaration must precede its use. This includes source order, named groups, explicit precedence and boundaries. A self-initializer is rejected; explicit precedence can hoist function registration ahead of uses. Pending visible declarations are resolved before selecting an outer binding. Exported metadata symbols include `scope`, `declarations`, `referenceIdentity`, `reassignableSymbol` and `nameSymbol`.
 
-`std/variables` aliases this same module and its symbol identities. Compatibility syntax helpers `identity()`, `identityOf(value)`, `identities(value)` and `childIdentity()` select syntax identities; new definitions can use `self`, captures and `children(self)` directly.
+`std/variables` aliases this same module and its symbol identities. Compatibility syntax helpers `identity(target)`, `identityOf(value)`, `identities(value)` and `childIdentity(target)` select syntax identities; new definitions can use `self`, captures and `children(self)` directly.
 
 ## Type evidence and restrictions
 
@@ -49,7 +49,7 @@ The standard library defines `unknown` and the metadata-channel symbol `type`. T
 | --- | --- |
 | `annotate(key, value)` | Contribute possible type evidence at `(key, type)`. Repeated evidence is deduplicated; different evidence forms a union. |
 | `candidates(key)` | Read the current distinct evidence as a list during fixed-point propagation. |
-| `typeof(key)` | Read one type, a set of alternatives, or `unknown` when no evidence is available. |
+| `typeof(key)` | Read one type, a set of alternatives, or `unknown` for an existing key with no evidence. An absent key returns `absent`. |
 | `compatible(actual, expected)` | Check candidate membership; `unknown` remains permissive. Languages can author different structural compatibility rules. |
 | `restrictTo(key, expected, target = key, related = absent)` | Validate observed evidence without changing it. Emit an authored diagnostic at `target`, optionally marking a related annotation. |
 | `resolveWith(result, assumptions)` | Recompute a result under explicit temporary type assignments, preserving the original store. |
@@ -64,6 +64,8 @@ operation bindingType(name, initializer, annotation) {
     types::restrictTo(referenceOf(name), types::typeof(annotation), initializer, annotation.value)
 }
 ```
+
+An optional absent annotation suppresses the dependent restriction without suppressing initializer evidence. No `isPresent` guard is required for this path. Missing-name diagnostics deliberately inspect absence in the reference library.
 
 The initializer remains the primary error location; the related source points to the annotation's type word. Type policy is in the library and language definition, so a structural language can replace membership checks with authored field/subset queries.
 

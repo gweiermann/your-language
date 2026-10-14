@@ -4,7 +4,7 @@ Declarative meanings describe contributions to an analysis-local attachment stor
 
 ## Identities and keys
 
-`self` is the current node or pattern occurrence. Captures carry their original syntax identities and source information. Repeated captures are lists, optional captures can be `absent`, and patterns retain identities without adding AST wrappers.
+`self` is the current node or pattern occurrence only inside its `meanings` block. Operations have no implicit caller occurrence: pass it as an argument. An operation may explicitly name a formal parameter `self`; that parameter is an ordinary lexical binding. Unbound `self` in an operation, including defaults and callbacks, is a definition error. Captures carry their original syntax identities and source information. Repeated captures are lists, optional captures can be `absent`, and patterns retain identities without adding AST wrappers.
 
 ```yl
 import { contribute, get } from "std/query"
@@ -21,6 +21,26 @@ node Number = value: /[0-9]+/
 ```
 
 Keys can be identities, symbols, text, booleans, or nested tuples containing those values. Text and symbols remain distinct even when their spellings match. A tuple containing `absent` cannot identify an attachment, so its lookup returns `absent`. A pending key component keeps the lookup pending.
+
+## Explicit targets and absent query paths
+
+```yl
+operation annotateNumber(target) {
+    contribute((target, type), number)
+}
+
+node Number = /[0-9]+/ {
+    meanings { annotateNumber(self) }
+}
+```
+
+Operations evaluate their bodies even when an argument is `absent`. Only the expressions and contributions that depend on absence end without a result. Other actions in that operation continue. Optional arguments therefore do not need presence guards just to suppress an annotation.
+
+Ordinary query primitives propagate top-level `absent`. A pending input stays pending and retains its dependencies; it never becomes absence merely because evaluation has not finished. A key containing absence at any nested tuple position suppresses its lookup or contribution. Ordinary tuples and lists retain optional absent slots as data.
+
+Absence can still be inspected deliberately: `isPresent(absent)` is false, `isList(absent)` is false, `equal` compares absence explicitly, and `values(absent)` returns an empty list. `choose` evaluates only its selected branch, but an absent condition returns `absent`; negating absence also returns absence. An absent `if` condition activates neither branch.
+
+For callbacks, `find` continues after an absent result, `map` preserves absent positions, `filter` excludes an absent predicate result, and `every` returns `absent` if a required predicate is absent. These rules preserve positional parameter and annotation lists.
 
 ## Contributions and lookup
 

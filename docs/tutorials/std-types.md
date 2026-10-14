@@ -6,7 +6,7 @@ This tutorial follows the checked-in [Mini TypeScript definition](https://github
 
 ## Start with identities and type evidence
 
-Inside a meaning, `self` identifies the current node or pattern occurrence. A capture identifies the captured syntax occurrence directly; neither requires a syntax-identity wrapper. Repeated captures are lists, and optional captures may be `absent`.
+Inside a node or pattern's `meanings` block, `self` identifies the current node or pattern occurrence. A capture identifies the captured syntax occurrence directly; neither requires a syntax-identity wrapper. Repeated captures are lists, and optional captures may be `absent`.
 
 Declare the primitive types in your language, then annotate literal occurrences:
 
@@ -22,7 +22,7 @@ node Number = value: /[0-9]+/ {
 }
 ```
 
-`annotate(key, value)` contributes possible types to `(key, types::type)`. Repeating the same evidence has no effect; distinct contributions form alternatives. `types::typeof(key)` reads those alternatives, or the library's `unknown` symbol if there is no evidence. Pending queries are an evaluation state, not another type symbol. `unknown` does not erase known evidence.
+`annotate(key, value)` contributes possible types to `(key, types::type)`. Repeating the same evidence has no effect; distinct contributions form alternatives. `types::typeof(key)` reads those alternatives, or the library's `unknown` symbol for an existing occurrence with no evidence. `types::typeof(absent)` returns `absent`, so optional missing syntax does not contribute an unknown type. Pending queries are an evaluation state, not another type symbol. `unknown` does not erase known evidence.
 
 The standard library does not export `number`, `string`, `boolean`, or a function-type marker. These are language-owned values. Namespace imports are optional: `import { annotate, typeof } from "std/types"` imports the same operations directly.
 
@@ -38,13 +38,13 @@ import { use, referenceOf } from "std/references"
 
 node Reference = name: Name {
     meanings {
-        use(name)
+        use(self, name)
         types::annotate(self, types::typeof(referenceOf(name)))
     }
 }
 ```
 
-Here `Name` is the language's imported name pattern. The complete example defines it in `lexical.yl`. `use(name)` records the resolved declaration on the exact name capture and on the reference occurrence. The type library has no dependency on the reference library; the language connects their identities.
+Here `Name` is the language's imported name pattern. The complete example defines it in `lexical.yl`. `use(self, name)` records the resolved declaration on the exact name capture and on the reference occurrence. The type library has no dependency on the reference library; the language connects their identities.
 
 ## Keep constraints separate from annotation
 
@@ -56,31 +56,29 @@ An initializer contributes actual evidence. An explicit binding annotation impos
 operation bindingType(name, initializer, annotation) {
     types::annotate(referenceOf(name), types::typeof(initializer))
 
-    if isPresent(annotation) {
-        types::restrictTo(
-            referenceOf(name),
-            types::typeof(annotation),
-            initializer,
-            annotation.value
-        )
-    }
+    types::restrictTo(
+        referenceOf(name),
+        types::typeof(annotation),
+        initializer,
+        annotation.value
+    )
 }
 ```
 
-Import `isPresent` from `std/query`. In this example, `annotation` is an optional `Annotation` node whose `value` capture contains the type word. `initializer` is the expression following `=`. The third argument chooses the primary diagnostic location; the fourth supplies a related location, excluding the colon and whitespace.
+No presence guard is needed: an absent annotation ends only the dependent restriction, while initializer evidence still contributes. In this example, `annotation` is an optional `Annotation` node whose `value` capture contains the type word. `initializer` is the expression following `=`. The third argument chooses the primary diagnostic location; the fourth supplies a related location, excluding the colon and whitespace.
 
 For `let count: number = "wrong";`, the check reports incompatible evidence and marks `"wrong"` as the primary location. An annotation expresses a requirement; it does not retroactively change a string expression into a number.
 
 ## Define operator rules in YL
 
-The language's `annotateWithType` wrapper selects a binding identity where one exists and otherwise uses `self`. Mini TypeScript's addition node then spells out its own type policy:
+The language's `annotateWithType` wrapper selects a binding identity where one exists and otherwise uses the supplied target. Operations have no implicit `self`; their callers pass it explicitly. Mini TypeScript's addition node then spells out its own type policy:
 
 ```yl
 match (typeof(left), typeof(right)) {
-    string, string | string, number | number, string => annotateWithType(string),
-    number, number                                   => annotateWithType(number),
-    unknown, _ | _, unknown                          => annotateWithType(unknown),
-    _                                                => error("${left} + ${right} is not possible")
+    string, string | string, number | number, string => annotateWithType(self, string),
+    number, number                                  => annotateWithType(self, number),
+    unknown, _ | _, unknown                         => annotateWithType(self, unknown),
+    _                                               => error("${left} + ${right} is not possible")
 }
 ```
 
