@@ -13,6 +13,8 @@ const reference = [
   ['Trivia and entry', 'trivia'],
   ['Constraints and extensions', 'constraints'],
   ['Core and standard library', 'standard-library'],
+  ['Meaning libraries', 'meaning-libraries'],
+  ['Syntax examples', 'examples'],
 ].map(([text, slug]) => ({ text, link: `/reference/${slug}` }))
 
 export default defineConfig({
@@ -40,6 +42,7 @@ export default defineConfig({
         { text: 'Syntax diagnostics', link: '/tutorials/diagnostics' },
         { text: 'MiniJS walkthrough', link: '/tutorials/mini-js' },
         { text: 'Embed in Rust', link: '/tutorials/embedding' },
+        { text: 'Scopes and type inference', link: '/tutorials/semantic-inference' },
       ] },
       { text: 'Language reference', items: reference },
       { text: 'API reference', items: [

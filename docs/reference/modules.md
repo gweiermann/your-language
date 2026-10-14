@@ -42,6 +42,22 @@ Built-in module names such as `core/parser` and `std/parser` are distinct from r
 
 Importing a private or nonexistent declaration is a definition error. Importing a trivia declaration does not activate automatic skipping; the [entry block](./trivia#entry-configuration) selects active trivia explicitly.
 
+## Namespace imports
+
+Use `import * as name` to access a module's exports through `::`:
+
+```yl
+import * as variables from "std/variables"
+
+node Reference = name: Name {
+    meanings {
+        variables::use(name)
+    }
+}
+```
+
+A namespace does not expose private declarations or change their identities. Named imports, namespace imports and aliases can reference the same export. Namespaces work with relative source modules as well as registered native libraries. See [meaning operations](/reference/meaning-libraries) for query and action examples.
+
 ## Import aliases
 
 Use `as` to choose a local name:

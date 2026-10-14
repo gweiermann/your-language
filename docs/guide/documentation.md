@@ -11,7 +11,7 @@ npm run docs:check-examples
 npm run docs:build
 ```
 
-`docs:check-examples` compiles the complete checked-in examples and verifies their expected results. `docs:build` builds the production site and checks internal page links and anchors. Keep examples and documented command paths synchronized when moving files.
+`docs:check-examples` compiles the checked-in syntax examples and verifies their expected results, then runs the inference tutorial modes and checks the composed Program preview. `docs:build` builds the production site and checks internal page links and anchors. Keep examples and documented command paths synchronized when moving files.
 
 ## Deployment
 
@@ -19,7 +19,7 @@ The production output is `docs/.vitepress/dist/`. A static web server can serve 
 
 The documentation workflow publishes the site to [GitHub Pages](https://gweiermann.github.io/your-language/) on pushes to `main`. Pull requests build and validate the same site with the `/your-language/` base path, but do not deploy. The workflow can also be run manually from `main`.
 
-The repository's **Settings → Pages → Build and deployment → Source** must be set to **GitHub Actions**. The workflow uploads the checked production build as a Pages artifact, then deploys through the `github-pages` environment with Pages write and identity-token permissions. Deployments run one at a time without cancelling a deployment already in progress.
+The repository's **Settings â†’ Pages â†’ Build and deployment â†’ Source** must be set to **GitHub Actions**. The workflow uploads the checked production build as a Pages artifact, then deploys through the `github-pages` environment with Pages write and identity-token permissions. Deployments run one at a time without cancelling a deployment already in progress.
 
 ## Editing principles
 

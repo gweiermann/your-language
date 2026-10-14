@@ -67,9 +67,9 @@ Addition remains a local meaning rule:
 ```yl
 match (typeof(left), typeof(right)) {
     string, string | string, number | number, string => annotateWithType(string),
-    number, number => annotateWithType(number),
-    unknown, _ | _, unknown => annotateWithType(unknown),
-    _ => error("${left} + ${right} is not possible")
+    number, number                                 => annotateWithType(number),
+    unknown, _ | _, unknown                         => annotateWithType(unknown),
+    _                                              => error("${left} + ${right} is not possible")
 }
 ```
 
