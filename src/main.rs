@@ -57,7 +57,7 @@ fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
                 errors
             })?;
             let source = fs::read_to_string(&args[3]).map_err(|e| io(&args[3], e))?;
-            let result = if language.has_declarative_meanings() {
+            let result = if args[2] == "check" && language.has_declarative_meanings() {
                 let analysis = your_language::semantics::SemanticEngine::default()
                     .analyze(&language, &args[3], &source);
                 your_language::ParseResult {

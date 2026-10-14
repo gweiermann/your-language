@@ -67,6 +67,17 @@ fn cli_compiles_reloads_and_reports_authored_name_diagnostics_as_human_and_json(
     let diagnostics: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
     assert_eq!(diagnostics.as_array().unwrap().len(), 3);
     let source = include_str!("../examples/declarative-queries/programs/errors.txt");
+    let ast = Command::new(executable)
+        .current_dir(root)
+        .arg("language")
+        .arg(&output)
+        .args(["ast", "examples/declarative-queries/programs/errors.txt"])
+        .output()
+        .unwrap();
+    assert!(ast.status.success());
+    assert!(ast.stderr.is_empty());
+    let value: serde_json::Value = serde_json::from_slice(&ast.stdout).unwrap();
+    assert_eq!(value["type"], "Program");
     for diagnostic in diagnostics.as_array().unwrap() {
         let start = diagnostic["primary"]["start"].as_u64().unwrap() as usize;
         let end = diagnostic["primary"]["end"].as_u64().unwrap() as usize;
