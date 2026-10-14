@@ -1,0 +1,952 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Throwaway declarative query prototype</title>
+  <style>
+    body {
+      font: 16px system-ui;
+      max-width: 1000px;
+      margin: 40px auto;
+      padding: 0 24px;
+      color: #17212b;
+      background: #f8fafc;
+    }
+    h1 {
+      font-size: 28px;
+    }
+    button {
+      padding: 9px 14px;
+      margin: 4px;
+      border: 1px solid #bdc8d4;
+      border-radius: 5px;
+      background: white;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    section {
+      padding: 14px;
+      margin: 12px 0;
+      border: 1px solid #d5dee8;
+      background: white;
+      border-radius: 6px;
+    }
+    #answer {
+      font-weight: bold;
+      color: #1459a0;
+    }
+    #state div {
+      margin: 4px 0;
+      overflow-wrap: anywhere;
+    }
+    .notice {
+      border-left: 4px solid #1459a0;
+      padding-left: 14px;
+    }
+  </style>
+  <h1>Declarative queries: when is an answer settled?</h1>
+  <p class="notice">
+    Throwaway experiment: can pure tuple lookups, tracked contributions, and
+    ancestor search resolve names without an active scope stack? Producer
+    candidates and their key footprints are supplied explicitly. This does not
+    prove automatic producer inference or implement YL.
+  </p>
+  <p id="tests"></p>
+  <h2>Guided walkthroughs</h2>
+  <nav id="tabs"></nav>
+  <p id="intro"></p>
+  <div id="steps"></div>
+  <h2>Free play</h2>
+  <div id="free"></div>
+  <button id="reset">Reset this walkthrough</button>
+  <h2>Current answer</h2>
+  <p id="answer"></p>
+  <p id="trial"></p>
+  <p id="cycles"></p>
+  <h2>Meanings, contributions, and dependencies</h2>
+  <div id="state"></div>
+  <script>
+    const P = { state: "pending" };
+    const A = { state: "absent" };
+    const V = (value) => ({ state: "present", value });
+    const canon = (value) => {
+      if (Array.isArray(value)) return "[" + value.map(canon).join(",") + "]";
+      if (value && typeof value === "object")
+        return (
+          "{" +
+          Object.keys(value)
+            .sort()
+            .map((k) => JSON.stringify(k) + ":" + canon(value[k]))
+            .join(",") +
+          "}"
+        );
+      return JSON.stringify(value);
+    };
+    class QueryEngine {
+      constructor({ parents = {}, discovered = true } = {}) {
+        this.parents = parents;
+        this.discovered = discovered;
+        this.inputs = new Map();
+        this.producers = [];
+        this.deps = new Map();
+        this.reads = 0;
+      }
+      input(name, result) {
+        this.inputs.set(name, result);
+        return this;
+      }
+      producer(id, { footprint, run, kind = "contribution" }) {
+        this.producers.push({
+          id,
+          footprint,
+          run,
+          kind,
+          status: P,
+          output: null,
+        });
+        return this;
+      }
+      ancestors(id) {
+        const out = [];
+        let at = this.parents[id];
+        const seen = new Set();
+        while (at !== undefined && at !== null) {
+          if (seen.has(at)) throw Error("parent cycle");
+          seen.add(at);
+          out.push(at);
+          at = this.parents[at];
+        }
+        return out;
+      }
+      note(key) {
+        if (this.current) this.deps.get(this.current).add(key);
+      }
+      read(name) {
+        this.note("input:" + name);
+        return this.inputs.get(name) || P;
+      }
+      tuple(parts) {
+        if (parts.some((x) => x.state === "pending")) return P;
+        if (parts.some((x) => x.state === "absent")) return A;
+        return V(parts.map((x) => x.value));
+      }
+      get(keyResult) {
+        this.reads++;
+        if (keyResult.state !== "present") return keyResult;
+        const key = keyResult.value;
+        this.note("key:" + canon(key));
+        if (this.override?.has(canon(key)))
+          return this.override.get(canon(key));
+        if (!this.discovered) return P;
+        const relevant = this.producers.filter(
+          (p) => p.kind === "contribution" && p.footprint(key),
+        );
+        relevant.forEach((p) => this.note("producer:" + p.id));
+        if (relevant.some((p) => p.status.state === "pending")) return P;
+        const contributions = relevant.filter(
+          (p) => p.output && canon(p.output.key) === canon(key),
+        );
+        if (!contributions.length) return A;
+        if (contributions.length > 1)
+          return {
+            state: "conflict",
+            contributors: contributions.map((p) => p.id),
+          };
+        return V(contributions[0].output.value);
+      }
+      find(items, callback) {
+        for (const item of items) {
+          const r = callback(item);
+          if (r.state !== "absent") return r;
+        }
+        return A;
+      }
+      resolve(at, name) {
+        return this.find(this.ancestors(at), (ancestor) =>
+          this.get(
+            this.tuple([
+              this.get(V([ancestor, "scope"])),
+              V("declarations"),
+              V(name),
+            ]),
+          ),
+        );
+      }
+      diagnostic(id, run) {
+        return this.producer(id, {
+          footprint: () => false,
+          kind: "diagnostic",
+          run,
+        });
+      }
+      recompute(overrides) {
+        this.override = overrides;
+        this.reads = 0;
+        this.deps = new Map();
+        for (const p of this.producers) {
+          p.status = P;
+          p.output = null;
+          this.deps.set(p.id, new Set());
+        }
+        let changed = true,
+          rounds = 0;
+        while (changed && rounds++ < this.producers.length + 2) {
+          changed = false;
+          for (const p of this.producers) {
+            this.current = p.id;
+            const result = p.run(this);
+            this.current = null;
+            const next = result.state === "present" ? result.value : null;
+            if (canon([p.status, p.output]) !== canon([result, next]))
+              changed = true;
+            p.status = result;
+            p.output = next;
+          }
+        }
+        this.override = undefined;
+        return this.snapshot();
+      }
+      snapshot() {
+        return {
+          producers: this.producers.map((p) => ({
+            id: p.id,
+            state: p.status.state,
+            output: p.output,
+            deps: [...this.deps.get(p.id)],
+          })),
+          diagnostics: this.producers
+            .filter((p) => p.kind === "diagnostic" && p.output)
+            .map((p) => ({ id: p.id, ...p.output })),
+          pending: this.producers
+            .filter((p) => p.status.state === "pending")
+            .map((p) => p.id),
+          reads: this.reads,
+        };
+      }
+      cycles() {
+        const pending = new Set(
+          this.producers
+            .filter((p) => p.status.state === "pending")
+            .map((p) => p.id),
+        );
+        const edges = (id) =>
+          [...(this.deps.get(id) || [])]
+            .filter((d) => d.startsWith("producer:"))
+            .map((d) => d.slice(9))
+            .filter((id) => pending.has(id));
+        const result = [];
+        const done = new Set(),
+          active = [];
+        const visit = (id) => {
+          const ix = active.indexOf(id);
+          if (ix !== -1) {
+            result.push([...active.slice(ix), id]);
+            return;
+          }
+          if (done.has(id)) return;
+          active.push(id);
+          edges(id).forEach(visit);
+          active.pop();
+          done.add(id);
+        };
+        pending.forEach(visit);
+        return result;
+      }
+      hypothetical(key, assignments) {
+        const copy = new QueryEngine({
+          parents: this.parents,
+          discovered: this.discovered,
+        });
+        copy.inputs = new Map(this.inputs);
+        copy.producers = this.producers.map((p) => ({
+          ...p,
+          status: P,
+          output: null,
+        }));
+        const override = new Map(
+          assignments.map(([key, value]) => [canon(key), V(value)]),
+        );
+        copy.recompute(override);
+        copy.override = override;
+        const result = copy.get(V(key));
+        return { result, snapshot: copy.snapshot() };
+      }
+    }
+    const eqKey = (expected) => (key) => canon(expected) === canon(key);
+    const fixed = (e, id, key, value) =>
+      e.producer(id, { footprint: eqKey(key), run: () => V({ key, value }) });
+    const query = (e, id, key, fn) =>
+      e.producer(id, {
+        footprint: eqKey(key),
+        run: (e) => {
+          const r = fn(e);
+          return r.state === "present" ? V({ key, value: r.value }) : r;
+        },
+      });
+    function fixture() {
+      const e = new QueryEngine({
+        parents: {
+          call: "wrapper",
+          wrapper: "inner",
+          inner: "program",
+          program: null,
+        },
+      });
+      fixed(e, "program-scope", ["program", "scope"], "S0");
+      fixed(e, "inner-scope", ["inner", "scope"], "S1");
+      fixed(e, "outer-greet", ["S0", "declarations", "greet"], "outer");
+      e.producer("inner-greet", {
+        footprint: eqKey(["S1", "declarations", "greet"]),
+        run: (e) => {
+          const ready = e.read("registration");
+          if (ready.state !== "present") return ready;
+          return ready.value
+            ? V({ key: ["S1", "declarations", "greet"], value: "inner" })
+            : A;
+        },
+      });
+      return e;
+    }
+    function runCoreTests() {
+      const results = [];
+      function assert(label, actual, expected) {
+        if (canon(actual) !== canon(expected))
+          throw Error(label + ": " + canon(actual) + " !== " + canon(expected));
+        results.push({ label, passed: true });
+      }
+      let e = fixture();
+      e.recompute();
+      assert(
+        "Forward declaration waits instead of selecting outer declaration",
+        e.resolve("call", "greet"),
+        P,
+      );
+      e.input("registration", V(true)).recompute();
+      assert(
+        "Forward inner declaration wins across wrapper without scope",
+        e.resolve("call", "greet"),
+        V("inner"),
+      );
+      e.input("registration", V(false)).recompute();
+      assert(
+        "False guard permits outer declaration",
+        e.resolve("call", "greet"),
+        V("outer"),
+      );
+      assert(
+        "Missing declaration settles to absent",
+        e.resolve("call", "missing"),
+        A,
+      );
+      e.input("registration", P).recompute();
+      assert(
+        "Changing true/false guard back to pending retracts result",
+        e.resolve("call", "greet"),
+        P,
+      );
+      let duplicate = fixture().input("registration", V(true));
+      fixed(
+        duplicate,
+        "inner-greet-duplicate",
+        ["S1", "declarations", "greet"],
+        "duplicate",
+      );
+      duplicate.recompute();
+      assert(
+        "Duplicate declaration retains both source producer identities",
+        duplicate.resolve("call", "greet"),
+        {
+          state: "conflict",
+          contributors: ["inner-greet", "inner-greet-duplicate"],
+        },
+      );
+      let nested = new QueryEngine();
+      fixed(nested, "scope", ["owner", "scope"], "S");
+      nested.producer("declaration", {
+        footprint: eqKey(["S", "decl", "x"]),
+        run: (e) => {
+          const name = e.read("name");
+          return name.state === "present"
+            ? V({ key: ["S", "decl", name.value], value: 1 })
+            : name;
+        },
+      });
+      nested.recompute();
+      assert(
+        "Unknown nested tuple component remains pending",
+        nested.get(
+          nested.tuple([
+            nested.get(V(["owner", "scope"])),
+            V("decl"),
+            nested.read("name"),
+          ]),
+        ),
+        P,
+      );
+      assert(
+        "Absent tuple component propagates absence",
+        nested.get(nested.tuple([A, V("decl"), V("x")])),
+        A,
+      );
+      let local = fixture().input("registration", V(true));
+      local.producer("other-scope-unknown-key", {
+        footprint: (key) => key[0] === "S2",
+        run: () => P,
+      });
+      local.recompute();
+      assert(
+        "Unknown keys restricted to independent scope don't block S1",
+        local.resolve("call", "greet"),
+        V("inner"),
+      );
+      let broad = fixture().input("registration", V(true));
+      broad.producer("global-unknown-key", {
+        footprint: () => true,
+        run: () => P,
+      });
+      broad.recompute();
+      assert(
+        "Unbounded unknown-key producer conservatively blocks known scopes",
+        broad.resolve("call", "greet"),
+        P,
+      );
+      let undiscovered = fixture().input("registration", V(true));
+      undiscovered.discovered = false;
+      undiscovered.recompute();
+      assert(
+        "Open producer discovery never claims definitive presence",
+        undiscovered.resolve("call", "greet"),
+        P,
+      );
+      let unsafe = fixture().input("registration", V(true));
+      unsafe.producers = unsafe.producers.filter((p) => p.id !== "inner-greet");
+      unsafe.recompute();
+      assert(
+        "Incomplete discovery falsely chooses outer binding: completeness is a required assumption",
+        unsafe.resolve("call", "greet"),
+        V("outer"),
+      );
+      let diagnostic = fixture().input("registration", V(false));
+      diagnostic.diagnostic("missing-name", (e) => {
+        const r = e.resolve("call", "unknownName");
+        return r.state === "pending"
+          ? r
+          : r.state === "absent"
+            ? V({ message: "Unknown name", span: "call" })
+            : A;
+      });
+      diagnostic.recompute();
+      assert(
+        "Missing-name diagnostic emitted once",
+        diagnostic.snapshot().diagnostics.length,
+        1,
+      );
+      diagnostic.recompute();
+      assert(
+        "Recomputation deduplicates diagnostic by occurrence",
+        diagnostic.snapshot().diagnostics.length,
+        1,
+      );
+      fixed(
+        diagnostic,
+        "resolved-later",
+        ["S1", "declarations", "unknownName"],
+        "found",
+      );
+      diagnostic.recompute();
+      assert(
+        "Diagnostic retracts after new contribution resolves name",
+        diagnostic.snapshot().diagnostics.length,
+        0,
+      );
+      let cycle = new QueryEngine();
+      cycle.producer("circular-guard", {
+        footprint: eqKey(["x"]),
+        run: (e) => {
+          const r = e.get(V(["x"]));
+          return r.state === "present"
+            ? V({ key: ["x"], value: "value" })
+            : r.state === "absent"
+              ? A
+              : P;
+        },
+      });
+      cycle.recompute();
+      assert(
+        "Unseeded guarded self-dependency remains pending",
+        cycle.get(V(["x"])),
+        P,
+      );
+      assert(
+        "Dependency cycle reports contributing occurrence",
+        cycle.cycles(),
+        [["circular-guard", "circular-guard"]],
+      );
+      fixed(cycle, "seed", ["x"], "seed");
+      cycle.recompute();
+      assert(
+        "Final-only get cannot solve even seeded monotone cycle",
+        cycle.get(V(["x"])),
+        P,
+      );
+      let types = new QueryEngine();
+      fixed(types, "parameter", ["parameter", "type"], "number");
+      fixed(types, "outer", ["outside", "type"], "number");
+      query(types, "result", ["return", "type"], (e) => {
+        const a = e.get(V(["parameter", "type"])),
+          b = e.get(V(["outside", "type"]));
+        if (a.state === "pending" || b.state === "pending") return P;
+        if (a.state !== "present" || b.state !== "present") return A;
+        return V(
+          a.value === "string" || b.value === "string" ? "string" : "number",
+        );
+      });
+      types.recompute();
+      const before = canon(types.snapshot());
+      const hypothetical = types.hypothetical(
+        ["return", "type"],
+        [[["parameter", "type"], "string"]],
+      );
+      assert(
+        "Hypothetical parameter override recomputes dependent return",
+        hypothetical.result,
+        V("string"),
+      );
+      assert(
+        "Hypothetical evaluation leaves original contribution graph unchanged",
+        canon(types.snapshot()),
+        before,
+      );
+      assert(
+        "Original return remains number",
+        types.get(V(["return", "type"])),
+        V("number"),
+      );
+      assert(
+        "Captured outer type remains number",
+        types.get(V(["outside", "type"])),
+        V("number"),
+      );
+      function permutations(items) {
+        if (!items.length) return [[]];
+        return items.flatMap((item, i) =>
+          permutations(items.filter((_, j) => j !== i)).map((rest) => [
+            item,
+            ...rest,
+          ]),
+        );
+      }
+      let orderRuns = 0;
+      for (const order of permutations([0, 1, 2, 3])) {
+        const f = fixture().input("registration", V(true));
+        f.producers = order.map((i) => f.producers[i]);
+        f.recompute();
+        if (canon(f.resolve("call", "greet")) !== canon(V("inner")))
+          throw Error("Permutation failed");
+        orderRuns++;
+      }
+      assert(
+        "All producer execution permutations yield same inner binding",
+        orderRuns,
+        24,
+      );
+      return {
+        assertions: results.length,
+        results,
+        permutationRuns: orderRuns,
+        cycleLimitation: cycle.snapshot(),
+        hypothetical: hypothetical.result,
+      };
+    }
+    function runExtraTests() {
+      const result = [];
+      function check(label, actual, expected) {
+        if (canon(actual) !== canon(expected))
+          throw Error(label + ": " + canon(actual));
+        result.push({ label, passed: true });
+      }
+      let e = new QueryEngine();
+      e.producer("selected-match-case", {
+        footprint: eqKey(["classification"]),
+        run: (e) => {
+          const r = e.read("choice");
+          if (r.state !== "present") return r;
+          switch (r.value) {
+            case "number":
+              return V({ key: ["classification"], value: "numeric" });
+            case "string":
+              return V({ key: ["classification"], value: "textual" });
+            default:
+              return A;
+          }
+        },
+      });
+      e.recompute();
+      check(
+        "Pending match scrutinee keeps output pending",
+        e.get(V(["classification"])),
+        P,
+      );
+      e.input("choice", V("number")).recompute();
+      check(
+        "Number branch contributes numeric",
+        e.get(V(["classification"])),
+        V("numeric"),
+      );
+      e.input("choice", V("string")).recompute();
+      check(
+        "Switching match branch replaces the same occurrence contribution",
+        e.get(V(["classification"])),
+        V("textual"),
+      );
+      check(
+        "Query producer retains external scrutinee dependency",
+        [...e.deps.get("selected-match-case")],
+        ["input:choice"],
+      );
+      e.input("choice", V("other")).recompute();
+      check(
+        "Wildcard empty branch closes contribution as absent",
+        e.get(V(["classification"])),
+        A,
+      );
+      let conflict = fixture().input("registration", V(true));
+      fixed(conflict, "duplicate", ["S1", "declarations", "greet"], "other");
+      conflict.diagnostic("duplicate-error", (e) => {
+        const r = e.resolve("call", "greet");
+        return r.state === "pending"
+          ? P
+          : r.state === "conflict"
+            ? V({ message: "Duplicate declaration", sources: r.contributors })
+            : A;
+      });
+      conflict.recompute();
+      check(
+        "Authored duplicate diagnostic retains both declaration provenance",
+        conflict.snapshot().diagnostics[0].sources,
+        ["inner-greet", "duplicate"],
+      );
+      function positiveFixedPoint(seed, rules) {
+        const facts = new Set(seed);
+        let rounds = 0,
+          changed = true;
+        while (changed) {
+          changed = false;
+          rounds++;
+          for (const [from, to] of rules)
+            if (facts.has(from) && !facts.has(to)) {
+              facts.add(to);
+              changed = true;
+            }
+        }
+        return { facts: [...facts].sort(), rounds };
+      }
+      check(
+        "Separate monotone SCC can close seeded positive cycle",
+        positiveFixedPoint(
+          ["x"],
+          [
+            ["x", "y"],
+            ["y", "x"],
+          ],
+        ).facts,
+        ["x", "y"],
+      );
+      check(
+        "Separate monotone SCC has empty least solution without seed",
+        positiveFixedPoint(
+          [],
+          [
+            ["x", "y"],
+            ["y", "x"],
+          ],
+        ).facts,
+        [],
+      );
+      let short = fixture().input("registration", V(true));
+      short.producer("outer-pending", {
+        footprint: eqKey(["S0", "declarations", "greet"]),
+        run: () => P,
+      });
+      short.recompute();
+      check(
+        "Settled inner hit bypasses pending outer declarations",
+        short.resolve("call", "greet"),
+        V("inner"),
+      );
+      let derived = new QueryEngine();
+      query(derived, "b", ["b"], (e) => {
+        const r = e.get(V(["a"]));
+        return r.state === "present" ? V(r.value + 1) : r;
+      });
+      query(derived, "c", ["c"], (e) => {
+        const r = e.get(V(["b"]));
+        return r.state === "present" ? V(r.value + 1) : r;
+      });
+      derived.producer("a", {
+        footprint: eqKey(["a"]),
+        run: (e) => {
+          const r = e.read("seed");
+          return r.state === "present" ? V({ key: ["a"], value: r.value }) : r;
+        },
+      });
+      derived.input("seed", V(1)).recompute();
+      check(
+        "Dependency chain settles despite reverse producer order",
+        derived.get(V(["c"])),
+        V(3),
+      );
+      derived.input("seed", V(5)).recompute();
+      check(
+        "Dependency chain recomputes after external change",
+        derived.get(V(["c"])),
+        V(7),
+      );
+      check(
+        "Derived query records dependency producer",
+        [...derived.deps.get("c")].includes("producer:b"),
+        true,
+      );
+      return {
+        assertions: result.length,
+        results: result,
+        positiveCycle: positiveFixedPoint(
+          ["x"],
+          [
+            ["x", "y"],
+            ["y", "x"],
+          ],
+        ),
+      };
+    }
+    const suite = [runCoreTests(), runExtraTests()];
+    let engine,
+      step = 0,
+      selected = "forward";
+    const scenarios = {
+      forward: {
+        title: "Forward declaration",
+        intro:
+          "An inner function can shadow an outer function even when its registration has not settled.",
+        setup: () => fixture(),
+        steps: [
+          [
+            "Registration becomes true",
+            () => engine.input("registration", V(true)),
+          ],
+          [
+            "Registration becomes false",
+            () => engine.input("registration", V(false)),
+          ],
+          [
+            "Registration becomes pending",
+            () => engine.input("registration", P),
+          ],
+        ],
+      },
+      duplicate: {
+        title: "Duplicate names",
+        intro:
+          "Two contributions to the same scope and name retain both sources instead of overwriting.",
+        setup: () => fixture().input("registration", V(true)),
+        steps: [
+          [
+            "Add another inner declaration",
+            () =>
+              fixed(
+                engine,
+                "duplicate",
+                ["S1", "declarations", "greet"],
+                "other",
+              ),
+          ],
+        ],
+      },
+      footprints: {
+        title: "Unknown producer keys",
+        intro:
+          "A narrow producer footprint leaves independent scopes usable; a broad footprint can block everything.",
+        setup: () => fixture().input("registration", V(true)),
+        steps: [
+          [
+            "Add pending producer in another scope",
+            () =>
+              engine.producer("other-scope", {
+                footprint: (k) => k[0] === "S2",
+                run: () => P,
+              }),
+          ],
+          [
+            "Add pending producer with unrestricted key",
+            () =>
+              engine.producer("broad", { footprint: () => true, run: () => P }),
+          ],
+        ],
+      },
+      discovery: {
+        title: "Producer discovery",
+        intro:
+          "Correct absence requires complete producer discovery. Missing a producer can return the wrong outer declaration.",
+        setup: () => fixture().input("registration", V(true)),
+        steps: [
+          ["Mark discovery incomplete", () => (engine.discovered = false)],
+          ["Close discovery", () => (engine.discovered = true)],
+          [
+            "Remove inner producer to simulate incorrect discovery",
+            () =>
+              (engine.producers = engine.producers.filter(
+                (p) => p.id !== "inner-greet",
+              )),
+          ],
+        ],
+      },
+      cycle: {
+        title: "Circular dependency",
+        intro:
+          "A producer waiting on its own final lookup remains pending. Positive recursive facts require a separate monotone solver.",
+        setup: () => {
+          const e = new QueryEngine();
+          e.producer("circular", {
+            footprint: eqKey(["x"]),
+            run: (e) => {
+              const r = e.get(V(["x"]));
+              return r.state === "present"
+                ? V({ key: ["x"], value: "value" })
+                : r.state === "absent"
+                  ? A
+                  : P;
+            },
+          });
+          return e;
+        },
+        steps: [
+          [
+            "Add a seed contribution",
+            () => fixed(engine, "seed", ["x"], "seed"),
+          ],
+        ],
+      },
+      hypothetical: {
+        title: "Hypothetical types",
+        intro:
+          "Temporarily assign the parameter string, recompute the return, and leave the original function and outside number untouched.",
+        setup: () => {
+          const e = new QueryEngine();
+          fixed(e, "parameter", ["parameter", "type"], "number");
+          fixed(e, "outside", ["outside", "type"], "number");
+          query(e, "result", ["return", "type"], (e) => {
+            const a = e.get(V(["parameter", "type"])),
+              b = e.get(V(["outside", "type"]));
+            return a.state === "present" && b.state === "present"
+              ? V(
+                  a.value === "string" || b.value === "string"
+                    ? "string"
+                    : "number",
+                )
+              : P;
+          });
+          return e;
+        },
+        steps: [
+          [
+            "Try a temporary string parameter",
+            () => {
+              const trial = engine.hypothetical(
+                ["return", "type"],
+                [[["parameter", "type"], "string"]],
+              );
+              document.querySelector("#trial").textContent =
+                "Hypothetical return: " +
+                trial.result.value +
+                "; original remains " +
+                engine.get(V(["return", "type"])).value;
+            },
+          ],
+        ],
+      },
+    };
+    const el = (id) => document.getElementById(id);
+    function line(parent, label, value) {
+      const row = document.createElement("div");
+      const strong = document.createElement("strong");
+      strong.textContent = label + ": ";
+      row.append(strong, document.createTextNode(value));
+      parent.append(row);
+    }
+    function render() {
+      engine.recompute();
+      el("intro").textContent = scenarios[selected].intro;
+      const value =
+        selected === "cycle"
+          ? engine.get(V(["x"]))
+          : selected === "hypothetical"
+            ? engine.get(V(["return", "type"]))
+            : engine.resolve("call", "greet");
+      el("answer").textContent =
+        value.state === "present"
+          ? "Present: " + value.value
+          : value.state === "conflict"
+            ? "Conflict: " + value.contributors.join(", ")
+            : value.state;
+      el("state").replaceChildren();
+      for (const p of engine.snapshot().producers) {
+        const box = document.createElement("section");
+        line(box, "Meaning", p.id);
+        line(box, "State", p.state);
+        line(box, "Contribution", p.output ? JSON.stringify(p.output) : "None");
+        line(box, "Dependencies", p.deps.join("; ") || "None");
+        el("state").append(box);
+      }
+      el("cycles").textContent = "Cycles: " + JSON.stringify(engine.cycles());
+      el("steps").replaceChildren();
+      scenarios[selected].steps.forEach(([title, action], i) => {
+        const button = document.createElement("button");
+        button.textContent = i + 1 + ". " + title;
+        button.disabled = i !== step;
+        button.onclick = () => {
+          action();
+          step++;
+          render();
+        };
+        el("steps").append(button);
+      });
+    }
+    function reset() {
+      engine = scenarios[selected].setup();
+      step = 0;
+      el("trial").textContent = "";
+      render();
+    }
+    for (const [name, scenario] of Object.entries(scenarios)) {
+      const b = document.createElement("button");
+      b.textContent = scenario.title;
+      b.onclick = () => {
+        selected = name;
+        reset();
+      };
+      el("tabs").append(b);
+    }
+    for (const [title, value] of [
+      ["Guard true", V(true)],
+      ["Guard false", V(false)],
+      ["Guard pending", P],
+    ]) {
+      const b = document.createElement("button");
+      b.textContent = title;
+      b.onclick = () => {
+        engine.input("registration", value);
+        render();
+      };
+      el("free").append(b);
+    }
+    el("reset").onclick = reset;
+    el("tests").textContent =
+      suite.reduce((n, r) => n + r.assertions, 0) +
+      " scenario assertions passed, plus all 24 producer-order permutations. See the console for detailed checks.";
+    console.log("Prototype checks", suite);
+    reset();
+  </script>
+</html>

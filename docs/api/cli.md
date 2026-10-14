@@ -125,8 +125,8 @@ cargo run -- lsp
 
 `yl lsp` serves YL authoring over standard LSP stdio framing. Standard output is
 reserved for protocol messages. It supports full-document synchronization, live
-syntax/definition diagnostics, buffer formatting and parser-validated example inlay
-hints. See [editor setup](/guide/editor) for installation, unsaved imports and current
+syntax/definition diagnostics, buffer formatting and parser-validated example
+CodeLens labels (above declarations) or optional inline inlay hints. See [editor setup](/guide/editor) for installation, unsaved imports and current
 native-library limits. Target-language servers and incremental parsing are not
 provided by this command.
 
