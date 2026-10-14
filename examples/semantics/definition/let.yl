@@ -4,17 +4,18 @@ import { ExpressionDeclaration } from "./expression"
 import { FunctionBody } from "./function"
 
 export node LetDeclaration =
-    "let" name: Name "="
-    initializer: ExpressionDeclaration ";"
+    "let"
+    name: Name
+    "="
+    initializer: ExpressionDeclaration
+    ";"
 {
     meanings {
         group Register {
-            declare(name)
+            declare(self, name)
         }
-
         precedence {
             ExpressionDeclaration > LetDeclaration > FunctionBody
         }
     }
 }
-

@@ -282,7 +282,7 @@ fn single_units_stay_inline_including_captures_postfix_and_pipes() {
 
 #[test]
 fn sequences_place_every_grammar_unit_on_its_own_line() {
-    let source = r#"pattern FunctionContents="(" parameters:Parameter* |> separatedBy(",") ")" annotation:Annotation? body:FunctionBody {meanings{lexicalScope() functionType(parameters,body,annotation)}}"#;
+    let source = r#"pattern FunctionContents="(" parameters:Parameter* |> separatedBy(",") ")" annotation:Annotation? body:FunctionBody {meanings{lexicalScope(self) functionType(parameters,body,annotation)}}"#;
     let expected = r#"pattern FunctionContents =
     "("
     parameters: Parameter* |> separatedBy(",")
@@ -291,7 +291,7 @@ fn sequences_place_every_grammar_unit_on_its_own_line() {
     body: FunctionBody
 {
     meanings {
-        lexicalScope()
+        lexicalScope(self)
         functionType(parameters, body, annotation)
     }
 }
@@ -386,7 +386,7 @@ fn meaning_metadata_is_first_and_each_operation_has_its_own_line() {
     meanings {
         boundary
         types(unknown, functionTypeSymbol)
-        lexicalScope()
+        lexicalScope(self)
         precedence {
             FunctionDeclaration > LetDeclaration > FunctionBody
         }
@@ -394,9 +394,9 @@ fn meaning_metadata_is_first_and_each_operation_has_its_own_line() {
 }
 "#;
     for body in [
-        "boundary types(unknown,functionTypeSymbol) lexicalScope() precedence{FunctionDeclaration>LetDeclaration>FunctionBody}",
-        "types(unknown,functionTypeSymbol) boundary lexicalScope() precedence{FunctionDeclaration>LetDeclaration>FunctionBody}",
-        "types(unknown,functionTypeSymbol) lexicalScope() precedence{FunctionDeclaration>LetDeclaration>FunctionBody} boundary",
+        "boundary types(unknown,functionTypeSymbol) lexicalScope(self) precedence{FunctionDeclaration>LetDeclaration>FunctionBody}",
+        "types(unknown,functionTypeSymbol) boundary lexicalScope(self) precedence{FunctionDeclaration>LetDeclaration>FunctionBody}",
+        "types(unknown,functionTypeSymbol) lexicalScope(self) precedence{FunctionDeclaration>LetDeclaration>FunctionBody} boundary",
     ] {
         let source = format!("node Program=Statements*{{meanings{{{body}}}}}");
         let formatted = format_yl("source", &source).unwrap();

@@ -16,21 +16,21 @@ operation sameLength(left, right) = equal(map(left, value => true), map(right, v
 
 operation callAssumptions(function, arguments) = [((function, parameterTypes), zip(parameterNamesOf(function), argumentTypes(arguments)))]
 
-export operation annotateWithType(value) {
-    contribute((self, type), value)
+export operation annotateWithType(target, value) {
+    contribute((target, type), value)
 }
 
-export operation parameterType(name) {
-    contribute((referenceOf(name), type), lookup(parameterTypesOf(functionOf(enclosingScope(self))), text(name)))
+export operation parameterType(target, name) {
+    contribute((referenceOf(name), type), lookup(parameterTypesOf(functionOf(enclosingScope(target))), text(name)))
 }
 
-export operation callType(callee, arguments) {
+export operation callType(target, callee, arguments) {
     if isPresent(referenceOf(callee)) {
         if !sameLength(parameterNamesOf(referenceOf(callee)), arguments) {
             error("Wrong number of arguments", callee)
         }
         else {
-            contribute((self, type), hypothetical((referenceOf(callee), returnType), callAssumptions(referenceOf(callee), arguments)))
+            contribute((target, type), hypothetical((referenceOf(callee), returnType), callAssumptions(referenceOf(callee), arguments)))
         }
     }
 }

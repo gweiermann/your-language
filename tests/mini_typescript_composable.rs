@@ -51,7 +51,7 @@ fn addition_policy_lives_in_authored_meanings() {
         assert_eq!(binding(&result, name), expected);
     }
     let changed = analyze_with("let result = 1 + 2;", |grammar| {
-        replace_action(grammar, "number, number", "annotateWithType(string),")
+        replace_action(grammar, "number, number", "annotateWithType(self, string),")
     });
     assert!(changed.diagnostics.is_empty(), "{:?}", changed.diagnostics);
     assert_eq!(binding(&changed, "result"), "string");
@@ -89,7 +89,11 @@ fn void_branch_produces_no_type_facts() {
 #[test]
 fn explicit_unknown_propagates_to_the_next_match() {
     let result = analyze_with("let first = 1 + 2; let second = first + 3;", |grammar| {
-        replace_action(grammar, "number, number", "annotateWithType(unknown),")
+        replace_action(
+            grammar,
+            "number, number",
+            "annotateWithType(self, unknown),",
+        )
     });
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(binding(&result, "first"), "unknown");
@@ -104,7 +108,7 @@ fn warning_and_annotation_actions_can_share_a_branch() {
             replace_action(
                 grammar,
                 "_",
-                "{ warning(\"${left} + ${right} is experimental\") annotateWithType(unknown) }",
+                "{ warning(\"${left} + ${right} is experimental\") annotateWithType(self, unknown) }",
             )
         },
     );
@@ -156,8 +160,8 @@ fn function_slot_names_can_be_changed_in_the_language() {
 fn union_candidates_keep_each_valid_addition_result() {
     let result = analyze_with("let value = 1; let result = value + 1;", |grammar| {
         *grammar = grammar.replacen(
-            "annotateWithType(number)",
-            "annotateWithType(number)\n        annotateWithType(string)",
+            "annotateWithType(self, number)",
+            "annotateWithType(self, number)\n        annotateWithType(self, string)",
             1,
         );
     });

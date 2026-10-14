@@ -11,13 +11,13 @@ export node Expression {
     }
     node Number = /[0-9]+/ {
         meanings {
-            annotateWithType(number)
+            annotateWithType(self, number)
         }
     }
 
     node String = /"[^"\n]*"/ {
         meanings {
-            annotateWithType(string)
+            annotateWithType(self, string)
         }
     }
 
@@ -28,14 +28,14 @@ export node Expression {
         ")"
     {
         meanings {
-            callType(callee, arguments)
+            callType(self, callee, arguments)
         }
     }
 
     node Reference = name: Name {
         meanings {
-            use(name)
-            annotateWithType(typeOf(referenceOf(name)))
+            use(self, name)
+            annotateWithType(self, typeOf(referenceOf(name)))
         }
     }
 }

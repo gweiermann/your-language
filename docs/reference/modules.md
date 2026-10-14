@@ -51,7 +51,7 @@ import * as references from "std/references"
 
 node Reference = name: Name {
     meanings {
-        variables::use(name)
+        references::use(self, name)
     }
 }
 ```

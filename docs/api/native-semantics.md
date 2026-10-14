@@ -18,7 +18,7 @@ The default engine registers generic `std/query` primitives. The compiler embeds
 
 ```yl
 meanings {
-    lexicalScope()
+    lexicalScope(self)
     precedence {
         Declaration::meanings::Register > Reference
     }
@@ -33,7 +33,7 @@ A bare node or pattern selects all its own named and ungrouped meanings. `Node::
 node Program = (FunctionDeclaration | LetDeclaration)* {
     meanings {
         boundary
-        lexicalScope()
+        lexicalScope(self)
         precedence {
             FunctionDeclaration > LetDeclaration > FunctionBody
         }
@@ -51,7 +51,7 @@ node FunctionBody = "{" LetDeclaration* "return" Expression ";" "}" {
 
 Thus Program can find named and lambda bodies at different depths without collecting their local declarations as outer peers. A selected body is deferred as a whole; once its outer prerequisites finish, local clauses order its declarations and nested functions. Local ordering cannot release boundary contents before its ancestor entry requirements are satisfied.
 
-The marker is independent of `lexicalScope()`: a boundary does not create a scope, and a scope operation does not automatically create a boundary. An extracted pattern can attach a scope identity independently of the body's ordered work. Authored lexical scopes are ordinary contributions, not lifecycle context providers. Optional Rust context-provider hooks still follow their registered lifecycle contract.
+The marker is independent of `lexicalScope(self)`: a boundary does not create a scope, and a scope operation does not automatically create a boundary. An extracted pattern can attach a scope identity independently of the body's ordered work. Authored lexical scopes are ordinary contributions, not lifecycle context providers. Optional Rust context-provider hooks still follow their registered lifecycle contract.
 
 Wrappers without `boundary` do not stop the search. Named patterns retain occurrences without adding AST nodes; capture and repetition syntax do not create regions. Explicit patterns can still group reusable syntax roles, but are not needed to compensate for varying wrapper depths.
 

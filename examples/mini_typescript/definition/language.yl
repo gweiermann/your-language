@@ -6,7 +6,7 @@ import { LetDeclaration } from "./let"
 node Program = statements: (FunctionDeclaration | LetDeclaration)* {
     meanings {
         boundary
-        lexicalScope()
+        lexicalScope(self)
         precedence {
             FunctionDeclaration > LetDeclaration > FunctionBody
         }

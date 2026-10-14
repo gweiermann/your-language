@@ -25,13 +25,13 @@ import {equal} from "std/query"
 node Declare = "d" name:/[a-z]/ ";" {
  meanings {
   group Late { if false { error("late") } }
-  group Register { declare(name) }
+  group Register { declare(self, name) }
  }
 }
-node Use = "u" name:/[a-z]/ ";" { meanings { use(name) } }
+node Use = "u" name:/[a-z]/ ";" { meanings { use(self, name) } }
 node Root = usage:Use declaration:Declare {
  meanings {
-  lexicalScope()
+  lexicalScope(self)
   precedence { Declare::meanings::Register > Use > Declare::meanings::Late }
   if !equal(referenceOf(usage), referenceOf(declaration)) { error("Wrong identity") }
  }
@@ -45,10 +45,10 @@ entry Root
 fn outer_whole_region_deferral_and_inner_boundary_preserve_order() {
     let source = r#"
 import {lexicalScope, declare, use} from "std/references"
-node Declare = "d" name:/[a-z]/ ";" { meanings {declare(name)} }
-node Use = "u" name:/[a-z]/ ";" { meanings {use(name)} }
-node Block = "{" (Use | Declare)* "}" { meanings {boundary lexicalScope()} }
-node Root = (Declare | Use | Block)* { meanings {boundary lexicalScope() precedence { Declare > Block }} }
+node Declare = "d" name:/[a-z]/ ";" { meanings {declare(self, name)} }
+node Use = "u" name:/[a-z]/ ";" { meanings {use(self, name)} }
+node Block = "{" (Use | Declare)* "}" { meanings {boundary lexicalScope(self)} }
+node Root = (Declare | Use | Block)* { meanings {boundary lexicalScope(self) precedence { Declare > Block }} }
 entry Root
 "#;
     let result = analyze(source, "{ux;}dx;");
@@ -75,9 +75,9 @@ operation helper(type, scope, declarations) {
  if !equal(typeof(type), Red) { error("Type lost") }
  if !equal(referenceOf(scope), referenceOf(declarations)) {error("Capture lost")}
 }
-node Declare = "d" name:/[a-z]/ ";" { meanings { declare(name) } }
-node Use = "u" name:/[a-z]/ ";" { meanings { use(name) } }
-node Root = scope:Declare declarations:Use type:/[a-z]/ {meanings {lexicalScope() helper(type,scope,declarations)}}
+node Declare = "d" name:/[a-z]/ ";" { meanings { declare(self, name) } }
+node Use = "u" name:/[a-z]/ ";" { meanings { use(self, name) } }
+node Root = scope:Declare declarations:Use type:/[a-z]/ {meanings {lexicalScope(self) helper(type,scope,declarations)}}
 entry Root
 "#;
     let result = analyze(source, "dx;ux;z");

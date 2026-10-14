@@ -14,7 +14,7 @@ export node LetDeclaration =
 {
     meanings {
         group Register {
-            declare(name)
+            declare(self, name)
             bindingType(name, initializer, annotation)
         }
     }

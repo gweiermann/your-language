@@ -21,24 +21,24 @@ export symbol functionIdentity
 export node TypeName {
     node NumberType = "number" {
         meanings {
-            annotateWithType(number)
+            annotateWithType(self, number)
         }
     }
 
     node StringType = "string" {
         meanings {
-            annotateWithType(string)
+            annotateWithType(self, string)
         }
     }
 
     node BooleanType = "boolean" {
         meanings {
-            annotateWithType(boolean)
+            annotateWithType(self, boolean)
         }
     }
 
     meanings {
-        inheritType()
+        inheritType(self)
     }
 }
 
@@ -47,7 +47,7 @@ export node Annotation =
     value: TypeName
 {
     meanings {
-        annotateWithType(typeof(value))
+        annotateWithType(self, typeof(value))
     }
 }
 

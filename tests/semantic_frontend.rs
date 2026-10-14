@@ -16,10 +16,10 @@ fn meanings_compile_through_real_source_imports_and_pattern_boundaries() {
 import { lexicalScope, declare, use } from "std/variables"
 node Name = /[a-z]+/
 node Declaration = "let" name: Name ";" {
-    meanings { group Register { declare(name, reassignable=false) } }
+    meanings { group Register { declare(self, name, reassignable=false) } }
 }
-node Reference = name: Name ";" { meanings { use(name) } }
-pattern Contents = (Declaration | Reference)* { meanings { lexicalScope() } }
+node Reference = name: Name ";" { meanings { use(self, name) } }
+pattern Contents = (Declaration | Reference)* { meanings { lexicalScope(self) } }
 node Program = Contents
 entry Program
 "#;
@@ -49,9 +49,9 @@ entry Program
 fn source_meanings_validate_calls_captures_groups_and_selectors() {
     let engine = SemanticEngine::default();
     let cases = [
-        ("use(missing)", "yl.artifact"),
-        ("use()", "yl.invalid_argument"),
-        ("use(name, name=name)", "yl.invalid_argument"),
+        ("use(self, missing)", "yl.artifact"),
+        ("use(self, )", "yl.invalid_argument"),
+        ("use(self, name, name=name)", "yl.invalid_argument"),
         (
             "group Register {} group Register {}",
             "yl.duplicate_meaning_group",
@@ -76,11 +76,11 @@ fn source_precedence_uses_resolved_definition_and_named_group_identity() {
     let engine = SemanticEngine::default();
     let source = r#"
 import { lexicalScope, declare, use } from "std/variables"
-node Declaration = "let" name: /[a-z]+/ ";" { meanings { group Register { declare(name) } } }
-node Reference = name: /[a-z]+/ ";" { meanings { use(name) } }
+node Declaration = "let" name: /[a-z]+/ ";" { meanings { group Register { declare(self, name) } } }
+node Reference = name: /[a-z]+/ ";" { meanings { use(self, name) } }
 node Program = Reference Declaration {
     meanings {
-        lexicalScope()
+        lexicalScope(self)
         precedence { Declaration::meanings::Register > Reference }
     }
 }
@@ -197,8 +197,8 @@ fn semantic_operation_and_group_aliases_resolve_across_source_modules() {
             r#"
 import { Binder as Binding } from "./bindings"
 import { lexicalScope as scope, use as lookup } from "std/variables"
-node Reference = name: /[a-z]+/ ";" { meanings { lookup(name) } }
-pattern Scoped(item) = item* { meanings { scope() } }
+node Reference = name: /[a-z]+/ ";" { meanings { lookup(self, name) } }
+pattern Scoped(item) = item* { meanings { scope(self) } }
 node Program = Scoped(Binding | Reference) {
     meanings { precedence { Binding::meanings::Register > Reference } }
 }
@@ -211,7 +211,7 @@ entry Program
             r#"
 import { declare as register } from "std/variables"
 export node Binder = "let" name: /[a-z]+/ ";" {
-    meanings { group Register { register(name) } }
+    meanings { group Register { register(self, name) } }
 }
 "#
             .into(),
@@ -234,11 +234,11 @@ fn selected_unannotated_patterns_keep_their_occurrence_boundary() {
     let engine = SemanticEngine::default();
     let source = r#"
 import { lexicalScope, declare, use } from "std/variables"
-node Declaration = "let" name: /[a-z]+/ ";" { meanings { declare(name) } }
-node Reference = name: /[a-z]+/ ";" { meanings { use(name) } }
+node Declaration = "let" name: /[a-z]+/ ";" { meanings { declare(self, name) } }
+node Reference = name: /[a-z]+/ ";" { meanings { use(self, name) } }
 pattern Uses = Reference*
 node Program = Declaration Uses {
-    meanings { lexicalScope() precedence { Declaration > Uses } }
+    meanings { lexicalScope(self) precedence { Declaration > Uses } }
 }
 entry Program
 "#;

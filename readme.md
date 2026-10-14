@@ -59,7 +59,7 @@ import { number } from "./types"
 
 node Number = value: /[0-9]+/ {
     meanings {
-        annotateWithType(number)
+        annotateWithType(self, number)
     }
 }
 ```

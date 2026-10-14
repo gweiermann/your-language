@@ -40,7 +40,7 @@ A number publishes its type directly:
 ```yl
 node Number = value: /[0-9]+/ {
     meanings {
-        annotateWithType(number)
+        annotateWithType(self, number)
     }
 }
 ```
@@ -82,10 +82,10 @@ The language chooses supported operand combinations:
 
 ```yl
 match (typeof(left), typeof(right)) {
-    string, string | string, number | number, string => annotateWithType(string),
-    number, number                                   => annotateWithType(number),
-    unknown, _ | _, unknown                          => annotateWithType(unknown),
-    _                                                => error("${left} + ${right} is not possible")
+    string, string | string, number | number, string => annotateWithType(self, string),
+    number, number                                  => annotateWithType(self, number),
+    unknown, _ | _, unknown                         => annotateWithType(self, unknown),
+    _                                               => error("${left} + ${right} is not possible")
 }
 ```
 

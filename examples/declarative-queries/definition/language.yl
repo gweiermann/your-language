@@ -5,7 +5,7 @@ import { Statement } from "./statements"
 node Program = statements: Statement* {
     meanings {
         boundary
-        lexicalScope()
+        lexicalScope(self)
         precedence {
             Statement::Declaration > Statement::Reference
         }

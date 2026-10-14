@@ -10,25 +10,25 @@ symbol scope
 symbol declarations
 symbol reference
 
-operation lexicalScope() {
-    contribute((self, scope), self)
+operation lexicalScope(target) {
+    contribute((target, scope), target)
 }
 
 operation nearestScope(value) = find(ancestors(value), ancestor => get((ancestor, scope)))
 
-operation resolve(name) = find(ancestors(self), ancestor =>
+operation resolve(name) = find(ancestors(name), ancestor =>
     get((get((ancestor, scope)), declarations, text(name)))
 )
 
-operation declare(name) {
-    contribute((nearestScope(self), declarations, text(name)), self)
-    contribute((name, reference), self)
-    if hasMultiple(getAll((nearestScope(self), declarations, text(name)))) {
+operation declare(target, name) {
+    contribute((nearestScope(target), declarations, text(name)), target)
+    contribute((name, reference), target)
+    if hasMultiple(getAll((nearestScope(target), declarations, text(name)))) {
         error("Duplicate declaration ${name}")
     }
 }
 
-operation use(name) {
+operation use(target, name) {
     contribute((name, reference), resolve(name))
     if !isPresent(resolve(name)) {
         error("Unknown name ${name}")
@@ -39,18 +39,18 @@ node Name = value: /[a-z]+/
 
 node Statement {
     node Declare = "let" name: Name ";" {
-        meanings { declare(name) }
+        meanings { declare(self, name) }
     }
     node Use = name: Name ";" {
-        meanings { use(name) }
+        meanings { use(self, name) }
     }
     node Block = "{" statements: Statement* "}" {
-        meanings { lexicalScope() }
+        meanings { lexicalScope(self) }
     }
 }
 
 node Program = statements: Statement* {
-    meanings { lexicalScope() }
+    meanings { lexicalScope(self) }
 }
 trivia Whitespace = /\s+/
 entry Program { trivia Whitespace }

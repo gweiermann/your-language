@@ -9,8 +9,8 @@ import { Name } from "./lexical"
 
 node Parameter = name: Name {
     meanings {
-        declare(name)
-        parameterType(name)
+        declare(self, name)
+        parameterType(self, name)
     }
 }
 
@@ -34,7 +34,7 @@ pattern FunctionContents =
     body: FunctionBody
 {
     meanings {
-        lexicalScope()
+        lexicalScope(self)
     }
 }
 
@@ -45,7 +45,7 @@ export node FunctionDeclaration =
 {
     meanings {
         group Register {
-            declare(name, reassignable = false)
+            declare(self, name, reassignable = false)
             contribute((referenceOf(name), type), function)
             contribute((contents, functionIdentity), referenceOf(name))
             contribute((referenceOf(name), parameterNames), map(contents.parameters.name, name => text(name)))

@@ -388,8 +388,8 @@ fn equally_named_authored_symbols_from_distinct_modules_keep_distinct_identity()
         import * as variables from "std/variables"
         import { category as First } from "first"
         import { category as Second } from "second"
-        node A = "a" { meanings { types::annotate(variables::identity(), First) } }
-        node B = "b" { meanings { types::annotate(variables::identity(), Second) } }
+        node A = "a" { meanings { types::annotate(variables::identity(self), First) } }
+        node B = "b" { meanings { types::annotate(variables::identity(self), Second) } }
         node Root = a: A b: B {
             meanings {
                 match (types::typeof(variables::identityOf(a)), types::typeof(variables::identityOf(b))) {

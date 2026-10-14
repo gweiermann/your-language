@@ -8,20 +8,20 @@ export symbol referenceIdentity
 
 export symbol reassignableSymbol
 
-export operation lexicalScope() {
-    contribute((self, scope), self)
+export operation lexicalScope(target) {
+    contribute((target, scope), target)
 }
 
 export operation enclosingScope(value) = find(ancestors(value), ancestor => get((ancestor, scope)))
 
 export operation resolve(name) = find(ancestors(name), ancestor => getEarlier((get((ancestor, scope)), declarations, text(name))))
 
-export operation declare(name, reassignable = true) {
-    contribute((enclosingScope(name), declarations, text(name)), self)
-    contribute((name, referenceIdentity), self)
-    contribute((self, referenceIdentity), self)
-    contribute((self, nameSymbol), text(name))
-    contribute((self, reassignableSymbol), reassignable)
+export operation declare(target, name, reassignable = true) {
+    contribute((enclosingScope(name), declarations, text(name)), target)
+    contribute((name, referenceIdentity), target)
+    contribute((target, referenceIdentity), target)
+    contribute((target, nameSymbol), text(name))
+    contribute((target, reassignableSymbol), reassignable)
     if isPresent(enclosingScope(name)) {
         if hasMultiple(getAll((enclosingScope(name), declarations, text(name)))) {
             error("Duplicate declaration '${name}'", name)
@@ -32,24 +32,24 @@ export operation declare(name, reassignable = true) {
     }
 }
 
-export operation use(name) {
+export operation use(target, name) {
     contribute((name, referenceIdentity), resolve(name))
-    contribute((self, referenceIdentity), resolve(name))
+    contribute((target, referenceIdentity), resolve(name))
     if !isPresent(resolve(name)) {
         error("Unknown name '${name}'", name)
     }
 }
 
-export operation reference() = get((self, referenceIdentity))
+export operation reference(target) = get((target, referenceIdentity))
 
 export operation referenceOf(value) = get((value, referenceIdentity))
 
 export symbol nameSymbol
 
-export operation identity() = self
+export operation identity(target) = target
 
 export operation identityOf(value) = value
 
-export operation childIdentity() = first(children(self))
+export operation childIdentity(target) = first(children(target))
 
 export operation identities(value) = value

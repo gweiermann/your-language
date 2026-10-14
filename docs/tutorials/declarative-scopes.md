@@ -20,12 +20,12 @@ The authored library is `stdlib/references.yl`, available through the canonical 
 ```yl
 export symbol scope
 
-export operation lexicalScope() {
-    contribute((self, scope), self)
+export operation lexicalScope(target) {
+    contribute((target, scope), target)
 }
 ```
 
-`Program` and `Block` invoke this operation. Their syntax identities are scope identifiers. No scope map or push/pop lifecycle is necessary.
+`Program` and `Block` invoke `lexicalScope(self)` in their meanings blocks. The operation receives that occurrence explicitly and has no implicit `self`. Their syntax identities are scope identifiers. No scope map or push/pop lifecycle is necessary.
 
 ## Register a declaration
 
@@ -33,13 +33,13 @@ export operation lexicalScope() {
 export operation enclosingScope(value) =
     find(ancestors(value), ancestor => get((ancestor, scope)))
 
-export operation declare(name, reassignable = true) {
-    contribute((enclosingScope(self), declarations, text(name)), self)
-    contribute((name, referenceIdentity), self)
-    contribute((self, referenceIdentity), self)
-    contribute((self, reassignableSymbol), reassignable)
+export operation declare(target, name, reassignable = true) {
+    contribute((enclosingScope(name), declarations, text(name)), target)
+    contribute((name, referenceIdentity), target)
+    contribute((target, referenceIdentity), target)
+    contribute((target, reassignableSymbol), reassignable)
 
-    if hasMultiple(getAll((enclosingScope(self), declarations, text(name)))) {
+    if hasMultiple(getAll((enclosingScope(name), declarations, text(name)))) {
         error("Duplicate declaration '${name}'", name)
     }
 }
@@ -53,7 +53,7 @@ The declaration store key is `(scopeIdentity, declarations, nameText)`. `declara
 
 ```yl
 export operation resolve(name) =
-    find(ancestors(self), ancestor =>
+    find(ancestors(name), ancestor =>
         get((get((ancestor, scope)), declarations, text(name)))
     )
 ```

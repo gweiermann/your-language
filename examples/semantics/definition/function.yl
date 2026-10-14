@@ -4,21 +4,23 @@ import { Name } from "./lexical"
 import { Expression } from "./expression"
 import { LetDeclaration } from "./let"
 
-node Parameter =
-    name: Name
-{
+node Parameter = name: Name {
     meanings {
-        declare(name)
+        declare(self, name)
     }
 }
 
 export node FunctionBody =
     "{"
     locals: LetDeclaration*
-    "return" result: Expression ";"
+    "return"
+    result: Expression
+    ";"
     "}"
 {
-    meanings { boundary }
+    meanings {
+        boundary
+    }
 }
 
 pattern FunctionContents =
@@ -28,19 +30,22 @@ pattern FunctionContents =
     body: FunctionBody
 {
     meanings {
-        lexicalScope()
+        lexicalScope(self)
     }
 }
 
 export node FunctionExpression =
-    "function" contents: FunctionContents
+    "function"
+    contents: FunctionContents
 
 export node FunctionDeclaration =
-    "function" name: Name contents: FunctionContents
+    "function"
+    name: Name
+    contents: FunctionContents
 {
     meanings {
         group Register {
-            declare(name, reassignable=false)
+            declare(self, name, reassignable = false)
         }
     }
 }
