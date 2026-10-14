@@ -27,7 +27,11 @@ export node Statement {
         "}"
     {
         meanings {
+            boundary
             lexicalScope()
+            precedence {
+                Statement::Declaration > Statement::Reference
+            }
         }
     }
 }

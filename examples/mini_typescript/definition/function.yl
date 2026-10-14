@@ -1,10 +1,9 @@
 import { lexicalScope, declare } from "std/references"
 import * as types from "std/types"
-import { returnType } from "./types"
+import { returnType, Annotation } from "./types"
 import { typeof, functionSignature } from "./typing"
 import { separatedBy } from "std/parser"
 import { Name } from "./lexical"
-import { Annotation } from "./types"
 import { Parameter } from "./parameter"
 import { Expression } from "./expression"
 import { LetDeclaration } from "./let"
@@ -43,7 +42,7 @@ export node FunctionDeclaration =
     meanings {
         group Register {
             declare(name, reassignable = false)
-            functionSignature(name, contents.parameters, contents.body, contents.annotation)
+            functionSignature(name, contents.parameters, contents.body, contents.annotation, contents)
         }
     }
 }

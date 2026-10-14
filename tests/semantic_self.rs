@@ -1,7 +1,5 @@
 use std::collections::BTreeMap;
-use your_language::semantics::{
-    AnalysisResult, SemanticEngine, SemanticIdentity, SemanticKey, SemanticValue,
-};
+use your_language::semantics::{AnalysisResult, SemanticEngine, SemanticIdentity, SemanticValue};
 fn analyze(source: &str, input: &str) -> AnalysisResult {
     let engine = SemanticEngine::default();
     let language = engine
@@ -17,23 +15,35 @@ fn analyze(source: &str, input: &str) -> AnalysisResult {
     result
 }
 fn type_at(result: &AnalysisResult, key: SemanticValue) -> SemanticValue {
-    result
-        .graph
-        .records
-        .iter()
-        .find(|record| {
-            record
-                .entries
-                .iter()
-                .any(|(k, v)| *k == SemanticKey::Symbol("std/types#key".into()) && *v == key)
-        })
-        .unwrap()
-        .entries
-        .iter()
-        .find(|(k, _)| *k == SemanticKey::Symbol("std/types#type".into()))
-        .unwrap()
-        .1
-        .clone()
+    use your_language::semantics::queries::QueryKey;
+    fn convert(value: SemanticValue) -> QueryKey {
+        match value {
+            SemanticValue::Identity(id) => QueryKey::Identity(id),
+            SemanticValue::Symbol(id) => QueryKey::Symbol(id),
+            SemanticValue::Tuple(items) => {
+                QueryKey::Tuple(items.into_iter().map(convert).collect())
+            }
+            _ => panic!("unexpected key"),
+        }
+    }
+    let key = QueryKey::Tuple(vec![
+        convert(key),
+        QueryKey::Symbol("std/types#type".into()),
+    ]);
+    let mut values = vec![];
+    for entry in &result.graph.query_entries {
+        if entry.key == key && !values.contains(&entry.value) {
+            values.push(entry.value.clone());
+        }
+    }
+    match values.len() {
+        0 => SemanticValue::Symbol("std/types#unknown".into()),
+        1 => values.remove(0),
+        _ => SemanticValue::Alternatives {
+            service: "core/query".into(),
+            values,
+        },
+    }
 }
 fn occurrence(id: usize) -> SemanticValue {
     SemanticValue::Identity(SemanticIdentity::Occurrence(id))
@@ -46,6 +56,7 @@ fn self_inside_authored_operation_is_the_callers_original_pattern_occurrence() {
     let result = analyze(
         r#"
 import * as types from "std/types"
+import { map } from "std/query"
 symbol number
 operation annotate(value) { types::annotate(self, value) }
 pattern Item = "x" { meanings { annotate(number) } }
@@ -66,6 +77,7 @@ fn direct_repeated_optional_and_dotted_pattern_captures_are_addresses() {
     let result = analyze(
         r#"
 import * as types from "std/types"
+import { map } from "std/query"
 import { separatedBy } from "std/parser"
 symbol number
 symbol parameters
@@ -73,7 +85,7 @@ pattern Item = "x" { meanings { types::annotate(self, number) } }
 pattern Contents = "(" parameters: Item* |> separatedBy(",") ")"
 node Root = contents: Contents absentItem: Item? {
     meanings {
-        types::annotate((self, parameters), types::typeof(contents.parameters))
+        types::annotate((self, parameters), map(contents.parameters, parameter => types::typeof(parameter)))
         types::annotate(self, types::typeof(absentItem))
     }
 }
@@ -96,6 +108,7 @@ fn declaration_and_use_record_the_exact_name_capture_with_shadowing_and_dollar_p
         r#"
 import { lexicalScope, declare, use, referenceOf } from "std/references"
 import * as types from "std/types"
+import { map } from "std/query"
 symbol outer
 symbol inner
 pattern Name = /[a-z]+/
@@ -125,6 +138,7 @@ fn hypothetical_parameter_assumptions_produce_independent_returns_without_mutati
     let result = analyze(
         r#"
 import * as types from "std/types"
+import { map } from "std/query"
 symbol number
 symbol string
 symbol result
@@ -163,6 +177,7 @@ fn hypothetical_resolution_replays_declarative_type_matches_and_preserves_outer_
     let result = analyze(
         r#"
 import * as types from "std/types"
+import { map } from "std/query"
 symbol number
 symbol string
 symbol output
@@ -212,21 +227,7 @@ fn mini(source: &str) -> AnalysisResult {
     result
 }
 fn binding(result: &AnalysisResult, name: &str) -> String {
-    result
-        .graph
-        .records
-        .iter()
-        .find_map(|record| {
-            if record.entries.contains(&(
-                SemanticKey::Symbol("std/variables#nameSymbol".into()),
-                SemanticValue::Text(name.into()),
-            )) {
-                inference::display_type(record)
-            } else {
-                None
-            }
-        })
-        .unwrap()
+    inference::binding_types(result, name).join(" | ")
 }
 #[test]
 fn nested_calls_preserve_per_use_types_and_captured_outer_binding() {
@@ -254,13 +255,13 @@ fn invalid_type_case_has_call_argument_provenance_and_does_not_disable_other_che
     let invalid = result
         .diagnostics
         .iter()
-        .find(|diagnostic| diagnostic.code == "semantic.meaning_case")
+        .find(|diagnostic| diagnostic.message.contains("is not possible"))
         .unwrap_or_else(|| panic!("{:?}", result.diagnostics));
     assert_eq!(&source[invalid.primary.start..invalid.primary.end], "true");
     let mismatch = result
         .diagnostics
         .iter()
-        .find(|diagnostic| diagnostic.code == "types.mismatch")
+        .find(|diagnostic| diagnostic.message.contains("does not match"))
         .unwrap();
     assert_eq!(
         &source[mismatch.primary.start..mismatch.primary.end],
@@ -272,6 +273,7 @@ fn duplicate_hypothetical_assumptions_are_structured_diagnostics() {
     let engine = SemanticEngine::default();
     let language=engine.compile("language.yl",&BTreeMap::from([("language.yl".into(),r#"
 import * as types from "std/types"
+import { map } from "std/query"
 symbol number
 node Root = "x" { meanings { types::annotate(self,types::resolveWith(self,[(self,number),(self,number)])) } }
 entry Root
@@ -280,29 +282,15 @@ entry Root
     assert!(result
         .diagnostics
         .iter()
-        .any(|diagnostic| diagnostic.code == "types.assumptions"));
+        .any(|diagnostic| diagnostic.code == "query.assumption"));
 }
 
 #[test]
 fn hypothetical_queries_never_replay_arbitrary_native_effects() {
-    use std::sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    };
-    use your_language::{
-        diagnostic::Diagnostic,
-        semantics::{NativeOperation, OperationContext, OperationSignature},
-    };
-    struct Effect(Arc<AtomicUsize>);
-    impl NativeOperation for Effect {
-        fn before(&mut self, _context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
-            self.0.fetch_add(1, Ordering::SeqCst);
-            Ok(())
-        }
-    }
-    let count = Arc::new(AtomicUsize::new(0));
+    use your_language::semantics::{NativeOperation, OperationSignature};
+    struct Effect;
+    impl NativeOperation for Effect {}
     let mut engine = SemanticEngine::default();
-    let counter = count.clone();
     engine
         .registry_mut()
         .register(
@@ -315,37 +303,26 @@ fn hypothetical_queries_never_replay_arbitrary_native_effects() {
                 finalization_only: false,
                 contribution: false,
             },
-            move || Box::new(Effect(counter.clone())),
+            || Box::new(Effect),
         )
         .unwrap();
-    let language=engine.compile("language.yl",&BTreeMap::from([("language.yl".into(),r#"
+    let errors = engine
+        .compile(
+            "language.yl",
+            &BTreeMap::from([(
+                "language.yl".into(),
+                r#"import { effect } from "host"
 import * as types from "std/types"
-import { unknown } from "std/types"
-import { effect } from "host"
 symbol number
-symbol result
-pattern Parameter = "p"
-pattern Body = parameter: Parameter {
-    meanings {
-        match (types::typeof(parameter)) {
-            number => { types::annotate((self,result),number) effect() },
-            _ => {}
-        }
-    }
-}
-node Root = body: Body { meanings { types::annotate(self,types::resolveWith((body,result),[(body.parameter,number)])) } }
-entry Root
-"#.into())])).unwrap();
-    let result = engine.analyze(&language, "program", "p");
-    assert_eq!(count.load(Ordering::SeqCst), 0);
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "types.hypothetical_effect"),
-        "{:?}",
-        result.diagnostics
-    );
+node Root = "x" { meanings { match (types::typeof(self)) { number => effect(), _ => {} } } }
+entry Root"#
+                    .into(),
+            )]),
+        )
+        .unwrap_err();
+    assert!(errors
+        .iter()
+        .any(|diagnostic| diagnostic.code == "yl.query_native_effect"));
 }
 
 #[test]
@@ -353,13 +330,14 @@ fn projections_through_repeated_parents_preserve_nested_list_groups() {
     let result = analyze(
         r#"
 import * as types from "std/types"
+import { map } from "std/query"
 import { separatedBy } from "std/parser"
 symbol number
 symbol groups
 pattern Item = "x" { meanings { types::annotate(self,number) } }
 pattern Contents = "(" parameters: Item* |> separatedBy(",") ")"
 node Root = contents: Contents* {
-    meanings { types::annotate((self,groups),types::typeof(contents.parameters)) }
+    meanings { types::annotate((self,groups),map(contents.parameters, parameters => map(parameters, parameter => types::typeof(parameter)))) }
 }
 entry Root
 "#,
@@ -391,7 +369,7 @@ let result = add(mixed);
         result
             .diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.code == "semantic.meaning_case"),
+            .any(|diagnostic| diagnostic.message.contains("is not possible")),
         "{:?}",
         result.diagnostics
     );
@@ -408,6 +386,7 @@ fn direct_hypothetical_match_queries_report_errors_and_keep_valid_combinations()
                 "language.yl".into(),
                 r#"
 import * as types from "std/types"
+import { map } from "std/query"
 import { unknown } from "std/types"
 symbol number
 symbol boolean
@@ -462,6 +441,7 @@ fn rejected_direct_hypothetical_query_has_no_internal_unsettled_diagnostic() {
                 "language.yl".into(),
                 r#"
 import * as types from "std/types"
+import { map } from "std/query"
 import { unknown } from "std/types"
 symbol number
 symbol boolean
@@ -500,6 +480,7 @@ fn hypothetical_warning_contributions_preserve_the_result_without_effect_replay(
     let engine = SemanticEngine::default();
     let language=engine.compile("language.yl",&BTreeMap::from([("language.yl".into(),r#"
 import * as types from "std/types"
+import { map } from "std/query"
 import { unknown } from "std/types"
 symbol number
 symbol boolean
@@ -535,17 +516,18 @@ fn terminal_captures_are_stable_scalar_list_and_optional_type_addresses() {
     let result = analyze(
         r#"
 import * as types from "std/types"
+import { map } from "std/query"
 import { separatedBy } from "std/parser"
 symbol number
 symbol items
 pipe wrapped() { rewrite value => "(" value ")" }
-pattern Contents = values: /[a-z]/* |> separatedBy(",")
+pattern Letter = /[a-z]/ { meanings { types::annotate(self, number) } }
+pattern Contents = values: Letter* |> separatedBy(",")
 node Root = name: /[a-z]/ |> wrapped() ";" contents: Contents missing: /[0-9]/? {
     meanings {
         types::annotate(name, number)
-        types::annotate(contents.values, [number, number])
         types::annotate(self, types::typeof(name))
-        types::annotate((self, items), types::typeof(contents.values))
+        types::annotate((self, items), map(contents.values, value => types::typeof(value)))
     }
 }
 entry Root

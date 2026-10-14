@@ -1,15 +1,13 @@
-//! Experimental native semantic operations over successful syntax occurrences.
+//! Authored attachment analysis and optional Rust runtime operations over committed syntax.
 use crate::{
     diagnostic::{Diagnostic, Span},
     AstNode, AstValue, CompiledLanguage,
 };
 use serde::{Deserialize, Serialize};
 use std::{any::Any, collections::BTreeMap, sync::Arc};
-pub mod lexical;
 pub mod queries;
 mod scheduler;
 pub mod syntax;
-pub mod types;
 use scheduler::execute;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -648,7 +646,6 @@ pub(crate) struct AnalysisState {
     pub globals: BTreeMap<String, SemanticValue>,
     pub graph: SemanticGraph,
     pub record_origins: BTreeMap<usize, usize>,
-    pub match_owners: std::collections::BTreeSet<usize>,
     pub diagnostics: Vec<Diagnostic>,
     pub hook_failed: bool,
     pub services: BTreeMap<String, Box<dyn AnalysisService>>,
@@ -817,10 +814,8 @@ pub struct SemanticEngine {
 }
 impl Default for SemanticEngine {
     fn default() -> Self {
-        let mut registry = lexical::registry();
-        types::register(&mut registry).expect("standard modules have disjoint exports");
-        syntax::register(&mut registry).expect("standard modules have disjoint exports");
-        queries::register(&mut registry).expect("standard modules have disjoint exports");
+        let mut registry = OperationRegistry::new();
+        queries::register(&mut registry).expect("core query primitive exports are unique");
         Self::new(registry)
     }
 }
@@ -931,6 +926,8 @@ fn validate_registry(
 ) -> crate::diagnostic::CompileResult<()> {
     for definition in language.meanings.values() {
         for call in definition.groups.iter().flat_map(MeaningGroup::all_calls) {
+            crate::compiler::reject_retired_standard_operation(&call.operation, &call.span)
+                .map_err(|error| vec![error])?;
             let Some(signature) = registry.signature(&call.operation) else {
                 return Err(vec![Diagnostic::error(
                     "semantic.missing_operation",
@@ -983,28 +980,6 @@ mod tests {
             children,
         }
     }
-    fn definition(
-        registry: &OperationRegistry,
-        operation: &str,
-        args: BTreeMap<String, MeaningValue>,
-    ) -> MeaningDefinition {
-        let id = format!("std/variables#{operation}");
-        MeaningDefinition {
-            boundary: false,
-            groups: vec![MeaningGroup {
-                matching: None,
-                name: None,
-                calls: vec![MeaningCall {
-                    operation: id.clone(),
-                    contract: registry.signature(&id).unwrap().clone(),
-                    arguments: args,
-                    span: Span::new("language", 0, 1),
-                }],
-                span: Span::new("language", 0, 1),
-            }],
-            precedence: vec![],
-        }
-    }
     fn language() -> CompiledLanguage {
         crate::compile_sources(
             "language.yl",
@@ -1015,97 +990,6 @@ mod tests {
         )
         .unwrap()
     }
-    #[test]
-    fn native_lexical_state_is_restored_for_siblings_and_deferred_bodies() {
-        let registry = lexical::registry();
-        let mut language = language();
-        for owner in ["Program", "Block", "FunctionBody"] {
-            language.meanings.insert(
-                owner.into(),
-                definition(&registry, "lexicalScope", BTreeMap::new()),
-            );
-        }
-        language.meanings.insert(
-            "Declare".into(),
-            definition(
-                &registry,
-                "declare",
-                BTreeMap::from([
-                    ("name".into(), MeaningValue::Capture("name".into())),
-                    ("reassignable".into(), MeaningValue::Bool(true)),
-                ]),
-            ),
-        );
-        language.meanings.insert(
-            "Use".into(),
-            definition(
-                &registry,
-                "use",
-                BTreeMap::from([("name".into(), MeaningValue::Capture("name".into()))]),
-            ),
-        );
-        language
-            .meanings
-            .get_mut("Program")
-            .unwrap()
-            .precedence
-            .push(MeaningChain {
-                selectors: vec![
-                    MeaningSelector {
-                        definition: "Declare".into(),
-                        group: None,
-                    },
-                    MeaningSelector {
-                        definition: "FunctionBody".into(),
-                        group: None,
-                    },
-                ],
-                span: Span::default(),
-            });
-        let tree = vec![occurrence(
-            0,
-            "Program",
-            "",
-            vec![
-                occurrence(
-                    1,
-                    "Block",
-                    "",
-                    vec![
-                        occurrence(2, "Declare", "x", vec![]),
-                        occurrence(
-                            3,
-                            "FunctionBody",
-                            "",
-                            vec![occurrence(4, "Use", "x", vec![])],
-                        ),
-                    ],
-                ),
-                occurrence(5, "Declare", "y", vec![]),
-                occurrence(6, "Use", "y", vec![]),
-                occurrence(7, "Use", "x", vec![]),
-            ],
-        )];
-        let mut graph = SemanticGraph::default();
-        let mut diagnostics = vec![];
-        execute(&language, &registry, &tree, &mut graph, &mut diagnostics);
-        assert_eq!(diagnostics.len(), 1);
-        assert_eq!(diagnostics[0].code, "semantic.unresolved_reference");
-        assert_eq!(diagnostics[0].primary.start, 7);
-        let attachment = |occurrence, key: &str| {
-            graph
-                .attachments
-                .iter()
-                .find(|a| a.occurrence == occurrence && a.key == format!("std/variables#{key}"))
-                .unwrap()
-                .value
-                .clone()
-        };
-        assert_eq!(attachment(2, "declaration"), attachment(4, "reference"));
-        assert_eq!(attachment(5, "declaration"), attachment(6, "reference"));
-        assert_ne!(attachment(0, "scope"), attachment(1, "scope"));
-    }
-
     #[test]
     fn parser_traces_only_committed_original_occurrences_through_pipes_and_pratt() {
         let grammar = r#"

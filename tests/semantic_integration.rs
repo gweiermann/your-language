@@ -1,35 +1,20 @@
 use std::collections::BTreeMap;
-use your_language::{diagnostic::Severity, semantics::SemanticEngine};
-
+use your_language::semantics::SemanticEngine;
 #[path = "../examples/semantics/definition.rs"]
 mod definition;
-
 #[test]
-fn native_consumer_compiles_and_analyzes_in_memory_and_survives_optional_reload() {
+fn authored_consumer_compiles_and_survives_reload_without_native_adapters() {
     let engine = SemanticEngine::default();
-    let source = include_str!("../examples/semantics/programs/program.txt");
-    let direct = engine
-        .compile_and_analyze(
-            definition::ENTRY,
-            &definition::sources(),
-            "programs/program.txt",
-            source,
-        )
-        .unwrap();
-    assert!(direct.diagnostics.is_empty(), "{:?}", direct.diagnostics);
     let language = engine
         .compile(definition::ENTRY, &definition::sources())
         .unwrap();
+    let source = include_str!("../examples/semantics/programs/program.txt");
+    let direct = engine.analyze(&language, "source", source);
+    assert!(direct.diagnostics.is_empty(), "{:?}", direct.diagnostics);
     let loaded = engine.load(&language.to_bytes().unwrap()).unwrap();
-    assert_eq!(
-        direct,
-        engine.analyze(&loaded, "programs/program.txt", source)
-    );
-    let empty = SemanticEngine::new(Default::default());
-    assert_eq!(
-        empty.load(&language.to_bytes().unwrap()).unwrap_err()[0].code,
-        "semantic.missing_operation"
-    );
+    assert_eq!(direct, engine.analyze(&loaded, "source", source));
+    assert!(!direct.graph.query_entries.is_empty());
+    assert!(direct.graph.records.is_empty());
     let graph = serde_json::to_string_pretty(&direct.graph).unwrap() + "\n";
     let normalized = String::from_utf8(language.to_bytes().unwrap()).unwrap() + "\n";
     if std::env::var_os("UPDATE_SEMANTIC_GOLDENS").is_some() {
@@ -46,17 +31,19 @@ fn native_consumer_compiles_and_analyzes_in_memory_and_survives_optional_reload(
         );
     }
 }
-
 #[test]
-fn native_analyses_are_isolated_across_repeated_and_parallel_calls() {
+fn authored_analyses_are_isolated_across_repeated_and_parallel_calls() {
     let engine = SemanticEngine::default();
     let language = engine
         .compile(definition::ENTRY, &definition::sources())
         .unwrap();
     let first = engine.analyze(&language, "source", "let x = 1; let result = x;");
-    assert!(first.diagnostics.is_empty());
-    let second = engine.analyze(&language, "source", "let result = x;");
-    assert_eq!(second.diagnostics[0].code, "semantic.unresolved_reference");
+    assert!(first.diagnostics.is_empty(), "{:?}", first.diagnostics);
+    let missing = engine.analyze(&language, "source", "let result = x;");
+    assert!(missing
+        .diagnostics
+        .iter()
+        .any(|error| error.message == "Unknown name 'x'"));
     std::thread::scope(|scope| {
         let calls: Vec<_> = (0..4)
             .map(|_| {
@@ -68,40 +55,25 @@ fn native_analyses_are_isolated_across_repeated_and_parallel_calls() {
         }
     });
 }
-
 #[test]
-fn semantic_examples_have_specific_source_diagnostics_and_declaration_origins() {
+fn authored_example_diagnostics_keep_exact_name_spans() {
     let engine = SemanticEngine::default();
     let language = engine
         .compile(definition::ENTRY, &definition::sources())
         .unwrap();
-    for (file, source, code) in [
-        (
-            "programs/unresolved.txt",
-            include_str!("../examples/semantics/programs/unresolved.txt"),
-            "semantic.unresolved_reference",
-        ),
-        (
-            "programs/duplicate.txt",
-            include_str!("../examples/semantics/programs/duplicate.txt"),
-            "semantic.duplicate_declaration",
-        ),
+    for (source, message, name) in [
+        ("let result = missing;", "Unknown name 'missing'", "missing"),
+        ("let x = 1; let x = 2;", "Duplicate declaration 'x'", "x"),
     ] {
-        let result = engine.analyze(&language, file, source);
-        let diagnostic = result
+        let result = engine.analyze(&language, "input", source);
+        let error = result
             .diagnostics
             .iter()
-            .find(|diagnostic| diagnostic.code == code)
+            .find(|error| error.message == message)
             .unwrap();
-        assert_eq!(diagnostic.severity, Severity::Error);
-        assert_eq!(diagnostic.primary.file, file);
-        assert!(!source[diagnostic.primary.start..diagnostic.primary.end].is_empty());
-        if code == "semantic.duplicate_declaration" {
-            assert_eq!(diagnostic.secondary.len(), 1);
-        }
+        assert_eq!(&source[error.primary.start..error.primary.end], name);
     }
 }
-
 #[test]
 fn precedence_remains_transitive_when_optional_middle_level_is_absent() {
     use your_language::{

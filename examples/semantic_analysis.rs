@@ -1,4 +1,4 @@
-//! An in-memory consumer of the experimental native semantic interface.
+//! An in-memory consumer of authored reference analysis.
 use your_language::{
     diagnostic::Severity, diagnostic_render::print_diagnostics, semantics::SemanticEngine,
 };
@@ -62,8 +62,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{}", serde_json::to_string_pretty(&analysis)?);
     } else if !errors {
         println!(
-            "Analysis succeeded ({} semantic records).",
-            analysis.graph.records.len()
+            "Analysis succeeded ({} attachments).",
+            analysis.graph.query_entries.len()
         );
     }
     if !json {

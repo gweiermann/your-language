@@ -1,464 +1,161 @@
+//! Hypothetical resolution replaces native template ownership and instance allocation.
 use std::collections::BTreeMap;
-use your_language::{
-    diagnostic::Diagnostic,
-    semantics::{
-        types, AnalysisResult, Evaluation, NativeOperation, OperationContext, OperationParameter,
-        OperationSignature, ParameterKind, SemanticEngine, SemanticIdentity, SemanticKey,
-        SemanticValue,
-    },
-};
-
-struct Own;
-impl NativeOperation for Own {
-    fn before(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
-        let locals = match context.argument("local").unwrap() {
-            SemanticValue::Identity(local) => vec![local.clone()],
-            SemanticValue::List(values) => values
-                .iter()
-                .map(|value| {
-                    let SemanticValue::Identity(identity) = value else {
-                        unreachable!()
-                    };
-                    identity.clone()
-                })
-                .collect(),
-            _ => unreachable!(),
-        };
-        types::register_template(
-            context,
-            SemanticIdentity::Occurrence(context.occurrence.id),
-            &locals,
-        )
-    }
-}
-struct Remember;
-impl NativeOperation for Remember {
-    fn before(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
-        let SemanticValue::Text(name) = context.argument("name").unwrap() else {
-            unreachable!()
-        };
-        let value = context.argument("value").unwrap().clone();
-        context.attach(&format!("test#{name}"), value);
-        Ok(())
-    }
-    fn evaluate(&mut self, context: &mut OperationContext<'_>) -> Result<Evaluation, Diagnostic> {
-        Ok(Evaluation::Ready(
-            context.argument("value").unwrap().clone(),
-        ))
-    }
-}
-fn engine() -> SemanticEngine {
-    let mut engine = SemanticEngine::default();
-    for (name, args, contribution) in [
-        ("own", vec!["local"], true),
-        ("remember", vec!["name", "value"], false),
-    ] {
-        engine
-            .registry_mut()
-            .register(
-                "host",
-                name,
-                OperationSignature {
-                    id: format!("host#{name}"),
-                    provides_context: false,
-                    finalization_only: true,
-                    contribution,
-                    parameters: args
-                        .into_iter()
-                        .map(|name| OperationParameter {
-                            name: name.into(),
-                            kind: if name == "name" {
-                                ParameterKind::Text
-                            } else {
-                                ParameterKind::Value
-                            },
-                            default: None,
-                        })
-                        .collect(),
-                },
-                move || {
-                    if name == "own" {
-                        Box::new(Own) as Box<dyn NativeOperation>
-                    } else {
-                        Box::new(Remember)
-                    }
-                },
-            )
-            .unwrap();
-    }
-    engine
-}
-const HEADER: &str = r#"
+use your_language::semantics::{queries::QueryKey, SemanticEngine, SemanticValue};
+fn language() -> (SemanticEngine, your_language::CompiledLanguage) {
+    let source = r#"
 import * as types from "std/types"
-import * as syntax from "std/syntax"
-import * as host from "host"
-symbol Alpha
-symbol Beta
-symbol Shape
-symbol input
-symbol output
-node Local = "p"
-node First = "n" { meanings { types::annotate(syntax::identity(), Alpha) } }
-node Second = "s" { meanings { types::annotate(syntax::identity(), Beta) } }
-node Template = "f" local: Local {
-    meanings {
-        host::own(syntax::identityOf(local))
-        types::annotate(syntax::identity(), Shape)
-        types::annotate((syntax::identity(), input), types::typeof(syntax::identityOf(local)))
-        types::annotate(syntax::identityOf(local), types::typeof((syntax::identity(), input)))
-        types::annotate((syntax::identity(), output), types::typeof(syntax::identityOf(local)))
-    }
-}
-operation instance(template, site) = types::instantiate(syntax::identityOf(template), syntax::identityOf(site))
+import { contribute, equal } from "std/query"
+symbol number
+symbol string
+symbol parameter
+symbol result
+symbol external
+node Root = "x" { meanings {
+ types::annotate((self,parameter), string)
+ types::annotate((self,external), number)
+ types::annotate((self,result), types::typeof((self,parameter)))
+ contribute("first", types::resolveWith((self,result), [((self,parameter), number)]))
+ contribute("second", types::resolveWith((self,result), [((self,parameter), string)]))
+ contribute("original", types::typeof((self,parameter)))
+ contribute("outside", types::resolveWith((self,external), [((self,parameter), string)]))
+} }
+entry Root
 "#;
-fn analyze(extra: &str, actions: &str) -> AnalysisResult {
-    analyze_header(HEADER, extra, actions, "fpns")
-}
-fn analyze_header(header: &str, extra: &str, actions: &str, program: &str) -> AnalysisResult {
-    let source = format!("{header}\n{extra}\nnode Root = template: Template first: First second: Second {{ meanings {{ {actions} }} }}\nentry Root");
-    let engine = engine();
+    let engine = SemanticEngine::default();
     let language = engine
-        .compile("main.yl", &BTreeMap::from([("main.yl".into(), source)]))
+        .compile(
+            "language.yl",
+            &BTreeMap::from([("language.yl".into(), source.into())]),
+        )
         .unwrap();
-    let reloaded = engine.load(&language.to_bytes().unwrap()).unwrap();
-    engine.analyze(&reloaded, "program", program)
+    let loaded = engine.load(&language.to_bytes().unwrap()).unwrap();
+    (engine, loaded)
 }
-fn attachment(result: &AnalysisResult, name: &str) -> SemanticValue {
+fn observed(result: &your_language::semantics::AnalysisResult, name: &str) -> SemanticValue {
     result
         .graph
-        .attachments
+        .query_entries
         .iter()
-        .find(|item| item.key == format!("test#{name}"))
+        .find(|entry| entry.key == QueryKey::Text(name.into()))
         .unwrap()
         .value
         .clone()
 }
-fn value(result: &AnalysisResult, identity: SemanticValue, slot: &str) -> SemanticValue {
-    let key = SemanticValue::Tuple(vec![
-        identity,
-        SemanticValue::Symbol(format!("main.yl#{slot}")),
-    ]);
-    let row = result
-        .graph
-        .records
-        .iter()
-        .find(|row| {
-            row.entries
-                .iter()
-                .any(|(k, v)| *k == SemanticKey::Symbol("std/types#key".into()) && *v == key)
-        })
-        .unwrap();
-    row.entries
-        .iter()
-        .find(|(k, _)| *k == SemanticKey::Symbol("std/types#type".into()))
-        .unwrap()
-        .1
-        .clone()
-}
-const CALLS: &str = r#"
-host::remember("a", instance(template, first))
-host::remember("a-again", instance(template, first))
-host::remember("b", instance(template, second))
-types::annotate((instance(template, first), input), types::typeof(syntax::identityOf(first)))
-types::annotate((instance(template, second), input), types::typeof(syntax::identityOf(second)))
-"#;
-
 #[test]
-fn independent_instances_retain_one_shared_local_relationship() {
-    let result = analyze("", CALLS);
+fn explicit_parameter_assumptions_recompute_result_and_keep_instances_independent() {
+    let (engine, language) = language();
+    let result = engine.analyze(&language, "input", "x");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    let a = attachment(&result, "a");
-    let b = attachment(&result, "b");
-    assert_eq!(a, attachment(&result, "a-again"));
-    assert_ne!(a, b);
     assert_eq!(
-        value(&result, a, "output"),
-        SemanticValue::Symbol("main.yl#Alpha".into())
+        observed(&result, "first"),
+        SemanticValue::Symbol("language.yl#number".into())
     );
     assert_eq!(
-        value(&result, b, "output"),
-        SemanticValue::Symbol("main.yl#Beta".into())
+        observed(&result, "second"),
+        SemanticValue::Symbol("language.yl#string".into())
     );
-    let root = &result.occurrences[0];
-    let template = SemanticValue::Identity(SemanticIdentity::Occurrence(
-        root.captures["template"].occurrences[0],
-    ));
     assert_eq!(
-        value(&result, template, "input"),
-        SemanticValue::Symbol("std/types#unknown".into())
+        observed(&result, "original"),
+        SemanticValue::Symbol("language.yl#string".into())
     );
 }
-
 #[test]
-fn captured_external_type_is_not_freshened() {
-    let actions = format!(
-        r#"
-        types::annotate((syntax::identityOf(template), output), types::typeof(syntax::identityOf(first)))
-        {CALLS}
-    "#
-    );
-    let header = HEADER.replace(
-        "types::annotate((syntax::identity(), output), types::typeof(syntax::identityOf(local)))",
-        "",
-    );
-    let result = analyze_header(&header, "", &actions, "fpns");
+fn hypothetical_parameter_overrides_preserve_external_capture() {
+    let (engine, language) = language();
+    let result = engine.analyze(&language, "input", "x");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    let output = value(&result, attachment(&result, "b"), "output");
-    assert_eq!(output, SemanticValue::Symbol("main.yl#Alpha".into()));
-}
-
-#[test]
-fn restrictions_preserve_call_argument_and_bound_origins() {
-    let actions = format!(
-        r#"
-        types::restrictTo((syntax::identityOf(template), input), Alpha)
-        {CALLS}
-    "#
-    );
-    let result = analyze("", &actions);
-    assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
-    assert_eq!(result.diagnostics[0].code, "types.mismatch");
-    assert_eq!(result.diagnostics[0].primary.start, 3);
-    assert_eq!(result.diagnostics[0].primary.end, 4);
-    assert_eq!(result.diagnostics[0].secondary.len(), 1);
-}
-
-#[test]
-fn unregistered_template_reports_ownership_instead_of_guessing() {
-    let result = analyze(
-        "",
-        r#"host::remember("bad", types::instantiate(syntax::identityOf(first), syntax::identityOf(second)))"#,
-    );
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "types.template_ownership"),
-        "{:?}",
-        result.diagnostics
+    assert_eq!(
+        observed(&result, "outside"),
+        SemanticValue::Symbol("language.yl#number".into())
     );
 }
-
 #[test]
-fn parallel_analyses_have_disjoint_analysis_local_state() {
+fn hypothetical_queries_are_analysis_local_and_parallel_safe() {
+    let (engine, language) = language();
+    let expected = engine.analyze(&language, "input", "x");
     std::thread::scope(|scope| {
-        for _ in 0..4 {
-            scope.spawn(independent_instances_retain_one_shared_local_relationship);
+        let calls: Vec<_> = (0..4)
+            .map(|_| scope.spawn(|| engine.analyze(&language, "input", "x")))
+            .collect();
+        for call in calls {
+            assert_eq!(call.join().unwrap(), expected);
         }
     });
 }
-
 #[test]
-fn alias_retains_template_origin_without_sharing_instance_variables() {
-    let result = analyze(
-        "",
-        r#"
-        types::annotate(syntax::identityOf(first), types::typeof(syntax::identityOf(template)))
-        host::remember("alias", types::instantiate(syntax::identityOf(first), syntax::identityOf(second)))
-        types::annotate((types::instantiate(syntax::identityOf(first), syntax::identityOf(second)), input), Beta)
-    "#,
-    );
-    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(
-        value(&result, attachment(&result, "alias"), "output"),
-        SemanticValue::Symbol("main.yl#Beta".into())
-    );
+fn canonical_std_contains_no_native_template_ownership_contracts() {
+    let (_, language) = language();
+    let normalized = String::from_utf8(language.to_bytes().unwrap()).unwrap();
+    assert!(!normalized.contains("register_template"));
+    assert!(!normalized.contains("std/types#instantiate"));
+    assert!(normalized.contains("std/query#hypothetical"));
 }
 
 #[test]
-fn independent_list_positions_are_freshened_consistently() {
-    let header = HEADER
-        .replace("local: Local", "local: Local other: Local")
-        .replace(
-            "host::own(syntax::identityOf(local))",
-            "host::own([syntax::identityOf(local), syntax::identityOf(other)])",
-        )
-        .replace(
-            "types::typeof(syntax::identityOf(local))",
-            "[types::typeof(syntax::identityOf(local)), types::typeof(syntax::identityOf(other))]",
-        )
-        .replace(
-            "types::annotate(syntax::identityOf(local),",
-            "types::annotate([syntax::identityOf(local), syntax::identityOf(other)],",
-        );
-    let actions = CALLS
-        .replace(
-            "types::typeof(syntax::identityOf(first)))",
-            "[Alpha, Beta])",
-        )
-        .replace(
-            "types::typeof(syntax::identityOf(second)))",
-            "[Beta, Alpha])",
-        );
-    let result = analyze_header(&header, "", &actions, "fppns");
-    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(
-        value(&result, attachment(&result, "a"), "output"),
-        SemanticValue::List(vec![
-            SemanticValue::Symbol("main.yl#Alpha".into()),
-            SemanticValue::Symbol("main.yl#Beta".into())
-        ])
-    );
-    assert_eq!(
-        value(&result, attachment(&result, "b"), "output"),
-        SemanticValue::List(vec![
-            SemanticValue::Symbol("main.yl#Beta".into()),
-            SemanticValue::Symbol("main.yl#Alpha".into())
-        ])
-    );
-}
-
-#[test]
-fn templates_with_residual_matches_are_explicitly_parked() {
-    let header = HEADER.replace(
-        "host::own(syntax::identityOf(local))",
-        r#"
-        host::own(syntax::identityOf(local))
-        match (types::typeof(syntax::identityOf(local))) {
-            _ => types::annotate(syntax::identity(), Alpha)
-        }
-    "#,
-    );
-    let result = analyze_header(&header, "", "", "fpns");
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "types.template_match"),
-        "{:?}",
-        result.diagnostics
-    );
-}
-
-#[test]
-fn ownership_cannot_change_after_registration() {
-    let header = HEADER.replace(
-        "host::own(syntax::identityOf(local))",
-        "host::own(syntax::identityOf(local))\nhost::own(syntax::identity())",
-    );
-    let result = analyze_header(&header, "", "", "fpns");
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "types.template_ownership"),
-        "{:?}",
-        result.diagnostics
-    );
-}
-
-#[test]
-fn finite_recursive_relationships_propagate_within_each_instance() {
-    let header = HEADER.replace("host::own(syntax::identityOf(local))", "host::own(syntax::identityOf(local))\ntypes::annotate(syntax::identityOf(local), types::typeof(syntax::identityOf(local)))");
-    let result = analyze_header(&header, "", CALLS, "fpns");
-    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(
-        value(&result, attachment(&result, "a"), "output"),
-        SemanticValue::Symbol("main.yl#Alpha".into())
-    );
-    assert_eq!(
-        value(&result, attachment(&result, "b"), "output"),
-        SemanticValue::Symbol("main.yl#Beta".into())
-    );
-}
-
-#[test]
-fn mixed_local_and_captured_destinations_are_explicitly_parked() {
-    let result = analyze(
-        "",
-        &format!(
-            r#"
-        types::annotate([syntax::identityOf(template), syntax::identityOf(first)], [Shape, Alpha])
-        {CALLS}
-    "#
-        ),
-    );
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "types.template_ownership"
-                && diagnostic.message.contains("positional")),
-        "{:?}",
-        result.diagnostics
-    );
-}
-
-#[test]
-fn public_host_example_preserves_human_and_json_underlines() {
+fn authored_hypothetical_example_cli_preserves_human_and_json_underlines() {
     use std::process::Command;
-    let built = Command::new(env!("CARGO"))
-        .args(["build", "--quiet", "--example", "type_instantiation"])
-        .current_dir(env!("CARGO_MANIFEST_DIR"))
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let artifact = root
+        .join("target")
+        .join(format!("query-type-example-{}.ylc", std::process::id()));
+    let cli = env!("CARGO_BIN_EXE_yl");
+    let compile = Command::new(cli)
+        .arg("compile")
+        .arg(root.join("examples/type_instantiation/definition/main.yl"))
+        .arg("-o")
+        .arg(&artifact)
         .output()
         .unwrap();
     assert!(
-        built.status.success(),
+        compile.status.success(),
         "{}",
-        String::from_utf8_lossy(&built.stderr)
+        String::from_utf8_lossy(&compile.stderr)
     );
-    let executable = std::path::Path::new(env!("CARGO_BIN_EXE_yl"))
-        .parent()
-        .unwrap()
-        .join("examples")
-        .join(format!(
-            "type_instantiation{}",
-            std::env::consts::EXE_SUFFIX
-        ));
-    let success = Command::new(&executable).output().unwrap();
-    assert!(success.status.success());
-    let output = String::from_utf8(success.stdout).unwrap();
-    assert!(output.contains("first: {\"Symbol\":\"main.yl#number\"}"));
-    assert!(output.contains("second: {\"Symbol\":\"main.yl#string\"}"));
-    let human = Command::new(&executable)
-        .arg("errors")
+    let program = root.join("examples/type_instantiation/programs/program.txt");
+    let success = Command::new(cli)
+        .arg("language")
+        .arg(&artifact)
+        .arg("check")
+        .arg(&program)
+        .output()
+        .unwrap();
+    assert!(
+        success.status.success(),
+        "{}",
+        String::from_utf8_lossy(&success.stderr)
+    );
+    let errors = root.join("examples/type_instantiation/programs/errors.txt");
+    let human = Command::new(cli)
+        .arg("language")
+        .arg(&artifact)
+        .arg("check")
+        .arg(&errors)
         .env_remove("NO_COLOR")
         .env("CLICOLOR_FORCE", "1")
         .output()
         .unwrap();
     assert_eq!(human.status.code(), Some(1));
-    let output = String::from_utf8(human.stderr).unwrap();
-    assert!(output.contains("\x1b[31m"));
-    assert!(output.contains("^^^^^^^"));
-    let json = Command::new(&executable)
-        .args(["errors", "--json"])
+    let rendered = String::from_utf8(human.stderr).unwrap();
+    assert!(rendered.contains("\x1b[31m"));
+    assert!(rendered.contains("^^^^^^^"));
+    let json = Command::new(cli)
+        .arg("language")
+        .arg(&artifact)
+        .arg("check")
+        .arg(&errors)
+        .arg("--json")
         .output()
         .unwrap();
+    std::fs::remove_file(&artifact).unwrap();
     assert_eq!(json.status.code(), Some(1));
     assert!(json.stderr.is_empty());
     let json: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
-    let source = include_str!("../examples/type_instantiation/programs/errors.txt");
-    let diagnostic = &json["diagnostics"][0];
+    let diagnostic = &json[0];
     let primary = &diagnostic["primary"];
+    let source = std::fs::read_to_string(errors).unwrap();
     assert_eq!(
         &source[primary["start"].as_u64().unwrap() as usize
             ..primary["end"].as_u64().unwrap() as usize],
         "\"wrong\""
-    );
-    let related = &diagnostic["secondary"][0];
-    assert_eq!(
-        &source[related["start"].as_u64().unwrap() as usize
-            ..related["end"].as_u64().unwrap() as usize],
-        "number"
-    );
-}
-
-#[test]
-fn late_alias_ownership_cannot_switch_a_cached_instance_template() {
-    let result = analyze(
-        "",
-        r#"
-        types::annotate(syntax::identity(), types::typeof(syntax::identityOf(template)))
-        host::remember("a", types::instantiate(syntax::identity(), syntax::identityOf(first)))
-        host::own(syntax::identityOf(first))
-    "#,
-    );
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "types.template_ownership"),
-        "{:?}",
-        result.diagnostics
     );
 }

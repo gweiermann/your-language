@@ -13,7 +13,11 @@ node Statement {
 
 node Program = statements: Statement* {
     meanings {
+        boundary
         lexicalScope()
+        precedence {
+            FunctionDeclaration::meanings::Register > Expression
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-import { ancestors, contribute, find, get, getAll, hasMultiple, isPresent, text } from "std/query"
+import { ancestors, contribute, find, get, getEarlier, getAll, hasMultiple, isPresent, text, first, children } from "std/query"
 
 export symbol scope
 
@@ -6,7 +6,7 @@ export symbol declarations
 
 export symbol referenceIdentity
 
-export symbol reassignable
+export symbol reassignableSymbol
 
 export operation lexicalScope() {
     contribute((self, scope), self)
@@ -14,15 +14,21 @@ export operation lexicalScope() {
 
 export operation enclosingScope(value) = find(ancestors(value), ancestor => get((ancestor, scope)))
 
-export operation resolve(name) = find(ancestors(self), ancestor => get((get((ancestor, scope)), declarations, text(name))))
+export operation resolve(name) = find(ancestors(name), ancestor => getEarlier((get((ancestor, scope)), declarations, text(name))))
 
-export operation declare(name, mutable = true) {
-    contribute((enclosingScope(self), declarations, text(name)), self)
+export operation declare(name, reassignable = true) {
+    contribute((enclosingScope(name), declarations, text(name)), self)
     contribute((name, referenceIdentity), self)
     contribute((self, referenceIdentity), self)
-    contribute((self, reassignable), mutable)
-    if hasMultiple(getAll((enclosingScope(self), declarations, text(name)))) {
-        error("Duplicate declaration '${name}'", name)
+    contribute((self, nameSymbol), text(name))
+    contribute((self, reassignableSymbol), reassignable)
+    if isPresent(enclosingScope(name)) {
+        if hasMultiple(getAll((enclosingScope(name), declarations, text(name)))) {
+            error("Duplicate declaration '${name}'", name)
+        }
+    }
+    else {
+        error("Declaration has no lexical scope", name)
     }
 }
 
@@ -37,3 +43,13 @@ export operation use(name) {
 export operation reference() = get((self, referenceIdentity))
 
 export operation referenceOf(value) = get((value, referenceIdentity))
+
+export symbol nameSymbol
+
+export operation identity() = self
+
+export operation identityOf(value) = value
+
+export operation childIdentity() = first(children(self))
+
+export operation identities(value) = value
