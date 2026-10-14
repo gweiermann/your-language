@@ -36,7 +36,7 @@ entry Program
     let bytes = language.to_bytes().unwrap();
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["version"],
-        5
+        6
     );
     let language = load_compiled_language(&bytes).unwrap();
     let result = engine.analyze(&language, "program", "letx;x;");
@@ -227,7 +227,7 @@ export node Binder = "let" name: /[a-z]+/ ";" {
     let artifact: serde_json::Value =
         serde_json::from_slice(&language.to_bytes().unwrap()).unwrap();
     assert_eq!(
-        artifact["meanings"]["main.yl#Program"]["precedence"][0]["selectors"][0]["definition"],
+        artifact["semantics"]["main.yl#Program"]["precedence"][0]["selectors"][0]["definition"],
         "bindings.yl#Binder"
     );
 }

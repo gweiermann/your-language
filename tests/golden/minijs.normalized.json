@@ -1,1049 +1,1554 @@
 {
-  "version": 1,
-  "entry": "minijs.yl#Program",
-  "rules": {
-    "lexical.yl#Comment": {
-      "name": "Comment",
-      "trivia": true,
-      "body": {
-        "Abstract": {
-          "bases": [
-            "lexical.yl#Comment::Line",
-            "lexical.yl#Comment::Block"
-          ],
-          "operators": []
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "lexical.yl",
-        "start": 81,
-        "end": 176
-      }
-    },
-    "lexical.yl#Comment::Block": {
-      "name": "Comment::Block",
-      "trivia": true,
-      "body": {
-        "Concrete": {
-          "Regex": "/\\*[\\s\\S]*?\\*/"
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "lexical.yl",
-        "start": 141,
-        "end": 174
-      }
-    },
-    "lexical.yl#Comment::Line": {
-      "name": "Comment::Line",
-      "trivia": true,
-      "body": {
-        "Concrete": {
-          "Regex": "//[^\\n]*"
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "lexical.yl",
-        "start": 109,
-        "end": 135
-      }
-    },
-    "lexical.yl#Name": {
-      "name": "Name",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "value",
-            {
-              "Regex": "[_a-zA-Z][_a-zA-Z0-9]*"
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "lexical.yl",
-        "start": 287,
-        "end": 337
-      }
-    },
-    "lexical.yl#Whitespace": {
-      "name": "Whitespace",
-      "trivia": true,
-      "body": {
-        "Concrete": {
-          "Regex": "[ \\t\\r\\n]+"
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "lexical.yl",
-        "start": 40,
-        "end": 79
-      }
-    },
-    "minijs.yl#Block": {
-      "name": "Block",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Sequence": [
-            {
-              "Literal": "{"
-            },
-            {
-              "Capture": [
-                "statements",
-                {
-                  "Repeat": [
-                    {
-                      "Ref": "minijs.yl#Statement"
-                    },
-                    "Star"
-                  ]
-                }
-              ]
-            },
-            {
-              "Literal": "}"
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 1551,
-        "end": 1606
-      }
-    },
-    "minijs.yl#Expression": {
-      "name": "Expression",
-      "trivia": false,
-      "body": {
-        "Abstract": {
-          "bases": [
-            "minijs.yl#Expression::String",
-            "minijs.yl#Expression::Number",
-            "minijs.yl#Expression::NameExpression",
-            "minijs.yl#Expression::Group"
-          ],
-          "operators": [
-            {
-              "rule": "minijs.yl#Expression::Member",
-              "binding_power": 5,
-              "associativity": "Left",
-              "left": true,
-              "right": false
-            },
-            {
-              "rule": "minijs.yl#Expression::Call",
-              "binding_power": 5,
-              "associativity": "Left",
-              "left": true,
-              "right": false
-            },
-            {
-              "rule": "minijs.yl#Expression::Unary",
-              "binding_power": 4,
-              "associativity": "Left",
-              "left": false,
-              "right": true
-            },
-            {
-              "rule": "minijs.yl#Expression::Power",
-              "binding_power": 3,
-              "associativity": "Right",
-              "left": true,
-              "right": true
-            },
-            {
-              "rule": "minijs.yl#Expression::Product",
-              "binding_power": 2,
-              "associativity": "Left",
-              "left": true,
-              "right": true
-            },
-            {
-              "rule": "minijs.yl#Expression::Sum",
-              "binding_power": 1,
-              "associativity": "Left",
-              "left": true,
-              "right": true
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 105,
-        "end": 1006
-      }
-    },
-    "minijs.yl#Expression::Call": {
-      "name": "Expression::Call",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Sequence": [
-            {
-              "Capture": [
-                "callee",
-                {
-                  "Ref": "minijs.yl#Expression"
-                }
-              ]
-            },
-            {
-              "Literal": "("
-            },
-            {
-              "Capture": [
-                "arguments",
-                {
-                  "Project": {
-                    "id": 1,
-                    "term": {
-                      "Repeat": [
-                        {
-                          "Sequence": [
-                            {
-                              "Sequence": [
-                                {
-                                  "Mark": {
-                                    "id": 1,
-                                    "term": {
-                                      "Ref": "minijs.yl#Expression"
-                                    }
-                                  }
-                                },
-                                {
-                                  "Repeat": [
-                                    {
-                                      "Sequence": [
-                                        {
-                                          "Literal": ","
-                                        },
-                                        {
-                                          "Mark": {
-                                            "id": 1,
-                                            "term": {
-                                              "Ref": "minijs.yl#Expression"
-                                            }
-                                          }
-                                        }
-                                      ]
-                                    },
-                                    "Star"
-                                  ]
-                                }
-                              ]
-                            },
-                            {
-                              "Repeat": [
-                                {
-                                  "Literal": ","
-                                },
-                                "Optional"
-                              ]
-                            }
-                          ]
-                        },
-                        "Optional"
-                      ]
-                    },
-                    "quantifier": "Star"
-                  }
-                }
-              ]
-            },
-            {
-              "Literal": ")"
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 407,
-        "end": 542
-      }
-    },
-    "minijs.yl#Expression::Group": {
-      "name": "Expression::Group",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Sequence": [
-            {
-              "Literal": "("
-            },
-            {
-              "Capture": [
-                "value",
-                {
-                  "Ref": "minijs.yl#Expression"
-                }
-              ]
-            },
-            {
-              "Literal": ")"
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 258,
-        "end": 320
-      }
-    },
-    "minijs.yl#Expression::Member": {
-      "name": "Expression::Member",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Sequence": [
-            {
-              "Capture": [
-                "object",
-                {
-                  "Ref": "minijs.yl#Expression"
-                }
-              ]
-            },
-            {
-              "Literal": "."
-            },
-            {
-              "Capture": [
-                "property",
-                {
-                  "Ref": "lexical.yl#Name"
-                }
-              ]
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 326,
-        "end": 401
-      }
-    },
-    "minijs.yl#Expression::NameExpression": {
-      "name": "Expression::NameExpression",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "name",
-            {
-              "Ref": "lexical.yl#Name"
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 220,
-        "end": 252
-      }
-    },
-    "minijs.yl#Expression::Number": {
-      "name": "Expression::Number",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "value",
-            {
-              "Regex": "\\d+(?:\\.\\d+)?"
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 178,
-        "end": 214
-      }
-    },
-    "minijs.yl#Expression::Power": {
-      "name": "Expression::Power",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Sequence": [
-            {
-              "Capture": [
-                "left",
-                {
-                  "Ref": "minijs.yl#Expression"
-                }
-              ]
-            },
-            {
-              "Capture": [
-                "operator",
-                {
-                  "Literal": "**"
-                }
-              ]
-            },
-            {
-              "Capture": [
-                "right",
-                {
-                  "Ref": "minijs.yl#Expression"
-                }
-              ]
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 631,
-        "end": 717
-      }
-    },
-    "minijs.yl#Expression::Product": {
-      "name": "Expression::Product",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Sequence": [
-            {
-              "Capture": [
-                "left",
-                {
-                  "Ref": "minijs.yl#Expression"
-                }
-              ]
-            },
-            {
-              "Capture": [
-                "operator",
-                {
-                  "Choice": [
-                    {
-                      "Literal": "*"
-                    },
-                    {
-                      "Literal": "/"
-                    },
-                    {
-                      "Literal": "%"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "Capture": [
-                "right",
-                {
-                  "Ref": "minijs.yl#Expression"
-                }
-              ]
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 723,
-        "end": 824
-      }
-    },
-    "minijs.yl#Expression::String": {
-      "name": "Expression::String",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "value",
-            {
-              "Regex": "\"(?:\\\\.|[^\"])*\""
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 134,
-        "end": 172
-      }
-    },
-    "minijs.yl#Expression::Sum": {
-      "name": "Expression::Sum",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Sequence": [
-            {
-              "Capture": [
-                "left",
-                {
-                  "Ref": "minijs.yl#Expression"
-                }
-              ]
-            },
-            {
-              "Capture": [
-                "operator",
-                {
-                  "Choice": [
-                    {
-                      "Literal": "+"
-                    },
-                    {
-                      "Literal": "-"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "Capture": [
-                "right",
-                {
-                  "Ref": "minijs.yl#Expression"
-                }
-              ]
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 830,
-        "end": 921
-      }
-    },
-    "minijs.yl#Expression::Unary": {
-      "name": "Expression::Unary",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Sequence": [
-            {
-              "Capture": [
-                "operator",
-                {
-                  "Choice": [
-                    {
-                      "Literal": "+"
-                    },
-                    {
-                      "Literal": "-"
-                    },
-                    {
-                      "Literal": "!"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "Capture": [
-                "argument",
-                {
-                  "Ref": "minijs.yl#Expression"
-                }
-              ]
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 548,
-        "end": 625
-      }
-    },
-    "minijs.yl#Parameter": {
-      "name": "Parameter",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Sequence": [
-            {
-              "Capture": [
-                "name",
-                {
-                  "Ref": "lexical.yl#Name"
-                }
-              ]
-            },
-            {
-              "Repeat": [
-                {
-                  "Sequence": [
-                    {
-                      "Literal": "="
-                    },
-                    {
-                      "Capture": [
-                        "default",
-                        {
-                          "Ref": "minijs.yl#Expression"
-                        }
-                      ]
-                    }
-                  ]
-                },
-                "Optional"
-              ]
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 1008,
-        "end": 1061
-      }
-    },
-    "minijs.yl#Program": {
-      "name": "Program",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "statements",
-            {
-              "Repeat": [
-                {
-                  "Ref": "minijs.yl#Statement"
-                },
-                "Star"
-              ]
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 1608,
-        "end": 1652
-      }
-    },
-    "minijs.yl#Statement": {
-      "name": "Statement",
-      "trivia": false,
-      "body": {
-        "Abstract": {
-          "bases": [
-            "minijs.yl#Statement::VariableDeclaration",
-            "minijs.yl#Statement::ReturnStatement",
-            "minijs.yl#Statement::FunctionDeclaration",
-            "minijs.yl#Expression"
-          ],
-          "operators": []
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 1138,
-        "end": 1549
-      }
-    },
-    "minijs.yl#Statement::FunctionDeclaration": {
-      "name": "Statement::FunctionDeclaration",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Sequence": [
-            {
-              "Project": {
-                "id": 2,
-                "term": {
-                  "Sequence": [
-                    {
-                      "NotBehind": {
-                        "Regex": "[_a-zA-Z0-9]"
-                      }
-                    },
-                    {
-                      "Mark": {
-                        "id": 2,
-                        "term": {
-                          "Literal": "function"
-                        }
-                      }
-                    },
-                    {
-                      "NotAhead": {
-                        "Regex": "[_a-zA-Z0-9]"
-                      }
-                    }
-                  ]
-                },
-                "quantifier": null
-              }
-            },
-            {
-              "Capture": [
-                "name",
-                {
-                  "Ref": "lexical.yl#Name"
-                }
-              ]
-            },
-            {
-              "Literal": "("
-            },
-            {
-              "Capture": [
-                "parameters",
-                {
-                  "Project": {
-                    "id": 3,
-                    "term": {
-                      "Repeat": [
-                        {
-                          "Sequence": [
-                            {
-                              "Sequence": [
-                                {
-                                  "Mark": {
-                                    "id": 3,
-                                    "term": {
-                                      "Ref": "minijs.yl#Parameter"
-                                    }
-                                  }
-                                },
-                                {
-                                  "Repeat": [
-                                    {
-                                      "Sequence": [
-                                        {
-                                          "Literal": ","
-                                        },
-                                        {
-                                          "Mark": {
-                                            "id": 3,
-                                            "term": {
-                                              "Ref": "minijs.yl#Parameter"
-                                            }
-                                          }
-                                        }
-                                      ]
-                                    },
-                                    "Star"
-                                  ]
-                                }
-                              ]
-                            },
-                            {
-                              "Repeat": [
-                                {
-                                  "Literal": ","
-                                },
-                                "Optional"
-                              ]
-                            }
-                          ]
-                        },
-                        "Optional"
-                      ]
-                    },
-                    "quantifier": "Star"
-                  }
-                }
-              ]
-            },
-            {
-              "Literal": ")"
-            },
-            {
-              "Capture": [
-                "body",
-                {
-                  "Ref": "minijs.yl#Block"
-                }
-              ]
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 1378,
-        "end": 1526
-      }
-    },
-    "minijs.yl#Statement::ReturnStatement": {
-      "name": "Statement::ReturnStatement",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Sequence": [
-            {
-              "Project": {
-                "id": 4,
-                "term": {
-                  "Sequence": [
-                    {
-                      "NotBehind": {
-                        "Regex": "[_a-zA-Z0-9]"
-                      }
-                    },
-                    {
-                      "Mark": {
-                        "id": 4,
-                        "term": {
-                          "Literal": "return"
-                        }
-                      }
-                    },
-                    {
-                      "NotAhead": {
-                        "Regex": "[_a-zA-Z0-9]"
-                      }
-                    }
-                  ]
-                },
-                "quantifier": null
-              }
-            },
-            {
-              "Capture": [
-                "value",
-                {
-                  "Repeat": [
-                    {
-                      "Ref": "minijs.yl#Expression"
-                    },
-                    "Optional"
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 1297,
-        "end": 1372
-      }
-    },
-    "minijs.yl#Statement::VariableDeclaration": {
-      "name": "Statement::VariableDeclaration",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Sequence": [
-            {
-              "Capture": [
-                "kind",
-                {
-                  "Choice": [
-                    {
-                      "Project": {
-                        "id": 5,
-                        "term": {
-                          "Sequence": [
-                            {
-                              "NotBehind": {
-                                "Regex": "[_a-zA-Z0-9]"
-                              }
-                            },
-                            {
-                              "Mark": {
-                                "id": 5,
-                                "term": {
-                                  "Literal": "let"
-                                }
-                              }
-                            },
-                            {
-                              "NotAhead": {
-                                "Regex": "[_a-zA-Z0-9]"
-                              }
-                            }
-                          ]
-                        },
-                        "quantifier": null
-                      }
-                    },
-                    {
-                      "Project": {
-                        "id": 6,
-                        "term": {
-                          "Sequence": [
-                            {
-                              "NotBehind": {
-                                "Regex": "[_a-zA-Z0-9]"
-                              }
-                            },
-                            {
-                              "Mark": {
-                                "id": 6,
-                                "term": {
-                                  "Literal": "const"
-                                }
-                              }
-                            },
-                            {
-                              "NotAhead": {
-                                "Regex": "[_a-zA-Z0-9]"
-                              }
-                            }
-                          ]
-                        },
-                        "quantifier": null
-                      }
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "Sequence": [
-                {
-                  "Capture": [
-                    "name",
-                    {
-                      "Ref": "lexical.yl#Name"
-                    }
-                  ]
-                },
-                {
-                  "Repeat": [
-                    {
-                      "Sequence": [
-                        {
-                          "Literal": "="
-                        },
-                        {
-                          "Capture": [
-                            "initializer",
-                            {
-                              "Ref": "minijs.yl#Expression"
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    "Optional"
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      },
-      "constraints": [],
-      "span": {
-        "file": "minijs.yl",
-        "start": 1166,
-        "end": 1291
-      }
-    }
-  },
-  "trivia": [
-    "lexical.yl#Whitespace",
-    "lexical.yl#Comment"
+  "version": 6,
+  "capabilities": [
+    "indexed-parser",
+    "indexed-checks",
+    "indexed-queries",
+    "semantic-scheduling"
   ],
-  "examples": {
-    "lexical.yl#IdentifierPart": {
-      "term": {
+  "parser": {
+    "entry": 18,
+    "rules": [
+      {
+        "definition": "lexical.yl#Comment",
+        "name": "Comment",
+        "trivia": true,
+        "body": {
+          "Abstract": {
+            "bases": [
+              2,
+              1
+            ],
+            "operators": []
+          }
+        },
+        "constraints": [],
+        "span": {
+          "file": "lexical.yl",
+          "start": 81,
+          "end": 176
+        }
+      },
+      {
+        "definition": "lexical.yl#Comment::Block",
+        "name": "Comment::Block",
+        "trivia": true,
+        "body": {
+          "Concrete": 0
+        },
+        "constraints": [],
+        "span": {
+          "file": "lexical.yl",
+          "start": 141,
+          "end": 174
+        }
+      },
+      {
+        "definition": "lexical.yl#Comment::Line",
+        "name": "Comment::Line",
+        "trivia": true,
+        "body": {
+          "Concrete": 1
+        },
+        "constraints": [],
+        "span": {
+          "file": "lexical.yl",
+          "start": 109,
+          "end": 135
+        }
+      },
+      {
+        "definition": "lexical.yl#Name",
+        "name": "Name",
+        "trivia": false,
+        "body": {
+          "Concrete": 3
+        },
+        "constraints": [],
+        "span": {
+          "file": "lexical.yl",
+          "start": 287,
+          "end": 337
+        }
+      },
+      {
+        "definition": "lexical.yl#Whitespace",
+        "name": "Whitespace",
+        "trivia": true,
+        "body": {
+          "Concrete": 4
+        },
+        "constraints": [],
+        "span": {
+          "file": "lexical.yl",
+          "start": 40,
+          "end": 79
+        }
+      },
+      {
+        "definition": "minijs.yl#Block",
+        "name": "Block",
+        "trivia": false,
+        "body": {
+          "Concrete": 10
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 1551,
+          "end": 1606
+        }
+      },
+      {
+        "definition": "minijs.yl#Expression",
+        "name": "Expression",
+        "trivia": false,
+        "body": {
+          "Abstract": {
+            "bases": [
+              14,
+              11,
+              10,
+              8
+            ],
+            "operators": [
+              {
+                "rule": 9,
+                "binding_power": 5,
+                "associativity": "Left",
+                "left": true,
+                "right": false,
+                "left_edge": 35,
+                "right_edge": null
+              },
+              {
+                "rule": 7,
+                "binding_power": 5,
+                "associativity": "Left",
+                "left": true,
+                "right": false,
+                "left_edge": 11,
+                "right_edge": null
+              },
+              {
+                "rule": 16,
+                "binding_power": 4,
+                "associativity": "Left",
+                "left": false,
+                "right": true,
+                "left_edge": null,
+                "right_edge": 78
+              },
+              {
+                "rule": 12,
+                "binding_power": 3,
+                "associativity": "Right",
+                "left": true,
+                "right": true,
+                "left_edge": 45,
+                "right_edge": 49
+              },
+              {
+                "rule": 13,
+                "binding_power": 2,
+                "associativity": "Left",
+                "left": true,
+                "right": true,
+                "left_edge": 52,
+                "right_edge": 59
+              },
+              {
+                "rule": 15,
+                "binding_power": 1,
+                "associativity": "Left",
+                "left": true,
+                "right": true,
+                "left_edge": 64,
+                "right_edge": 70
+              }
+            ]
+          }
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 105,
+          "end": 1006
+        }
+      },
+      {
+        "definition": "minijs.yl#Expression::Call",
+        "name": "Expression::Call",
+        "trivia": false,
+        "body": {
+          "Concrete": 29
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 407,
+          "end": 542
+        }
+      },
+      {
+        "definition": "minijs.yl#Expression::Group",
+        "name": "Expression::Group",
+        "trivia": false,
+        "body": {
+          "Concrete": 34
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 258,
+          "end": 320
+        }
+      },
+      {
+        "definition": "minijs.yl#Expression::Member",
+        "name": "Expression::Member",
+        "trivia": false,
+        "body": {
+          "Concrete": 40
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 326,
+          "end": 401
+        }
+      },
+      {
+        "definition": "minijs.yl#Expression::NameExpression",
+        "name": "Expression::NameExpression",
+        "trivia": false,
+        "body": {
+          "Concrete": 42
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 220,
+          "end": 252
+        }
+      },
+      {
+        "definition": "minijs.yl#Expression::Number",
+        "name": "Expression::Number",
+        "trivia": false,
+        "body": {
+          "Concrete": 44
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 178,
+          "end": 214
+        }
+      },
+      {
+        "definition": "minijs.yl#Expression::Power",
+        "name": "Expression::Power",
+        "trivia": false,
+        "body": {
+          "Concrete": 51
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 631,
+          "end": 717
+        }
+      },
+      {
+        "definition": "minijs.yl#Expression::Product",
+        "name": "Expression::Product",
+        "trivia": false,
+        "body": {
+          "Concrete": 61
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 723,
+          "end": 824
+        }
+      },
+      {
+        "definition": "minijs.yl#Expression::String",
+        "name": "Expression::String",
+        "trivia": false,
+        "body": {
+          "Concrete": 63
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 134,
+          "end": 172
+        }
+      },
+      {
+        "definition": "minijs.yl#Expression::Sum",
+        "name": "Expression::Sum",
+        "trivia": false,
+        "body": {
+          "Concrete": 72
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 830,
+          "end": 921
+        }
+      },
+      {
+        "definition": "minijs.yl#Expression::Unary",
+        "name": "Expression::Unary",
+        "trivia": false,
+        "body": {
+          "Concrete": 80
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 548,
+          "end": 625
+        }
+      },
+      {
+        "definition": "minijs.yl#Parameter",
+        "name": "Parameter",
+        "trivia": false,
+        "body": {
+          "Concrete": 88
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 1008,
+          "end": 1061
+        }
+      },
+      {
+        "definition": "minijs.yl#Program",
+        "name": "Program",
+        "trivia": false,
+        "body": {
+          "Concrete": 91
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 1608,
+          "end": 1652
+        }
+      },
+      {
+        "definition": "minijs.yl#Statement",
+        "name": "Statement",
+        "trivia": false,
+        "body": {
+          "Abstract": {
+            "bases": [
+              22,
+              21,
+              20,
+              6
+            ],
+            "operators": []
+          }
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 1138,
+          "end": 1549
+        }
+      },
+      {
+        "definition": "minijs.yl#Statement::FunctionDeclaration",
+        "name": "Statement::FunctionDeclaration",
+        "trivia": false,
+        "body": {
+          "Concrete": 120
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 1378,
+          "end": 1526
+        }
+      },
+      {
+        "definition": "minijs.yl#Statement::ReturnStatement",
+        "name": "Statement::ReturnStatement",
+        "trivia": false,
+        "body": {
+          "Concrete": 132
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 1297,
+          "end": 1372
+        }
+      },
+      {
+        "definition": "minijs.yl#Statement::VariableDeclaration",
+        "name": "Statement::VariableDeclaration",
+        "trivia": false,
+        "body": {
+          "Concrete": 159
+        },
+        "constraints": [],
+        "span": {
+          "file": "minijs.yl",
+          "start": 1166,
+          "end": 1291
+        }
+      }
+    ],
+    "instructions": [
+      {
+        "Regex": "/\\*[\\s\\S]*?\\*/"
+      },
+      {
+        "Regex": "//[^\\n]*"
+      },
+      {
+        "Regex": "[_a-zA-Z][_a-zA-Z0-9]*"
+      },
+      {
+        "Capture": [
+          "value",
+          2
+        ]
+      },
+      {
+        "Regex": "[ \\t\\r\\n]+"
+      },
+      {
+        "Literal": "{"
+      },
+      {
+        "Ref": 19
+      },
+      {
+        "Repeat": [
+          6,
+          "Star"
+        ]
+      },
+      {
+        "Capture": [
+          "statements",
+          7
+        ]
+      },
+      {
+        "Literal": "}"
+      },
+      {
+        "Sequence": [
+          5,
+          8,
+          9
+        ]
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Capture": [
+          "callee",
+          11
+        ]
+      },
+      {
+        "Literal": "("
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Mark": {
+          "id": 1,
+          "term": 14
+        }
+      },
+      {
+        "Literal": ","
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Mark": {
+          "id": 1,
+          "term": 17
+        }
+      },
+      {
+        "Sequence": [
+          16,
+          18
+        ]
+      },
+      {
+        "Repeat": [
+          19,
+          "Star"
+        ]
+      },
+      {
+        "Sequence": [
+          15,
+          20
+        ]
+      },
+      {
+        "Literal": ","
+      },
+      {
+        "Repeat": [
+          22,
+          "Optional"
+        ]
+      },
+      {
+        "Sequence": [
+          21,
+          23
+        ]
+      },
+      {
+        "Repeat": [
+          24,
+          "Optional"
+        ]
+      },
+      {
+        "Project": {
+          "id": 1,
+          "term": 25,
+          "quantifier": "Star",
+          "collect_lists": false
+        }
+      },
+      {
+        "Capture": [
+          "arguments",
+          26
+        ]
+      },
+      {
+        "Literal": ")"
+      },
+      {
+        "Sequence": [
+          12,
+          13,
+          27,
+          28
+        ]
+      },
+      {
+        "Literal": "("
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Capture": [
+          "value",
+          31
+        ]
+      },
+      {
+        "Literal": ")"
+      },
+      {
+        "Sequence": [
+          30,
+          32,
+          33
+        ]
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Capture": [
+          "object",
+          35
+        ]
+      },
+      {
+        "Literal": "."
+      },
+      {
+        "Ref": 3
+      },
+      {
+        "Capture": [
+          "property",
+          38
+        ]
+      },
+      {
+        "Sequence": [
+          36,
+          37,
+          39
+        ]
+      },
+      {
+        "Ref": 3
+      },
+      {
+        "Capture": [
+          "name",
+          41
+        ]
+      },
+      {
+        "Regex": "\\d+(?:\\.\\d+)?"
+      },
+      {
+        "Capture": [
+          "value",
+          43
+        ]
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Capture": [
+          "left",
+          45
+        ]
+      },
+      {
+        "Literal": "**"
+      },
+      {
+        "Capture": [
+          "operator",
+          47
+        ]
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Capture": [
+          "right",
+          49
+        ]
+      },
+      {
+        "Sequence": [
+          46,
+          48,
+          50
+        ]
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Capture": [
+          "left",
+          52
+        ]
+      },
+      {
+        "Literal": "*"
+      },
+      {
+        "Literal": "/"
+      },
+      {
+        "Literal": "%"
+      },
+      {
+        "Choice": [
+          54,
+          55,
+          56
+        ]
+      },
+      {
+        "Capture": [
+          "operator",
+          57
+        ]
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Capture": [
+          "right",
+          59
+        ]
+      },
+      {
+        "Sequence": [
+          53,
+          58,
+          60
+        ]
+      },
+      {
+        "Regex": "\"(?:\\\\.|[^\"])*\""
+      },
+      {
+        "Capture": [
+          "value",
+          62
+        ]
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Capture": [
+          "left",
+          64
+        ]
+      },
+      {
+        "Literal": "+"
+      },
+      {
+        "Literal": "-"
+      },
+      {
+        "Choice": [
+          66,
+          67
+        ]
+      },
+      {
+        "Capture": [
+          "operator",
+          68
+        ]
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Capture": [
+          "right",
+          70
+        ]
+      },
+      {
+        "Sequence": [
+          65,
+          69,
+          71
+        ]
+      },
+      {
+        "Literal": "+"
+      },
+      {
+        "Literal": "-"
+      },
+      {
+        "Literal": "!"
+      },
+      {
+        "Choice": [
+          73,
+          74,
+          75
+        ]
+      },
+      {
+        "Capture": [
+          "operator",
+          76
+        ]
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Capture": [
+          "argument",
+          78
+        ]
+      },
+      {
+        "Sequence": [
+          77,
+          79
+        ]
+      },
+      {
+        "Ref": 3
+      },
+      {
+        "Capture": [
+          "name",
+          81
+        ]
+      },
+      {
+        "Literal": "="
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Capture": [
+          "default",
+          84
+        ]
+      },
+      {
+        "Sequence": [
+          83,
+          85
+        ]
+      },
+      {
+        "Repeat": [
+          86,
+          "Optional"
+        ]
+      },
+      {
+        "Sequence": [
+          82,
+          87
+        ]
+      },
+      {
+        "Ref": 19
+      },
+      {
+        "Repeat": [
+          89,
+          "Star"
+        ]
+      },
+      {
+        "Capture": [
+          "statements",
+          90
+        ]
+      },
+      {
         "Regex": "[_a-zA-Z0-9]"
       },
-      "explicit": null,
+      {
+        "NotBehind": 92
+      },
+      {
+        "Literal": "function"
+      },
+      {
+        "Mark": {
+          "id": 2,
+          "term": 94
+        }
+      },
+      {
+        "Regex": "[_a-zA-Z0-9]"
+      },
+      {
+        "NotAhead": 96
+      },
+      {
+        "Sequence": [
+          93,
+          95,
+          97
+        ]
+      },
+      {
+        "Project": {
+          "id": 2,
+          "term": 98,
+          "quantifier": null,
+          "collect_lists": false
+        }
+      },
+      {
+        "Ref": 3
+      },
+      {
+        "Capture": [
+          "name",
+          100
+        ]
+      },
+      {
+        "Literal": "("
+      },
+      {
+        "Ref": 17
+      },
+      {
+        "Mark": {
+          "id": 3,
+          "term": 103
+        }
+      },
+      {
+        "Literal": ","
+      },
+      {
+        "Ref": 17
+      },
+      {
+        "Mark": {
+          "id": 3,
+          "term": 106
+        }
+      },
+      {
+        "Sequence": [
+          105,
+          107
+        ]
+      },
+      {
+        "Repeat": [
+          108,
+          "Star"
+        ]
+      },
+      {
+        "Sequence": [
+          104,
+          109
+        ]
+      },
+      {
+        "Literal": ","
+      },
+      {
+        "Repeat": [
+          111,
+          "Optional"
+        ]
+      },
+      {
+        "Sequence": [
+          110,
+          112
+        ]
+      },
+      {
+        "Repeat": [
+          113,
+          "Optional"
+        ]
+      },
+      {
+        "Project": {
+          "id": 3,
+          "term": 114,
+          "quantifier": "Star",
+          "collect_lists": false
+        }
+      },
+      {
+        "Capture": [
+          "parameters",
+          115
+        ]
+      },
+      {
+        "Literal": ")"
+      },
+      {
+        "Ref": 5
+      },
+      {
+        "Capture": [
+          "body",
+          118
+        ]
+      },
+      {
+        "Sequence": [
+          99,
+          101,
+          102,
+          116,
+          117,
+          119
+        ]
+      },
+      {
+        "Regex": "[_a-zA-Z0-9]"
+      },
+      {
+        "NotBehind": 121
+      },
+      {
+        "Literal": "return"
+      },
+      {
+        "Mark": {
+          "id": 4,
+          "term": 123
+        }
+      },
+      {
+        "Regex": "[_a-zA-Z0-9]"
+      },
+      {
+        "NotAhead": 125
+      },
+      {
+        "Sequence": [
+          122,
+          124,
+          126
+        ]
+      },
+      {
+        "Project": {
+          "id": 4,
+          "term": 127,
+          "quantifier": null,
+          "collect_lists": false
+        }
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Repeat": [
+          129,
+          "Optional"
+        ]
+      },
+      {
+        "Capture": [
+          "value",
+          130
+        ]
+      },
+      {
+        "Sequence": [
+          128,
+          131
+        ]
+      },
+      {
+        "Regex": "[_a-zA-Z0-9]"
+      },
+      {
+        "NotBehind": 133
+      },
+      {
+        "Literal": "let"
+      },
+      {
+        "Mark": {
+          "id": 5,
+          "term": 135
+        }
+      },
+      {
+        "Regex": "[_a-zA-Z0-9]"
+      },
+      {
+        "NotAhead": 137
+      },
+      {
+        "Sequence": [
+          134,
+          136,
+          138
+        ]
+      },
+      {
+        "Project": {
+          "id": 5,
+          "term": 139,
+          "quantifier": null,
+          "collect_lists": false
+        }
+      },
+      {
+        "Regex": "[_a-zA-Z0-9]"
+      },
+      {
+        "NotBehind": 141
+      },
+      {
+        "Literal": "const"
+      },
+      {
+        "Mark": {
+          "id": 6,
+          "term": 143
+        }
+      },
+      {
+        "Regex": "[_a-zA-Z0-9]"
+      },
+      {
+        "NotAhead": 145
+      },
+      {
+        "Sequence": [
+          142,
+          144,
+          146
+        ]
+      },
+      {
+        "Project": {
+          "id": 6,
+          "term": 147,
+          "quantifier": null,
+          "collect_lists": false
+        }
+      },
+      {
+        "Choice": [
+          140,
+          148
+        ]
+      },
+      {
+        "Capture": [
+          "kind",
+          149
+        ]
+      },
+      {
+        "Ref": 3
+      },
+      {
+        "Capture": [
+          "name",
+          151
+        ]
+      },
+      {
+        "Literal": "="
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Capture": [
+          "initializer",
+          154
+        ]
+      },
+      {
+        "Sequence": [
+          153,
+          155
+        ]
+      },
+      {
+        "Repeat": [
+          156,
+          "Optional"
+        ]
+      },
+      {
+        "Sequence": [
+          152,
+          157
+        ]
+      },
+      {
+        "Sequence": [
+          150,
+          158
+        ]
+      },
+      {
+        "Ref": 3
+      },
+      {
+        "Ref": 5
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Ref": 7
+      },
+      {
+        "Ref": 8
+      },
+      {
+        "Ref": 9
+      },
+      {
+        "Ref": 10
+      },
+      {
+        "Ref": 11
+      },
+      {
+        "Ref": 12
+      },
+      {
+        "Ref": 13
+      },
+      {
+        "Ref": 14
+      },
+      {
+        "Ref": 15
+      },
+      {
+        "Ref": 16
+      },
+      {
+        "Ref": 17
+      },
+      {
+        "Ref": 18
+      },
+      {
+        "Ref": 19
+      },
+      {
+        "Ref": 20
+      },
+      {
+        "Ref": 21
+      },
+      {
+        "Ref": 22
+      },
+      {
+        "Regex": "[_a-zA-Z0-9]"
+      },
+      {
+        "Ref": 17
+      },
+      {
+        "Mark": {
+          "id": 7,
+          "term": 180
+        }
+      },
+      {
+        "Literal": ","
+      },
+      {
+        "Ref": 17
+      },
+      {
+        "Mark": {
+          "id": 7,
+          "term": 183
+        }
+      },
+      {
+        "Sequence": [
+          182,
+          184
+        ]
+      },
+      {
+        "Repeat": [
+          185,
+          "Star"
+        ]
+      },
+      {
+        "Sequence": [
+          181,
+          186
+        ]
+      },
+      {
+        "Literal": ","
+      },
+      {
+        "Repeat": [
+          188,
+          "Optional"
+        ]
+      },
+      {
+        "Sequence": [
+          187,
+          189
+        ]
+      },
+      {
+        "Repeat": [
+          190,
+          "Optional"
+        ]
+      },
+      {
+        "Project": {
+          "id": 7,
+          "term": 191,
+          "quantifier": "Star",
+          "collect_lists": false
+        }
+      }
+    ],
+    "trivia": [
+      4,
+      0
+    ],
+    "checks": [],
+    "preview_roots": {
+      "lexical.yl#IdentifierPart": 179,
+      "lexical.yl#Name": 160,
+      "minijs.yl#Block": 161,
+      "minijs.yl#Expression": 162,
+      "minijs.yl#Expression::Call": 163,
+      "minijs.yl#Expression::Group": 164,
+      "minijs.yl#Expression::Member": 165,
+      "minijs.yl#Expression::NameExpression": 166,
+      "minijs.yl#Expression::Number": 167,
+      "minijs.yl#Expression::Power": 168,
+      "minijs.yl#Expression::Product": 169,
+      "minijs.yl#Expression::String": 170,
+      "minijs.yl#Expression::Sum": 171,
+      "minijs.yl#Expression::Unary": 172,
+      "minijs.yl#Parameter": 173,
+      "minijs.yl#Parameters": 192,
+      "minijs.yl#Program": 174,
+      "minijs.yl#Statement": 175,
+      "minijs.yl#Statement::FunctionDeclaration": 176,
+      "minijs.yl#Statement::ReturnStatement": 177,
+      "minijs.yl#Statement::VariableDeclaration": 178
+    }
+  },
+  "queries": {
+    "expressions": [],
+    "actions": [],
+    "groups": {}
+  },
+  "semantics": {},
+  "previews": [
+    {
+      "definition": "lexical.yl#IdentifierPart",
       "span": {
         "file": "lexical.yl",
         "start": 178,
         "end": 217
-      }
-    },
-    "minijs.yl#Parameters": {
-      "term": {
-        "Project": {
-          "id": 7,
-          "term": {
-            "Repeat": [
-              {
-                "Sequence": [
-                  {
-                    "Sequence": [
-                      {
-                        "Mark": {
-                          "id": 7,
-                          "term": {
-                            "Ref": "minijs.yl#Parameter"
-                          }
-                        }
-                      },
-                      {
-                        "Repeat": [
-                          {
-                            "Sequence": [
-                              {
-                                "Literal": ","
-                              },
-                              {
-                                "Mark": {
-                                  "id": 7,
-                                  "term": {
-                                    "Ref": "minijs.yl#Parameter"
-                                  }
-                                }
-                              }
-                            ]
-                          },
-                          "Star"
-                        ]
-                      }
-                    ]
-                  },
-                  {
-                    "Repeat": [
-                      {
-                        "Literal": ","
-                      },
-                      "Optional"
-                    ]
-                  }
-                ]
-              },
-              "Optional"
-            ]
-          },
-          "quantifier": "Star"
-        }
       },
-      "explicit": null,
+      "text": "0",
+      "reason": null
+    },
+    {
+      "definition": "lexical.yl#Name",
+      "span": {
+        "file": "lexical.yl",
+        "start": 287,
+        "end": 337
+      },
+      "text": "A",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Block",
+      "span": {
+        "file": "minijs.yl",
+        "start": 1551,
+        "end": 1606
+      },
+      "text": "{ 0 }",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Expression",
+      "span": {
+        "file": "minijs.yl",
+        "start": 105,
+        "end": 1006
+      },
+      "text": "0",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Expression::Call",
+      "span": {
+        "file": "minijs.yl",
+        "start": 407,
+        "end": 542
+      },
+      "text": "0 ( 0 )",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Expression::Group",
+      "span": {
+        "file": "minijs.yl",
+        "start": 258,
+        "end": 320
+      },
+      "text": "( 0 )",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Expression::Member",
+      "span": {
+        "file": "minijs.yl",
+        "start": 326,
+        "end": 401
+      },
+      "text": "0 . A",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Expression::NameExpression",
+      "span": {
+        "file": "minijs.yl",
+        "start": 220,
+        "end": 252
+      },
+      "text": "A",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Expression::Number",
+      "span": {
+        "file": "minijs.yl",
+        "start": 178,
+        "end": 214
+      },
+      "text": "0",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Expression::Power",
+      "span": {
+        "file": "minijs.yl",
+        "start": 631,
+        "end": 717
+      },
+      "text": "0 ** 0",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Expression::Product",
+      "span": {
+        "file": "minijs.yl",
+        "start": 723,
+        "end": 824
+      },
+      "text": "0 * 0",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Expression::String",
+      "span": {
+        "file": "minijs.yl",
+        "start": 134,
+        "end": 172
+      },
+      "text": "\"\"",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Expression::Sum",
+      "span": {
+        "file": "minijs.yl",
+        "start": 830,
+        "end": 921
+      },
+      "text": "0 + 0",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Expression::Unary",
+      "span": {
+        "file": "minijs.yl",
+        "start": 548,
+        "end": 625
+      },
+      "text": "+ 0",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Parameter",
+      "span": {
+        "file": "minijs.yl",
+        "start": 1008,
+        "end": 1061
+      },
+      "text": "A",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Parameters",
       "span": {
         "file": "minijs.yl",
         "start": 1063,
         "end": 1136
-      }
+      },
+      "text": "A",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Program",
+      "span": {
+        "file": "minijs.yl",
+        "start": 1608,
+        "end": 1652
+      },
+      "text": "0",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Statement",
+      "span": {
+        "file": "minijs.yl",
+        "start": 1138,
+        "end": 1549
+      },
+      "text": "0",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Statement::FunctionDeclaration",
+      "span": {
+        "file": "minijs.yl",
+        "start": 1378,
+        "end": 1526
+      },
+      "text": "function A ( A ) { 0 }",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Statement::ReturnStatement",
+      "span": {
+        "file": "minijs.yl",
+        "start": 1297,
+        "end": 1372
+      },
+      "text": "return",
+      "reason": null
+    },
+    {
+      "definition": "minijs.yl#Statement::VariableDeclaration",
+      "span": {
+        "file": "minijs.yl",
+        "start": 1166,
+        "end": 1291
+      },
+      "text": "let A",
+      "reason": null
     }
-  }
+  ]
 }

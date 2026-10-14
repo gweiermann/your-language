@@ -95,9 +95,9 @@ fn malformed_query_scheduling_placeholders_are_rejected_before_execution() {
         let mut value = wire.clone();
         let owner = "review.yl#Root";
         match mutation {
-            0 => value["meanings"][owner]["groups"][0]["name"] = serde_json::json!("Wrong"),
-            1 => value["meanings"][owner]["groups"] = serde_json::json!([]),
-            _ => value["query_meanings"][owner][0]["span"]["start"] = serde_json::json!(999),
+            0 => value["semantics"][owner]["groups"][0]["name"] = serde_json::json!("Wrong"),
+            1 => value["semantics"][owner]["groups"] = serde_json::json!([]),
+            _ => value["queries"]["groups"][owner][0]["span"]["start"] = serde_json::json!(999),
         }
         let bytes = serde_json::to_vec(&value).unwrap();
         let errors = load_compiled_language(&bytes).unwrap_err();

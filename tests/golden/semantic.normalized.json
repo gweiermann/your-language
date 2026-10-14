@@ -1,467 +1,1331 @@
 {
-  "version": 5,
-  "entry": "definition/language.yl#Program",
-  "rules": {
-    "definition/expression.yl#Expression": {
-      "name": "Expression",
-      "trivia": false,
-      "body": {
-        "Abstract": {
-          "bases": [
-            "definition/function.yl#FunctionExpression",
-            "definition/expression.yl#Reference",
-            "definition/expression.yl#Expression::Number"
-          ],
-          "operators": []
+  "version": 6,
+  "capabilities": [
+    "indexed-parser",
+    "indexed-checks",
+    "indexed-queries",
+    "semantic-scheduling"
+  ],
+  "parser": {
+    "entry": 8,
+    "rules": [
+      {
+        "definition": "definition/expression.yl#Expression",
+        "name": "Expression",
+        "trivia": false,
+        "body": {
+          "Abstract": {
+            "bases": [
+              6,
+              3,
+              1
+            ],
+            "operators": []
+          }
+        },
+        "constraints": [],
+        "span": {
+          "file": "definition/expression.yl",
+          "start": 262,
+          "end": 371
         }
       },
-      "constraints": [],
-      "span": {
-        "file": "definition/expression.yl",
-        "start": 262,
-        "end": 371
-      }
-    },
-    "definition/expression.yl#Expression::Number": {
-      "name": "Expression::Number",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "value",
-            {
-              "Regex": "[0-9]+"
-            }
-          ]
+      {
+        "definition": "definition/expression.yl#Expression::Number",
+        "name": "Expression::Number",
+        "trivia": false,
+        "body": {
+          "Concrete": 1
+        },
+        "constraints": [],
+        "span": {
+          "file": "definition/expression.yl",
+          "start": 340,
+          "end": 369
         }
       },
-      "constraints": [],
-      "span": {
-        "file": "definition/expression.yl",
-        "start": 340,
-        "end": 369
-      }
-    },
-    "definition/expression.yl#ExpressionDeclaration": {
-      "name": "ExpressionDeclaration",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "value",
-            {
-              "Ref": "definition/expression.yl#Expression"
-            }
-          ]
+      {
+        "definition": "definition/expression.yl#ExpressionDeclaration",
+        "name": "ExpressionDeclaration",
+        "trivia": false,
+        "body": {
+          "Concrete": 3
+        },
+        "constraints": [],
+        "span": {
+          "file": "definition/expression.yl",
+          "start": 373,
+          "end": 426
         }
       },
-      "constraints": [],
-      "span": {
-        "file": "definition/expression.yl",
-        "start": 373,
-        "end": 426
-      }
-    },
-    "definition/expression.yl#Reference": {
-      "name": "Reference",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "name",
-            {
-              "Ref": "definition/lexical.yl#Name"
-            }
-          ]
+      {
+        "definition": "definition/expression.yl#Reference",
+        "name": "Reference",
+        "trivia": false,
+        "body": {
+          "Concrete": 5
+        },
+        "constraints": [],
+        "span": {
+          "file": "definition/expression.yl",
+          "start": 132,
+          "end": 260
         }
       },
-      "constraints": [],
-      "span": {
-        "file": "definition/expression.yl",
-        "start": 132,
-        "end": 260
-      }
-    },
-    "definition/function.yl#FunctionBody": {
-      "name": "FunctionBody",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Sequence": [
-            {
-              "Literal": "{"
-            },
-            {
-              "Capture": [
-                "locals",
-                {
-                  "Repeat": [
-                    {
-                      "Ref": "definition/let.yl#LetDeclaration"
-                    },
-                    "Star"
-                  ]
-                }
-              ]
-            },
-            {
-              "Literal": "return"
-            },
-            {
-              "Capture": [
-                "result",
-                {
-                  "Ref": "definition/expression.yl#Expression"
-                }
-              ]
-            },
-            {
-              "Literal": ";"
-            },
-            {
-              "Literal": "}"
-            }
-          ]
+      {
+        "definition": "definition/function.yl#FunctionBody",
+        "name": "FunctionBody",
+        "trivia": false,
+        "body": {
+          "Concrete": 15
+        },
+        "constraints": [],
+        "span": {
+          "file": "definition/function.yl",
+          "start": 308,
+          "end": 465
         }
       },
-      "constraints": [],
-      "span": {
-        "file": "definition/function.yl",
-        "start": 308,
-        "end": 465
-      }
-    },
-    "definition/function.yl#FunctionDeclaration": {
-      "name": "FunctionDeclaration",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Sequence": [
-            {
-              "Literal": "function"
-            },
-            {
-              "Capture": [
-                "name",
-                {
-                  "Ref": "definition/lexical.yl#Name"
-                }
-              ]
-            },
-            {
-              "Capture": [
-                "contents",
-                {
-                  "Meaning": {
-                    "definition": "definition/function.yl#FunctionContents",
-                    "term": {
-                      "Sequence": [
-                        {
-                          "Literal": "("
-                        },
-                        {
-                          "Capture": [
-                            "parameters",
-                            {
-                              "Project": {
-                                "id": 0,
-                                "term": {
-                                  "Repeat": [
-                                    {
-                                      "Sequence": [
-                                        {
-                                          "Mark": {
-                                            "id": 0,
-                                            "term": {
-                                              "Ref": "definition/function.yl#Parameter"
-                                            }
-                                          }
-                                        },
-                                        {
-                                          "Repeat": [
-                                            {
-                                              "Sequence": [
-                                                {
-                                                  "Literal": ","
-                                                },
-                                                {
-                                                  "Mark": {
-                                                    "id": 0,
-                                                    "term": {
-                                                      "Ref": "definition/function.yl#Parameter"
-                                                    }
-                                                  }
-                                                }
-                                              ]
-                                            },
-                                            "Star"
-                                          ]
-                                        }
-                                      ]
-                                    },
-                                    "Optional"
-                                  ]
-                                },
-                                "quantifier": "Star"
-                              }
-                            }
-                          ]
-                        },
-                        {
-                          "Literal": ")"
-                        },
-                        {
-                          "Capture": [
-                            "body",
-                            {
-                              "Ref": "definition/function.yl#FunctionBody"
-                            }
-                          ]
-                        }
-                      ]
-                    }
-                  }
-                }
-              ]
-            }
-          ]
+      {
+        "definition": "definition/function.yl#FunctionDeclaration",
+        "name": "FunctionDeclaration",
+        "trivia": false,
+        "body": {
+          "Concrete": 37
+        },
+        "constraints": [],
+        "span": {
+          "file": "definition/function.yl",
+          "start": 720,
+          "end": 933
         }
       },
-      "constraints": [],
-      "span": {
-        "file": "definition/function.yl",
-        "start": 720,
-        "end": 933
-      }
-    },
-    "definition/function.yl#FunctionExpression": {
-      "name": "FunctionExpression",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Sequence": [
-            {
-              "Literal": "function"
-            },
-            {
-              "Capture": [
-                "contents",
-                {
-                  "Meaning": {
-                    "definition": "definition/function.yl#FunctionContents",
-                    "term": {
-                      "Sequence": [
-                        {
-                          "Literal": "("
-                        },
-                        {
-                          "Capture": [
-                            "parameters",
-                            {
-                              "Project": {
-                                "id": 1,
-                                "term": {
-                                  "Repeat": [
-                                    {
-                                      "Sequence": [
-                                        {
-                                          "Mark": {
-                                            "id": 1,
-                                            "term": {
-                                              "Ref": "definition/function.yl#Parameter"
-                                            }
-                                          }
-                                        },
-                                        {
-                                          "Repeat": [
-                                            {
-                                              "Sequence": [
-                                                {
-                                                  "Literal": ","
-                                                },
-                                                {
-                                                  "Mark": {
-                                                    "id": 1,
-                                                    "term": {
-                                                      "Ref": "definition/function.yl#Parameter"
-                                                    }
-                                                  }
-                                                }
-                                              ]
-                                            },
-                                            "Star"
-                                          ]
-                                        }
-                                      ]
-                                    },
-                                    "Optional"
-                                  ]
-                                },
-                                "quantifier": "Star"
-                              }
-                            }
-                          ]
-                        },
-                        {
-                          "Literal": ")"
-                        },
-                        {
-                          "Capture": [
-                            "body",
-                            {
-                              "Ref": "definition/function.yl#FunctionBody"
-                            }
-                          ]
-                        }
-                      ]
-                    }
-                  }
-                }
-              ]
-            }
-          ]
+      {
+        "definition": "definition/function.yl#FunctionExpression",
+        "name": "FunctionExpression",
+        "trivia": false,
+        "body": {
+          "Concrete": 57
+        },
+        "constraints": [],
+        "span": {
+          "file": "definition/function.yl",
+          "start": 640,
+          "end": 718
         }
       },
-      "constraints": [],
-      "span": {
-        "file": "definition/function.yl",
-        "start": 640,
-        "end": 718
-      }
-    },
-    "definition/function.yl#Parameter": {
-      "name": "Parameter",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "name",
-            {
-              "Ref": "definition/lexical.yl#Name"
-            }
-          ]
+      {
+        "definition": "definition/function.yl#Parameter",
+        "name": "Parameter",
+        "trivia": false,
+        "body": {
+          "Concrete": 59
+        },
+        "constraints": [],
+        "span": {
+          "file": "definition/function.yl",
+          "start": 221,
+          "end": 306
         }
       },
-      "constraints": [],
-      "span": {
-        "file": "definition/function.yl",
-        "start": 221,
-        "end": 306
-      }
-    },
-    "definition/language.yl#Program": {
-      "name": "Program",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "statements",
-            {
-              "Repeat": [
-                {
-                  "Choice": [
-                    {
-                      "Ref": "definition/function.yl#FunctionDeclaration"
-                    },
-                    {
-                      "Ref": "definition/let.yl#LetDeclaration"
-                    }
-                  ]
-                },
-                "Star"
-              ]
-            }
-          ]
+      {
+        "definition": "definition/language.yl#Program",
+        "name": "Program",
+        "trivia": false,
+        "body": {
+          "Concrete": 64
+        },
+        "constraints": [],
+        "span": {
+          "file": "definition/language.yl",
+          "start": 247,
+          "end": 540
         }
       },
-      "constraints": [],
-      "span": {
-        "file": "definition/language.yl",
-        "start": 247,
-        "end": 540
-      }
-    },
-    "definition/let.yl#LetDeclaration": {
-      "name": "LetDeclaration",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Sequence": [
-            {
-              "Literal": "let"
-            },
-            {
-              "Capture": [
-                "name",
-                {
-                  "Ref": "definition/lexical.yl#Name"
-                }
-              ]
-            },
-            {
-              "Literal": "="
-            },
-            {
-              "Capture": [
-                "initializer",
-                {
-                  "Ref": "definition/expression.yl#ExpressionDeclaration"
-                }
-              ]
-            },
-            {
-              "Literal": ";"
-            }
-          ]
+      {
+        "definition": "definition/let.yl#LetDeclaration",
+        "name": "LetDeclaration",
+        "trivia": false,
+        "body": {
+          "Concrete": 72
+        },
+        "constraints": [],
+        "span": {
+          "file": "definition/let.yl",
+          "start": 174,
+          "end": 476
         }
       },
-      "constraints": [],
-      "span": {
-        "file": "definition/let.yl",
-        "start": 174,
-        "end": 476
-      }
-    },
-    "definition/lexical.yl#Name": {
-      "name": "Name",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "value",
-            {
-              "Regex": "[a-z]+"
-            }
-          ]
+      {
+        "definition": "definition/lexical.yl#Name",
+        "name": "Name",
+        "trivia": false,
+        "body": {
+          "Concrete": 74
+        },
+        "constraints": [],
+        "span": {
+          "file": "definition/lexical.yl",
+          "start": 0,
+          "end": 34
         }
       },
-      "constraints": [],
-      "span": {
-        "file": "definition/lexical.yl",
-        "start": 0,
-        "end": 34
+      {
+        "definition": "definition/lexical.yl#Whitespace",
+        "name": "Whitespace",
+        "trivia": true,
+        "body": {
+          "Concrete": 75
+        },
+        "constraints": [],
+        "span": {
+          "file": "definition/lexical.yl",
+          "start": 36,
+          "end": 68
+        }
       }
-    },
-    "definition/lexical.yl#Whitespace": {
-      "name": "Whitespace",
-      "trivia": true,
-      "body": {
-        "Concrete": {
-          "Regex": "\\s+"
+    ],
+    "instructions": [
+      {
+        "Regex": "[0-9]+"
+      },
+      {
+        "Capture": [
+          "value",
+          0
+        ]
+      },
+      {
+        "Ref": 0
+      },
+      {
+        "Capture": [
+          "value",
+          2
+        ]
+      },
+      {
+        "Ref": 10
+      },
+      {
+        "Capture": [
+          "name",
+          4
+        ]
+      },
+      {
+        "Literal": "{"
+      },
+      {
+        "Ref": 9
+      },
+      {
+        "Repeat": [
+          7,
+          "Star"
+        ]
+      },
+      {
+        "Capture": [
+          "locals",
+          8
+        ]
+      },
+      {
+        "Literal": "return"
+      },
+      {
+        "Ref": 0
+      },
+      {
+        "Capture": [
+          "result",
+          11
+        ]
+      },
+      {
+        "Literal": ";"
+      },
+      {
+        "Literal": "}"
+      },
+      {
+        "Sequence": [
+          6,
+          9,
+          10,
+          12,
+          13,
+          14
+        ]
+      },
+      {
+        "Literal": "function"
+      },
+      {
+        "Ref": 10
+      },
+      {
+        "Capture": [
+          "name",
+          17
+        ]
+      },
+      {
+        "Literal": "("
+      },
+      {
+        "Ref": 7
+      },
+      {
+        "Mark": {
+          "id": 0,
+          "term": 20
         }
       },
-      "constraints": [],
-      "span": {
-        "file": "definition/lexical.yl",
-        "start": 36,
-        "end": 68
+      {
+        "Literal": ","
+      },
+      {
+        "Ref": 7
+      },
+      {
+        "Mark": {
+          "id": 0,
+          "term": 23
+        }
+      },
+      {
+        "Sequence": [
+          22,
+          24
+        ]
+      },
+      {
+        "Repeat": [
+          25,
+          "Star"
+        ]
+      },
+      {
+        "Sequence": [
+          21,
+          26
+        ]
+      },
+      {
+        "Repeat": [
+          27,
+          "Optional"
+        ]
+      },
+      {
+        "Project": {
+          "id": 0,
+          "term": 28,
+          "quantifier": "Star",
+          "collect_lists": false
+        }
+      },
+      {
+        "Capture": [
+          "parameters",
+          29
+        ]
+      },
+      {
+        "Literal": ")"
+      },
+      {
+        "Ref": 4
+      },
+      {
+        "Capture": [
+          "body",
+          32
+        ]
+      },
+      {
+        "Sequence": [
+          19,
+          30,
+          31,
+          33
+        ]
+      },
+      {
+        "Meaning": {
+          "definition": "definition/function.yl#FunctionContents",
+          "term": 34
+        }
+      },
+      {
+        "Capture": [
+          "contents",
+          35
+        ]
+      },
+      {
+        "Sequence": [
+          16,
+          18,
+          36
+        ]
+      },
+      {
+        "Literal": "function"
+      },
+      {
+        "Literal": "("
+      },
+      {
+        "Ref": 7
+      },
+      {
+        "Mark": {
+          "id": 1,
+          "term": 40
+        }
+      },
+      {
+        "Literal": ","
+      },
+      {
+        "Ref": 7
+      },
+      {
+        "Mark": {
+          "id": 1,
+          "term": 43
+        }
+      },
+      {
+        "Sequence": [
+          42,
+          44
+        ]
+      },
+      {
+        "Repeat": [
+          45,
+          "Star"
+        ]
+      },
+      {
+        "Sequence": [
+          41,
+          46
+        ]
+      },
+      {
+        "Repeat": [
+          47,
+          "Optional"
+        ]
+      },
+      {
+        "Project": {
+          "id": 1,
+          "term": 48,
+          "quantifier": "Star",
+          "collect_lists": false
+        }
+      },
+      {
+        "Capture": [
+          "parameters",
+          49
+        ]
+      },
+      {
+        "Literal": ")"
+      },
+      {
+        "Ref": 4
+      },
+      {
+        "Capture": [
+          "body",
+          52
+        ]
+      },
+      {
+        "Sequence": [
+          39,
+          50,
+          51,
+          53
+        ]
+      },
+      {
+        "Meaning": {
+          "definition": "definition/function.yl#FunctionContents",
+          "term": 54
+        }
+      },
+      {
+        "Capture": [
+          "contents",
+          55
+        ]
+      },
+      {
+        "Sequence": [
+          38,
+          56
+        ]
+      },
+      {
+        "Ref": 10
+      },
+      {
+        "Capture": [
+          "name",
+          58
+        ]
+      },
+      {
+        "Ref": 5
+      },
+      {
+        "Ref": 9
+      },
+      {
+        "Choice": [
+          60,
+          61
+        ]
+      },
+      {
+        "Repeat": [
+          62,
+          "Star"
+        ]
+      },
+      {
+        "Capture": [
+          "statements",
+          63
+        ]
+      },
+      {
+        "Literal": "let"
+      },
+      {
+        "Ref": 10
+      },
+      {
+        "Capture": [
+          "name",
+          66
+        ]
+      },
+      {
+        "Literal": "="
+      },
+      {
+        "Ref": 2
+      },
+      {
+        "Capture": [
+          "initializer",
+          69
+        ]
+      },
+      {
+        "Literal": ";"
+      },
+      {
+        "Sequence": [
+          65,
+          67,
+          68,
+          70,
+          71
+        ]
+      },
+      {
+        "Regex": "[a-z]+"
+      },
+      {
+        "Capture": [
+          "value",
+          73
+        ]
+      },
+      {
+        "Regex": "\\s+"
+      },
+      {
+        "Ref": 0
+      },
+      {
+        "Ref": 1
+      },
+      {
+        "Ref": 2
+      },
+      {
+        "Ref": 3
+      },
+      {
+        "Ref": 4
+      },
+      {
+        "Ref": 5
+      },
+      {
+        "Ref": 6
+      },
+      {
+        "Ref": 7
+      },
+      {
+        "Ref": 8
+      },
+      {
+        "Ref": 9
+      },
+      {
+        "Ref": 10
+      },
+      {
+        "Literal": "("
+      },
+      {
+        "Ref": 7
+      },
+      {
+        "Mark": {
+          "id": 2,
+          "term": 88
+        }
+      },
+      {
+        "Literal": ","
+      },
+      {
+        "Ref": 7
+      },
+      {
+        "Mark": {
+          "id": 2,
+          "term": 91
+        }
+      },
+      {
+        "Sequence": [
+          90,
+          92
+        ]
+      },
+      {
+        "Repeat": [
+          93,
+          "Star"
+        ]
+      },
+      {
+        "Sequence": [
+          89,
+          94
+        ]
+      },
+      {
+        "Repeat": [
+          95,
+          "Optional"
+        ]
+      },
+      {
+        "Project": {
+          "id": 2,
+          "term": 96,
+          "quantifier": "Star",
+          "collect_lists": false
+        }
+      },
+      {
+        "Capture": [
+          "parameters",
+          97
+        ]
+      },
+      {
+        "Literal": ")"
+      },
+      {
+        "Ref": 4
+      },
+      {
+        "Capture": [
+          "body",
+          100
+        ]
+      },
+      {
+        "Sequence": [
+          87,
+          98,
+          99,
+          101
+        ]
       }
+    ],
+    "trivia": [
+      11
+    ],
+    "checks": [],
+    "preview_roots": {
+      "definition/expression.yl#Expression": 76,
+      "definition/expression.yl#Expression::Number": 77,
+      "definition/expression.yl#ExpressionDeclaration": 78,
+      "definition/expression.yl#Reference": 79,
+      "definition/function.yl#FunctionBody": 80,
+      "definition/function.yl#FunctionContents": 102,
+      "definition/function.yl#FunctionDeclaration": 81,
+      "definition/function.yl#FunctionExpression": 82,
+      "definition/function.yl#Parameter": 83,
+      "definition/language.yl#Program": 84,
+      "definition/let.yl#LetDeclaration": 85,
+      "definition/lexical.yl#Name": 86
     }
   },
-  "trivia": [
-    "definition/lexical.yl#Whitespace"
-  ],
-  "meanings": {
+  "queries": {
+    "expressions": [
+      {
+        "Capture": "name"
+      },
+      {
+        "Call": {
+          "opcode": "Ancestors",
+          "args": [
+            0
+          ]
+        }
+      },
+      {
+        "Local": "ancestor@std/references:515"
+      },
+      {
+        "Symbol": "std/references#scope"
+      },
+      {
+        "Tuple": [
+          2,
+          3
+        ]
+      },
+      {
+        "Call": {
+          "opcode": "Get",
+          "args": [
+            4
+          ]
+        }
+      },
+      {
+        "Symbol": "std/references#declarations"
+      },
+      {
+        "Call": {
+          "opcode": "Text",
+          "args": [
+            0
+          ]
+        }
+      },
+      {
+        "Tuple": [
+          5,
+          6,
+          7
+        ]
+      },
+      {
+        "Call": {
+          "opcode": "GetEarlier",
+          "args": [
+            8
+          ]
+        }
+      },
+      {
+        "Lambda": {
+          "parameter": "ancestor@std/references:515",
+          "body": 9
+        }
+      },
+      {
+        "Call": {
+          "opcode": "Find",
+          "args": [
+            1,
+            10
+          ]
+        }
+      },
+      {
+        "Block": {
+          "invocation": "binding:definition/expression.yl:214:242/std/references:1281:1294",
+          "actions": [],
+          "result": 11
+        }
+      },
+      {
+        "List": [
+          12
+        ]
+      },
+      {
+        "Call": {
+          "opcode": "First",
+          "args": [
+            13
+          ]
+        }
+      },
+      {
+        "Symbol": "std/references#referenceIdentity"
+      },
+      {
+        "Tuple": [
+          0,
+          15
+        ]
+      },
+      {
+        "BindingValue": {
+          "invocation": "binding:definition/expression.yl:214:242/std/references:1281:1294",
+          "result": 11
+        }
+      },
+      {
+        "Call": {
+          "opcode": "Contribute",
+          "args": [
+            16,
+            17
+          ]
+        }
+      },
+      "SelfValue",
+      {
+        "Tuple": [
+          19,
+          15
+        ]
+      },
+      {
+        "Call": {
+          "opcode": "Contribute",
+          "args": [
+            20,
+            17
+          ]
+        }
+      },
+      {
+        "Call": {
+          "opcode": "IsPresent",
+          "args": [
+            17
+          ]
+        }
+      },
+      {
+        "Not": 22
+      },
+      {
+        "List": [
+          17
+        ]
+      },
+      {
+        "Call": {
+          "opcode": "First",
+          "args": [
+            24
+          ]
+        }
+      },
+      {
+        "Tuple": [
+          19,
+          3
+        ]
+      },
+      {
+        "Call": {
+          "opcode": "Contribute",
+          "args": [
+            26,
+            19
+          ]
+        }
+      },
+      {
+        "Local": "ancestor@std/references:423"
+      },
+      {
+        "Tuple": [
+          28,
+          3
+        ]
+      },
+      {
+        "Call": {
+          "opcode": "Get",
+          "args": [
+            29
+          ]
+        }
+      },
+      {
+        "Lambda": {
+          "parameter": "ancestor@std/references:423",
+          "body": 30
+        }
+      },
+      {
+        "Call": {
+          "opcode": "Find",
+          "args": [
+            1,
+            31
+          ]
+        }
+      },
+      {
+        "Tuple": [
+          32,
+          6,
+          7
+        ]
+      },
+      {
+        "Call": {
+          "opcode": "Contribute",
+          "args": [
+            33,
+            19
+          ]
+        }
+      },
+      {
+        "Call": {
+          "opcode": "Contribute",
+          "args": [
+            16,
+            19
+          ]
+        }
+      },
+      {
+        "Call": {
+          "opcode": "Contribute",
+          "args": [
+            20,
+            19
+          ]
+        }
+      },
+      {
+        "Symbol": "std/references#nameSymbol"
+      },
+      {
+        "Tuple": [
+          19,
+          37
+        ]
+      },
+      {
+        "Call": {
+          "opcode": "Contribute",
+          "args": [
+            38,
+            7
+          ]
+        }
+      },
+      {
+        "Symbol": "std/references#reassignableSymbol"
+      },
+      {
+        "Tuple": [
+          19,
+          40
+        ]
+      },
+      {
+        "Bool": false
+      },
+      {
+        "Call": {
+          "opcode": "Contribute",
+          "args": [
+            41,
+            42
+          ]
+        }
+      },
+      {
+        "Call": {
+          "opcode": "IsPresent",
+          "args": [
+            32
+          ]
+        }
+      },
+      {
+        "Call": {
+          "opcode": "GetAll",
+          "args": [
+            33
+          ]
+        }
+      },
+      {
+        "Call": {
+          "opcode": "HasMultiple",
+          "args": [
+            45
+          ]
+        }
+      },
+      {
+        "Bool": true
+      },
+      {
+        "Call": {
+          "opcode": "Contribute",
+          "args": [
+            41,
+            47
+          ]
+        }
+      }
+    ],
+    "actions": [
+      {
+        "Call": {
+          "expression": 14,
+          "span": {
+            "file": "std/references",
+            "start": 1274,
+            "end": 1294
+          }
+        }
+      },
+      {
+        "Call": {
+          "expression": 18,
+          "span": {
+            "file": "std/references",
+            "start": 1299,
+            "end": 1341
+          }
+        }
+      },
+      {
+        "Call": {
+          "expression": 21,
+          "span": {
+            "file": "std/references",
+            "start": 1346,
+            "end": 1390
+          }
+        }
+      },
+      {
+        "Emit": {
+          "severity": "error",
+          "message": [
+            {
+              "Text": "Unknown name '"
+            },
+            {
+              "Value": 0
+            },
+            {
+              "Text": "'"
+            }
+          ],
+          "span": {
+            "file": "std/references",
+            "start": 1426,
+            "end": 1463
+          },
+          "target": 0,
+          "related": []
+        }
+      },
+      {
+        "If": {
+          "condition": 23,
+          "then_actions": [
+            3
+          ],
+          "else_actions": [],
+          "span": {
+            "file": "std/references",
+            "start": 1395,
+            "end": 1469
+          }
+        }
+      },
+      {
+        "Call": {
+          "expression": 25,
+          "span": {
+            "file": "std/references",
+            "start": 1474,
+            "end": 1484
+          }
+        }
+      },
+      {
+        "Call": {
+          "expression": 27,
+          "span": {
+            "file": "std/references",
+            "start": 320,
+            "end": 355
+          }
+        }
+      },
+      {
+        "Call": {
+          "expression": 34,
+          "span": {
+            "file": "std/references",
+            "start": 662,
+            "end": 730
+          }
+        }
+      },
+      {
+        "Call": {
+          "expression": 35,
+          "span": {
+            "file": "std/references",
+            "start": 735,
+            "end": 780
+          }
+        }
+      },
+      {
+        "Call": {
+          "expression": 36,
+          "span": {
+            "file": "std/references",
+            "start": 785,
+            "end": 832
+          }
+        }
+      },
+      {
+        "Call": {
+          "expression": 39,
+          "span": {
+            "file": "std/references",
+            "start": 837,
+            "end": 881
+          }
+        }
+      },
+      {
+        "Call": {
+          "expression": 43,
+          "span": {
+            "file": "std/references",
+            "start": 886,
+            "end": 940
+          }
+        }
+      },
+      {
+        "Emit": {
+          "severity": "error",
+          "message": [
+            {
+              "Text": "Duplicate declaration '"
+            },
+            {
+              "Value": 0
+            },
+            {
+              "Text": "'"
+            }
+          ],
+          "span": {
+            "file": "std/references",
+            "start": 1081,
+            "end": 1127
+          },
+          "target": 0,
+          "related": []
+        }
+      },
+      {
+        "If": {
+          "condition": 46,
+          "then_actions": [
+            12
+          ],
+          "else_actions": [],
+          "span": {
+            "file": "std/references",
+            "start": 992,
+            "end": 1137
+          }
+        }
+      },
+      {
+        "Emit": {
+          "severity": "error",
+          "message": [
+            {
+              "Text": "Declaration has no lexical scope"
+            }
+          ],
+          "span": {
+            "file": "std/references",
+            "start": 1163,
+            "end": 1210
+          },
+          "target": 0,
+          "related": []
+        }
+      },
+      {
+        "If": {
+          "condition": 44,
+          "then_actions": [
+            13
+          ],
+          "else_actions": [
+            14
+          ],
+          "span": {
+            "file": "std/references",
+            "start": 945,
+            "end": 1216
+          }
+        }
+      },
+      {
+        "Call": {
+          "expression": 48,
+          "span": {
+            "file": "std/references",
+            "start": 886,
+            "end": 940
+          }
+        }
+      }
+    ],
+    "groups": {
+      "definition/expression.yl#Reference": [
+        {
+          "name": "Resolve",
+          "actions": [
+            0,
+            1,
+            2,
+            4,
+            5
+          ],
+          "span": {
+            "file": "definition/expression.yl",
+            "start": 186,
+            "end": 252
+          }
+        }
+      ],
+      "definition/function.yl#FunctionContents": [
+        {
+          "name": null,
+          "actions": [
+            6
+          ],
+          "span": {
+            "file": "definition/function.yl",
+            "start": 606,
+            "end": 630
+          }
+        }
+      ],
+      "definition/function.yl#FunctionDeclaration": [
+        {
+          "name": "Register",
+          "actions": [
+            7,
+            8,
+            9,
+            10,
+            11,
+            15
+          ],
+          "span": {
+            "file": "definition/function.yl",
+            "start": 841,
+            "end": 925
+          }
+        }
+      ],
+      "definition/function.yl#Parameter": [
+        {
+          "name": null,
+          "actions": [
+            7,
+            8,
+            9,
+            10,
+            16,
+            15
+          ],
+          "span": {
+            "file": "definition/function.yl",
+            "start": 275,
+            "end": 298
+          }
+        }
+      ],
+      "definition/language.yl#Program": [
+        {
+          "name": null,
+          "actions": [
+            6
+          ],
+          "span": {
+            "file": "definition/language.yl",
+            "start": 357,
+            "end": 381
+          }
+        }
+      ],
+      "definition/let.yl#LetDeclaration": [
+        {
+          "name": "Register",
+          "actions": [
+            7,
+            8,
+            9,
+            10,
+            16,
+            15
+          ],
+          "span": {
+            "file": "definition/let.yl",
+            "start": 309,
+            "end": 371
+          }
+        }
+      ]
+    }
+  },
+  "semantics": {
     "definition/expression.yl#Reference": {
       "boundary": false,
       "groups": [
@@ -619,1711 +1483,126 @@
       ]
     }
   },
-  "query_meanings": {
-    "definition/expression.yl#Reference": [
-      {
-        "name": "Resolve",
-        "actions": [
-          {
-            "Call": {
-              "name": "core/query#first",
-              "args": [
-                {
-                  "List": [
-                    {
-                      "Block": {
-                        "invocation": "binding:definition/expression.yl:214:242/std/references:1281:1294",
-                        "actions": [],
-                        "result": {
-                          "Call": {
-                            "name": "core/query#find",
-                            "args": [
-                              {
-                                "Call": {
-                                  "name": "core/query#ancestors",
-                                  "args": [
-                                    {
-                                      "Capture": "name"
-                                    }
-                                  ]
-                                }
-                              },
-                              {
-                                "Lambda": {
-                                  "parameter": "ancestor@std/references:515",
-                                  "body": {
-                                    "Call": {
-                                      "name": "core/query#getEarlier",
-                                      "args": [
-                                        {
-                                          "Tuple": [
-                                            {
-                                              "Call": {
-                                                "name": "core/query#get",
-                                                "args": [
-                                                  {
-                                                    "Tuple": [
-                                                      {
-                                                        "Local": "ancestor@std/references:515"
-                                                      },
-                                                      {
-                                                        "Symbol": "std/references#scope"
-                                                      }
-                                                    ]
-                                                  }
-                                                ]
-                                              }
-                                            },
-                                            {
-                                              "Symbol": "std/references#declarations"
-                                            },
-                                            {
-                                              "Call": {
-                                                "name": "core/query#text",
-                                                "args": [
-                                                  {
-                                                    "Capture": "name"
-                                                  }
-                                                ]
-                                              }
-                                            }
-                                          ]
-                                        }
-                                      ]
-                                    }
-                                  }
-                                }
-                              }
-                            ]
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 1274,
-                "end": 1294
-              }
-            }
-          },
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    {
-                      "Capture": "name"
-                    },
-                    {
-                      "Symbol": "std/references#referenceIdentity"
-                    }
-                  ]
-                },
-                {
-                  "BindingValue": {
-                    "invocation": "binding:definition/expression.yl:214:242/std/references:1281:1294",
-                    "result": {
-                      "Call": {
-                        "name": "core/query#find",
-                        "args": [
-                          {
-                            "Call": {
-                              "name": "core/query#ancestors",
-                              "args": [
-                                {
-                                  "Capture": "name"
-                                }
-                              ]
-                            }
-                          },
-                          {
-                            "Lambda": {
-                              "parameter": "ancestor@std/references:515",
-                              "body": {
-                                "Call": {
-                                  "name": "core/query#getEarlier",
-                                  "args": [
-                                    {
-                                      "Tuple": [
-                                        {
-                                          "Call": {
-                                            "name": "core/query#get",
-                                            "args": [
-                                              {
-                                                "Tuple": [
-                                                  {
-                                                    "Local": "ancestor@std/references:515"
-                                                  },
-                                                  {
-                                                    "Symbol": "std/references#scope"
-                                                  }
-                                                ]
-                                              }
-                                            ]
-                                          }
-                                        },
-                                        {
-                                          "Symbol": "std/references#declarations"
-                                        },
-                                        {
-                                          "Call": {
-                                            "name": "core/query#text",
-                                            "args": [
-                                              {
-                                                "Capture": "name"
-                                              }
-                                            ]
-                                          }
-                                        }
-                                      ]
-                                    }
-                                  ]
-                                }
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  }
-                }
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 1299,
-                "end": 1341
-              }
-            }
-          },
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    "SelfValue",
-                    {
-                      "Symbol": "std/references#referenceIdentity"
-                    }
-                  ]
-                },
-                {
-                  "BindingValue": {
-                    "invocation": "binding:definition/expression.yl:214:242/std/references:1281:1294",
-                    "result": {
-                      "Call": {
-                        "name": "core/query#find",
-                        "args": [
-                          {
-                            "Call": {
-                              "name": "core/query#ancestors",
-                              "args": [
-                                {
-                                  "Capture": "name"
-                                }
-                              ]
-                            }
-                          },
-                          {
-                            "Lambda": {
-                              "parameter": "ancestor@std/references:515",
-                              "body": {
-                                "Call": {
-                                  "name": "core/query#getEarlier",
-                                  "args": [
-                                    {
-                                      "Tuple": [
-                                        {
-                                          "Call": {
-                                            "name": "core/query#get",
-                                            "args": [
-                                              {
-                                                "Tuple": [
-                                                  {
-                                                    "Local": "ancestor@std/references:515"
-                                                  },
-                                                  {
-                                                    "Symbol": "std/references#scope"
-                                                  }
-                                                ]
-                                              }
-                                            ]
-                                          }
-                                        },
-                                        {
-                                          "Symbol": "std/references#declarations"
-                                        },
-                                        {
-                                          "Call": {
-                                            "name": "core/query#text",
-                                            "args": [
-                                              {
-                                                "Capture": "name"
-                                              }
-                                            ]
-                                          }
-                                        }
-                                      ]
-                                    }
-                                  ]
-                                }
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  }
-                }
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 1346,
-                "end": 1390
-              }
-            }
-          },
-          {
-            "If": {
-              "condition": {
-                "Not": {
-                  "Call": {
-                    "name": "core/query#isPresent",
-                    "args": [
-                      {
-                        "BindingValue": {
-                          "invocation": "binding:definition/expression.yl:214:242/std/references:1281:1294",
-                          "result": {
-                            "Call": {
-                              "name": "core/query#find",
-                              "args": [
-                                {
-                                  "Call": {
-                                    "name": "core/query#ancestors",
-                                    "args": [
-                                      {
-                                        "Capture": "name"
-                                      }
-                                    ]
-                                  }
-                                },
-                                {
-                                  "Lambda": {
-                                    "parameter": "ancestor@std/references:515",
-                                    "body": {
-                                      "Call": {
-                                        "name": "core/query#getEarlier",
-                                        "args": [
-                                          {
-                                            "Tuple": [
-                                              {
-                                                "Call": {
-                                                  "name": "core/query#get",
-                                                  "args": [
-                                                    {
-                                                      "Tuple": [
-                                                        {
-                                                          "Local": "ancestor@std/references:515"
-                                                        },
-                                                        {
-                                                          "Symbol": "std/references#scope"
-                                                        }
-                                                      ]
-                                                    }
-                                                  ]
-                                                }
-                                              },
-                                              {
-                                                "Symbol": "std/references#declarations"
-                                              },
-                                              {
-                                                "Call": {
-                                                  "name": "core/query#text",
-                                                  "args": [
-                                                    {
-                                                      "Capture": "name"
-                                                    }
-                                                  ]
-                                                }
-                                              }
-                                            ]
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  }
-                                }
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    ]
-                  }
-                }
-              },
-              "then_actions": [
-                {
-                  "Emit": {
-                    "severity": "error",
-                    "message": [
-                      {
-                        "Text": "Unknown name '"
-                      },
-                      {
-                        "Value": {
-                          "Capture": "name"
-                        }
-                      },
-                      {
-                        "Text": "'"
-                      }
-                    ],
-                    "span": {
-                      "file": "std/references",
-                      "start": 1426,
-                      "end": 1463
-                    },
-                    "target": {
-                      "Capture": "name"
-                    }
-                  }
-                }
-              ],
-              "else_actions": [],
-              "span": {
-                "file": "std/references",
-                "start": 1395,
-                "end": 1469
-              }
-            }
-          },
-          {
-            "Call": {
-              "name": "core/query#first",
-              "args": [
-                {
-                  "List": [
-                    {
-                      "BindingValue": {
-                        "invocation": "binding:definition/expression.yl:214:242/std/references:1281:1294",
-                        "result": {
-                          "Call": {
-                            "name": "core/query#find",
-                            "args": [
-                              {
-                                "Call": {
-                                  "name": "core/query#ancestors",
-                                  "args": [
-                                    {
-                                      "Capture": "name"
-                                    }
-                                  ]
-                                }
-                              },
-                              {
-                                "Lambda": {
-                                  "parameter": "ancestor@std/references:515",
-                                  "body": {
-                                    "Call": {
-                                      "name": "core/query#getEarlier",
-                                      "args": [
-                                        {
-                                          "Tuple": [
-                                            {
-                                              "Call": {
-                                                "name": "core/query#get",
-                                                "args": [
-                                                  {
-                                                    "Tuple": [
-                                                      {
-                                                        "Local": "ancestor@std/references:515"
-                                                      },
-                                                      {
-                                                        "Symbol": "std/references#scope"
-                                                      }
-                                                    ]
-                                                  }
-                                                ]
-                                              }
-                                            },
-                                            {
-                                              "Symbol": "std/references#declarations"
-                                            },
-                                            {
-                                              "Call": {
-                                                "name": "core/query#text",
-                                                "args": [
-                                                  {
-                                                    "Capture": "name"
-                                                  }
-                                                ]
-                                              }
-                                            }
-                                          ]
-                                        }
-                                      ]
-                                    }
-                                  }
-                                }
-                              }
-                            ]
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 1474,
-                "end": 1484
-              }
-            }
-          }
-        ],
-        "span": {
-          "file": "definition/expression.yl",
-          "start": 186,
-          "end": 252
-        }
-      }
-    ],
-    "definition/function.yl#FunctionContents": [
-      {
-        "name": null,
-        "actions": [
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    "SelfValue",
-                    {
-                      "Symbol": "std/references#scope"
-                    }
-                  ]
-                },
-                "SelfValue"
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 320,
-                "end": 355
-              }
-            }
-          }
-        ],
-        "span": {
-          "file": "definition/function.yl",
-          "start": 606,
-          "end": 630
-        }
-      }
-    ],
-    "definition/function.yl#FunctionDeclaration": [
-      {
-        "name": "Register",
-        "actions": [
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    {
-                      "Call": {
-                        "name": "core/query#find",
-                        "args": [
-                          {
-                            "Call": {
-                              "name": "core/query#ancestors",
-                              "args": [
-                                {
-                                  "Capture": "name"
-                                }
-                              ]
-                            }
-                          },
-                          {
-                            "Lambda": {
-                              "parameter": "ancestor@std/references:423",
-                              "body": {
-                                "Call": {
-                                  "name": "core/query#get",
-                                  "args": [
-                                    {
-                                      "Tuple": [
-                                        {
-                                          "Local": "ancestor@std/references:423"
-                                        },
-                                        {
-                                          "Symbol": "std/references#scope"
-                                        }
-                                      ]
-                                    }
-                                  ]
-                                }
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "Symbol": "std/references#declarations"
-                    },
-                    {
-                      "Call": {
-                        "name": "core/query#text",
-                        "args": [
-                          {
-                            "Capture": "name"
-                          }
-                        ]
-                      }
-                    }
-                  ]
-                },
-                "SelfValue"
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 662,
-                "end": 730
-              }
-            }
-          },
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    {
-                      "Capture": "name"
-                    },
-                    {
-                      "Symbol": "std/references#referenceIdentity"
-                    }
-                  ]
-                },
-                "SelfValue"
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 735,
-                "end": 780
-              }
-            }
-          },
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    "SelfValue",
-                    {
-                      "Symbol": "std/references#referenceIdentity"
-                    }
-                  ]
-                },
-                "SelfValue"
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 785,
-                "end": 832
-              }
-            }
-          },
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    "SelfValue",
-                    {
-                      "Symbol": "std/references#nameSymbol"
-                    }
-                  ]
-                },
-                {
-                  "Call": {
-                    "name": "core/query#text",
-                    "args": [
-                      {
-                        "Capture": "name"
-                      }
-                    ]
-                  }
-                }
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 837,
-                "end": 881
-              }
-            }
-          },
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    "SelfValue",
-                    {
-                      "Symbol": "std/references#reassignableSymbol"
-                    }
-                  ]
-                },
-                {
-                  "Bool": false
-                }
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 886,
-                "end": 940
-              }
-            }
-          },
-          {
-            "If": {
-              "condition": {
-                "Call": {
-                  "name": "core/query#isPresent",
-                  "args": [
-                    {
-                      "Call": {
-                        "name": "core/query#find",
-                        "args": [
-                          {
-                            "Call": {
-                              "name": "core/query#ancestors",
-                              "args": [
-                                {
-                                  "Capture": "name"
-                                }
-                              ]
-                            }
-                          },
-                          {
-                            "Lambda": {
-                              "parameter": "ancestor@std/references:423",
-                              "body": {
-                                "Call": {
-                                  "name": "core/query#get",
-                                  "args": [
-                                    {
-                                      "Tuple": [
-                                        {
-                                          "Local": "ancestor@std/references:423"
-                                        },
-                                        {
-                                          "Symbol": "std/references#scope"
-                                        }
-                                      ]
-                                    }
-                                  ]
-                                }
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  ]
-                }
-              },
-              "then_actions": [
-                {
-                  "If": {
-                    "condition": {
-                      "Call": {
-                        "name": "core/query#hasMultiple",
-                        "args": [
-                          {
-                            "Call": {
-                              "name": "core/query#getAll",
-                              "args": [
-                                {
-                                  "Tuple": [
-                                    {
-                                      "Call": {
-                                        "name": "core/query#find",
-                                        "args": [
-                                          {
-                                            "Call": {
-                                              "name": "core/query#ancestors",
-                                              "args": [
-                                                {
-                                                  "Capture": "name"
-                                                }
-                                              ]
-                                            }
-                                          },
-                                          {
-                                            "Lambda": {
-                                              "parameter": "ancestor@std/references:423",
-                                              "body": {
-                                                "Call": {
-                                                  "name": "core/query#get",
-                                                  "args": [
-                                                    {
-                                                      "Tuple": [
-                                                        {
-                                                          "Local": "ancestor@std/references:423"
-                                                        },
-                                                        {
-                                                          "Symbol": "std/references#scope"
-                                                        }
-                                                      ]
-                                                    }
-                                                  ]
-                                                }
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "Symbol": "std/references#declarations"
-                                    },
-                                    {
-                                      "Call": {
-                                        "name": "core/query#text",
-                                        "args": [
-                                          {
-                                            "Capture": "name"
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                }
-                              ]
-                            }
-                          }
-                        ]
-                      }
-                    },
-                    "then_actions": [
-                      {
-                        "Emit": {
-                          "severity": "error",
-                          "message": [
-                            {
-                              "Text": "Duplicate declaration '"
-                            },
-                            {
-                              "Value": {
-                                "Capture": "name"
-                              }
-                            },
-                            {
-                              "Text": "'"
-                            }
-                          ],
-                          "span": {
-                            "file": "std/references",
-                            "start": 1081,
-                            "end": 1127
-                          },
-                          "target": {
-                            "Capture": "name"
-                          }
-                        }
-                      }
-                    ],
-                    "else_actions": [],
-                    "span": {
-                      "file": "std/references",
-                      "start": 992,
-                      "end": 1137
-                    }
-                  }
-                }
-              ],
-              "else_actions": [
-                {
-                  "Emit": {
-                    "severity": "error",
-                    "message": [
-                      {
-                        "Text": "Declaration has no lexical scope"
-                      }
-                    ],
-                    "span": {
-                      "file": "std/references",
-                      "start": 1163,
-                      "end": 1210
-                    },
-                    "target": {
-                      "Capture": "name"
-                    }
-                  }
-                }
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 945,
-                "end": 1216
-              }
-            }
-          }
-        ],
-        "span": {
-          "file": "definition/function.yl",
-          "start": 841,
-          "end": 925
-        }
-      }
-    ],
-    "definition/function.yl#Parameter": [
-      {
-        "name": null,
-        "actions": [
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    {
-                      "Call": {
-                        "name": "core/query#find",
-                        "args": [
-                          {
-                            "Call": {
-                              "name": "core/query#ancestors",
-                              "args": [
-                                {
-                                  "Capture": "name"
-                                }
-                              ]
-                            }
-                          },
-                          {
-                            "Lambda": {
-                              "parameter": "ancestor@std/references:423",
-                              "body": {
-                                "Call": {
-                                  "name": "core/query#get",
-                                  "args": [
-                                    {
-                                      "Tuple": [
-                                        {
-                                          "Local": "ancestor@std/references:423"
-                                        },
-                                        {
-                                          "Symbol": "std/references#scope"
-                                        }
-                                      ]
-                                    }
-                                  ]
-                                }
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "Symbol": "std/references#declarations"
-                    },
-                    {
-                      "Call": {
-                        "name": "core/query#text",
-                        "args": [
-                          {
-                            "Capture": "name"
-                          }
-                        ]
-                      }
-                    }
-                  ]
-                },
-                "SelfValue"
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 662,
-                "end": 730
-              }
-            }
-          },
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    {
-                      "Capture": "name"
-                    },
-                    {
-                      "Symbol": "std/references#referenceIdentity"
-                    }
-                  ]
-                },
-                "SelfValue"
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 735,
-                "end": 780
-              }
-            }
-          },
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    "SelfValue",
-                    {
-                      "Symbol": "std/references#referenceIdentity"
-                    }
-                  ]
-                },
-                "SelfValue"
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 785,
-                "end": 832
-              }
-            }
-          },
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    "SelfValue",
-                    {
-                      "Symbol": "std/references#nameSymbol"
-                    }
-                  ]
-                },
-                {
-                  "Call": {
-                    "name": "core/query#text",
-                    "args": [
-                      {
-                        "Capture": "name"
-                      }
-                    ]
-                  }
-                }
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 837,
-                "end": 881
-              }
-            }
-          },
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    "SelfValue",
-                    {
-                      "Symbol": "std/references#reassignableSymbol"
-                    }
-                  ]
-                },
-                {
-                  "Bool": true
-                }
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 886,
-                "end": 940
-              }
-            }
-          },
-          {
-            "If": {
-              "condition": {
-                "Call": {
-                  "name": "core/query#isPresent",
-                  "args": [
-                    {
-                      "Call": {
-                        "name": "core/query#find",
-                        "args": [
-                          {
-                            "Call": {
-                              "name": "core/query#ancestors",
-                              "args": [
-                                {
-                                  "Capture": "name"
-                                }
-                              ]
-                            }
-                          },
-                          {
-                            "Lambda": {
-                              "parameter": "ancestor@std/references:423",
-                              "body": {
-                                "Call": {
-                                  "name": "core/query#get",
-                                  "args": [
-                                    {
-                                      "Tuple": [
-                                        {
-                                          "Local": "ancestor@std/references:423"
-                                        },
-                                        {
-                                          "Symbol": "std/references#scope"
-                                        }
-                                      ]
-                                    }
-                                  ]
-                                }
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  ]
-                }
-              },
-              "then_actions": [
-                {
-                  "If": {
-                    "condition": {
-                      "Call": {
-                        "name": "core/query#hasMultiple",
-                        "args": [
-                          {
-                            "Call": {
-                              "name": "core/query#getAll",
-                              "args": [
-                                {
-                                  "Tuple": [
-                                    {
-                                      "Call": {
-                                        "name": "core/query#find",
-                                        "args": [
-                                          {
-                                            "Call": {
-                                              "name": "core/query#ancestors",
-                                              "args": [
-                                                {
-                                                  "Capture": "name"
-                                                }
-                                              ]
-                                            }
-                                          },
-                                          {
-                                            "Lambda": {
-                                              "parameter": "ancestor@std/references:423",
-                                              "body": {
-                                                "Call": {
-                                                  "name": "core/query#get",
-                                                  "args": [
-                                                    {
-                                                      "Tuple": [
-                                                        {
-                                                          "Local": "ancestor@std/references:423"
-                                                        },
-                                                        {
-                                                          "Symbol": "std/references#scope"
-                                                        }
-                                                      ]
-                                                    }
-                                                  ]
-                                                }
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "Symbol": "std/references#declarations"
-                                    },
-                                    {
-                                      "Call": {
-                                        "name": "core/query#text",
-                                        "args": [
-                                          {
-                                            "Capture": "name"
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                }
-                              ]
-                            }
-                          }
-                        ]
-                      }
-                    },
-                    "then_actions": [
-                      {
-                        "Emit": {
-                          "severity": "error",
-                          "message": [
-                            {
-                              "Text": "Duplicate declaration '"
-                            },
-                            {
-                              "Value": {
-                                "Capture": "name"
-                              }
-                            },
-                            {
-                              "Text": "'"
-                            }
-                          ],
-                          "span": {
-                            "file": "std/references",
-                            "start": 1081,
-                            "end": 1127
-                          },
-                          "target": {
-                            "Capture": "name"
-                          }
-                        }
-                      }
-                    ],
-                    "else_actions": [],
-                    "span": {
-                      "file": "std/references",
-                      "start": 992,
-                      "end": 1137
-                    }
-                  }
-                }
-              ],
-              "else_actions": [
-                {
-                  "Emit": {
-                    "severity": "error",
-                    "message": [
-                      {
-                        "Text": "Declaration has no lexical scope"
-                      }
-                    ],
-                    "span": {
-                      "file": "std/references",
-                      "start": 1163,
-                      "end": 1210
-                    },
-                    "target": {
-                      "Capture": "name"
-                    }
-                  }
-                }
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 945,
-                "end": 1216
-              }
-            }
-          }
-        ],
-        "span": {
-          "file": "definition/function.yl",
-          "start": 275,
-          "end": 298
-        }
-      }
-    ],
-    "definition/language.yl#Program": [
-      {
-        "name": null,
-        "actions": [
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    "SelfValue",
-                    {
-                      "Symbol": "std/references#scope"
-                    }
-                  ]
-                },
-                "SelfValue"
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 320,
-                "end": 355
-              }
-            }
-          }
-        ],
-        "span": {
-          "file": "definition/language.yl",
-          "start": 357,
-          "end": 381
-        }
-      }
-    ],
-    "definition/let.yl#LetDeclaration": [
-      {
-        "name": "Register",
-        "actions": [
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    {
-                      "Call": {
-                        "name": "core/query#find",
-                        "args": [
-                          {
-                            "Call": {
-                              "name": "core/query#ancestors",
-                              "args": [
-                                {
-                                  "Capture": "name"
-                                }
-                              ]
-                            }
-                          },
-                          {
-                            "Lambda": {
-                              "parameter": "ancestor@std/references:423",
-                              "body": {
-                                "Call": {
-                                  "name": "core/query#get",
-                                  "args": [
-                                    {
-                                      "Tuple": [
-                                        {
-                                          "Local": "ancestor@std/references:423"
-                                        },
-                                        {
-                                          "Symbol": "std/references#scope"
-                                        }
-                                      ]
-                                    }
-                                  ]
-                                }
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "Symbol": "std/references#declarations"
-                    },
-                    {
-                      "Call": {
-                        "name": "core/query#text",
-                        "args": [
-                          {
-                            "Capture": "name"
-                          }
-                        ]
-                      }
-                    }
-                  ]
-                },
-                "SelfValue"
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 662,
-                "end": 730
-              }
-            }
-          },
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    {
-                      "Capture": "name"
-                    },
-                    {
-                      "Symbol": "std/references#referenceIdentity"
-                    }
-                  ]
-                },
-                "SelfValue"
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 735,
-                "end": 780
-              }
-            }
-          },
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    "SelfValue",
-                    {
-                      "Symbol": "std/references#referenceIdentity"
-                    }
-                  ]
-                },
-                "SelfValue"
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 785,
-                "end": 832
-              }
-            }
-          },
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    "SelfValue",
-                    {
-                      "Symbol": "std/references#nameSymbol"
-                    }
-                  ]
-                },
-                {
-                  "Call": {
-                    "name": "core/query#text",
-                    "args": [
-                      {
-                        "Capture": "name"
-                      }
-                    ]
-                  }
-                }
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 837,
-                "end": 881
-              }
-            }
-          },
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    "SelfValue",
-                    {
-                      "Symbol": "std/references#reassignableSymbol"
-                    }
-                  ]
-                },
-                {
-                  "Bool": true
-                }
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 886,
-                "end": 940
-              }
-            }
-          },
-          {
-            "If": {
-              "condition": {
-                "Call": {
-                  "name": "core/query#isPresent",
-                  "args": [
-                    {
-                      "Call": {
-                        "name": "core/query#find",
-                        "args": [
-                          {
-                            "Call": {
-                              "name": "core/query#ancestors",
-                              "args": [
-                                {
-                                  "Capture": "name"
-                                }
-                              ]
-                            }
-                          },
-                          {
-                            "Lambda": {
-                              "parameter": "ancestor@std/references:423",
-                              "body": {
-                                "Call": {
-                                  "name": "core/query#get",
-                                  "args": [
-                                    {
-                                      "Tuple": [
-                                        {
-                                          "Local": "ancestor@std/references:423"
-                                        },
-                                        {
-                                          "Symbol": "std/references#scope"
-                                        }
-                                      ]
-                                    }
-                                  ]
-                                }
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  ]
-                }
-              },
-              "then_actions": [
-                {
-                  "If": {
-                    "condition": {
-                      "Call": {
-                        "name": "core/query#hasMultiple",
-                        "args": [
-                          {
-                            "Call": {
-                              "name": "core/query#getAll",
-                              "args": [
-                                {
-                                  "Tuple": [
-                                    {
-                                      "Call": {
-                                        "name": "core/query#find",
-                                        "args": [
-                                          {
-                                            "Call": {
-                                              "name": "core/query#ancestors",
-                                              "args": [
-                                                {
-                                                  "Capture": "name"
-                                                }
-                                              ]
-                                            }
-                                          },
-                                          {
-                                            "Lambda": {
-                                              "parameter": "ancestor@std/references:423",
-                                              "body": {
-                                                "Call": {
-                                                  "name": "core/query#get",
-                                                  "args": [
-                                                    {
-                                                      "Tuple": [
-                                                        {
-                                                          "Local": "ancestor@std/references:423"
-                                                        },
-                                                        {
-                                                          "Symbol": "std/references#scope"
-                                                        }
-                                                      ]
-                                                    }
-                                                  ]
-                                                }
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "Symbol": "std/references#declarations"
-                                    },
-                                    {
-                                      "Call": {
-                                        "name": "core/query#text",
-                                        "args": [
-                                          {
-                                            "Capture": "name"
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                }
-                              ]
-                            }
-                          }
-                        ]
-                      }
-                    },
-                    "then_actions": [
-                      {
-                        "Emit": {
-                          "severity": "error",
-                          "message": [
-                            {
-                              "Text": "Duplicate declaration '"
-                            },
-                            {
-                              "Value": {
-                                "Capture": "name"
-                              }
-                            },
-                            {
-                              "Text": "'"
-                            }
-                          ],
-                          "span": {
-                            "file": "std/references",
-                            "start": 1081,
-                            "end": 1127
-                          },
-                          "target": {
-                            "Capture": "name"
-                          }
-                        }
-                      }
-                    ],
-                    "else_actions": [],
-                    "span": {
-                      "file": "std/references",
-                      "start": 992,
-                      "end": 1137
-                    }
-                  }
-                }
-              ],
-              "else_actions": [
-                {
-                  "Emit": {
-                    "severity": "error",
-                    "message": [
-                      {
-                        "Text": "Declaration has no lexical scope"
-                      }
-                    ],
-                    "span": {
-                      "file": "std/references",
-                      "start": 1163,
-                      "end": 1210
-                    },
-                    "target": {
-                      "Capture": "name"
-                    }
-                  }
-                }
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 945,
-                "end": 1216
-              }
-            }
-          }
-        ],
-        "span": {
-          "file": "definition/let.yl",
-          "start": 309,
-          "end": 371
-        }
-      }
-    ]
-  },
-  "examples": {
-    "definition/function.yl#FunctionContents": {
-      "term": {
-        "Sequence": [
-          {
-            "Literal": "("
-          },
-          {
-            "Capture": [
-              "parameters",
-              {
-                "Project": {
-                  "id": 2,
-                  "term": {
-                    "Repeat": [
-                      {
-                        "Sequence": [
-                          {
-                            "Mark": {
-                              "id": 2,
-                              "term": {
-                                "Ref": "definition/function.yl#Parameter"
-                              }
-                            }
-                          },
-                          {
-                            "Repeat": [
-                              {
-                                "Sequence": [
-                                  {
-                                    "Literal": ","
-                                  },
-                                  {
-                                    "Mark": {
-                                      "id": 2,
-                                      "term": {
-                                        "Ref": "definition/function.yl#Parameter"
-                                      }
-                                    }
-                                  }
-                                ]
-                              },
-                              "Star"
-                            ]
-                          }
-                        ]
-                      },
-                      "Optional"
-                    ]
-                  },
-                  "quantifier": "Star"
-                }
-              }
-            ]
-          },
-          {
-            "Literal": ")"
-          },
-          {
-            "Capture": [
-              "body",
-              {
-                "Ref": "definition/function.yl#FunctionBody"
-              }
-            ]
-          }
-        ]
+  "previews": [
+    {
+      "definition": "definition/expression.yl#Expression",
+      "span": {
+        "file": "definition/expression.yl",
+        "start": 262,
+        "end": 371
       },
-      "explicit": null,
+      "text": "a",
+      "reason": null
+    },
+    {
+      "definition": "definition/expression.yl#Expression::Number",
+      "span": {
+        "file": "definition/expression.yl",
+        "start": 340,
+        "end": 369
+      },
+      "text": "0",
+      "reason": null
+    },
+    {
+      "definition": "definition/expression.yl#ExpressionDeclaration",
+      "span": {
+        "file": "definition/expression.yl",
+        "start": 373,
+        "end": 426
+      },
+      "text": "a",
+      "reason": null
+    },
+    {
+      "definition": "definition/expression.yl#Reference",
+      "span": {
+        "file": "definition/expression.yl",
+        "start": 132,
+        "end": 260
+      },
+      "text": "a",
+      "reason": null
+    },
+    {
+      "definition": "definition/function.yl#FunctionBody",
+      "span": {
+        "file": "definition/function.yl",
+        "start": 308,
+        "end": 465
+      },
+      "text": "{ let a = a ; return a ; }",
+      "reason": null
+    },
+    {
+      "definition": "definition/function.yl#FunctionContents",
       "span": {
         "file": "definition/function.yl",
         "start": 467,
         "end": 638
-      }
+      },
+      "text": "( a ) { let a = a ; return a ; }",
+      "reason": null
+    },
+    {
+      "definition": "definition/function.yl#FunctionDeclaration",
+      "span": {
+        "file": "definition/function.yl",
+        "start": 720,
+        "end": 933
+      },
+      "text": "function a ( a ) { let a = a ; return a ; }",
+      "reason": null
+    },
+    {
+      "definition": "definition/function.yl#FunctionExpression",
+      "span": {
+        "file": "definition/function.yl",
+        "start": 640,
+        "end": 718
+      },
+      "text": "function ( a ) { let a = a ; return a ; }",
+      "reason": null
+    },
+    {
+      "definition": "definition/function.yl#Parameter",
+      "span": {
+        "file": "definition/function.yl",
+        "start": 221,
+        "end": 306
+      },
+      "text": "a",
+      "reason": null
+    },
+    {
+      "definition": "definition/language.yl#Program",
+      "span": {
+        "file": "definition/language.yl",
+        "start": 247,
+        "end": 540
+      },
+      "text": "let a = a ;",
+      "reason": null
+    },
+    {
+      "definition": "definition/let.yl#LetDeclaration",
+      "span": {
+        "file": "definition/let.yl",
+        "start": 174,
+        "end": 476
+      },
+      "text": "let a = a ;",
+      "reason": null
+    },
+    {
+      "definition": "definition/lexical.yl#Name",
+      "span": {
+        "file": "definition/lexical.yl",
+        "start": 0,
+        "end": 34
+      },
+      "text": "a",
+      "reason": null
     }
-  }
+  ]
 }

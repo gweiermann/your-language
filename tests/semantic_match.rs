@@ -162,7 +162,7 @@ fn reload_rejects_nonconstant_patterns() {
         .unwrap();
     let mut json: serde_json::Value =
         serde_json::from_slice(&language.to_bytes().unwrap()).unwrap();
-    json["meanings"]["main.yl#Program"]["groups"][0]["matching"]["cases"][0]["alternatives"][0]
+    json["semantics"]["main.yl#Program"]["groups"][0]["matching"]["cases"][0]["alternatives"][0]
         [0] = serde_json::json!({"Capture": "name"});
     assert!(load_compiled_language(&serde_json::to_vec(&json).unwrap()).is_err());
 }
@@ -654,7 +654,7 @@ fn contributions_cannot_supply_contexts_in_registry_or_reload() {
         .unwrap();
     let mut json: serde_json::Value =
         serde_json::from_slice(&language.to_bytes().unwrap()).unwrap();
-    let contract = &mut json["meanings"]["main.yl#Program"]["groups"][0]["calls"][0]["contract"];
+    let contract = &mut json["semantics"]["main.yl#Program"]["groups"][0]["calls"][0]["contract"];
     contract["contribution"] = true.into();
     contract["provides_context"] = true.into();
     assert!(load_compiled_language(&serde_json::to_vec(&json).unwrap()).is_err());

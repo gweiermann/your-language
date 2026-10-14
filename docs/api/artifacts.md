@@ -1,6 +1,6 @@
-# Compiled language artifacts
+# Executable language images
 
-A `.ylc` file stores the normalized language executed by the runtime. Compilation resolves surface constructs once, so parsing does not need original YL modules, imports, pattern definitions, or pipe implementations.
+A `.ylc` file is an immutable program for the YL engine. Compilation resolves modules, aliases, parameterized patterns, pipes, operation wrappers, and enum values once. The engine loads the resulting tables and executes them against target source; it does not load YL source or reconstruct the compiler's recursive grammar and query representation.
 
 ## Compile, serialize, reload
 
@@ -18,30 +18,86 @@ fn example() -> your_language::diagnostic::CompileResult<()> {
 }
 ```
 
-The CLI equivalent is `yl compile <entry.yl> -o <language.ylc>`, followed by a `yl language` tool.
+The CLI uses the same checked interface:
+
+```sh
+cargo run -- compile examples/mini-js/minijs.yl -o target/minijs.ylc
+cargo run -- language target/minijs.ylc ast examples/mini-js/program.js
+cargo run -- language target/minijs.ylc check examples/mini-js/invalid.js
+```
+
+The final command reports the invalid program with source underlines and exits unsuccessfully. Add `--json` for structured diagnostics. The compiled language remains usable after its original `.yl` files are removed.
+
+To inspect table counts and measure compilation, checked loading, and analysis separately:
+
+```sh
+cargo run --example compiled_image
+cargo run --example compiled_image -- examples/mini_typescript/definition/language.yl examples/mini_typescript/programs/generics.txt
+```
+
+Both examples report format `6`, `AST: true`, and `diagnostics: 0`. Timing numbers describe the current machine and build; they are not performance guarantees.
 
 ## Representation
 
-Artifacts are versioned pretty JSON with deterministic ordered rule maps. Syntax-only languages retain version `1`; native lifecycle semantics use version `2`; declarative attachment queries use version `5`. They include the entry rule, selected trivia, normalized rules, precedence plans, syntax-local checks, definition spans, and normalized query actions when present. They do not include the original module source. Compile-time warning/help records are excluded from serialization.
+Format `6` uses deterministic pretty JSON. It contains executable tables with integer references:
 
-Rule bodies distinguish concrete grammar from abstract node families. Terms include literals, regexes, references, sequences, choices, repetitions, captures, negative lookaround, and generic value marking/projection. Marking and projection implement type-preserving rewrite results without teaching the runtime individual pipe names.
+```text
+language image
+├── version and required engine capabilities
+├── parser
+│   ├── rules and entry/trivia rule indices
+│   ├── grammar instructions and child indices
+│   ├── precomputed Pratt operator edges and binding powers
+│   └── syntax-check expressions and operand indices
+├── queries
+│   ├── expression instructions with engine opcodes
+│   ├── action instructions and expression/action indices
+│   └── semantic producer groups
+├── semantics: scheduling selectors and native operation contracts
+└── previews: representative syntax and declaration locations
+```
 
-Imports, contextual enum values, parameterized patterns, structural rewrite cases, and standard-library helper calls are resolved during compilation. The runtime operates on their normalized result.
+For example, a sequence refers to existing instruction rows instead of embedding another grammar tree:
+
+```json
+[
+  { "Literal": "(" },
+  { "Regex": "[a-z]+" },
+  { "Literal": ")" },
+  { "Sequence": [0, 1, 2] }
+]
+```
+
+References to rules support recursive grammars. Grammar-expression and check-expression edges point backward within their tables; query expressions and actions form a validated directed acyclic graph. Compiled query calls carry opcodes such as `Get`, `Find`, and `Contribute`, rather than names that must be resolved through a YL module at execution time. Shared expression indices preserve correlated match values and immutable binding dependencies.
+
+Source spans, capture names, rule names, opaque symbol identities, and diagnostic text remain operands or metadata. They preserve AST names, attachment identity, and useful error locations. The image contains neither import statements nor authored library bodies. Compile-time warning/help records are excluded.
+
+Static regex programs are prepared when the image is compiled or loaded and reused across source sessions. Source-dependent lookbehind work remains session-local.
+
+## Image and session state
+
+The image describes what the engine can execute. Each target source gets its own parser stack, committed syntax occurrences, capture values, attachment entries, pending producers, diagnostics, and hypothetical-query state. Concurrent analyses share no mutable session state.
+
+A language definition cannot precompute the actual scopes or references of a program it has not parsed. The image therefore contains producer templates; the engine discovers their concrete instances and dependencies from committed syntax, then evaluates them to settlement. Scheduling boundaries, guarded actions, pending values, and isolated hypothetical queries retain their normal behavior.
+
+This representation covers parsing and semantic analysis. It does not introduce a target-program interpreter, JIT, or new native execution hooks.
 
 ## Validation on reload
 
-`load_compiled_language` checks the artifact format and executable invariants, including entry and rule references, regex validity, trivia ownership, captures, precedence plans, and constraint operands. Invalid JSON or invalid normalized data produces diagnostics. Direct Serde deserialization is not a substitute for these checks.
+Use `load_compiled_language` or `SemanticEngine::load`. Only these checked constructors create an executable language handle. Deserializing public image tables is useful for inspection and tooling, but does not produce a `CompiledLanguage`.
+
+The loader rejects unsupported versions and capabilities, invalid JSON, trailing input, out-of-bounds references, invalid regexes, malformed operator plans, illegal graph cycles, invalid capture access, and inconsistent semantic scheduling metadata. It bounds the wire representation to 64 MiB and JSON nesting to 512 levels before deserializing; table validators also enforce their execution resource limits. Invalid images produce structured diagnostics before execution.
 
 ## Determinism and relocation
 
-Module IDs are relative to the entry directory. Relocating the same definition graph without changing its relative structure preserves its normalized IDs and serialized bytes. Target-source file labels are supplied at parse time and do not alter the language artifact.
+Module identities are relative to the entry directory. Relocating the same definition graph without changing its relative structure preserves those identities and serialized bytes. Table construction is deterministic. Loading and serializing a valid image preserves its bytes. Target-source file labels are supplied for each parse and do not alter the image.
 
 ## Compatibility
 
-The version field allows incompatible artifact changes to be rejected rather than interpreted accidentally. Long-term artifact compatibility and a binary ABI are not promised. Recompile language definitions with the runtime version used by the host when updating tooling.
+All newly compiled languages use format `6`. Formats `1`–`5` are retired: recompile their YL definitions with the current compiler. The loader reports this explicitly instead of rebuilding recursive normalization IR or maintaining a second production executor.
+
+The image format is versioned but experimental. Long-term binary compatibility, a memory-mapped layout, and an ABI are not promised. An eventual binary encoding can represent these same tables without changing YL syntax.
 
 ## Native semantics
 
-[Native semantic artifacts](/api/native-semantics) also retain operation contracts and scheduling boundaries. Use `SemanticEngine::load` to verify registered library compatibility and `analyze` to execute them. Artifact files remain optional: registry-aware compile and analyze can run entirely in memory. Existing parse APIs and CLI tools perform syntax analysis only.
-
-Version 4 includes authored canonical standard modules, generic alternative distribution and checked hypothetical diagnostics. Versions 1-3 remain readable when their contracts are supported. Retired native standard-operation contracts are explicitly rejected; recompile their source definitions. The loader bounds JSON nesting before stack-safe deserialization, then validates normalized grammar/query limits.
+[Native semantic interfaces](/api/native-semantics) retain external operation contracts and lifecycle scheduling metadata. `SemanticEngine::load` additionally verifies compatibility with the host's registered operations. Artifact files remain optional: compilation and analysis can run entirely in memory.

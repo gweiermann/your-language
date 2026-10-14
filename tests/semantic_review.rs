@@ -862,7 +862,7 @@ fn node_and_pattern_boundaries_are_selectable_but_hide_their_contents() {
         assert_eq!(owners[2], boundary.children[0].id);
         let loaded = engine.load(&language.to_bytes().unwrap()).unwrap();
         assert_eq!(
-            serde_json::to_value(&loaded).unwrap()["meanings"]["language.yl#Region"]["boundary"],
+            serde_json::to_value(&loaded).unwrap()["semantics"]["language.yl#Region"]["boundary"],
             true
         );
         assert_eq!(result, engine.analyze(&loaded, "source", "aab"));

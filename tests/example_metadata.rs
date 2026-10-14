@@ -159,8 +159,12 @@ fn corrupt_tooling_projection_markers_are_rejected_on_reload() {
     let compiled = language(r#"pattern Preview = "x" node Root = "x" entry Root"#);
     let mut artifact: serde_json::Value =
         serde_json::from_slice(&compiled.to_bytes().unwrap()).unwrap();
-    artifact["examples"]["entry.yl#Preview"]["term"] =
-        serde_json::json!({"Mark":{"id":123,"term":{"Literal":"x"}}});
+    let index = artifact["parser"]["instructions"].as_array().unwrap().len();
+    artifact["parser"]["instructions"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({"Mark":{"id":123,"term":0}}));
+    artifact["parser"]["preview_roots"]["entry.yl#Preview"] = serde_json::json!(index);
     let errors = load_compiled_language(&serde_json::to_vec(&artifact).unwrap()).unwrap_err();
     assert_eq!(errors[0].code, "yl.artifact");
 }
@@ -176,8 +180,13 @@ fn loaded_node_examples_cannot_substitute_the_nodes_actual_grammar() {
     let compiled = language(r#"node Root = "x" { example "x" } entry Root"#);
     let mut artifact: serde_json::Value =
         serde_json::from_slice(&compiled.to_bytes().unwrap()).unwrap();
-    artifact["examples"]["entry.yl#Root"]["term"] = serde_json::json!({"Literal":"z"});
-    artifact["examples"]["entry.yl#Root"]["explicit"]["text"] = "z".into();
+    let index = artifact["parser"]["instructions"].as_array().unwrap().len();
+    artifact["parser"]["instructions"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({"Literal":"z"}));
+    artifact["parser"]["preview_roots"]["entry.yl#Root"] = serde_json::json!(index);
+    artifact["previews"][0]["text"] = "z".into();
     assert_eq!(
         load_compiled_language(&serde_json::to_vec(&artifact).unwrap()).unwrap_err()[0].code,
         "yl.artifact"
