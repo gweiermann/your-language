@@ -1,0 +1,6 @@
+identity(value)
+
+1
+"hello"
+
+number

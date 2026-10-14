@@ -169,13 +169,14 @@ Rust consumers can reuse `diagnostic_render::print_diagnostics`, providing a sou
 
 Follow the [inference tutorial](/tutorials/semantic-inference), consult the [library contracts](/reference/meaning-libraries), or inspect the checked-in [Mini TypeScript example](https://github.com/gweiermann/your-language/tree/main/examples/mini_typescript).
 
-The native `std/types` module exports three operations and one reserved type identity:
+The native `std/types` module exports four operations and one reserved type identity:
 
 | Export | Contract |
 | --- | --- |
 | `annotate(key, type)` | Add possible types. Repeated contributions form a union. Deferred inputs establish directed dependencies. |
 | `restrictTo(key, allowed)` | Require every known possibility to be compatible with the allowed possibilities. Preserve facts, including invalid ones. |
 | `typeof(key)` | Return an analysis-local deferred possibility query. |
+| `instantiate(template, use)` | Freshen an explicitly host-owned template once per identity pair. Automatic ownership remains experimental and parked. |
 | `unknown` | Explicit unresolved possibility, compatible with restrictions without hiding incompatible known members. |
 
 The language declares all other type identities. A key is a generic analysis-local identity or `(identity, authoredSlotSymbol)`. Ordered lists of keys support explicit positional contributions and restrictions. A list value is structural; it is not an alternative set. For example, contributing `[Red, Blue]` and `[Blue, Red]` preserves two correlated alternatives.
@@ -251,6 +252,34 @@ The previous experimental `ensure` contract is replaced by `annotate` and `restr
 
 The [Mini TypeScript example](https://github.com/gweiermann/your-language/tree/main/examples/mini_typescript) demonstrates literals, annotations, variable bridges, recursive functions, aliases, higher-order calls and language-authored addition. Unannotated functions currently collect evidence into a shared signature. Mixed calls widen parameter and return unions; they do not receive independently instantiated generic types.
 
-Generic instantiation, scoped control-flow narrowing, directional subtyping, ownership and target execution are separate work. `useAsType` is not implemented. The operation and serialized result contracts remain experimental.
+Automatic generic ownership, scoped control-flow narrowing, directional subtyping, ownership and target execution are separate work. `useAsType` is not implemented. The operation and serialized result contracts remain experimental.
 
 The MiniTS bridge shares accumulated type facts between a binding and its declaration/reference occurrences using two directed contributions. Syntax occurrence identities remain distinct; initializer evidence flows one way and is never retyped by these bridges.
+
+## Explicit type template experiment
+
+`types::instantiate(template, use)` creates an analysis-local type instance. A repeated pair returns the same identity; a different use identity creates fresh local identities. The template must first be registered by a Rust native library through `types::register_template(context, root, locals)`. This host interface supplies ownership explicitly; it does not infer ownership from node names, lexical library fields or graph reachability.
+
+Every slot of a local identity uses the same substitution. Directed contributions and restrictions are copied as unresolved relationships, rather than as a snapshot of settled types. Reads of identities outside the supplied local set remain captured. Original template facts remain separate from instance facts. Contributions registered later are included on the next propagation pass. Ordinary value aliases retain the original registered template through their directed base-type reads.
+
+Only constraints whose entire destination is local are instantiated. Writes to captured destinations stay on the original template and are not replayed for an instance; a positional destination mixing local and captured keys is parked. A cached instance cannot switch to a different template owner if later registration changes an alias's origin.
+
+```yl
+// The host library has registered this template and its owned identities.
+types::annotate(
+    (types::instantiate(template, use), parameters),
+    types::typeof(arguments)
+)
+types::annotate(
+    result,
+    types::typeof((types::instantiate(template, use), returnType))
+)
+```
+
+`parameters` and `returnType` here are language-authored slot symbols, not native built-ins. The example is a wiring sketch with identity values supplied by the host; it is not a complete language definition.
+
+Unregistered templates produce `types.template_ownership` after pending registration has had a chance to complete. Changing a template's ownership is an error. Templates containing owned meaning matches produce `types.template_match`: reusable match relationships are **PARKED**, and selected branches are not silently frozen into a reusable generic rule. Alternative template unions and positional writes combining local and captured identities are also explicitly **PARKED**. Instance identities and copied constraints are bounded by the analysis resource limit.
+
+Mini TypeScript continues to use shared signatures. Its automatic template ownership is **PARKED** pending this exact decision: should the original function pattern and its syntax descendants define the freshened region, with record handles created outside that region retained as captures, or must the language library explicitly designate the region and captures? A minimal stress case is `let outer = 1; function read(p) { return outer; }`: `p` must be fresh at each call, while `outer` must remain shared. Constraint reachability alone cannot distinguish these roles.
+
+`OperationContext::record_origin(id)` exposes the original syntax occurrence that allocated a record. It provides name-independent provenance for future ownership libraries; it does not establish a freshening policy.
