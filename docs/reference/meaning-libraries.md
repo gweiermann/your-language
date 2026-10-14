@@ -1,18 +1,18 @@
-# Meaning libraries
+# Semantic libraries
 
-Meaning libraries compose queries, contributions, guards, and diagnostics. The compiler bundles `std/references` and `std/types` as authored YL modules over the generic `std/query` primitives.
+Semantic libraries compose queries, contributions, guards, and diagnostics. The compiler bundles `std/references` and `std/types` as authored YL modules over the generic `core/query` primitives.
 
-`self` identifies the current syntax occurrence inside a node or pattern's `meanings` block, and captures identify their syntax occurrences directly. `referenceOf(value)` queries the declaration identity associated with a declaration or reference. `std/types` accepts either identity or a tuple key and does not perform name resolution itself.
+`self` identifies the current syntax occurrence inside a node or pattern's `semantics` block, and captures identify their syntax occurrences directly. `referenceOf(value)` queries the declaration identity associated with a declaration or reference. `std/types` accepts either identity or a tuple key and does not perform name resolution itself.
 
 Operations receive their targets explicitly; they do not inherit `self` from a caller:
 
 ```yl
 operation annotateNumber(target) {
-    types::annotate(target, number)
+    annotateWithType(target, number)
 }
 
 node Number = /[0-9]+/ {
-    meanings { annotateNumber(self) }
+    semantics { annotateNumber(self) }
 }
 ```
 

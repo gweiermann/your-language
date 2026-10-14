@@ -81,6 +81,8 @@ Omitted arguments use their declared defaults. Positional arguments precede name
 A rewrite may select one enum parameter or a tuple:
 
 ```yl
+import { error } from "core/diagnostics"
+
 enum Mode { strict permissive }
 
 pipe configured(first: Mode, second: Mode) {
@@ -99,3 +101,25 @@ Each tuple component corresponds to the selector in the same position. `_` match
 With exactly one enum parameter, the shorthand `rewrite value { .round => ... .square => ... }` selects that parameter. Multiple enum parameters require an explicit selector, even when only one controls a particular rewrite.
 
 See [Pipes and structural rewrite](./pipes#enum-selected-rewrites) for exhaustiveness, diagnostics, and output cardinality.
+
+## Type tags and attachment keys
+
+Enum variants are namespaced symbols in semantic queries. Their identities are stable and distinct from standalone symbols and other enums' variants. They can be used as values, nested tuple-key components, or semantic match cases:
+
+```yl
+import { annotateWithType, typeOf } from "std/types"
+
+export enum Type {
+    number
+    string
+    boolean
+}
+
+node Number = /[0-9]+/ {
+    semantics {
+        annotateWithType(self, Type::number)
+    }
+}
+```
+
+Use enums for related alternatives and standalone symbols for independent channels such as `returnType` or `parameters`. The type library supplies `unknown`; it does not define a language's primitive types. Destructuring variants directly from an enum is not supported.

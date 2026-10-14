@@ -37,7 +37,7 @@ node Group = contents: wrapped(Number)
 
 The argument `Number` supplies a grammar matcher. It is not a runtime AST argument or a string naming a rule. The compiler resolves and expands the pattern when compiling the language.
 
-Because literals produce values, `wrapped(Number)` returns a tuple containing the opening delimiter, the number node, and the closing delimiter. A pattern does not automatically discard delimiters. For a wrapper that preserves only the input value, use a [pipe](./pipes#wrapping-a-value).
+Because literals produce values, `wrapped(Number)` returns a tuple containing the opening delimiter, the number node, and the closing delimiter. A pattern does not automatically discard delimiters. For a wrapper that preserves only the input value, connectReference a [pipe](./pipes#wrapping-a-value).
 
 ## Named arguments and defaults
 

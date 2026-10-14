@@ -11,9 +11,9 @@ const reference = [
   ['Enums and arguments', 'enums'],
   ['Expression precedence', 'precedence'],
   ['Trivia and entry', 'trivia'],
-  ['Constraints and extensions', 'constraints'],
+  ['Checks and extensions', 'constraints'],
   ['Core and standard library', 'standard-library'],
-  ['Meaning libraries', 'meaning-libraries'],
+  ['Semantic libraries', 'meaning-libraries'],
   ['Syntax examples', 'examples'],
 ].map(([text, slug]) => ({ text, link: `/reference/${slug}` }))
 

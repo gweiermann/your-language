@@ -1,26 +1,26 @@
 # Declarative attachment queries
 
-Declarative meanings describe contributions to an analysis-local attachment store. Queries compose those contributions through identities, nested tuple keys, callbacks, and conditional operations. The engine discovers producers from the compiled language and committed syntax occurrences; language authors do not provide producer lists or dependency metadata.
+Declarative semantics describe contributions to an analysis-local attachment store. Queries compose those contributions through identities, nested tuple keys, callbacks, and conditional operations. The engine discovers producers from the compiled language and committed syntax occurrences; language authors do not provide producer lists or dependency metadata.
 
 ## Identities and keys
 
-`self` is the current node or pattern occurrence only inside its `meanings` block. Operations have no implicit caller occurrence: pass it as an argument. An operation may explicitly name a formal parameter `self`; that parameter is an ordinary lexical binding. Unbound `self` in an operation, including defaults and callbacks, is a definition error. Captures carry their original syntax identities and source information. Repeated captures are lists, optional captures can be `absent`, and patterns retain identities without adding AST wrappers.
+`self` is the current node or pattern occurrence only inside its `semantics` block. Operations have no implicit caller occurrence: pass it as an argument. An operation may explicitly name a formal parameter `self`; that parameter is an ordinary lexical binding. Unbound `self` in an operation, including defaults and callbacks, is a definition error. Captures carry their original syntax identities and source information. Repeated captures are lists, optional captures can be `absent`, and patterns retain identities without adding AST wrappers.
 
 ```yl
-import { contribute, get } from "std/query"
+import { contribute, get } from "core/query"
 
 symbol type
 symbol number
 
 node Number = value: /[0-9]+/
 {
-    meanings {
+    semantics {
         contribute((self, type), number)
     }
 }
 ```
 
-Keys can be identities, symbols, text, booleans, or nested tuples containing those values. Text and symbols remain distinct even when their spellings match. A tuple containing `absent` cannot identify an attachment, so its lookup returns `absent`. A pending key component keeps the lookup pending.
+Keys can be identities, symbols (including qualified enum variants), text, booleans, or nested tuples containing those values. Text and symbols remain distinct even when their spellings match. A tuple containing `absent` cannot identify an attachment, so its lookup returns `absent`. A pending key component keeps the lookup pending.
 
 ## Explicit targets and absent query paths
 
@@ -30,7 +30,7 @@ operation annotateNumber(target) {
 }
 
 node Number = /[0-9]+/ {
-    meanings { annotateNumber(self) }
+    semantics { annotateNumber(self) }
 }
 ```
 
@@ -38,9 +38,49 @@ Operations evaluate their bodies even when an argument is `absent`. Only the exp
 
 Ordinary query primitives propagate top-level `absent`. A pending input stays pending and retains its dependencies; it never becomes absence merely because evaluation has not finished. A key containing absence at any nested tuple position suppresses its lookup or contribution. Ordinary tuples and lists retain optional absent slots as data.
 
-Absence can still be inspected deliberately: `isPresent(absent)` is false, `isList(absent)` is false, `equal` compares absence explicitly, and `values(absent)` returns an empty list. `choose` evaluates only its selected branch, but an absent condition returns `absent`; negating absence also returns absence. An absent `if` condition activates neither branch.
+Absence can still be inspected deliberately: `isPresent(absent)` is false, `isList(absent)` is false, `equal` compares absence explicitly, and `values(absent)` returns an empty list. `choose` evaluates only its selected branch, but an absent condition returns `absent`; negating absence also returns absence. An absent `when` condition activates neither branch.
 
 For callbacks, `find` continues after an absent result, `map` preserves absent positions, `filter` excludes an absent predicate result, and `every` returns `absent` if a required predicate is absent. These rules preserve positional parameter and annotation lists.
+
+## Immutable local definitions and operation results
+
+Use `:=` to give a name to a dependency-tracked expression. The name is immutable; its value can remain pending until its dependencies settle. Textual order does not impose execution order, and sibling definitions can refer to one another. Duplicate definitions and unresolved definition cycles are errors.
+
+```yl
+import { connectReference } from "std/references"
+import { annotateWithType, typeOf } from "std/types"
+
+node Reference = name: Name {
+    semantics {
+        ref := connectReference(self, name)
+        inferredType := typeOf(ref)
+        annotateWithType(self, inferredType)
+    }
+}
+```
+
+An operation can combine tracked actions with a result. A single top-level `return` defines that result; it is not an imperative early exit. The operation's actions remain active even when the returned value is unused. Local definitions inside a guarded branch are scoped to that branch.
+
+```yl
+import { contribute } from "core/query"
+
+operation attachAndRead(target, value) {
+    contribute((target, metadata), value)
+    return value
+}
+```
+
+`when` enables contributions while its condition is true. It waits for pending inputs; false disables the branch. Use the same keyword in syntax-local `checks` blocks, whose conditions inspect parsed captures rather than semantic queries.
+
+## Core primitives and authored libraries
+
+`core/` modules expose engine capabilities that cannot be implemented as ordinary YL operations. `std/` modules are reusable authored YL libraries. Import diagnostic operations explicitly:
+
+```yl
+import { error, warn, hint } from "core/diagnostics"
+```
+
+They emit errors, warnings, and informational hints respectively. There are no implicit diagnostic names. Import aliases and namespace imports remain general module capabilities; documentation uses descriptive direct exports consistently.
 
 ## Contributions and lookup
 
@@ -73,14 +113,16 @@ The inner lookup reads a scope identity. The outer lookup uses that identity, a 
 ## Conditions and diagnostics
 
 ```yl
+import { error } from "core/diagnostics"
+
 operation requireName(name) {
-    if !isPresent(resolve(name)) {
+    when !isPresent(resolve(name)) {
         error("Unknown name '${name}'", name)
     }
 }
 ```
 
-`if` requires a boolean condition and supports an optional `else`. A pending condition keeps its possible contributions pending. A settled false condition rules its branch out. `match` selects the first matching case for each Cartesian combination of explicit alternative values and requires a final wildcard case. Branches may contribute values or emit diagnostics. Rereading a matched expression inside its branch yields that combination's selected member, including inside nested matches; unmatched alternatives do not become evidence through a branch reread.
+`when` requires a boolean condition and supports an optional `else`. A pending condition keeps its possible contributions pending. A settled false condition rules its branch out. `match` selects the first matching case for each Cartesian combination of explicit alternative values and requires a final wildcard case. Branches may contribute values or emit diagnostics. Rereading a matched expression inside its branch yields that combination's selected member, including inside nested matches; unmatched alternatives do not become evidence through a branch reread.
 
 The optional second diagnostic argument selects source syntax to underline; a third argument selects a related source location. Diagnostic messages can interpolate semantic expressions; pending interpolation values delay emission. Diagnostics belong to the evaluating occurrence and reflect its settled branch, so intermediate diagnostics do not accumulate across propagation rounds.
 
@@ -125,9 +167,9 @@ The implementation favors correctness over optimization: reads inspect candidate
 
 Use `SemanticEngine::compile`, optional `.ylc` serialization/reload, and `SemanticEngine::analyze`. Results include syntax occurrences, structured diagnostics, and `SemanticGraph.query_entries`, with normalized keys, values, producer IDs, and original source spans.
 
-Declarative artifacts use format version `4`, preventing older runtimes from silently discarding query definitions. Syntax-only artifacts remain version `1`, and native lifecycle artifacts remain version `2`. Reload validates callback bindings, captures, primitive arities, branch structure, owner references, and resource limits.
+Declarative artifacts use format version `5`, preventing older runtimes from silently discarding query definitions. Syntax-only artifacts remain version `1`, and native lifecycle artifacts remain version `2`. Reload validates callback bindings, captures, primitive arities, branch structure, owner references, and resource limits.
 
-The CLI's `yl language <language.ylc> check <source> [--json]` evaluates declarative meanings and supports both source-underlined diagnostics and machine-readable diagnostics. `parse_named` remains the syntax-only Rust API; use `SemanticEngine` for meanings.
+The CLI's `yl language <language.ylc> check <source> [--json]` evaluates declarative semantics and supports both source-underlined diagnostics and machine-readable diagnostics. `parse_named` remains the syntax-only Rust API; use `SemanticEngine` for semantics.
 
 See the [authored scopes tutorial](/tutorials/declarative-scopes) for a complete language.
 

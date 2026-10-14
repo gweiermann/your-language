@@ -51,6 +51,6 @@ Explicit `example "..."` metadata takes priority over bounded generation. The ge
 
 The initial server supports YL definitions, UTF-16 positions, full-document synchronization, diagnostics, formatting, CodeLens, inlay hints and imported-file invalidation. Untitled buffers support syntax diagnostics and formatting; save them for import resolution. Completion, navigation, rename, incremental parsing and target-language servers remain future work.
 
-Definition validation loads authored `std/references` and `std/types` modules over the generic query primitives; `std/variables` is a compatibility import alias. Unavailable custom native libraries produce diagnostics. The CLI [`fmt`](/api/cli#format-yl-definitions) and `examples` commands remain independent tools for scripts and agents.
+Definition validation loads authored `std/references` and `std/types` modules over the generic query primitives; `std/references` is a compatibility import alias. Unavailable custom native libraries produce diagnostics. The CLI [`fmt`](/api/cli#format-yl-definitions) and `examples` commands remain independent tools for scripts and agents.
 
 Selected trivia accepting one space permits readable spacing between grammar fragments. No keyword rules are inferred; parser validation and bounded unspaced fallbacks preserve adjacency requirements.

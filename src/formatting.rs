@@ -348,6 +348,7 @@ impl Layout {
     fn meaning_action(&mut self, action: &MeaningSyntaxAction) {
         match action {
             MeaningSyntaxAction::Call(call) => self.line(&call.span, false),
+            MeaningSyntaxAction::Binding { span, .. } | MeaningSyntaxAction::Return { span, .. } => self.line(span, false),
             MeaningSyntaxAction::If {
                 actions,
                 otherwise,
@@ -453,7 +454,7 @@ impl Layout {
                         if depth == 1
                             && matches!(
                                 word.as_str(),
-                                "meanings" | "precedence" | "constraints"
+                                "semantics" | "precedence" | "checks"
                             )
                             && !container.members.iter().any(|member| {
                                 member.start <= token.span.start && token.span.end <= member.end

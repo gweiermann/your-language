@@ -20,26 +20,28 @@ The authored library is `stdlib/references.yl`, available through the canonical 
 ```yl
 export symbol scope
 
-export operation lexicalScope(target) {
+export operation createLexicalScope(target) {
     contribute((target, scope), target)
 }
 ```
 
-`Program` and `Block` invoke `lexicalScope(self)` in their meanings blocks. The operation receives that occurrence explicitly and has no implicit `self`. Their syntax identities are scope identifiers. No scope map or push/pop lifecycle is necessary.
+`Program` and `Block` invoke `createLexicalScope(self)` in their semantics blocks. The operation receives that occurrence explicitly and has no implicit `self`. Their syntax identities are scope identifiers. No scope map or push/pop lifecycle is necessary.
 
 ## Register a declaration
 
 ```yl
+import { error } from "core/diagnostics"
+
 export operation enclosingScope(value) =
     find(ancestors(value), ancestor => get((ancestor, scope)))
 
-export operation declare(target, name, reassignable = true) {
+export operation declareName(target, name, reassignable = true) {
     contribute((enclosingScope(name), declarations, text(name)), target)
     contribute((name, referenceIdentity), target)
     contribute((target, referenceIdentity), target)
     contribute((target, reassignableSymbol), reassignable)
 
-    if hasMultiple(getAll((enclosingScope(name), declarations, text(name)))) {
+    when hasMultiple(getAll((enclosingScope(name), declarations, text(name)))) {
         error("Duplicate declaration '${name}'", name)
     }
 }

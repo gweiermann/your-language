@@ -144,12 +144,14 @@ This metadata affects tooling, not accepted syntax, AST fields or meaning operat
 An extension adds constraints to an existing node while retaining its canonical grammar:
 
 ```yl
+import { warn } from "core/diagnostics"
+
 import { Name } from "./lexical"
 
 extend node Name {
-    constraints {
+    checks {
         when value.matches(/^[A-Z]/) {
-            warning("Names conventionally start with a lowercase letter.")
+            warn("Names conventionally start with a lowercase letter.")
         }
     }
 }

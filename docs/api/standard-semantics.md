@@ -7,39 +7,39 @@ The compiler bundles `std/references` and `std/types` as ordinary YL modules. Th
 ## Reference identities and scopes
 
 ```yl
-import { lexicalScope, declare, use, referenceOf } from "std/references"
+import { createLexicalScope, declareName, connectReference, referenceOf } from "std/references"
 
 node Declaration = "let" name: Name ";" {
-    meanings { declare(self, name) }
+    semantics { declareName(self, name) }
 }
 
 node Reference = name: Name {
-    meanings { use(self, name) }
+    semantics { connectReference(self, name) }
 }
 
 node Program = (Declaration | Reference)* {
-    meanings { lexicalScope(self) }
+    semantics { createLexicalScope(self) }
 }
 ```
 
-`lexicalScope(target)` contributes `(target, scope) -> target`. Call it as `lexicalScope(self)` inside meanings; operations have no implicit `self`. Scope identities are attached to syntax; they are not a mutable current-scope stack. `declare(target, name, reassignable = true)` contributes `(scopeIdentity, declarations, text(name)) -> declarationIdentity` and associates the exact name capture with that identity. `use(target, name)` resolves enclosing scopes, associates the use and its name capture, and reports an unknown-name diagnostic if no declaration exists.
+`createLexicalScope(target)` contributes `(target, scope) -> target`. Call it as `createLexicalScope(self)` inside semantics; operations have no implicit `self`. Scope identities are attached to syntax; they are not a mutable current-scope stack. `declareName(target, name, reassignable = true)` contributes `(scopeIdentity, declarations, text(name)) -> declarationIdentity` and associates the exact name capture with that identity. `connectReference(target, name)` resolves enclosing scopes, returns the declaration identity, associates the occurrence and its name capture, and reports an unknown-name diagnostic if no declaration exists.
 
-`reference(target)` reads the association of the supplied syntax occurrence. `referenceOf(value)` reads the association of a capture or syntax identity. An unassociated value returns `absent`. Dollar signs, prefixes and other target-language syntax can remain outside the supplied name capture.
+`referenceOf(value)` reads the association of a capture or syntax identity. An unassociated value returns `absent`. Dollar signs, prefixes and other target-language syntax can remain outside the supplied name capture.
 
 The library diagnoses same-scope duplicates and preserves inner shadowing. Declaration visibility uses the static meaning schedule: a declaration must precede its use. This includes source order, named groups, explicit precedence and boundaries. A self-initializer is rejected; explicit precedence can hoist function registration ahead of uses. Pending visible declarations are resolved before selecting an outer binding. Exported metadata symbols include `scope`, `declarations`, `referenceIdentity`, `reassignableSymbol` and `nameSymbol`.
 
-`std/variables` aliases this same module and its symbol identities. Compatibility syntax helpers `identity(target)`, `identityOf(value)`, `identities(value)` and `childIdentity(target)` select syntax identities; new definitions can use `self`, captures and `children(self)` directly.
+Syntax captures and `self` carry their identities directly; redundant identity wrappers are not exported.
 
 ## Type evidence and restrictions
 
 ```yl
-import * as types from "std/types"
+import { annotateWithType } from "std/types"
 
 symbol number
 symbol string
 
 node Number = /[0-9]+/ {
-    meanings { types::annotate(self, number) }
+    semantics { annotateWithType(self, number) }
 }
 ```
 
@@ -47,21 +47,21 @@ The standard library defines `unknown` and the metadata-channel symbol `type`. T
 
 | Operation | Behavior |
 | --- | --- |
-| `annotate(key, value)` | Contribute possible type evidence at `(key, type)`. Repeated evidence is deduplicated; different evidence forms a union. |
+| `annotateWithType(key, value)` | Contribute possible type evidence at `(key, type)`. Repeated evidence is deduplicated; different evidence forms a union. |
 | `candidates(key)` | Read the current distinct evidence as a list during fixed-point propagation. |
-| `typeof(key)` | Read one type, a set of alternatives, or `unknown` for an existing key with no evidence. An absent key returns `absent`. |
+| `typeOf(key)` | Read one type, a set of alternatives, or `unknown` for an existing key with no evidence. An absent key returns `absent`. |
 | `compatible(actual, expected)` | Check candidate membership; `unknown` remains permissive. Languages can author different structural compatibility rules. |
-| `restrictTo(key, expected, target = key, related = absent)` | Validate observed evidence without changing it. Emit an authored diagnostic at `target`, optionally marking a related annotation. |
-| `resolveWith(result, assumptions)` | Recompute a result under explicit temporary type assignments, preserving the original store. |
+| `restrictTypeTo(key, expected, target = key, related = absent)` | Validate observed evidence without changing it. Emit an authored diagnostic at `target`, optionally marking a related annotation. |
+| `resolveTypeWith(result, assumptions)` | Recompute a result under explicit temporary type assignments, preserving the original store. |
 
-Keys can be syntax identities, resolved declaration identities or nested tuples. `(functionIdentity, returnType)` can describe a function's return without assigning a type to its body block. An ordered list is an ordinary compound value, not automatically a union. Repeated syntax captures are lists: use `map(captures, value => types::typeof(value))` to form a positional type list.
+Keys can be syntax identities, resolved declaration identities or nested tuples. `(functionIdentity, returnType)` can describe a function's return without assigning a type to its body block. An ordered list is an ordinary compound value, not automatically a union. Repeated syntax captures are lists: use `map(captures, value => typeOf(value))` to form a positional type list.
 
 A restriction alone does not annotate a value. An initializer contributes actual evidence; an explicit declaration annotation restricts that evidence:
 
 ```yl
 operation bindingType(name, initializer, annotation) {
-    types::annotate(referenceOf(name), types::typeof(initializer))
-    types::restrictTo(referenceOf(name), types::typeof(annotation), initializer, annotation.value)
+    annotateWithType(referenceOf(name), typeOf(initializer))
+    restrictTypeTo(referenceOf(name), typeOf(annotation), initializer, annotation.value)
 }
 ```
 
@@ -74,13 +74,13 @@ The initializer remains the primary error location; the related source points to
 Each assumption is `(logicalTypeKey, temporaryType)`, optionally followed by an originating source capture. Only supplied keys are overridden. Dependent relationships are recalculated; outer captures and original parameter evidence remain unchanged.
 
 ```yl
-types::resolveWith(
+resolveTypeWith(
     (functionIdentity, returnType),
     [((functionIdentity, parameters, "value"), number, argument)]
 )
 ```
 
-`resolveWith` forwards authored error and warning contributions associated with the demanded relationships. A diagnostic whose dependencies reach one explicit origin underlines that argument; otherwise it underlines the invoking syntax and retains the original diagnostic location as related source. Successful union alternatives remain available when another alternative reports an error.
+`resolveTypeWith` forwards authored error and warning contributions associated with the demanded relationships. A diagnostic whose dependencies reach one explicit origin underlines that argument; otherwise it underlines the invoking syntax and retains the original diagnostic location as related source. Successful union alternatives remain available when another alternative reports an error.
 
 Explicit return annotations can serve as authored recursive-call anchors. Unanchored recursive hypotheses report structured cycles; the evaluator does not guess a target-language return type. Hypothetical nesting, alternative combinations and artifact depth are bounded.
 

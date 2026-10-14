@@ -26,12 +26,12 @@ test('packaged grammar equals docs source and tokenizes representative YL syntax
   scope('pattern A = /a\\/b/ |> wrap(.A)', '/a', 'string.regexp.yl');
   scope('pattern A = /a\\/b/ |> wrap(.A)', '|>', 'keyword.operator.yl');
   scope('pattern A = /a\\/b/ |> wrap(.A)', '.A', 'constant.other.enum.yl');
-  scope('meanings { boundary match (typeof(left), typeof(right)) {} }', 'boundary', 'keyword.control.yl');
-  scope('meanings { boundary match (typeof(left), typeof(right)) {} }', 'match', 'keyword.control.yl');
-  scope('meanings { boundary match (typeof(left), typeof(right)) {} }', 'typeof', 'entity.name.function.yl');
-  scope('if isPresent(self) {} else {}', 'if', 'keyword.control.yl');
-  scope('if isPresent(self) {} else {}', 'else', 'keyword.control.yl');
-  scope('if isPresent(self) {} else {}', 'self', 'constant.language.yl');
+  scope('semantics { boundary match (typeOf(left), typeOf(right)) {} }', 'boundary', 'keyword.control.yl');
+  scope('semantics { boundary match (typeOf(left), typeOf(right)) {} }', 'match', 'keyword.control.yl');
+  scope('semantics { boundary match (typeOf(left), typeOf(right)) {} }', 'typeOf', 'entity.name.function.yl');
+  scope('when isPresent(self) {} else {}', 'when', 'keyword.control.yl');
+  scope('when isPresent(self) {} else {}', 'else', 'keyword.control.yl');
+  scope('when isPresent(self) {} else {}', 'self', 'constant.language.yl');
   for (const text of [
     'find(ancestors(self), ancestor => get((ancestor, scope)))',
     'number, number => annotateWithType(number),',
@@ -44,6 +44,11 @@ test('packaged grammar equals docs source and tokenizes representative YL syntax
   }
   scope('"ancestor => value"', '=>', 'string.quoted.double.yl');
   scope('// ancestor => value', '=>', 'comment.line.double-slash.yl');
+  scope('ref := connectReference(self, name)', ':=', 'keyword.operator.yl');
+  scope('ref := connectReference(self, name)', 'ref', 'variable.other.constant.yl');
+  scope('return ref', 'return', 'keyword.control.yl');
+  scope('checks {}', 'checks', 'keyword.control.yl');
+  scope('semantics {}', 'semantics', 'keyword.control.yl');
   scope('// node fake', 'node', 'comment.line.double-slash.yl');
   scope('"node \\"literal\\""', 'node', 'string.quoted.double.yl');
   registry.dispose();

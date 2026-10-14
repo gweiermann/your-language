@@ -134,13 +134,15 @@ Tuple cases have one component per selector. `_` can match a component or the co
 Use a block when a case emits a diagnostic:
 
 ```yl
+import { error, warn } from "core/diagnostics"
+
 rewrite value match (first, second) {
     (.strict, .strict) => "(" value ")"
     (.strict, .permissive) => {
         error("This combination is not supported.")
     }
     _ => {
-        warning("No delimiter was applied for this configuration.")
+        warn("No delimiter was applied for this configuration.")
         value
     }
 }
