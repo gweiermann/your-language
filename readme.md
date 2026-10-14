@@ -1,6 +1,6 @@
 # Your Language
 
-**Define a language. Compile it once. Parse it anywhere.**
+**Define syntax. Compose meaning. Build language tools.**
 
 Your Language is a declarative language for building parsers, structured abstract syntax trees, and precise diagnostics. Describe a language's syntax in YL, compile it into a reusable `.ylc` artifact, and parse source through the CLI or Rust API.
 
@@ -49,6 +49,29 @@ pattern Arguments = Expression* |> separatedBy(",")
 
 Syntax-local constraints can also add errors, warnings, and help messages to a language. Explore the [MiniJS example](./examples/mini-js/) for expressions, functions, calls, precedence, and comments working together.
 
+## Compose meaning
+
+Language-authored meanings connect syntax to reusable native analysis libraries. The [Mini TypeScript example](./examples/mini_typescript/) demonstrates scopes, resolved bindings and inferred types through ordinary imported operations:
+
+```yl
+import { annotateWithType } from "./typing"
+import { number } from "./types"
+
+node Number = value: /[0-9]+/ {
+    meanings {
+        annotateWithType(number)
+    }
+}
+```
+
+The language owns its primitive type symbols and operator rules; the Rust libraries supply identity-keyed constraints. Run the complete example from the repository root:
+
+```sh
+cargo run --example mini_typescript -- addition
+```
+
+It reports `numberSum: number`, `stringSum: string` and the types of the other bindings. This experimental inference API uses equality constraints and monomorphic function signatures. See the [semantic tutorial](https://gweiermann.github.io/your-language/tutorials/semantic-inference) for the full workflow and limits.
+
 ## Run a language
 
 Install the CLI from the repository:
@@ -83,7 +106,7 @@ yl language minijs.ylc check examples/mini-js/invalid.js --json
 
 ## Documentation
 
-The [VS Code extension](./editors/vscode/) provides YL syntax highlighting and formats definitions through the CLI. See the [editor setup guide](https://gweiermann.github.io/your-language/guide/editor) for installation and configuration.
+The [VS Code extension](./editors/vscode/) provides highlighting, live definition diagnostics, formatting and copyable example previews through the Rust language server. See the [editor setup guide](https://gweiermann.github.io/your-language/guide/editor) for installation and configuration.
 
 Visit the [Your Language documentation](https://gweiermann.github.io/your-language/) for tutorials, the language reference, and CLI and Rust API guides.
 
@@ -103,9 +126,9 @@ npm run docs:dev
 
 Planned development extends the syntax, AST, and diagnostic foundation across four areas:
 
-- **Language analysis:** relations, traits, scopes, declaration and reference resolution, and semantic diagnostics.
-- **Developer tooling:** editor integration, language-server support, and incremental parsing.
+- **Language analysis:** generalize the experimental native meaning libraries with richer type inference, flow analysis and reusable analysis protocols.
+- **Developer tooling:** extend the YL language server with navigation and completion, then explore tooling for languages defined in YL and incremental analysis.
 - **Execution and integration:** parser generation, runtime performance, and bindings for additional host environments.
-- **Language authoring:** grammar inspection, reusable libraries, and node metadata.
+- **Language authoring:** expand grammar inspection, reusable libraries and parser-validated examples.
 
 See the [roadmap](https://gweiermann.github.io/your-language/roadmap) for more detail.

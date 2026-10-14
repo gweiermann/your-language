@@ -85,9 +85,9 @@ Absent optional annotations contribute no requirement: `identityOf(absent)` and 
 ```yl
 match (typeof(left), typeof(right)) {
     string, string | string, number | number, string => annotateWithType(string),
-    number, number => annotateWithType(number),
-    unknown, _ | _, unknown => annotateWithType(unknown),
-    _ => error("${left} + ${right} is not possible")
+    number, number                                 => annotateWithType(number),
+    unknown, _ | _, unknown                         => annotateWithType(unknown),
+    _                                              => error("${left} + ${right} is not possible")
 }
 ```
 
@@ -95,7 +95,7 @@ Changing this definition changes the language's accepted combinations. The nativ
 
 ## Native implementation and limits
 
-The generic library uses equality constraints, variable equivalence classes, lists and symbolic slot projections. It checks list arity and cyclic type shapes. Failed unification rolls back its partial changes before reporting a diagnostic. Type queries preserve source origins so annotation errors underline the annotation.
+The generic library uses equality constraints, variable equivalence classes, lists and symbolic slot projections. It checks list arity and cyclic type shapes. Failed unification rolls back its partial changes before reporting a diagnostic. Type queries preserve source origins so a mismatch underlines the incompatible value and identifies the required annotation as a related location.
 
 Constraint collectors declare `finalization_only` in their native interface: their effects occur after ordinary traversal and retain their order relative to other collectors. They cannot provide live lifecycle contexts. Deferred handles are analysis-local; matches resolve them through their owning service. Query evaluation is retryable and publishes no external effects.
 
