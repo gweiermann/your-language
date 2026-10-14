@@ -6,6 +6,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::{any::Any, collections::BTreeMap, sync::Arc};
 pub mod lexical;
+pub mod queries;
 mod scheduler;
 pub mod syntax;
 pub mod types;
@@ -351,6 +352,10 @@ pub struct Attachment {
 pub struct SemanticGraph {
     pub records: Vec<SemanticRecord>,
     pub attachments: Vec<Attachment>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub query_entries: Vec<queries::QueryEntry>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub query_dependencies: Vec<queries::QueryDependency>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AnalysisResult {
@@ -798,6 +803,7 @@ impl Default for SemanticEngine {
         let mut registry = lexical::registry();
         types::register(&mut registry).expect("standard modules have disjoint exports");
         syntax::register(&mut registry).expect("standard modules have disjoint exports");
+        queries::register(&mut registry).expect("standard modules have disjoint exports");
         Self::new(registry)
     }
 }
@@ -868,6 +874,12 @@ fn analyze(
         execute(
             language,
             registry,
+            &result.occurrences,
+            &mut result.graph,
+            &mut result.diagnostics,
+        );
+        queries::execute(
+            language,
             &result.occurrences,
             &mut result.graph,
             &mut result.diagnostics,

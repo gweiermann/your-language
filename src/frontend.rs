@@ -161,12 +161,23 @@ impl Parser {
                 OperationBody::Query(self.semantic_value()?)
             } else {
                 self.expect("{")?;
-                let mut calls = vec![];
-                while !self.is("}") {
-                    calls.push(self.meaning_call()?);
+                let actions = self.meaning_block()?;
+                if actions
+                    .iter()
+                    .all(|action| matches!(action, MeaningSyntaxAction::Call(_)))
+                {
+                    OperationBody::Actions(
+                        actions
+                            .into_iter()
+                            .map(|action| match action {
+                                MeaningSyntaxAction::Call(call) => call,
+                                _ => unreachable!(),
+                            })
+                            .collect(),
+                    )
+                } else {
+                    OperationBody::Conditional(actions)
                 }
-                self.expect("}")?;
-                OperationBody::Actions(calls)
             };
             DeclKind::Operation {
                 name,
@@ -496,7 +507,24 @@ impl Parser {
                 "Semantic value nesting exceeds resource limit",
             ));
         }
-        let kind = if self.is("(") || self.is("[") {
+        let kind = if self.take("!") {
+            ExprKind::Not(Box::new(self.semantic_value()?))
+        } else if matches!(self.token().kind, TokenKind::Word(_))
+            && matches!(self.peek(1), TokenKind::Symbol(value) if value == "=>")
+        {
+            let parameter = self.word()?;
+            if matches!(parameter.as_str(), "self" | "absent" | "true" | "false") {
+                return Err(self.error(
+                    "yl.invalid_callback_parameter",
+                    "Callback parameter cannot shadow a core value",
+                ));
+            }
+            self.expect("=>")?;
+            ExprKind::Lambda {
+                parameter,
+                body: Box::new(self.semantic_value()?),
+            }
+        } else if self.is("(") || self.is("[") {
             let list = self.take("[");
             if !list {
                 self.expect("(")?;
@@ -548,6 +576,47 @@ impl Parser {
             span: self.span_from(&start),
         })
     }
+    fn meaning_block(&mut self) -> Result<Vec<MeaningSyntaxAction>> {
+        let mut actions = vec![];
+        while !self.is("}") {
+            actions.push(self.meaning_action()?);
+        }
+        self.expect("}")?;
+        Ok(actions)
+    }
+    fn meaning_action(&mut self) -> Result<MeaningSyntaxAction> {
+        let start = self.token().span.clone();
+        self.depth += 1;
+        if self.depth > 128 {
+            return Err(self.error(
+                "yl.depth_limit",
+                "Meaning action nesting exceeds resource limit",
+            ));
+        }
+        let action = if self.take("if") {
+            let condition = self.semantic_value()?;
+            self.expect("{")?;
+            let actions = self.meaning_block()?;
+            let otherwise = if self.take("else") {
+                self.expect("{")?;
+                self.meaning_block()?
+            } else {
+                vec![]
+            };
+            MeaningSyntaxAction::If {
+                condition,
+                actions,
+                otherwise,
+                span: self.span_from(&start),
+            }
+        } else if self.take("match") {
+            MeaningSyntaxAction::Match(self.meaning_match(start)?)
+        } else {
+            MeaningSyntaxAction::Call(self.meaning_call()?)
+        };
+        self.depth -= 1;
+        Ok(action)
+    }
     fn meaning_call(&mut self) -> Result<MeaningSyntaxCall> {
         let start = self.token().span.clone();
         let name = self.path()?;
@@ -591,18 +660,23 @@ impl Parser {
                 }
             }
             self.expect("=>")?;
-            let mut actions = vec![];
-            if self.take("{") {
-                while !self.is("}") {
-                    actions.push(self.meaning_call()?);
-                }
-                self.expect("}")?;
+            let all_actions = if self.take("{") {
+                self.meaning_block()?
             } else {
-                actions.push(self.meaning_call()?);
+                vec![self.meaning_action()?]
+            };
+            let mut actions = vec![];
+            let mut nested_actions = vec![];
+            for action in all_actions {
+                match action {
+                    MeaningSyntaxAction::Call(call) => actions.push(call),
+                    other => nested_actions.push(other),
+                }
             }
             cases.push(MeaningSyntaxCase {
                 alternatives,
                 actions,
+                nested_actions,
                 span: self.span_from(&case_start),
             });
             self.take(",");
@@ -645,12 +719,17 @@ impl Parser {
             } else if self.take("group") {
                 let name = self.word()?;
                 self.expect("{")?;
+                let all_actions = self.meaning_block()?;
                 let mut calls = vec![];
-                while !self.is("}") {
-                    calls.push(self.meaning_call()?);
+                let mut actions = vec![];
+                for action in all_actions {
+                    match action {
+                        MeaningSyntaxAction::Call(call) => calls.push(call),
+                        other => actions.push(other),
+                    }
                 }
-                self.expect("}")?;
                 groups.push(MeaningSyntaxGroup {
+                    actions,
                     name: Some(name),
                     calls,
                     matching: None,
@@ -659,9 +738,19 @@ impl Parser {
             } else if self.take("match") {
                 let matching = self.meaning_match(start.clone())?;
                 groups.push(MeaningSyntaxGroup {
+                    actions: vec![],
                     name: None,
                     calls: vec![],
                     matching: Some(matching),
+                    span: self.span_from(&start),
+                });
+            } else if self.is("if") {
+                let action = self.meaning_action()?;
+                groups.push(MeaningSyntaxGroup {
+                    name: None,
+                    calls: vec![],
+                    matching: None,
+                    actions: vec![action],
                     span: self.span_from(&start),
                 });
             } else if self.take("precedence") {
@@ -683,6 +772,7 @@ impl Parser {
             } else {
                 let call = self.meaning_call()?;
                 groups.push(MeaningSyntaxGroup {
+                    actions: vec![],
                     name: None,
                     span: call.span.clone(),
                     calls: vec![call],
@@ -1116,5 +1206,50 @@ impl Parser {
         self.expect("}")?;
         self.depth -= 1;
         Ok(body)
+    }
+}
+
+#[cfg(test)]
+mod query_syntax_tests {
+    use super::*;
+    #[test]
+    fn expression_callbacks_and_nested_conditional_actions_roundtrip() {
+        let source = r#"import { get, find, ancestors, contribute, isPresent } from "std/query"
+export symbol scope
+operation resolve(name) = find(ancestors(self), ancestor => get((get((ancestor, scope)), name)))
+operation declare(name) {
+    if isPresent(name) {
+        match (name) {
+            true => { if true { contribute((self, scope), name) } },
+            _ => warn("Missing ${name}")
+        }
+    } else { error("No name") }
+}
+node Program = name: /[a-z]+/ { meanings { if !isPresent(resolve(name)) { declare(name) } } }
+entry Program
+"#;
+        let parsed = parse_yl("query.yl", source).unwrap();
+        assert!(parsed.declarations.iter().any(|decl| matches!(
+            &decl.kind,
+            DeclKind::Operation {
+                body: OperationBody::Conditional(_),
+                ..
+            }
+        )));
+        let formatted = crate::format_yl("query.yl", source).unwrap();
+        assert_eq!(crate::format_yl("query.yl", &formatted).unwrap(), formatted);
+        let reparsed = parse_yl("query.yl", &formatted).unwrap();
+        assert_eq!(parsed.declarations.len(), reparsed.declarations.len());
+        assert!(formatted.contains("ancestor =>"));
+    }
+    #[test]
+    fn malformed_callbacks_and_conditionals_are_diagnostics() {
+        for source in [
+            "operation q() = find([], item =>)",
+            "operation q() { if true missing() }",
+            "operation q() { if true { q() } else q() }",
+        ] {
+            assert!(parse_yl("bad.yl", source).is_err(), "{source}");
+        }
     }
 }

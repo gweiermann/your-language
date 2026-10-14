@@ -298,13 +298,19 @@ impl Layout {
                     self.constraint(constraint);
                 }
             }
-            DeclKind::Operation { body, .. } => {
-                if let crate::syntax::OperationBody::Actions(calls) = body {
+            DeclKind::Operation { body, .. } => match body {
+                OperationBody::Actions(calls) => {
                     for call in calls {
                         self.line(&call.span, false);
                     }
                 }
-            }
+                OperationBody::Conditional(actions) => {
+                    for action in actions {
+                        self.meaning_action(action);
+                    }
+                }
+                OperationBody::Query(_) => {}
+            },
             DeclKind::Entry { .. } | DeclKind::Symbol { .. } => {}
         }
     }
@@ -315,10 +321,16 @@ impl Layout {
             for call in &group.calls {
                 self.line(&call.span, false);
             }
+            for action in &group.actions {
+                self.meaning_action(action);
+            }
             if let Some(matching) = &group.matching {
                 self.line(&matching.span, false);
                 for case in &matching.cases {
                     self.line(&case.span, false);
+                    for action in &case.nested_actions {
+                        self.meaning_action(action);
+                    }
                     for action in &case.actions {
                         // Single actions stay on the case's line. Blocks with
                         // several actions receive one line per call.
@@ -331,6 +343,36 @@ impl Layout {
         }
         for chain in &meanings.precedence {
             self.line(&chain.span, false);
+        }
+    }
+    fn meaning_action(&mut self, action: &MeaningSyntaxAction) {
+        match action {
+            MeaningSyntaxAction::Call(call) => self.line(&call.span, false),
+            MeaningSyntaxAction::If {
+                actions,
+                otherwise,
+                span,
+                ..
+            } => {
+                self.line(span, false);
+                for action in actions.iter().chain(otherwise) {
+                    self.meaning_action(action);
+                }
+            }
+            MeaningSyntaxAction::Match(matching) => {
+                self.line(&matching.span, false);
+                for case in &matching.cases {
+                    self.line(&case.span, false);
+                    if case.actions.len() + case.nested_actions.len() > 1 {
+                        for call in &case.actions {
+                            self.line(&call.span, false);
+                        }
+                    }
+                    for action in &case.nested_actions {
+                        self.meaning_action(action);
+                    }
+                }
+            }
         }
     }
     fn constraint(&mut self, constraint: &Constraint) {
