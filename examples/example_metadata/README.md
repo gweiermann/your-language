@@ -1,7 +1,7 @@
 # Experimental syntax examples
 
 This prototype answers whether a definition can supply one small, parser-validated
-representative and display it inline in an editor. It does not generate tutorials,
+representative and display it above a declaration or inline in an editor. It does not generate tutorials,
 execute semantic operations, or promise a complete regex/grammar synthesizer.
 
 ```yl
@@ -66,7 +66,7 @@ same data to native consumers. Tooling templates and explicit metadata survive
 rules; wrappers carrying authored pattern examples are transparent during parsing.
 The extended artifact shape remains experimental.
 
-For inline VS Code previews, build/install this branch's CLI and VSIX, then set:
+For VS Code previews, build/install the CLI and VSIX from the same revision, then set:
 
 ```json
 {
@@ -75,7 +75,7 @@ For inline VS Code previews, build/install this branch's CLI and VSIX, then set:
 }
 ```
 
-The extension connects to `yl lsp` and adds inlay hints such as `example: "42"`
+The extension connects to `yl lsp` and adds CodeLens labels such as `example: 42`
 above declarations by default. Clicking a CodeLens label copies the complete example;
 `yourLanguage.exampleDisplay` selects `above`, `inline` or `off`. CodeLens must be
 enabled in VS Code (`editor.codeLens`). No comments are inserted. It requires workspace trust and launches without a shell.

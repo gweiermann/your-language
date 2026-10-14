@@ -127,6 +127,18 @@ node Names = values: Name*
 
 `values` is an array, including `[]` when no names match. Parenthesized grammar lets a capture include a larger optional or repeated fragment.
 
+## Representative examples
+
+Nodes and parameterless patterns can provide parser-validated examples:
+
+```yl
+node Number = /[0-9]+/ {
+    example "42"
+}
+```
+
+This metadata affects tooling, not accepted syntax, AST fields or meaning operations. Explicit examples override automatic generation. See [syntax examples](./examples) for composition, validation and generator limits.
+
 ## Extending a node
 
 An extension adds constraints to an existing node while retaining its canonical grammar:
