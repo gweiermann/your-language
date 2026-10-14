@@ -357,16 +357,17 @@ impl<'a> Engine<'a> {
                         .get(*position)
                         .cloned()
                         .unwrap_or_else(|| outer.span.clone());
-                    *position += 1;
                     span
                 }
                 _ => outer.span.clone(),
             };
+            *position += 1;
             let occurrences = match selected {
                 OccurrenceSelection::One(id) => vec![id],
                 _ => vec![],
             };
             SemanticValue::Source(SourceCapture {
+                element_occurrences: vec![],
                 element_spans: vec![],
                 selection: Some(selected),
                 repeated: false,
@@ -595,7 +596,7 @@ impl<'a> Engine<'a> {
         if facts {
             let mut unique = vec![];
             for value in values {
-                if !unique.contains(&value) {
+                if !unique.iter().any(|item| equal_values(item, &value)) {
                     unique.push(value);
                 }
             }
@@ -1059,7 +1060,7 @@ impl<'a> Engine<'a> {
                     {
                         let mut unique = vec![];
                         for value in values {
-                            if !unique.contains(&value) {
+                            if !unique.iter().any(|item| equal_values(item, &value)) {
                                 unique.push(value);
                             }
                         }

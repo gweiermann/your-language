@@ -127,6 +127,9 @@ pub struct MeaningSelector {
 /// Preserved semantic value and its original source extent. Pipe wrappers do not
 /// widen this extent; syntax-local captures separately retain grammar match spans.
 pub struct SourceCapture {
+    /// Parser provenance before committed identities are assigned.
+    #[serde(skip)]
+    pub(crate) element_occurrences: Vec<Vec<usize>>,
     /// Exact grammar-match spans of repeated values, without reconstructing text.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub element_spans: Vec<Span>,
@@ -283,9 +286,16 @@ impl Occurrence {
                 .map(|(a, b)| Span::new(&a.span.file, a.span.start, b.span.end))
                 .unwrap_or_else(|| capture.span.clone());
             capture = SourceCapture {
+                element_occurrences: vec![],
                 element_spans: selected
                     .iter()
-                    .flat_map(|item| item.element_spans.clone())
+                    .flat_map(|item| {
+                        if item.element_spans.is_empty() && !item.repeated {
+                            vec![item.span.clone()]
+                        } else {
+                            item.element_spans.clone()
+                        }
+                    })
                     .collect(),
                 selection,
                 repeated: true,
@@ -960,6 +970,7 @@ mod tests {
             captures: BTreeMap::from([(
                 "name".into(),
                 SourceCapture {
+                    element_occurrences: vec![],
                     element_spans: vec![],
                     selection: None,
                     repeated: false,
