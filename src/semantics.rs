@@ -74,6 +74,8 @@ pub struct MeaningCall {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MeaningValue {
+    /// Current caller occurrence, independent of imported libraries.
+    SelfValue,
     Absent,
     Tuple(Vec<MeaningValue>),
     List(Vec<MeaningValue>),
@@ -124,6 +126,12 @@ pub struct MeaningSelector {
 /// Preserved semantic value and its original source extent. Pipe wrappers do not
 /// widen this extent; syntax-local captures separately retain grammar match spans.
 pub struct SourceCapture {
+    /// Nested occurrence selection for projections through repeated parents.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selection: Option<OccurrenceSelection>,
+    /// Repetition of syntax occurrences, independent of a pattern's value shape.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub repeated: bool,
     pub value: AstValue,
     pub span: Span,
     pub text: String,
@@ -131,6 +139,36 @@ pub struct SourceCapture {
     /// Empty for terminals and absent optional captures; survives projections.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub occurrences: Vec<usize>,
+}
+/// Shape of an occurrence-valued capture projection, independent of its AST.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum OccurrenceSelection {
+    One(usize),
+    /// Syntax captured directly from a terminal, without an AST wrapper.
+    Terminal(usize),
+    List(Vec<OccurrenceSelection>),
+    Absent,
+}
+impl SourceCapture {
+    pub fn occurrence_selection(&self) -> Option<OccurrenceSelection> {
+        if let Some(selection) = &self.selection {
+            return Some(selection.clone());
+        }
+        if self.value == AstValue::None {
+            Some(OccurrenceSelection::Absent)
+        } else if self.repeated {
+            Some(OccurrenceSelection::List(
+                self.occurrences
+                    .iter()
+                    .map(|id| OccurrenceSelection::One(*id))
+                    .collect(),
+            ))
+        } else if self.occurrences.len() == 1 {
+            Some(OccurrenceSelection::One(self.occurrences[0]))
+        } else {
+            None
+        }
+    }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Occurrence {
@@ -140,6 +178,126 @@ pub struct Occurrence {
     pub captures: BTreeMap<String, SourceCapture>,
     pub children: Vec<Occurrence>,
 }
+impl Occurrence {
+    fn find(&self, id: usize) -> Option<&Occurrence> {
+        if self.id == id {
+            Some(self)
+        } else {
+            self.children.iter().find_map(|child| child.find(id))
+        }
+    }
+    fn project_selection(
+        &self,
+        selection: &OccurrenceSelection,
+        field: &str,
+        span: &Span,
+    ) -> Result<(AstValue, Option<OccurrenceSelection>), Diagnostic> {
+        match selection {
+            OccurrenceSelection::One(id) => {
+                let capture = self
+                    .find(*id)
+                    .and_then(|owner| owner.captures.get(field))
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "semantic.missing_capture",
+                            format!("Capture projection .{field} is unavailable"),
+                            span.clone(),
+                        )
+                    })?;
+                Ok((capture.value.clone(), capture.occurrence_selection()))
+            }
+            OccurrenceSelection::Terminal(_) => Err(Diagnostic::error(
+                "semantic.missing_capture",
+                format!("Terminal capture has no nested capture .{field}"),
+                span.clone(),
+            )),
+            OccurrenceSelection::List(items) => {
+                let projected = items
+                    .iter()
+                    .map(|item| self.project_selection(item, field, span))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let selection = projected
+                    .iter()
+                    .map(|(_, selection)| selection.clone())
+                    .collect::<Option<Vec<_>>>()
+                    .map(OccurrenceSelection::List);
+                Ok((
+                    AstValue::List(projected.into_iter().map(|(value, _)| value).collect()),
+                    selection,
+                ))
+            }
+            OccurrenceSelection::Absent => Ok((AstValue::None, Some(OccurrenceSelection::Absent))),
+        }
+    }
+    /// Follow captured occurrence roots rather than reconstructed AST wrappers.
+    fn capture_path(&self, path: &str) -> Result<SourceCapture, Diagnostic> {
+        let mut parts = path.split('.');
+        let root = parts.next().unwrap_or(path);
+        let mut capture = self.captures.get(root).cloned().ok_or_else(|| {
+            Diagnostic::error(
+                "semantic.missing_capture",
+                format!("Capture {root} is unavailable"),
+                self.span.clone(),
+            )
+        })?;
+        for field in parts {
+            if capture.value == AstValue::None {
+                return Ok(capture);
+            }
+            let repeated = capture.repeated;
+            let selected = capture
+                .occurrences
+                .iter()
+                .map(|id| {
+                    self.find(*id)
+                        .and_then(|owner| owner.captures.get(field))
+                        .cloned()
+                        .ok_or_else(|| {
+                            Diagnostic::error(
+                                "semantic.missing_capture",
+                                format!("Capture projection {path} is unavailable"),
+                                capture.span.clone(),
+                            )
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            if !repeated && selected.len() == 1 {
+                capture = selected[0].clone();
+                continue;
+            }
+            let selection = capture.occurrence_selection().ok_or_else(|| {
+                Diagnostic::error(
+                    "semantic.missing_capture",
+                    format!("Capture projection {path} has no occurrence to select"),
+                    capture.span.clone(),
+                )
+            })?;
+            let (value, selection) = self.project_selection(&selection, field, &capture.span)?;
+            let span = selected
+                .first()
+                .zip(selected.last())
+                .map(|(a, b)| Span::new(&a.span.file, a.span.start, b.span.end))
+                .unwrap_or_else(|| capture.span.clone());
+            capture = SourceCapture {
+                selection,
+                repeated: true,
+                value,
+                span,
+                text: selected
+                    .iter()
+                    .map(|item| item.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" "),
+                occurrences: selected
+                    .iter()
+                    .flat_map(|item| item.occurrences.clone())
+                    .collect(),
+            };
+        }
+        Ok(capture)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum SemanticValue {
     /// An observational query's growing set of possible values. Unlike List,
@@ -361,6 +519,28 @@ pub enum Evaluation {
     Pending,
     Ready(SemanticValue),
 }
+/// Observational match relationship offered to interested analysis services.
+/// Native effects are not executed while retaining a relationship.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResidualMatch {
+    pub inputs: Vec<SemanticValue>,
+    pub cases: Vec<ResidualCase>,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResidualCase {
+    pub alternatives: Vec<Vec<Option<SemanticValue>>>,
+    pub actions: Vec<ResidualAction>,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub enum ResidualAction {
+    Call {
+        operation: String,
+        arguments: BTreeMap<String, SemanticValue>,
+        span: Span,
+    },
+    Diagnostic(Diagnostic),
+}
 /// An analysis-local native library service. The engine drives progress to a
 /// fixed point, calls settle once, resumes propagation, then calls finish once.
 /// No target-language policy is built into this lifecycle.
@@ -368,6 +548,9 @@ pub trait AnalysisService: Any {
     fn as_any_mut(&mut self) -> &mut dyn Any;
     /// Its handles resolve to growing alternative sets. This lets pending
     /// readers release writers ordered after them without choosing a case early.
+    fn retain_match(&mut self, _matching: &ResidualMatch) -> Result<(), Diagnostic> {
+        Ok(())
+    }
     fn offers_alternatives(&self) -> bool {
         false
     }
@@ -467,6 +650,7 @@ impl OperationContext<'_> {
                     .unwrap_or_else(|| self.occurrence.span.clone())
             }
             SemanticValue::Deferred { span, .. } => return span.clone(),
+            SemanticValue::Source(source) => return source.span.clone(),
             _ => return self.occurrence.span.clone(),
         };
         for capture in self.occurrence.captures.values() {
@@ -736,6 +920,8 @@ mod tests {
             captures: BTreeMap::from([(
                 "name".into(),
                 SourceCapture {
+                    selection: None,
+                    repeated: false,
                     occurrences: vec![],
                     value: AstValue::Text(text.into()),
                     span: Span::new("program", id, id + 1),

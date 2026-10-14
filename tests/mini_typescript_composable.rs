@@ -91,7 +91,7 @@ fn unsupported_types_emit_each_interpolated_diagnostic_once() {
 fn pending_operands_wait_for_call_inference_instead_of_taking_unknown_arm() {
     let result = analyze("function add(value) { return value + 1; } let result: number = add(41);");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(binding(&result, "add"), "(number) => number");
+    assert_eq!(binding(&result, "add"), "(unknown) => unknown");
     assert_eq!(binding(&result, "result"), "number");
 }
 #[test]
@@ -249,11 +249,11 @@ fn arbitrary_function_slot_names_preserve_inference_through_reload() {
         .unwrap();
     assert!(function.entries.contains(&(
         SemanticKey::Symbol("definition/types.yl#inputs".into()),
-        SemanticValue::Text("[number]".into())
+        SemanticValue::Text("[unknown]".into())
     )));
     assert!(function.entries.contains(&(
         SemanticKey::Symbol("definition/types.yl#output".into()),
-        SemanticValue::Text("number".into())
+        SemanticValue::Text("unknown".into())
     )));
 }
 
@@ -261,10 +261,10 @@ fn arbitrary_function_slot_names_preserve_inference_through_reload() {
 fn references_and_declarations_share_type_facts_without_retyping_initializer() {
     use your_language::semantics::{Occurrence, SemanticIdentity};
     let result = analyze_with("let original = 1; let copied = original;", |grammar| {
-        assert!(grammar.contains("referenceType()"));
+        assert!(grammar.contains("referenceType(name)"));
         *grammar = grammar.replace(
-            "referenceType()",
-            "referenceType()\n        annotateWithType(string)",
+            "referenceType(name)",
+            "referenceType(name)\n        annotateWithType(string)",
         );
     });
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);

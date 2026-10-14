@@ -1,4 +1,4 @@
-import { use } from "std/variables"
+import { use } from "std/references"
 import { annotateWithType, typeof, call, inheritType, referenceType } from "./typing"
 import { unknown } from "std/types"
 import { separatedBy } from "std/parser"
@@ -8,7 +8,7 @@ import { number, string, boolean } from "./types"
 node Reference = name: Name {
     meanings {
         use(name)
-        referenceType()
+        referenceType(name)
     }
 }
 

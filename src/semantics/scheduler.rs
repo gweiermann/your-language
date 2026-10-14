@@ -173,6 +173,7 @@ pub(super) fn execute(
                     next: 0,
                     selected: None,
                     reactive: false,
+                    observed_ready: false,
                     released: false,
                     combinations: vec![],
                     parked: Default::default(),
@@ -196,6 +197,7 @@ pub(super) fn execute(
                         next: 0,
                         selected: None,
                         reactive: false,
+                        observed_ready: false,
                         released: false,
                         combinations: vec![],
                         parked: Default::default(),
@@ -228,9 +230,12 @@ pub(super) fn execute(
                         MeaningValue::Call(_) | MeaningValue::Tuple(_) | MeaningValue::List(_) => {
                             unreachable!("nested calls are deferred")
                         }
+                        MeaningValue::SelfValue => {
+                            SemanticValue::Identity(SemanticIdentity::Occurrence(owner.id))
+                        }
                         MeaningValue::Absent => SemanticValue::Absent,
                         MeaningValue::Capture(capture) => {
-                            let Some(capture) = owner.captures.get(capture) else {
+                            let Ok(capture) = owner.capture_path(capture) else {
                                 diagnostics.push(Diagnostic::error(
                                     "semantic.missing_capture",
                                     format!("Capture {capture} is not present on this occurrence"),
@@ -790,7 +795,7 @@ pub(super) fn execute(
             for job in &deferred {
                 if (!job.done && !job.reactive)
                     || (job.reactive
-                        && (job.combinations.is_empty()
+                        && ((job.combinations.is_empty() && !job.observed_ready)
                             || job.combinations.iter().any(|combination| !combination.done)))
                 {
                     state.diagnostics.push(Diagnostic::error(
@@ -891,6 +896,7 @@ struct Deferred<'a> {
     kind: DeferredKind<'a>,
     selected: Option<usize>,
     reactive: bool,
+    observed_ready: bool,
     released: bool,
     combinations: Vec<Combination>,
     parked: std::collections::BTreeSet<(usize, usize)>,
@@ -911,6 +917,7 @@ fn probe_reactive(
     let DeferredKind::Match(matching) = job.kind else {
         return Ok(false);
     };
+    retain_match(matching, job.owner, registry, state)?;
     for input in &matching.inputs {
         if let Evaluation::Ready(value) = evaluate(input, job.owner, registry, state, 0)? {
             match value {
@@ -929,6 +936,79 @@ fn probe_reactive(
     }
     Ok(false)
 }
+fn retain_match(
+    matching: &MeaningMatch,
+    owner: &Occurrence,
+    registry: &OperationRegistry,
+    state: &mut AnalysisState,
+) -> Result<(), Diagnostic> {
+    let mut inputs = vec![];
+    for value in &matching.inputs {
+        let Evaluation::Ready(value) = evaluate(value, owner, registry, state, 0)? else {
+            return Ok(());
+        };
+        inputs.push(value);
+    }
+    let mut cases = vec![];
+    for case in &matching.cases {
+        let mut alternatives = vec![];
+        for pattern in &case.alternatives {
+            let mut values = vec![];
+            for value in pattern {
+                values.push(if let Some(value) = value {
+                    let Evaluation::Ready(value) = evaluate(value, owner, registry, state, 0)?
+                    else {
+                        return Ok(());
+                    };
+                    Some(value)
+                } else {
+                    None
+                });
+            }
+            alternatives.push(values);
+        }
+        let mut actions = vec![];
+        for action in &case.actions {
+            match action {
+                MeaningAction::Call(call) => {
+                    let mut arguments = BTreeMap::new();
+                    for (name, value) in &call.arguments {
+                        let Evaluation::Ready(value) = evaluate(value, owner, registry, state, 0)?
+                        else {
+                            return Ok(());
+                        };
+                        arguments.insert(name.clone(), value);
+                    }
+                    actions.push(ResidualAction::Call {
+                        operation: call.operation.clone(),
+                        arguments,
+                        span: call.span.clone(),
+                    });
+                }
+                MeaningAction::Emit {
+                    severity,
+                    message,
+                    span,
+                } => actions.push(ResidualAction::Diagnostic(case_diagnostic(
+                    owner, severity, message, span,
+                )?)),
+            }
+        }
+        cases.push(ResidualCase {
+            alternatives,
+            actions,
+        });
+    }
+    let residual = ResidualMatch {
+        inputs,
+        cases,
+        span: matching.span.clone(),
+    };
+    for service in state.services.values_mut() {
+        service.retain_match(&residual)?;
+    }
+    Ok(())
+}
 fn evaluate(
     value: &MeaningValue,
     owner: &Occurrence,
@@ -944,6 +1024,7 @@ fn evaluate(
         ));
     }
     Ok(Evaluation::Ready(match value {
+        MeaningValue::SelfValue => SemanticValue::Identity(SemanticIdentity::Occurrence(owner.id)),
         MeaningValue::Absent => SemanticValue::Absent,
         MeaningValue::Tuple(values) | MeaningValue::List(values) => {
             let mut output = Vec::new();
@@ -960,19 +1041,7 @@ fn evaluate(
                 SemanticValue::List(output)
             }
         }
-        MeaningValue::Capture(name) => SemanticValue::Source(
-            owner
-                .captures
-                .get(name)
-                .ok_or_else(|| {
-                    Diagnostic::error(
-                        "semantic.missing_capture",
-                        format!("Capture {name} is unavailable"),
-                        owner.span.clone(),
-                    )
-                })?
-                .clone(),
-        ),
+        MeaningValue::Capture(name) => SemanticValue::Source(owner.capture_path(name)?),
         MeaningValue::Text(value) => SemanticValue::Text(value.clone()),
         MeaningValue::Bool(value) => SemanticValue::Bool(*value),
         MeaningValue::Symbol(value) => SemanticValue::Symbol(value.clone()),
@@ -1269,6 +1338,7 @@ fn advance_combinations(
     registry: &OperationRegistry,
     state: &mut AnalysisState,
 ) -> Result<bool, Diagnostic> {
+    job.observed_ready = true;
     let mut tuples = vec![vec![]];
     for value in values {
         let alternatives = match value {

@@ -23,7 +23,7 @@ Compilation and analysis require no artifact file. `engine.compile(...)` can als
 Nodes and patterns accept a grammar-following body:
 
 ```yl
-import { declare, use, lexicalScope } from "std/variables"
+import { declare, use, lexicalScope } from "std/references"
 
 node Declaration = "let" name: Name ";" {
     meanings {
@@ -169,13 +169,14 @@ Rust consumers can reuse `diagnostic_render::print_diagnostics`, providing a sou
 
 Follow the [inference tutorial](/tutorials/semantic-inference), consult the [library contracts](/reference/meaning-libraries), or inspect the checked-in [Mini TypeScript example](https://github.com/gweiermann/your-language/tree/main/examples/mini_typescript).
 
-The native `std/types` module exports four operations and one reserved type identity:
+The native `std/types` module exports five operations and one reserved type identity:
 
 | Export | Contract |
 | --- | --- |
 | `annotate(key, type)` | Add possible types. Repeated contributions form a union. Deferred inputs establish directed dependencies. |
 | `restrictTo(key, allowed)` | Require every known possibility to be compatible with the allowed possibilities. Preserve facts, including invalid ones. |
 | `typeof(key)` | Return an analysis-local deferred possibility query. |
+| `resolveWith(result, assumptions)` | Query dependent types under temporary explicit assignments without changing original facts. |
 | `instantiate(template, use)` | Freshen an explicitly host-owned template once per identity pair. Automatic ownership remains experimental and parked. |
 | `unknown` | Explicit unresolved possibility, compatible with restrictions without hiding incompatible known members. |
 
@@ -196,7 +197,7 @@ The lexical adapter separately supplies binding identities. Declarations and res
 ```yl
 import * as types from "std/types"
 import * as syntax from "std/syntax"
-import * as variables from "std/variables"
+import * as variables from "std/references"
 
 export operation annotateWithType(value) {
     types::annotate(syntax::identity(), value)
@@ -250,7 +251,7 @@ The previous experimental `ensure` contract is replaced by `annotate` and `restr
 
 ## Inference experiment limits
 
-The [Mini TypeScript example](https://github.com/gweiermann/your-language/tree/main/examples/mini_typescript) demonstrates literals, annotations, variable bridges, recursive functions, aliases, higher-order calls and language-authored addition. Unannotated functions currently collect evidence into a shared signature. Mixed calls widen parameter and return unions; they do not receive independently instantiated generic types.
+The [Mini TypeScript example](https://github.com/gweiermann/your-language/tree/main/examples/mini_typescript) demonstrates literals, annotations, variable bridges, recursive functions, aliases, higher-order calls and language-authored addition. Unannotated function calls can resolve retained relationships under independent temporary parameter assignments with `resolveWith`. Mixed calls leave the declaration signature unchanged and infer each call result separately.
 
 Automatic generic ownership, scoped control-flow narrowing, directional subtyping, ownership and target execution are separate work. `useAsType` is not implemented. The operation and serialized result contracts remain experimental.
 
@@ -280,6 +281,75 @@ types::annotate(
 
 Unregistered templates produce `types.template_ownership` after pending registration has had a chance to complete. Changing a template's ownership is an error. Templates containing owned meaning matches produce `types.template_match`: reusable match relationships are **PARKED**, and selected branches are not silently frozen into a reusable generic rule. Alternative template unions and positional writes combining local and captured identities are also explicitly **PARKED**. Instance identities and copied constraints are bounded by the analysis resource limit.
 
-Mini TypeScript continues to use shared signatures. Its automatic template ownership is **PARKED** pending this exact decision: should the original function pattern and its syntax descendants define the freshened region, with record handles created outside that region retained as captures, or must the language library explicitly designate the region and captures? A minimal stress case is `let outer = 1; function read(p) { return outer; }`: `p` must be fresh at each call, while `outer` must remain shared. Constraint reachability alone cannot distinguish these roles.
+Mini TypeScript uses the hypothetical query described below instead of explicit template ownership. The Rust host template API remains a separate experiment; its owned meaning matches and mixed captured/local destination restrictions remain parked.
 
 `OperationContext::record_origin(id)` exposes the original syntax occurrence that allocated a record. It provides name-independent provenance for future ownership libraries; it does not establish a freshening policy.
+
+
+## Contextual syntax and resolved references
+
+`self` is a core contextual value: the original current node or pattern occurrence. It requires no import and continues to refer to the caller occurrence inside authored operation wrappers. Captures can be passed directly as type keys. A repeated capture supplies an ordered key list; an absent optional capture supplies `absent`. Cardinality comes from the grammar, not the shape of a pattern's returned AST value.
+
+```yl
+import * as types from "std/types"
+
+operation annotateWithType(value) {
+    types::annotate(self, value)
+}
+
+operation typeof(value) = types::typeof(value)
+```
+
+Dotted capture projections such as `contents.parameters` and `contents.body` follow retained original occurrences, including transparent patterns. They preserve captured source extents and nested repetition groups. Literal and regex captures also have stable syntax addresses without requiring node or pattern wrappers. Repeated terminals have separate ordered addresses; absent optional captures remain absent. Their original text, spans and AST values are preserved. Legacy `std/syntax` identity helpers remain available; the MiniTS bridge uses only `childIdentity()` for transparent abstract-node inheritance.
+
+`std/references` exposes `declare`, `use`, `lexicalScope`, `reference()` and `referenceOf(value)`. A declaration and a use record the binding associated with the exact name capture. `referenceOf(name)` retrieves that association; it never performs another text lookup. Given a captured reference node, it retrieves that node's recorded binding. An unassociated syntax occurrence returns `absent`, not its syntax identity. Scopes and same-scope duplicate rules retain their existing lifecycle implementation in this change. The earlier `std/variables` imports and graph metadata IDs remain compatible aliases; reference queries are the preferred new interface.
+
+## Hypothetical type queries
+
+`types::resolveWith(resultKey, assumptions)` returns a managed query. Each assumption is `(key, temporaryType)`, and `assumptions` is a list. Only the supplied keys replace their incoming contributions in the calculation. Dependent type relationships are recomputed in an isolated overlay. Existing restrictions still apply; captured outer values and the original store remain unchanged.
+
+```yl
+operation call(callee, arguments) {
+    types::restrictTo(callee, Function)
+    types::annotate(self, types::resolveWith(
+        (referenceOf(callee), returnType),
+        [((referenceOf(callee), parameters), types::typeof(arguments))]
+    ))
+}
+```
+
+`parameters`, `returnType` and `Function` are language-owned symbols. The declaration stores its public signature on its resolved binding, not exclusively on `FunctionContents`. A body stores returned-expression information at `(self, returnType)` without giving the body itself an expression type.
+
+```yl
+meanings {
+    types::annotate((self, returnType), typeof(result))
+}
+```
+
+The engine retains pure type-match relationships as well as directed transfers and restrictions. A hypothetical query recomputes their choices under the temporary inputs instead of freezing the original selected case. Nested calls, aliases, captured outer values and explicitly annotated recursion are exercised by integration tests through artifact reload. Synthetic missing-evidence `unknown` defaults remain query defaults, not reusable contributed facts; explicitly authored `unknown` is retained.
+
+Unsupported native effects inside a selected hypothetical type case produce `types.hypothetical_effect` with a **PARKED** explanation. They are not replayed or silently discarded. Error and warning cases are retained as diagnostic contributions and report the temporary argument's original span. Supported alternatives still contribute results when another alternative errors. Direct hypothetical match inputs retain their diagnostics without generating a spurious pending-input error. This is a bounded experimental solver: nesting is limited to 32 hypothetical queries and key/fact combinations to the existing analysis limit. Query errors do not disable unrelated type checks. A general data store, `if`/callback syntax, ancestry queries and authored reference libraries are separate work.
+
+Reproduce with `cargo run --example mini_typescript -- generics`; expect `count: number`, `title: string`, `numberResult: number`, `stringResult: string`, with `identity: (unknown) => unknown` unchanged. `cargo run --example mini_typescript -- errors` prints source underlines and exits 1; append `--json` for the same structured spans.
+
+
+Hypothetical queries cannot execute an arbitrary Rust hook that writes a file,
+sends an email, or changes state outside the analysis context. For example:
+
+```yl
+match (types::typeof(parameter)) {
+    number => {
+        types::annotate((self, result), number)
+        host::sendEmail()
+    },
+    _ => {}
+}
+```
+
+If a temporary assumption selects this case, the engine reports
+`types.hypothetical_effect` before calling `sendEmail`. Copying the type table
+cannot undo an email. Authored type contributions and error/warning diagnostics
+are evaluated in the isolated table. Supporting speculative host hooks requires
+an explicit contract: their state must be cloneable, or their external actions
+must be buffered and committed only during ordinary analysis. Merely declaring
+a hook idempotent does not make its external actions reversible.

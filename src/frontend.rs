@@ -528,7 +528,11 @@ impl Parser {
                     ExprKind::Regex(s)
                 }
                 TokenKind::Word(_) => {
-                    let name = self.path()?;
+                    let mut name = self.path()?;
+                    while self.take(".") {
+                        name.push('.');
+                        name.push_str(&self.word()?);
+                    }
                     if self.is("(") {
                         ExprKind::Call(name, self.semantic_arguments()?)
                     } else {

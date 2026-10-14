@@ -1,53 +1,53 @@
 import * as types from "std/types"
-import * as variables from "std/variables"
+import { referenceOf } from "std/references"
 import * as syntax from "std/syntax"
 import { Function, parameters, returnType } from "./types"
 
 export operation annotateWithType(value) {
-    types::annotate(syntax::identity(), value)
+    types::annotate(self, value)
 }
 
-export operation typeof(value) = types::typeof(syntax::identityOf(value))
+export operation typeof(value) = types::typeof(value)
 
 export operation inheritType() {
-    types::annotate(syntax::identity(), types::typeof(syntax::childIdentity()))
+    types::annotate(self, types::typeof(syntax::childIdentity()))
 }
 
 export operation restrictTypeTo(value) {
-    types::restrictTo(syntax::identity(), typeof(value))
+    types::restrictTo(self, typeof(value))
 }
 
-export operation bindingType(value, annotation = absent) {
-    types::annotate(variables::identity(), typeof(value))
-    types::annotate(variables::identity(), typeof(annotation))
-    types::restrictTo(variables::identity(), typeof(annotation))
-    types::annotate(syntax::identity(), types::typeof(variables::identity()))
-    types::annotate(variables::identity(), types::typeof(syntax::identity()))
+export operation bindingType(name, value, annotation = absent) {
+    types::annotate(referenceOf(name), typeof(value))
+    types::annotate(referenceOf(name), typeof(annotation))
+    types::restrictTo(referenceOf(name), typeof(annotation))
+    types::annotate(self, types::typeof(referenceOf(name)))
+    types::annotate(referenceOf(name), types::typeof(self))
 }
 
-export operation parameterType(annotation) {
-    types::annotate(variables::identity(), typeof(annotation))
-    types::restrictTo(variables::identity(), typeof(annotation))
-    types::annotate(syntax::identity(), types::typeof(variables::identity()))
-    types::annotate(variables::identity(), types::typeof(syntax::identity()))
+export operation parameterType(name, annotation) {
+    types::annotate(referenceOf(name), typeof(annotation))
+    types::restrictTo(referenceOf(name), typeof(annotation))
+    types::annotate(self, types::typeof(referenceOf(name)))
+    types::annotate(referenceOf(name), types::typeof(self))
 }
 
-export operation referenceType() {
-    types::annotate(syntax::identity(), types::typeof(variables::identity()))
-    types::annotate(variables::identity(), types::typeof(syntax::identity()))
+export operation referenceType(name) {
+    types::annotate(self, types::typeof(referenceOf(name)))
+    types::annotate(referenceOf(name), types::typeof(self))
 }
 
-export operation functionSignature(arguments, body, annotation) {
-    types::annotate(syntax::identity(), Function)
-    types::annotate((syntax::identity(), parameters), types::typeof(syntax::identities(arguments)))
-    types::annotate(syntax::identities(arguments), types::typeof((syntax::identity(), parameters)))
-    types::annotate((syntax::identity(), returnType), typeof(body))
-    types::annotate((syntax::identity(), returnType), typeof(annotation))
-    types::restrictTo((syntax::identity(), returnType), typeof(annotation))
+export operation functionSignature(name, arguments, body, annotation) {
+    types::annotate(self, Function)
+    types::annotate(referenceOf(name), Function)
+    types::annotate((referenceOf(name), parameters), types::typeof(arguments))
+    types::annotate(arguments, types::typeof((referenceOf(name), parameters)))
+    types::annotate((referenceOf(name), returnType), types::typeof((body, returnType)))
+    types::annotate((referenceOf(name), returnType), typeof(annotation))
+    types::restrictTo((referenceOf(name), returnType), typeof(annotation))
 }
 
 export operation call(callee, arguments) {
-    types::restrictTo(syntax::identityOf(callee), Function)
-    types::annotate((syntax::identityOf(callee), parameters), types::typeof(syntax::identities(arguments)))
-    types::annotate(syntax::identity(), types::typeof((syntax::identityOf(callee), returnType)))
+    types::restrictTo(callee, Function)
+    types::annotate(self, types::resolveWith((referenceOf(callee), returnType), [((referenceOf(callee), parameters), types::typeof(arguments))]))
 }
