@@ -1,4 +1,4 @@
-//! Serializable, surface-sugar-free interpreter input. IDs are deterministic strings.
+//! Compiler normalization forms. Execution and artifact encoding use `crate::image`.
 use crate::{
     diagnostic::Span,
     syntax::{Associativity, Quantifier},
@@ -6,20 +6,17 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct CompiledLanguage {
     pub(crate) version: u32,
     pub(crate) entry: String,
     pub(crate) rules: BTreeMap<String, Rule>,
     pub(crate) trivia: Vec<String>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub(crate) meanings: BTreeMap<String, crate::semantics::MeaningDefinition>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub(crate) query_meanings: BTreeMap<String, Vec<crate::semantics::queries::QueryGroup>>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub(crate) examples: BTreeMap<String, crate::examples::ExampleDefinition>,
-    #[serde(skip)]
     pub(crate) diagnostics: Vec<crate::diagnostic::Diagnostic>,
+    pub(crate) image: Option<Box<crate::image::LanguageImage>>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Rule {

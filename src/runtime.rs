@@ -329,6 +329,68 @@ pub(crate) fn parse_occurrences(
         vec![],
     )
 }
+/// Validate representative text by borrowing executable tables, without a compiler workspace.
+pub(crate) fn accepts_preview(image: &ParserImage, root: u32, source: &str) -> bool {
+    let parser = || Runtime {
+        image,
+        source,
+        file: "<example>",
+        regexes: image.regexes.clone(),
+        active: BTreeSet::new(),
+        farthest: 0,
+        expected: BTreeSet::new(),
+        depth: 0,
+        resource_limit: false,
+        steps: 0,
+        limit: source.len(),
+        trace: true,
+        next_occurrence: 0,
+    };
+    let mut direct = parser();
+    if let Some(matched) = direct.term(root, 0, false) {
+        if direct.skip(matched.end) == source.len()
+            && !direct.resource_limit
+            && !matched
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.severity == Severity::Error)
+        {
+            return true;
+        }
+    }
+    let Instruction::Ref(member) = image.instructions[root as usize] else {
+        return false;
+    };
+    for (family_id, family) in image.rules.iter().enumerate() {
+        let ImageBody::Abstract { operators, .. } = &family.body else {
+            continue;
+        };
+        if !operators.iter().any(|operator| operator.rule == member) {
+            continue;
+        }
+        let mut contextual = parser();
+        if let Some(matched) = contextual.rule(family_id as u32, 0, false, 0) {
+            if contextual.skip(matched.end) == source.len()
+                && !contextual.resource_limit
+                && !matched
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.severity == Severity::Error)
+                && matches!(matched.value, Some(AstValue::Node(ref node)) if node.kind == image.rules[member as usize].name)
+                && matched.occurrences.iter().any(|root| {
+                    root.definition == family.definition
+                        && root.children.first().is_some_and(|child| {
+                            child.definition == image.rules[member as usize].definition
+                        })
+                })
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 struct Runtime<'a> {
     image: &'a ParserImage,
     trace: bool,

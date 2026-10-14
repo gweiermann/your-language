@@ -16,6 +16,7 @@ pub struct ParserImage {
     pub instructions: Vec<Instruction>,
     pub trivia: Vec<u32>,
     pub checks: Vec<CheckExpression>,
+    pub preview_roots: BTreeMap<String, u32>,
     #[serde(skip)]
     pub(crate) regexes: BTreeMap<String, regex::Regex>,
 }
@@ -26,6 +27,7 @@ impl PartialEq for ParserImage {
             && self.instructions == other.instructions
             && self.trivia == other.trivia
             && self.checks == other.checks
+            && self.preview_roots == other.preview_roots
     }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -309,6 +311,17 @@ impl ParserImage {
                 span: rule.span.clone(),
             });
         }
+        let mut preview_roots = BTreeMap::new();
+        for (id, rule) in &language.rules {
+            if !rule.trivia {
+                let root = lower(&Term::Ref(id.clone()), &ids, &mut instructions)?;
+                preview_roots.insert(id.clone(), root);
+            }
+        }
+        for (id, example) in &language.examples {
+            let root = lower(&example.term, &ids, &mut instructions)?;
+            preview_roots.insert(id.clone(), root);
+        }
         let mut image = Self {
             entry: *ids
                 .get(&language.entry)
@@ -316,6 +329,7 @@ impl ParserImage {
             rules,
             instructions,
             checks,
+            preview_roots,
             regexes: BTreeMap::new(),
             trivia: language
                 .trivia
@@ -392,6 +406,15 @@ impl ParserImage {
         }
     }
     pub fn validate(&self) -> Result<(), Diagnostic> {
+        if self
+            .rules
+            .len()
+            .saturating_add(self.instructions.len())
+            .saturating_add(self.checks.len())
+            > 1_000_000
+        {
+            return Err(invalid("Parser image exceeds the instruction limit"));
+        }
         let rule_ok = |id: u32| (id as usize) < self.rules.len();
         let instruction_ok = |id: u32| (id as usize) < self.instructions.len();
         if !rule_ok(self.entry) || self.trivia.iter().any(|id| !rule_ok(*id)) {
@@ -470,7 +493,7 @@ impl ParserImage {
         let contracts = self.capture_contracts()?;
         let mut budget = 0;
         let mut definitions = std::collections::BTreeSet::new();
-        for rule in &self.rules {
+        for (family_id, rule) in self.rules.iter().enumerate() {
             if !definitions.insert(&rule.definition) {
                 return Err(invalid("Duplicate parser rule identity"));
             }
@@ -495,13 +518,35 @@ impl ParserImage {
                     if bases.iter().any(|b| !rule_ok(*b)) {
                         return Err(invalid("Invalid parser base rule index"));
                     }
+                    let mut members = BTreeSet::new();
                     for op in operators {
+                        if op.binding_power == 0
+                            || op.binding_power > self.rules.len()
+                            || (!op.left && !op.right)
+                            || !members.insert(op.rule)
+                        {
+                            return Err(invalid(
+                                "Invalid precedence binding power, role or duplicate operator",
+                            ));
+                        }
                         if !rule_ok(op.rule) {
                             return Err(invalid("Invalid parser operator rule index"));
                         }
                         let ImageBody::Concrete(root) = self.rules[op.rule as usize].body else {
                             return Err(invalid("Operator must be concrete"));
                         };
+                        if !instruction_ok(root) {
+                            return Err(invalid("Invalid parser operator root"));
+                        }
+                        let left = self.edge(root, false).is_some_and(|edge| {
+                            self.instructions[edge as usize] == Instruction::Ref(family_id as u32)
+                        });
+                        let right = self.edge(root, true).is_some_and(|edge| {
+                            self.instructions[edge as usize] == Instruction::Ref(family_id as u32)
+                        });
+                        if op.left != left || op.right != right {
+                            return Err(invalid("Precedence operator does not reference its family at the declared edges"));
+                        }
                         if !instruction_ok(root)
                             || op.left_edge != op.left.then(|| self.edge(root, false)).flatten()
                             || op.right_edge != op.right.then(|| self.edge(root, true)).flatten()
@@ -514,6 +559,18 @@ impl ParserImage {
                 }
                 _ => {}
             }
+        }
+        for (definition, root) in &self.preview_roots {
+            if !instruction_ok(*root) {
+                return Err(invalid("Invalid preview root instruction"));
+            }
+            if let Some(rule) = self.rule_id(definition) {
+                if self.instructions[*root as usize] != Instruction::Ref(rule) {
+                    return Err(invalid("Node preview must reference its actual rule"));
+                }
+            }
+            self.validate_projections(*root, &mut BTreeSet::new(), &mut budget)?;
+            self.unique_captures(*root, &mut budget)?;
         }
         for (rule_id, rule) in self.rules.iter().enumerate() {
             if rule.constraints.is_empty() {
@@ -568,6 +625,7 @@ impl ParserImage {
     fn capture_contracts(&self) -> Result<Vec<CaptureContract>, Diagnostic> {
         let mut contracts: Vec<CaptureContract> = vec![];
         let mut may_none: Vec<bool> = vec![];
+        let mut budget = 0usize;
         for item in &self.instructions {
             let contract = match item {
                 Instruction::Capture(name, t) => {
@@ -653,6 +711,12 @@ impl ParserImage {
                 Instruction::Choice(items) => items.iter().any(|t| may_none[*t as usize]),
                 _ => false,
             };
+            budget = budget
+                .saturating_add(contract.0.len())
+                .saturating_add(contract.1.len());
+            if budget > 1_000_000 {
+                return Err(invalid("Parser capture contracts exceed resource limit"));
+            }
             contracts.push(contract);
             may_none.push(absent);
         }
@@ -700,8 +764,10 @@ impl ParserImage {
             if let Instruction::Meaning { definition, term } = item {
                 result
                     .entry(definition.clone())
-                    .or_default()
-                    .extend(contracts[*term as usize].0.iter().cloned());
+                    .and_modify(|names| {
+                        names.retain(|name| contracts[*term as usize].0.contains(name))
+                    })
+                    .or_insert_with(|| contracts[*term as usize].0.clone());
             }
         }
         result
@@ -1188,7 +1254,7 @@ impl ParserImage {
     }
 }
 fn invalid(message: &str) -> Diagnostic {
-    Diagnostic::error("ylc.parser_image", message, Span::new("<ylc>", 0, 0))
+    Diagnostic::error("yl.artifact", message, Span::new("<ylc>", 0, 0))
 }
 
 #[derive(PartialEq)]

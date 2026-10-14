@@ -7,6 +7,7 @@ pub mod ir;
 pub use compiler::{compile_language, compile_sources};
 pub use ir::CompiledLanguage;
 mod artifact;
+pub mod image;
 mod runtime;
 pub use artifact::load_compiled_language;
 pub use runtime::{parse, parse_named, AstNode, AstValue, ParseResult};

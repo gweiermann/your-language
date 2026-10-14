@@ -966,6 +966,7 @@ impl Compiler {
             query_meanings: BTreeMap::new(),
             examples: BTreeMap::new(),
             diagnostics: vec![],
+            image: None,
         };
         for (id, symbol) in &self.symbols {
             let meanings = match &symbol.declaration.kind {
@@ -1255,6 +1256,7 @@ impl Compiler {
             2
         };
         validate_language(&language)?;
+        language.image = Some(Box::new(crate::image::LanguageImage::compile(&language)?));
         Ok(language)
     }
     fn leaves(
@@ -4505,6 +4507,9 @@ pub(crate) fn reject_retired_standard_operation(id: &str, span: &Span) -> Result
     Ok(())
 }
 pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
+    if let Some(image) = &language.image {
+        return image.validate();
+    }
     if !matches!(language.version, 1..=5)
         || (language.version < 3 && !language.query_meanings.is_empty())
         || (language.version == 1
@@ -4720,7 +4725,14 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
         captures(&definition.term, &definition.span)?;
     }
     crate::examples::validate_explicit(language)?;
-    for (owner, meanings) in &language.meanings {
+    validate_meaning_definitions(&language.meanings, |id| language.rules.contains_key(id))?;
+    Ok(())
+}
+pub(crate) fn validate_meaning_definitions(
+    meanings: &BTreeMap<String, MeaningDefinition>,
+    contains_rule: impl Fn(&str) -> bool,
+) -> Result<()> {
+    for (owner, definition) in meanings {
         if owner.is_empty() {
             return Err(Diagnostic::error(
                 "yl.artifact",
@@ -4729,7 +4741,7 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
             ));
         }
         let mut groups = BTreeSet::new();
-        for group in &meanings.groups {
+        for group in &definition.groups {
             if group
                 .name
                 .as_ref()
@@ -4863,7 +4875,7 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                 }
             }
         }
-        for chain in &meanings.precedence {
+        for chain in &definition.precedence {
             if chain.selectors.len() < 2 {
                 return Err(Diagnostic::error(
                     "yl.artifact",
@@ -4872,9 +4884,9 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                 ));
             }
             for selector in &chain.selectors {
-                let target = language.meanings.get(&selector.definition);
+                let target = meanings.get(&selector.definition);
                 if selector.definition != "*"
-                    && !language.rules.contains_key(&selector.definition)
+                    && !contains_rule(&selector.definition)
                     && target.is_none()
                 {
                     return Err(Diagnostic::error(
@@ -4995,7 +5007,7 @@ fn validate_semantic_capture_value(
     }
     Ok(())
 }
-fn validate_meaning_captures(
+pub(crate) fn validate_meaning_captures(
     meanings: &MeaningDefinition,
     captures: &BTreeSet<String>,
 ) -> Result<()> {
@@ -5661,15 +5673,20 @@ mod semantic_artifact_tests {
         );
         language
     }
+    fn wire(language: &CompiledLanguage) -> Vec<u8> {
+        let mut image = language.executable_image().clone();
+        image.semantics = language.meanings.clone();
+        serde_json::to_vec(&image).unwrap()
+    }
     #[test]
     fn semantic_contracts_roundtrip_and_reject_mismatched_artifacts() {
         let mut language = artifact();
-        crate::load_compiled_language(&language.to_bytes().unwrap()).unwrap();
+        crate::load_compiled_language(&wire(&language)).unwrap();
         language.meanings.get_mut("test.yl#Program").unwrap().groups[0].calls[0]
             .contract
             .id = "other".into();
         assert_eq!(
-            crate::load_compiled_language(&language.to_bytes().unwrap()).unwrap_err()[0].code,
+            crate::load_compiled_language(&wire(&language)).unwrap_err()[0].code,
             "yl.artifact"
         );
     }
@@ -5685,7 +5702,7 @@ mod semantic_artifact_tests {
                 &mut language.meanings.get_mut("test.yl#Program").unwrap().groups[0].calls[0];
             call.operation = id.into();
             call.contract.id = id.into();
-            let bytes = serde_json::to_vec(&language).unwrap();
+            let bytes = wire(&language);
             let error = crate::load_compiled_language(&bytes).unwrap_err();
             assert_eq!(error[0].code, "yl.artifact_retired_std");
             assert!(error[0].message.contains("recompile"));
@@ -5703,14 +5720,14 @@ mod semantic_artifact_tests {
             .arguments
             .insert("name".into(), MeaningValue::Capture("missing".into()));
         assert!(
-            crate::load_compiled_language(&language.to_bytes().unwrap()).unwrap_err()[0]
+            crate::load_compiled_language(&wire(&language)).unwrap_err()[0]
                 .message
                 .contains("unavailable capture")
         );
         language.meanings.get_mut("test.yl#Program").unwrap().groups[0].calls[0]
             .arguments
             .insert("name".into(), MeaningValue::Bool(true));
-        assert!(crate::load_compiled_language(&language.to_bytes().unwrap()).is_err());
+        assert!(crate::load_compiled_language(&wire(&language)).is_err());
     }
     #[test]
     fn semantic_artifacts_reject_nested_missing_captures_and_illegal_lifecycles() {
@@ -5724,21 +5741,21 @@ mod semantic_artifact_tests {
             )])]),
         );
         assert!(
-            crate::load_compiled_language(&language.to_bytes().unwrap()).unwrap_err()[0]
+            crate::load_compiled_language(&wire(&language)).unwrap_err()[0]
                 .message
                 .contains("unavailable capture")
         );
         let call = &mut language.meanings.get_mut("test.yl#Program").unwrap().groups[0].calls[0];
         call.arguments
             .insert("name".into(), MeaningValue::Symbol(String::new()));
-        assert!(crate::load_compiled_language(&language.to_bytes().unwrap()).is_err());
+        assert!(crate::load_compiled_language(&wire(&language)).is_err());
         let call = &mut language.meanings.get_mut("test.yl#Program").unwrap().groups[0].calls[0];
         call.arguments
             .insert("name".into(), MeaningValue::Capture("name".into()));
         call.contract.finalization_only = true;
         call.contract.provides_context = true;
         assert!(
-            crate::load_compiled_language(&language.to_bytes().unwrap()).unwrap_err()[0]
+            crate::load_compiled_language(&wire(&language)).unwrap_err()[0]
                 .message
                 .contains("Finalization-only")
         );
@@ -5801,7 +5818,10 @@ entry Program
         assert!(serde_json::to_string(body).unwrap().contains("Local"));
         let bytes = language.to_bytes().unwrap();
         let loaded = crate::load_compiled_language(&bytes).unwrap();
-        assert_eq!(language.query_meanings, loaded.query_meanings);
+        assert_eq!(
+            language.executable_image().queries,
+            loaded.executable_image().queries
+        );
     }
     #[test]
     fn pure_query_helpers_and_nested_callbacks_keep_lexical_bindings() {
@@ -6057,7 +6077,14 @@ import * as types from "std/types"
         .unwrap();
         for mutation in 0..3 {
             let mut broken = language.clone();
-            let groups = &mut broken.meanings.get_mut("language.yl#Root").unwrap().groups;
+            let groups = &mut broken
+                .image
+                .as_mut()
+                .unwrap()
+                .semantics
+                .get_mut("language.yl#Root")
+                .unwrap()
+                .groups;
             match mutation {
                 0 => groups.clear(),
                 1 => groups[0].span.start += 1,
