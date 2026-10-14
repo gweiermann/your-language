@@ -32,4 +32,4 @@ yl language minijs.ylc ast examples/mini-js/program.js
 yl language minijs.ylc check examples/mini-js/invalid.js
 ```
 
-Use the [CLI](/api/cli) to generate ASTs or check syntax, or embed the [Rust API](/api/rust) in an application. Begin with [installation](/guide/installation), then follow a [tutorial](/tutorials/first-language).
+Use the [CLI](/api/cli) to generate ASTs or check syntax, or embed the [Rust API](/api/rust) in an application. Compose experimental binding and type analysis with [meaning libraries](/reference/meaning-libraries), and explore [live editor tooling](/guide/editor). Begin with [installation](/guide/installation), then follow a [tutorial](/tutorials/first-language).
