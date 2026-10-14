@@ -631,6 +631,102 @@
                 {
                   "List": [
                     {
+                      "Block": {
+                        "invocation": "binding:definition/expression.yl:214:242/std/references:1281:1294",
+                        "actions": [],
+                        "result": {
+                          "Call": {
+                            "name": "core/query#find",
+                            "args": [
+                              {
+                                "Call": {
+                                  "name": "core/query#ancestors",
+                                  "args": [
+                                    {
+                                      "Capture": "name"
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "Lambda": {
+                                  "parameter": "ancestor@std/references:515",
+                                  "body": {
+                                    "Call": {
+                                      "name": "core/query#getEarlier",
+                                      "args": [
+                                        {
+                                          "Tuple": [
+                                            {
+                                              "Call": {
+                                                "name": "core/query#get",
+                                                "args": [
+                                                  {
+                                                    "Tuple": [
+                                                      {
+                                                        "Local": "ancestor@std/references:515"
+                                                      },
+                                                      {
+                                                        "Symbol": "std/references#scope"
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            {
+                                              "Symbol": "std/references#declarations"
+                                            },
+                                            {
+                                              "Call": {
+                                                "name": "core/query#text",
+                                                "args": [
+                                                  {
+                                                    "Capture": "name"
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 1274,
+                "end": 1294
+              }
+            }
+          },
+          {
+            "Call": {
+              "name": "core/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    {
+                      "Capture": "name"
+                    },
+                    {
+                      "Symbol": "std/references#referenceIdentity"
+                    }
+                  ]
+                },
+                {
+                  "BindingValue": {
+                    "invocation": "binding:definition/expression.yl:214:242/std/references:1281:1294",
+                    "result": {
                       "Call": {
                         "name": "core/query#find",
                         "args": [
@@ -693,91 +789,6 @@
                         ]
                       }
                     }
-                  ]
-                }
-              ],
-              "span": {
-                "file": "std/references",
-                "start": 1274,
-                "end": 1294
-              }
-            }
-          },
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    {
-                      "Capture": "name"
-                    },
-                    {
-                      "Symbol": "std/references#referenceIdentity"
-                    }
-                  ]
-                },
-                {
-                  "Call": {
-                    "name": "core/query#find",
-                    "args": [
-                      {
-                        "Call": {
-                          "name": "core/query#ancestors",
-                          "args": [
-                            {
-                              "Capture": "name"
-                            }
-                          ]
-                        }
-                      },
-                      {
-                        "Lambda": {
-                          "parameter": "ancestor@std/references:515",
-                          "body": {
-                            "Call": {
-                              "name": "core/query#getEarlier",
-                              "args": [
-                                {
-                                  "Tuple": [
-                                    {
-                                      "Call": {
-                                        "name": "core/query#get",
-                                        "args": [
-                                          {
-                                            "Tuple": [
-                                              {
-                                                "Local": "ancestor@std/references:515"
-                                              },
-                                              {
-                                                "Symbol": "std/references#scope"
-                                              }
-                                            ]
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "Symbol": "std/references#declarations"
-                                    },
-                                    {
-                                      "Call": {
-                                        "name": "core/query#text",
-                                        "args": [
-                                          {
-                                            "Capture": "name"
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                }
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    ]
                   }
                 }
               ],
@@ -801,66 +812,71 @@
                   ]
                 },
                 {
-                  "Call": {
-                    "name": "core/query#find",
-                    "args": [
-                      {
-                        "Call": {
-                          "name": "core/query#ancestors",
-                          "args": [
-                            {
-                              "Capture": "name"
-                            }
-                          ]
-                        }
-                      },
-                      {
-                        "Lambda": {
-                          "parameter": "ancestor@std/references:515",
-                          "body": {
+                  "BindingValue": {
+                    "invocation": "binding:definition/expression.yl:214:242/std/references:1281:1294",
+                    "result": {
+                      "Call": {
+                        "name": "core/query#find",
+                        "args": [
+                          {
                             "Call": {
-                              "name": "core/query#getEarlier",
+                              "name": "core/query#ancestors",
                               "args": [
                                 {
-                                  "Tuple": [
-                                    {
-                                      "Call": {
-                                        "name": "core/query#get",
-                                        "args": [
-                                          {
-                                            "Tuple": [
-                                              {
-                                                "Local": "ancestor@std/references:515"
-                                              },
-                                              {
-                                                "Symbol": "std/references#scope"
-                                              }
-                                            ]
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "Symbol": "std/references#declarations"
-                                    },
-                                    {
-                                      "Call": {
-                                        "name": "core/query#text",
-                                        "args": [
-                                          {
-                                            "Capture": "name"
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
+                                  "Capture": "name"
                                 }
                               ]
                             }
+                          },
+                          {
+                            "Lambda": {
+                              "parameter": "ancestor@std/references:515",
+                              "body": {
+                                "Call": {
+                                  "name": "core/query#getEarlier",
+                                  "args": [
+                                    {
+                                      "Tuple": [
+                                        {
+                                          "Call": {
+                                            "name": "core/query#get",
+                                            "args": [
+                                              {
+                                                "Tuple": [
+                                                  {
+                                                    "Local": "ancestor@std/references:515"
+                                                  },
+                                                  {
+                                                    "Symbol": "std/references#scope"
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        {
+                                          "Symbol": "std/references#declarations"
+                                        },
+                                        {
+                                          "Call": {
+                                            "name": "core/query#text",
+                                            "args": [
+                                              {
+                                                "Capture": "name"
+                                              }
+                                            ]
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              }
+                            }
                           }
-                        }
+                        ]
                       }
-                    ]
+                    }
                   }
                 }
               ],
@@ -879,66 +895,71 @@
                     "name": "core/query#isPresent",
                     "args": [
                       {
-                        "Call": {
-                          "name": "core/query#find",
-                          "args": [
-                            {
-                              "Call": {
-                                "name": "core/query#ancestors",
-                                "args": [
-                                  {
-                                    "Capture": "name"
-                                  }
-                                ]
-                              }
-                            },
-                            {
-                              "Lambda": {
-                                "parameter": "ancestor@std/references:515",
-                                "body": {
+                        "BindingValue": {
+                          "invocation": "binding:definition/expression.yl:214:242/std/references:1281:1294",
+                          "result": {
+                            "Call": {
+                              "name": "core/query#find",
+                              "args": [
+                                {
                                   "Call": {
-                                    "name": "core/query#getEarlier",
+                                    "name": "core/query#ancestors",
                                     "args": [
                                       {
-                                        "Tuple": [
-                                          {
-                                            "Call": {
-                                              "name": "core/query#get",
-                                              "args": [
-                                                {
-                                                  "Tuple": [
-                                                    {
-                                                      "Local": "ancestor@std/references:515"
-                                                    },
-                                                    {
-                                                      "Symbol": "std/references#scope"
-                                                    }
-                                                  ]
-                                                }
-                                              ]
-                                            }
-                                          },
-                                          {
-                                            "Symbol": "std/references#declarations"
-                                          },
-                                          {
-                                            "Call": {
-                                              "name": "core/query#text",
-                                              "args": [
-                                                {
-                                                  "Capture": "name"
-                                                }
-                                              ]
-                                            }
-                                          }
-                                        ]
+                                        "Capture": "name"
                                       }
                                     ]
                                   }
+                                },
+                                {
+                                  "Lambda": {
+                                    "parameter": "ancestor@std/references:515",
+                                    "body": {
+                                      "Call": {
+                                        "name": "core/query#getEarlier",
+                                        "args": [
+                                          {
+                                            "Tuple": [
+                                              {
+                                                "Call": {
+                                                  "name": "core/query#get",
+                                                  "args": [
+                                                    {
+                                                      "Tuple": [
+                                                        {
+                                                          "Local": "ancestor@std/references:515"
+                                                        },
+                                                        {
+                                                          "Symbol": "std/references#scope"
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              },
+                                              {
+                                                "Symbol": "std/references#declarations"
+                                              },
+                                              {
+                                                "Call": {
+                                                  "name": "core/query#text",
+                                                  "args": [
+                                                    {
+                                                      "Capture": "name"
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
                                 }
-                              }
+                              ]
                             }
-                          ]
+                          }
                         }
                       }
                     ]
@@ -988,66 +1009,71 @@
                 {
                   "List": [
                     {
-                      "Call": {
-                        "name": "core/query#find",
-                        "args": [
-                          {
-                            "Call": {
-                              "name": "core/query#ancestors",
-                              "args": [
-                                {
-                                  "Capture": "name"
-                                }
-                              ]
-                            }
-                          },
-                          {
-                            "Lambda": {
-                              "parameter": "ancestor@std/references:515",
-                              "body": {
+                      "BindingValue": {
+                        "invocation": "binding:definition/expression.yl:214:242/std/references:1281:1294",
+                        "result": {
+                          "Call": {
+                            "name": "core/query#find",
+                            "args": [
+                              {
                                 "Call": {
-                                  "name": "core/query#getEarlier",
+                                  "name": "core/query#ancestors",
                                   "args": [
                                     {
-                                      "Tuple": [
-                                        {
-                                          "Call": {
-                                            "name": "core/query#get",
-                                            "args": [
-                                              {
-                                                "Tuple": [
-                                                  {
-                                                    "Local": "ancestor@std/references:515"
-                                                  },
-                                                  {
-                                                    "Symbol": "std/references#scope"
-                                                  }
-                                                ]
-                                              }
-                                            ]
-                                          }
-                                        },
-                                        {
-                                          "Symbol": "std/references#declarations"
-                                        },
-                                        {
-                                          "Call": {
-                                            "name": "core/query#text",
-                                            "args": [
-                                              {
-                                                "Capture": "name"
-                                              }
-                                            ]
-                                          }
-                                        }
-                                      ]
+                                      "Capture": "name"
                                     }
                                   ]
                                 }
+                              },
+                              {
+                                "Lambda": {
+                                  "parameter": "ancestor@std/references:515",
+                                  "body": {
+                                    "Call": {
+                                      "name": "core/query#getEarlier",
+                                      "args": [
+                                        {
+                                          "Tuple": [
+                                            {
+                                              "Call": {
+                                                "name": "core/query#get",
+                                                "args": [
+                                                  {
+                                                    "Tuple": [
+                                                      {
+                                                        "Local": "ancestor@std/references:515"
+                                                      },
+                                                      {
+                                                        "Symbol": "std/references#scope"
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            {
+                                              "Symbol": "std/references#declarations"
+                                            },
+                                            {
+                                              "Call": {
+                                                "name": "core/query#text",
+                                                "args": [
+                                                  {
+                                                    "Capture": "name"
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
                               }
-                            }
+                            ]
                           }
-                        ]
+                        }
                       }
                     }
                   ]

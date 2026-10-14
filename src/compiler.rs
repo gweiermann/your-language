@@ -1588,6 +1588,7 @@ impl Compiler {
             | ExprKind::Not(_)
             | ExprKind::Binary(_, _, _)
             | ExprKind::SemanticBlock { .. }
+            | ExprKind::SemanticBinding { .. }
             | ExprKind::Variant(_) => {
                 return Err(Diagnostic::error(
                     "yl.ambiguous_enum_variant",
@@ -2056,6 +2057,7 @@ impl Compiler {
                 ));
             }
             match &value.kind {
+                ExprKind::SemanticBinding { result, .. } => nodes.push(result),
                 ExprKind::SemanticBlock {
                     actions, result, ..
                 } => {
@@ -2086,7 +2088,16 @@ impl Compiler {
     }
     fn result_only(value: &Expr) -> Expr {
         let kind = match &value.kind {
-            ExprKind::SemanticBlock { result, .. } => return Self::result_only(result),
+            ExprKind::SemanticBlock {
+                invocation, result, ..
+            } => ExprKind::SemanticBinding {
+                invocation: invocation.clone(),
+                result: Box::new(Self::result_only(result)),
+            },
+            ExprKind::SemanticBinding { invocation, result } => ExprKind::SemanticBinding {
+                invocation: invocation.clone(),
+                result: Box::new(Self::result_only(result)),
+            },
             ExprKind::Call(name, args) => ExprKind::Call(
                 name.clone(),
                 args.iter()
@@ -2174,23 +2185,36 @@ impl Compiler {
                 }
                 if let Some((root, suffix)) = name.split_once('.') {
                     if let Some(value) = bindings.get(root) {
-                        let projected = match &value.kind {
-                            ExprKind::Ref(actual) => {
-                                Some(ExprKind::Ref(format!("{actual}.{suffix}")))
-                            }
-                            ExprKind::SemanticCapture(actual) => {
-                                Some(ExprKind::SemanticCapture(format!("{actual}.{suffix}")))
-                            }
-                            _ => None,
-                        };
-                        if let Some(kind) = projected {
-                            return Ok(Expr {
+                        fn project(value: &Expr, suffix: &str) -> Option<Expr> {
+                            let kind = match &value.kind {
+                                ExprKind::SemanticBinding { invocation, result } => {
+                                    ExprKind::SemanticBinding {
+                                        invocation: invocation.clone(),
+                                        result: Box::new(project(result, suffix)?),
+                                    }
+                                }
+                                ExprKind::SemanticBlock {
+                                    invocation, result, ..
+                                } => ExprKind::SemanticBinding {
+                                    invocation: invocation.clone(),
+                                    result: Box::new(project(result, suffix)?),
+                                },
+                                ExprKind::Ref(actual) => {
+                                    ExprKind::Ref(format!("{actual}.{suffix}"))
+                                }
+                                ExprKind::SemanticCapture(actual) => {
+                                    ExprKind::SemanticCapture(format!("{actual}.{suffix}"))
+                                }
+                                ExprKind::Absent => ExprKind::Absent,
+                                _ => return None,
+                            };
+                            Some(Expr {
                                 kind,
                                 span: value.span.clone(),
-                            });
+                            })
                         }
-                        if matches!(value.kind, ExprKind::Absent) {
-                            return Ok(value.clone());
+                        if let Some(value) = project(value, suffix) {
+                            return Ok(value);
                         }
                     }
                 }
@@ -3030,6 +3054,10 @@ impl Compiler {
     ) -> Result<crate::semantics::queries::QueryExpr> {
         use crate::semantics::queries::QueryExpr as Q;
         Ok(match &expr.kind {
+            ExprKind::SemanticBinding { invocation, result } => Q::BindingValue {
+                invocation: invocation.clone(),
+                result: Box::new(self.query_expr_normalized(symbol, &Self::result_only(result))?),
+            },
             ExprKind::SemanticBlock {
                 invocation,
                 actions,
@@ -3316,7 +3344,27 @@ impl Compiler {
                     &self.env,
                     stack,
                 )?;
-                self.env.insert(name.into(), value);
+                let span = self.values[name].span.clone();
+                let outer = self
+                    .compiler
+                    .invocation_path
+                    .borrow()
+                    .iter()
+                    .map(|span| format!("{}:{}:{}", span.file, span.start, span.end))
+                    .collect::<Vec<_>>()
+                    .join("/");
+                let invocation =
+                    format!("binding:{outer}/{}:{}:{}", span.file, span.start, span.end);
+                self.env.insert(
+                    name.into(),
+                    Expr {
+                        kind: ExprKind::SemanticBinding {
+                            invocation,
+                            result: Box::new(value),
+                        },
+                        span,
+                    },
+                );
                 self.visiting.remove(name);
                 self.completed.insert(name.into());
                 Ok(())
@@ -3351,7 +3399,18 @@ impl Compiler {
         let mut result = vec![];
         for action in actions {
             if let MeaningSyntaxAction::Binding { name, span, .. } = action {
-                let value = self.query_expr_normalized(symbol, &bindings[name])?;
+                let ExprKind::SemanticBinding {
+                    invocation,
+                    result: binding_result,
+                } = &bindings[name].kind
+                else {
+                    unreachable!("local definitions carry their context")
+                };
+                let value = Q::Block {
+                    invocation: invocation.clone(),
+                    actions: vec![],
+                    result: Box::new(self.query_expr_normalized(symbol, binding_result)?),
+                };
                 result.push(A::Call {
                     name: "core/query#first".into(),
                     args: vec![Q::List(vec![value])],

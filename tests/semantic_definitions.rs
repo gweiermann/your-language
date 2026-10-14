@@ -416,3 +416,24 @@ entry Program
         ])
     );
 }
+
+#[test]
+fn a_binding_keeps_its_definition_rank_when_read_by_a_later_group() {
+    let result = analyze(
+        r#"
+import { contribute, getEarlier, isPresent } from "core/query"
+import { error } from "core/diagnostics"
+node Program = "x" {
+    semantics {
+        cached := getEarlier("key")
+        group Producer { contribute("key", true) }
+        group Consumer {
+            when isPresent(cached) { error("Binding resolved at reader rank") }
+        }
+    }
+}
+entry Program
+"#,
+    );
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+}

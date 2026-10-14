@@ -16,6 +16,10 @@ pub enum ExprKind {
     /// Compiler-only caller capture; never re-resolved inside an authored operation.
     SemanticCapture(String),
     /// Compiler-only dependency-preserving result of an authored action operation.
+    SemanticBinding {
+        invocation: String,
+        result: Box<Expr>,
+    },
     SemanticBlock {
         invocation: String,
         actions: Vec<crate::semantics::queries::QueryAction>,

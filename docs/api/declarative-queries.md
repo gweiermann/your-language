@@ -46,6 +46,8 @@ For callbacks, `find` continues after an absent result, `map` preserves absent p
 
 Use `:=` to give a name to a dependency-tracked expression. The name is immutable; its value can remain pending until its dependencies settle. Textual order does not impose execution order, and sibling definitions can refer to one another. Duplicate definitions and unresolved definition cycles are errors.
 
+Reads retain the definition's query context, including visibility-sensitive queries such as `getEarlier`; reading the value from a later group cannot change that context. Named groups can read surrounding definitions and introduce their own local names. Actions in a definition, argument, or default argument remain tracked even when its value is unused, while repeated reads do not repeat those actions.
+
 ```yl
 import { connectReference } from "std/references"
 import { annotateWithType, typeOf } from "std/types"
