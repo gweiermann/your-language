@@ -134,7 +134,7 @@ cargo doc --no-deps --open
 
 ## Experimental native analysis
 
-[`SemanticEngine`](/api/native-semantics) provides registry-aware `compile`, `analyze`, and `compile_and_analyze` methods, plus optional checked artifact loading. The engine supplies bundled lexical operations and identity-keyed type constraints and supports custom native libraries through the same interface. The parse APIs above and existing CLI remain syntax-only.
+[`SemanticEngine`](/api/native-semantics) provides registry-aware `compile`, `analyze`, and `compile_and_analyze` methods, plus optional checked artifact loading. The engine loads authored reference and type libraries over generic attachment queries and supports custom native libraries through the same interface. The parse APIs above return syntax; CLI language checks also execute authored diagnostics.
 
 ## `format_yl`
 

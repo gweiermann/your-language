@@ -33,11 +33,11 @@ export operation lexicalScope() {
 export operation enclosingScope(value) =
     find(ancestors(value), ancestor => get((ancestor, scope)))
 
-export operation declare(name, mutable = true) {
+export operation declare(name, reassignable = true) {
     contribute((enclosingScope(self), declarations, text(name)), self)
     contribute((name, referenceIdentity), self)
     contribute((self, referenceIdentity), self)
-    contribute((self, reassignable), mutable)
+    contribute((self, reassignableSymbol), reassignable)
 
     if hasMultiple(getAll((enclosingScope(self), declarations, text(name)))) {
         error("Duplicate declaration '${name}'", name)

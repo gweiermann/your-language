@@ -22,7 +22,7 @@ The CLI equivalent is `yl compile <entry.yl> -o <language.ylc>`, followed by a `
 
 ## Representation
 
-Artifacts are versioned pretty JSON with deterministic ordered rule maps. Syntax-only languages retain version `1`; native lifecycle meanings use version `2`; declarative attachment queries use version `3`. They include the entry rule, selected trivia, normalized rules, precedence plans, syntax-local checks, definition spans, and normalized query actions when present. They do not include the original module source. Compile-time warning/help records are excluded from serialization.
+Artifacts are versioned pretty JSON with deterministic ordered rule maps. Syntax-only languages retain version `1`; native lifecycle meanings use version `2`; declarative attachment queries use version `4`. They include the entry rule, selected trivia, normalized rules, precedence plans, syntax-local checks, definition spans, and normalized query actions when present. They do not include the original module source. Compile-time warning/help records are excluded from serialization.
 
 Rule bodies distinguish concrete grammar from abstract node families. Terms include literals, regexes, references, sequences, choices, repetitions, captures, negative lookaround, and generic value marking/projection. Marking and projection implement type-preserving rewrite results without teaching the runtime individual pipe names.
 
@@ -43,3 +43,5 @@ The version field allows incompatible artifact changes to be rejected rather tha
 ## Native meanings
 
 [Native semantic artifacts](/api/native-semantics) also retain operation contracts and scheduling boundaries. Use `SemanticEngine::load` to verify registered library compatibility and `analyze` to execute them. Artifact files remain optional: registry-aware compile and analyze can run entirely in memory. Existing parse APIs and CLI tools perform syntax analysis only.
+
+Version 4 includes authored canonical standard modules, generic alternative distribution and checked hypothetical diagnostics. Versions 1-3 remain readable when their contracts are supported. Retired native standard-operation contracts are explicitly rejected; recompile their source definitions. The loader bounds JSON nesting before stack-safe deserialization, then validates normalized grammar/query limits.
