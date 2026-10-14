@@ -3,14 +3,15 @@ use your_language::{compile_sources, load_compiled_language, parse};
 
 #[test]
 fn optional_boolean_conditions_preserve_absence_through_reload() {
-    let source = r#"
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+
     node P = name: /[A-Za-z]+/? {
-        constraints {
-            when name?.matches(/^[A-Z]/) { warning("capital") }
-            when !name?.matches(/^[A-Z]/) { warning("lowercase") }
-            when name?.matches(/^[A-Z]/) == absent { help("missing") }
-            when name.isPresent() && name.matches(/^X/) { warning("X") }
-            when name?.matches(/^X/) || true { help("fallback") }
+        checks {
+            when name?.matches(/^[A-Z]/) { warn("capital") }
+            when !name?.matches(/^[A-Z]/) { warn("lowercase") }
+            when name?.matches(/^[A-Z]/) == absent { hint("missing") }
+            when name.isPresent() && name.matches(/^X/) { warn("X") }
+            when name?.matches(/^X/) || true { hint("fallback") }
         }
     }
     entry P
@@ -42,11 +43,12 @@ fn optional_boolean_conditions_preserve_absence_through_reload() {
 
 #[test]
 fn boolean_precedence_string_equality_and_definition_errors() {
-    let source = r#"node P = name: /[a-z]+/ {
-        constraints {
-            when false || true && name == "x" { warning("x") }
-            when !(name != "x") { help("equal") }
-            when "a" != "b" && true { help("always") }
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+node P = name: /[a-z]+/ {
+        checks {
+            when false || true && name == "x" { warn("x") }
+            when !(name != "x") { hint("equal") }
+            when "a" != "b" && true { hint("always") }
         }
     } entry P"#;
     let language = compile_sources(
@@ -65,7 +67,7 @@ fn boolean_precedence_string_equality_and_definition_errors() {
         ("true == \"x\"", "yl.condition_type"),
         ("\"x\"", "yl.condition_type"),
     ] {
-        let source = format!("node P = name: /x/? {{ constraints {{ when {condition} {{ error(\"bad\") }} }} }} entry P");
+        let source = format!("import {{ error, warn, hint }} from \"core/diagnostics\"\nnode P = name: /x/? {{ checks {{ when {condition} {{ error(\"bad\") }} }} }} entry P");
         assert_eq!(
             compile_sources("main.yl", &BTreeMap::from([("main.yl".into(), source)])).unwrap_err()
                 [0]
@@ -77,13 +79,14 @@ fn boolean_precedence_string_equality_and_definition_errors() {
 
 #[test]
 fn tuple_rewrite_matches_are_exhaustive_and_support_wildcard_fallbacks() {
-    let source = r#"
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+
         enum Mode { a b }
         pipe wrap(first: Mode, second: Mode) {
             rewrite value match (first, second) {
                 (.a, .a) => "(" value ")"
                 (.a, .b) => { error("This combination is not allowed.") }
-                (_, _) => { warning("Pipe not applied.") value }
+                (_, _) => { warn("Pipe not applied.") value }
             }
         }
         node P = item: /x/ |> wrap(.a, .a)
@@ -162,14 +165,15 @@ fn rewrite_omission_and_duplication_follow_input_cardinality() {
 
 #[test]
 fn typed_reusable_constraints_validate_node_and_enum_arguments() {
-    let source = r#"
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+
         enum Mode { a b }
         node N = text: /x/
         node Other = /y/
         constraint c(input: N, mode: Mode=.a) {
-            when mode == .a && input.matches(/x/) { warning("typed") }
+            when mode == .a && input.matches(/x/) { warn("typed") }
         }
-        node P = name: N { constraints { c(name) } }
+        node P = name: N { checks { c(name) } }
         entry P
     "#;
     let language = compile_sources(
@@ -188,12 +192,13 @@ fn typed_reusable_constraints_validate_node_and_enum_arguments() {
 
 #[test]
 fn wildcard_warnings_defaults_and_forwarded_enum_spans() {
-    let source = r#"
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+
         enum Mode { a b }
         pipe choice(mode: Mode=.b) {
             rewrite value {
                 .a => { error("no a") }
-                _ => { warning("identity") value }
+                _ => { warn("identity") value }
             }
         }
         pattern forwarded(mode: Mode) = /x/ |> choice(mode)
@@ -239,7 +244,7 @@ fn all_match_combinations_must_be_covered_and_cases_reachable() {
         ),
         (".a => value", "yl.enum_case"),
         (
-            "(_, _) => { warning(\"no replacement\") }",
+            "(_, _) => { warn(\"no replacement\") }",
             "yl.invalid_rewrite",
         ),
         (
@@ -247,7 +252,7 @@ fn all_match_combinations_must_be_covered_and_cases_reachable() {
             "yl.invalid_argument",
         ),
     ] {
-        let source=format!("enum M {{ a b }} pipe unused(first:M,second:M) {{ rewrite value match (first,second) {{ {cases} }} }} node P = /x/ entry P");
+        let source=format!("import {{ error, warn, hint }} from \"core/diagnostics\"\nenum M {{ a b }} pipe unused(first:M,second:M) {{ rewrite value match (first,second) {{ {cases} }} }} node P = /x/ entry P");
         assert_eq!(
             compile_sources("main.yl", &BTreeMap::from([("main.yl".into(), source)])).unwrap_err()
                 [0]
@@ -260,20 +265,21 @@ fn all_match_combinations_must_be_covered_and_cases_reachable() {
 
 #[test]
 fn nested_guards_reusable_booleans_and_absence_literals() {
-    let source = r#"
-        constraint enabled(flag=true) { when flag { help("enabled") } }
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+
+        constraint enabled(flag=true) { when flag { hint("enabled") } }
         node P = name: /x/? {
-            constraints {
+            checks {
                 enabled()
                 when name.isPresent() {
-                    help("outer")
-                    when name.matches(/x/) { warning("inner") }
-                    help("last")
+                    hint("outer")
+                    when name.matches(/x/) { warn("inner") }
+                    hint("last")
                 }
                 when !absent { error("never") }
                 when absent && false { error("never") }
-                when absent || true { help("fallback") }
-                when name != absent && name.matches(/x/) { help("guarded") }
+                when absent || true { hint("fallback") }
+                when name != absent && name.matches(/x/) { hint("guarded") }
             }
         }
         entry P
@@ -307,14 +313,15 @@ fn new_condition_paths_reject_malformed_input_without_panics() {
         .collect::<Vec<_>>()
         .join(" && ");
     let source = format!(
-        "node P = /x/ {{ constraints {{ when {oversized} {{ error(\"bad\") }} }} }} entry P"
+        "import {{ error, warn, hint }} from \"core/diagnostics\"\nnode P = /x/ {{ checks {{ when {oversized} {{ error(\"bad\") }} }} }} entry P"
     );
     assert_eq!(
         compile_sources("main.yl", &BTreeMap::from([("main.yl".into(), source)])).unwrap_err()[0]
             .code,
         "yl.depth_limit"
     );
-    let source = r#"import { notAhead } from "core/parser" constraint c(v: notAhead) { when true { warning("bad") } } node P = name: /x/ { constraints { c(name) } } entry P"#;
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+import { notAhead } from "core/parser" constraint c(v: notAhead) { when true { warn("bad") } } node P = name: /x/ { checks { c(name) } } entry P"#;
     assert!(compile_sources(
         "main.yl",
         &BTreeMap::from([("main.yl".into(), source.into())])
@@ -325,8 +332,9 @@ fn new_condition_paths_reject_malformed_input_without_panics() {
 #[test]
 fn imported_constraint_enum_arguments_keep_their_caller_context() {
     let sources=BTreeMap::from([
-        ("main.yl".into(),r#"import { M as Mode, check } from "./checks" node P = name: /x/ { constraints { check(name,Mode::b) } } entry P"#.into()),
-        ("checks.yl".into(),r#"export enum M { a b } export constraint check(input,mode) { when mode != .a && input.matches(/x/) { warning("b") } }"#.into()),
+        ("main.yl".into(),r#"import { M as Mode, check } from "./checks" node P = name: /x/ { checks { check(name,Mode::b) } } entry P"#.into()),
+        ("checks.yl".into(),r#"import { error, warn, hint } from "core/diagnostics"
+export enum M { a b } export constraint check(input,mode) { when mode != .a && input.matches(/x/) { warn("b") } }"#.into()),
     ]);
     assert_eq!(
         parse(&compile_sources("main.yl", &sources).unwrap(), "x").diagnostics[0].message,
@@ -336,13 +344,14 @@ fn imported_constraint_enum_arguments_keep_their_caller_context() {
 
 #[test]
 fn string_checks_observe_preserved_values_and_node_absence_is_comparable() {
-    let source = r#"
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+
         pipe wrap() { rewrite value => "(" value ")" }
         node N = /n/
         node P = name: /x/ |> wrap() optional: N? {
-            constraints {
-                when name == "x" && name.matches(/^x$/) { warning("value") }
-                when optional == absent { help("missing") }
+            checks {
+                when name == "x" && name.matches(/^x$/) { warn("value") }
+                when optional == absent { hint("missing") }
             }
         }
         entry P

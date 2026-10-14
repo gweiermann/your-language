@@ -1,12 +1,12 @@
-import { lexicalScope, declare } from "std/variables"
+import { createLexicalScope, declareName } from "std/references"
 import { separatedBy } from "std/parser"
 import { Name } from "./lexical"
 import { Expression } from "./expression"
 import { LetDeclaration } from "./let"
 
 node Parameter = name: Name {
-    meanings {
-        declare(self, name)
+    semantics {
+        declareName(self, name)
     }
 }
 
@@ -18,7 +18,7 @@ export node FunctionBody =
     ";"
     "}"
 {
-    meanings {
+    semantics {
         boundary
     }
 }
@@ -29,8 +29,8 @@ pattern FunctionContents =
     ")"
     body: FunctionBody
 {
-    meanings {
-        lexicalScope(self)
+    semantics {
+        createLexicalScope(self)
     }
 }
 
@@ -43,9 +43,9 @@ export node FunctionDeclaration =
     name: Name
     contents: FunctionContents
 {
-    meanings {
+    semantics {
         group Register {
-            declare(self, name, reassignable = false)
+            declareName(self, name, reassignable = false)
         }
     }
 }

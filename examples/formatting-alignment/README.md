@@ -1,6 +1,6 @@
 # Match arrow alignment
 
-This fixture demonstrates the canonical alignment of meaning-match arrows. It illustrates formatting only; `typeof`, `type`, and the named types are placeholders rather than registered semantic operations.
+This fixture demonstrates the canonical alignment of meaning-match arrows. It illustrates formatting only; `typeOf`, `type`, and the named types are placeholders rather than registered semantic operations.
 
 From the repository root, create a temporary copy and run:
 

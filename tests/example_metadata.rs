@@ -108,7 +108,8 @@ fn imports_trivia_and_constraints_are_parser_validated() {
         .text
         .unwrap();
     assert!(!parse(&language, &text).has_errors());
-    let source = r#"node Program = value: "x" { constraints { when true { error("Invalid") } } } entry Program"#;
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+node Program = value: "x" { checks { when true { error("Invalid") } } } entry Program"#;
     assert_eq!(preview(source, "Program"), None);
 }
 #[test]
@@ -130,9 +131,10 @@ fn metadata_has_no_effect_on_target_ast_or_syntax_diagnostics() {
 
 #[test]
 fn pattern_examples_preserve_scalar_constraint_typing() {
-    let source = r#"pattern Name = /[a-z]+/ { example "x" }
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+pattern Name = /[a-z]+/ { example "x" }
 node Root = name: Name {
-    constraints { when name == "x" { warning("ok") } }
+    checks { when name == "x" { warn("ok") } }
 }
 entry Root"#;
     let annotated = language(source);
@@ -189,7 +191,8 @@ fn generic_pipe_wrappers_preserve_one_item_through_nested_optional_and_empty_cho
         r#"("[]" | "[" value ("," value)* "]")"#,
     ] {
         let source = format!(
-            r#"pipe wrapped() {{ rewrite value* => {body} }} node Item = "x" node Root = Item* |> wrapped() entry Root"#
+            r#"import {{ error, warn, hint }} from "core/diagnostics"
+pipe wrapped() {{ rewrite value* => {body} }} node Item = "x" node Root = Item* |> wrapped() entry Root"#
         );
         assert_eq!(preview(&source, "Root").as_deref(), Some("[x]"));
     }
@@ -305,9 +308,10 @@ entry Program { trivia Space }"#;
 
 #[test]
 fn spacing_retries_adjacent_candidates_under_the_same_budget() {
-    let source = r#"trivia Space = / +/
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+trivia Space = / +/
 node Pair = left: "a" right: "b" {
-    constraints { when trivia.between(left, right) { error("Adjacent only") } }
+    checks { when trivia.between(left, right) { error("Adjacent only") } }
 }
 entry Pair { trivia Space }"#;
     assert_eq!(preview(source, "Pair").as_deref(), Some("ab"));
@@ -348,9 +352,10 @@ fn checked_in_fixture_cli_and_reload_generate_readable_trivia_examples() {
 
 #[test]
 fn spacing_fallback_survives_a_full_concat_pruned_from_the_readability_beam() {
-    let source = r#"trivia Space = / +/
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+trivia Space = / +/
 node Chain = a:"a" b:"b" c:"c" d:"d" e:"e" f:"f" {
-    constraints {
+    checks {
         when trivia.between(a,b) || trivia.between(b,c) || trivia.between(c,d) || trivia.between(d,e) || trivia.between(e,f) {
             error("Adjacent only")
         }

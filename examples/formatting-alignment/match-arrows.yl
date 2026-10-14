@@ -1,11 +1,13 @@
+import { error } from "core/diagnostics"
+
 // Formatting illustration only: operation names illustrate a type-policy match.
 node Addition =
     left: /[0-9]+/
     "+"
     right: /[0-9]+/
 {
-    meanings {
-        match (typeof(left), typeof(right)) {
+    semantics {
+        match (typeOf(left), typeOf(right)) {
             string, string | string, number | number, string => type(string)
             number, number                                   => type(number)
             unknown, _ | _, unknown                          => type(unknown)

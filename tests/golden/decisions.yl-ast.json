@@ -3,6 +3,33 @@
     {
       "export": false,
       "kind": {
+        "Import": {
+          "names": [
+            [
+              "error",
+              "error"
+            ],
+            [
+              "warn",
+              "warn"
+            ],
+            [
+              "hint",
+              "hint"
+            ]
+          ],
+          "path": "core/diagnostics"
+        }
+      },
+      "span": {
+        "file": "tests/fixtures/decisions/language.yl",
+        "start": 0,
+        "end": 52
+      }
+    },
+    {
+      "export": false,
+      "kind": {
         "Enum": {
           "name": "Mode",
           "variants": [
@@ -13,8 +40,8 @@
       },
       "span": {
         "file": "tests/fixtures/decisions/language.yl",
-        "start": 0,
-        "end": 17
+        "start": 54,
+        "end": 79
       }
     },
     {
@@ -29,8 +56,8 @@
               "default": null,
               "span": {
                 "file": "tests/fixtures/decisions/language.yl",
-                "start": 29,
-                "end": 40
+                "start": 91,
+                "end": 102
               }
             },
             {
@@ -39,8 +66,8 @@
               "default": null,
               "span": {
                 "file": "tests/fixtures/decisions/language.yl",
-                "start": 42,
-                "end": 54
+                "start": 104,
+                "end": 116
               }
             }
           ],
@@ -58,8 +85,8 @@
                       },
                       "span": {
                         "file": "tests/fixtures/decisions/language.yl",
-                        "start": 83,
-                        "end": 88
+                        "start": 145,
+                        "end": 150
                       }
                     },
                     {
@@ -68,8 +95,8 @@
                       },
                       "span": {
                         "file": "tests/fixtures/decisions/language.yl",
-                        "start": 90,
-                        "end": 96
+                        "start": 152,
+                        "end": 158
                       }
                     }
                   ],
@@ -82,8 +109,8 @@
                           },
                           "span": {
                             "file": "tests/fixtures/decisions/language.yl",
-                            "start": 109,
-                            "end": 111
+                            "start": 171,
+                            "end": 173
                           }
                         },
                         {
@@ -92,8 +119,8 @@
                           },
                           "span": {
                             "file": "tests/fixtures/decisions/language.yl",
-                            "start": 113,
-                            "end": 115
+                            "start": 175,
+                            "end": 177
                           }
                         }
                       ],
@@ -106,8 +133,8 @@
                               },
                               "span": {
                                 "file": "tests/fixtures/decisions/language.yl",
-                                "start": 120,
-                                "end": 123
+                                "start": 182,
+                                "end": 185
                               }
                             },
                             {
@@ -116,8 +143,8 @@
                               },
                               "span": {
                                 "file": "tests/fixtures/decisions/language.yl",
-                                "start": 124,
-                                "end": 129
+                                "start": 186,
+                                "end": 191
                               }
                             },
                             {
@@ -126,23 +153,23 @@
                               },
                               "span": {
                                 "file": "tests/fixtures/decisions/language.yl",
-                                "start": 130,
-                                "end": 133
+                                "start": 192,
+                                "end": 195
                               }
                             }
                           ]
                         },
                         "span": {
                           "file": "tests/fixtures/decisions/language.yl",
-                          "start": 120,
-                          "end": 133
+                          "start": 182,
+                          "end": 195
                         }
                       },
                       "diagnostics": [],
                       "span": {
                         "file": "tests/fixtures/decisions/language.yl",
-                        "start": 108,
-                        "end": 133
+                        "start": 170,
+                        "end": 195
                       }
                     },
                     {
@@ -153,8 +180,8 @@
                           },
                           "span": {
                             "file": "tests/fixtures/decisions/language.yl",
-                            "start": 143,
-                            "end": 145
+                            "start": 205,
+                            "end": 207
                           }
                         },
                         {
@@ -163,8 +190,8 @@
                           },
                           "span": {
                             "file": "tests/fixtures/decisions/language.yl",
-                            "start": 147,
-                            "end": 149
+                            "start": 209,
+                            "end": 211
                           }
                         }
                       ],
@@ -183,14 +210,14 @@
                                     },
                                     "span": {
                                       "file": "tests/fixtures/decisions/language.yl",
-                                      "start": 162,
-                                      "end": 196
+                                      "start": 236,
+                                      "end": 270
                                     }
                                   },
                                   "span": {
                                     "file": "tests/fixtures/decisions/language.yl",
-                                    "start": 162,
-                                    "end": 196
+                                    "start": 236,
+                                    "end": 270
                                   }
                                 }
                               ]
@@ -198,15 +225,15 @@
                           },
                           "span": {
                             "file": "tests/fixtures/decisions/language.yl",
-                            "start": 156,
-                            "end": 197
+                            "start": 230,
+                            "end": 271
                           }
                         }
                       ],
                       "span": {
                         "file": "tests/fixtures/decisions/language.yl",
-                        "start": 142,
-                        "end": 199
+                        "start": 204,
+                        "end": 281
                       }
                     },
                     {
@@ -219,15 +246,15 @@
                         },
                         "span": {
                           "file": "tests/fixtures/decisions/language.yl",
-                          "start": 262,
-                          "end": 267
+                          "start": 353,
+                          "end": 358
                         }
                       },
                       "diagnostics": [
                         {
                           "kind": {
                             "Call": [
-                              "warning",
+                              "warn",
                               [
                                 {
                                   "name": null,
@@ -237,14 +264,14 @@
                                     },
                                     "span": {
                                       "file": "tests/fixtures/decisions/language.yl",
-                                      "start": 223,
-                                      "end": 260
+                                      "start": 314,
+                                      "end": 351
                                     }
                                   },
                                   "span": {
                                     "file": "tests/fixtures/decisions/language.yl",
-                                    "start": 223,
-                                    "end": 260
+                                    "start": 314,
+                                    "end": 351
                                   }
                                 }
                               ]
@@ -252,15 +279,15 @@
                           },
                           "span": {
                             "file": "tests/fixtures/decisions/language.yl",
-                            "start": 215,
-                            "end": 261
+                            "start": 309,
+                            "end": 352
                           }
                         }
                       ],
                       "span": {
                         "file": "tests/fixtures/decisions/language.yl",
-                        "start": 208,
-                        "end": 269
+                        "start": 290,
+                        "end": 368
                       }
                     }
                   ]
@@ -268,8 +295,8 @@
               },
               "span": {
                 "file": "tests/fixtures/decisions/language.yl",
-                "start": 62,
-                "end": 275
+                "start": 124,
+                "end": 374
               }
             }
           ]
@@ -277,8 +304,8 @@
       },
       "span": {
         "file": "tests/fixtures/decisions/language.yl",
-        "start": 19,
-        "end": 277
+        "start": 81,
+        "end": 376
       }
     },
     {
@@ -303,8 +330,8 @@
                               },
                               "span": {
                                 "file": "tests/fixtures/decisions/language.yl",
-                                "start": 300,
-                                "end": 311
+                                "start": 403,
+                                "end": 414
                               }
                             },
                             "Optional"
@@ -312,16 +339,16 @@
                         },
                         "span": {
                           "file": "tests/fixtures/decisions/language.yl",
-                          "start": 300,
-                          "end": 312
+                          "start": 403,
+                          "end": 415
                         }
                       }
                     ]
                   },
                   "span": {
                     "file": "tests/fixtures/decisions/language.yl",
-                    "start": 294,
-                    "end": 312
+                    "start": 397,
+                    "end": 415
                   }
                 },
                 {
@@ -330,8 +357,8 @@
                   },
                   "span": {
                     "file": "tests/fixtures/decisions/language.yl",
-                    "start": 313,
-                    "end": 316
+                    "start": 420,
+                    "end": 423
                   }
                 },
                 {
@@ -350,8 +377,8 @@
                                     },
                                     "span": {
                                       "file": "tests/fixtures/decisions/language.yl",
-                                      "start": 324,
-                                      "end": 327
+                                      "start": 435,
+                                      "end": 438
                                     }
                                   },
                                   "Star"
@@ -359,8 +386,8 @@
                               },
                               "span": {
                                 "file": "tests/fixtures/decisions/language.yl",
-                                "start": 324,
-                                "end": 328
+                                "start": 435,
+                                "end": 439
                               }
                             },
                             "wrap",
@@ -373,14 +400,14 @@
                                   },
                                   "span": {
                                     "file": "tests/fixtures/decisions/language.yl",
-                                    "start": 337,
-                                    "end": 339
+                                    "start": 448,
+                                    "end": 450
                                   }
                                 },
                                 "span": {
                                   "file": "tests/fixtures/decisions/language.yl",
-                                  "start": 337,
-                                  "end": 339
+                                  "start": 448,
+                                  "end": 450
                                 }
                               },
                               {
@@ -391,14 +418,14 @@
                                   },
                                   "span": {
                                     "file": "tests/fixtures/decisions/language.yl",
-                                    "start": 341,
-                                    "end": 343
+                                    "start": 452,
+                                    "end": 454
                                   }
                                 },
                                 "span": {
                                   "file": "tests/fixtures/decisions/language.yl",
-                                  "start": 341,
-                                  "end": 343
+                                  "start": 452,
+                                  "end": 454
                                 }
                               }
                             ]
@@ -406,24 +433,24 @@
                         },
                         "span": {
                           "file": "tests/fixtures/decisions/language.yl",
-                          "start": 324,
-                          "end": 344
+                          "start": 435,
+                          "end": 455
                         }
                       }
                     ]
                   },
                   "span": {
                     "file": "tests/fixtures/decisions/language.yl",
-                    "start": 317,
-                    "end": 344
+                    "start": 428,
+                    "end": 455
                   }
                 }
               ]
             },
             "span": {
               "file": "tests/fixtures/decisions/language.yl",
-              "start": 294,
-              "end": 344
+              "start": 397,
+              "end": 455
             }
           },
           "members": [],
@@ -445,14 +472,14 @@
                               },
                               "span": {
                                 "file": "tests/fixtures/decisions/language.yl",
-                                "start": 392,
-                                "end": 400
+                                "start": 498,
+                                "end": 506
                               }
                             },
                             "span": {
                               "file": "tests/fixtures/decisions/language.yl",
-                              "start": 392,
-                              "end": 400
+                              "start": 498,
+                              "end": 506
                             }
                           }
                         ]
@@ -460,15 +487,15 @@
                     },
                     "span": {
                       "file": "tests/fixtures/decisions/language.yl",
-                      "start": 378,
-                      "end": 401
+                      "start": 484,
+                      "end": 507
                     }
                   },
                   [
                     {
                       "kind": {
                         "Call": [
-                          "warning",
+                          "warn",
                           [
                             {
                               "name": null,
@@ -478,14 +505,14 @@
                                 },
                                 "span": {
                                   "file": "tests/fixtures/decisions/language.yl",
-                                  "start": 412,
-                                  "end": 431
+                                  "start": 527,
+                                  "end": 546
                                 }
                               },
                               "span": {
                                 "file": "tests/fixtures/decisions/language.yl",
-                                "start": 412,
-                                "end": 431
+                                "start": 527,
+                                "end": 546
                               }
                             }
                           ]
@@ -493,8 +520,8 @@
                       },
                       "span": {
                         "file": "tests/fixtures/decisions/language.yl",
-                        "start": 404,
-                        "end": 432
+                        "start": 522,
+                        "end": 547
                       }
                     }
                   ]
@@ -502,8 +529,8 @@
               },
               "span": {
                 "file": "tests/fixtures/decisions/language.yl",
-                "start": 373,
-                "end": 434
+                "start": 479,
+                "end": 557
               }
             },
             {
@@ -524,14 +551,14 @@
                                   },
                                   "span": {
                                     "file": "tests/fixtures/decisions/language.yl",
-                                    "start": 463,
-                                    "end": 471
+                                    "start": 586,
+                                    "end": 594
                                   }
                                 },
                                 "span": {
                                   "file": "tests/fixtures/decisions/language.yl",
-                                  "start": 463,
-                                  "end": 471
+                                  "start": 586,
+                                  "end": 594
                                 }
                               }
                             ]
@@ -539,22 +566,22 @@
                         },
                         "span": {
                           "file": "tests/fixtures/decisions/language.yl",
-                          "start": 449,
-                          "end": 472
+                          "start": 572,
+                          "end": 595
                         }
                       }
                     },
                     "span": {
                       "file": "tests/fixtures/decisions/language.yl",
-                      "start": 448,
-                      "end": 472
+                      "start": 571,
+                      "end": 595
                     }
                   },
                   [
                     {
                       "kind": {
                         "Call": [
-                          "help",
+                          "hint",
                           [
                             {
                               "name": null,
@@ -564,14 +591,14 @@
                                 },
                                 "span": {
                                   "file": "tests/fixtures/decisions/language.yl",
-                                  "start": 480,
-                                  "end": 497
+                                  "start": 615,
+                                  "end": 632
                                 }
                               },
                               "span": {
                                 "file": "tests/fixtures/decisions/language.yl",
-                                "start": 480,
-                                "end": 497
+                                "start": 615,
+                                "end": 632
                               }
                             }
                           ]
@@ -579,8 +606,8 @@
                       },
                       "span": {
                         "file": "tests/fixtures/decisions/language.yl",
-                        "start": 475,
-                        "end": 498
+                        "start": 610,
+                        "end": 633
                       }
                     }
                   ]
@@ -588,8 +615,8 @@
               },
               "span": {
                 "file": "tests/fixtures/decisions/language.yl",
-                "start": 443,
-                "end": 500
+                "start": 566,
+                "end": 643
               }
             },
             {
@@ -612,14 +639,14 @@
                                     },
                                     "span": {
                                       "file": "tests/fixtures/decisions/language.yl",
-                                      "start": 528,
-                                      "end": 536
+                                      "start": 671,
+                                      "end": 679
                                     }
                                   },
                                   "span": {
                                     "file": "tests/fixtures/decisions/language.yl",
-                                    "start": 528,
-                                    "end": 536
+                                    "start": 671,
+                                    "end": 679
                                   }
                                 }
                               ]
@@ -627,31 +654,31 @@
                           },
                           "span": {
                             "file": "tests/fixtures/decisions/language.yl",
-                            "start": 514,
-                            "end": 537
+                            "start": 657,
+                            "end": 680
                           }
                         },
                         {
                           "kind": "Absent",
                           "span": {
                             "file": "tests/fixtures/decisions/language.yl",
-                            "start": 541,
-                            "end": 547
+                            "start": 684,
+                            "end": 690
                           }
                         }
                       ]
                     },
                     "span": {
                       "file": "tests/fixtures/decisions/language.yl",
-                      "start": 514,
-                      "end": 547
+                      "start": 657,
+                      "end": 690
                     }
                   },
                   [
                     {
                       "kind": {
                         "Call": [
-                          "help",
+                          "hint",
                           [
                             {
                               "name": null,
@@ -661,14 +688,14 @@
                                 },
                                 "span": {
                                   "file": "tests/fixtures/decisions/language.yl",
-                                  "start": 555,
-                                  "end": 570
+                                  "start": 710,
+                                  "end": 725
                                 }
                               },
                               "span": {
                                 "file": "tests/fixtures/decisions/language.yl",
-                                "start": 555,
-                                "end": 570
+                                "start": 710,
+                                "end": 725
                               }
                             }
                           ]
@@ -676,8 +703,8 @@
                       },
                       "span": {
                         "file": "tests/fixtures/decisions/language.yl",
-                        "start": 550,
-                        "end": 571
+                        "start": 705,
+                        "end": 726
                       }
                     }
                   ]
@@ -685,8 +712,8 @@
               },
               "span": {
                 "file": "tests/fixtures/decisions/language.yl",
-                "start": 509,
-                "end": 573
+                "start": 652,
+                "end": 736
               }
             },
             {
@@ -705,8 +732,8 @@
                           },
                           "span": {
                             "file": "tests/fixtures/decisions/language.yl",
-                            "start": 587,
-                            "end": 603
+                            "start": 750,
+                            "end": 766
                           }
                         },
                         {
@@ -722,14 +749,14 @@
                                     },
                                     "span": {
                                       "file": "tests/fixtures/decisions/language.yl",
-                                      "start": 620,
-                                      "end": 624
+                                      "start": 783,
+                                      "end": 787
                                     }
                                   },
                                   "span": {
                                     "file": "tests/fixtures/decisions/language.yl",
-                                    "start": 620,
-                                    "end": 624
+                                    "start": 783,
+                                    "end": 787
                                   }
                                 }
                               ]
@@ -737,23 +764,23 @@
                           },
                           "span": {
                             "file": "tests/fixtures/decisions/language.yl",
-                            "start": 607,
-                            "end": 625
+                            "start": 770,
+                            "end": 788
                           }
                         }
                       ]
                     },
                     "span": {
                       "file": "tests/fixtures/decisions/language.yl",
-                      "start": 587,
-                      "end": 625
+                      "start": 750,
+                      "end": 788
                     }
                   },
                   [
                     {
                       "kind": {
                         "Call": [
-                          "warning",
+                          "warn",
                           [
                             {
                               "name": null,
@@ -763,14 +790,14 @@
                                 },
                                 "span": {
                                   "file": "tests/fixtures/decisions/language.yl",
-                                  "start": 636,
-                                  "end": 645
+                                  "start": 808,
+                                  "end": 817
                                 }
                               },
                               "span": {
                                 "file": "tests/fixtures/decisions/language.yl",
-                                "start": 636,
-                                "end": 645
+                                "start": 808,
+                                "end": 817
                               }
                             }
                           ]
@@ -778,8 +805,8 @@
                       },
                       "span": {
                         "file": "tests/fixtures/decisions/language.yl",
-                        "start": 628,
-                        "end": 646
+                        "start": 803,
+                        "end": 818
                       }
                     }
                   ]
@@ -787,8 +814,8 @@
               },
               "span": {
                 "file": "tests/fixtures/decisions/language.yl",
-                "start": 582,
-                "end": 648
+                "start": 745,
+                "end": 828
               }
             }
           ]
@@ -796,8 +823,8 @@
       },
       "span": {
         "file": "tests/fixtures/decisions/language.yl",
-        "start": 279,
-        "end": 656
+        "start": 378,
+        "end": 836
       }
     },
     {
@@ -810,8 +837,8 @@
             },
             "span": {
               "file": "tests/fixtures/decisions/language.yl",
-              "start": 664,
-              "end": 671
+              "start": 844,
+              "end": 851
             }
           },
           "trivia": []
@@ -819,14 +846,14 @@
       },
       "span": {
         "file": "tests/fixtures/decisions/language.yl",
-        "start": 658,
-        "end": 671
+        "start": 838,
+        "end": 851
       }
     }
   ],
   "span": {
     "file": "tests/fixtures/decisions/language.yl",
     "start": 0,
-    "end": 672
+    "end": 852
   }
 }

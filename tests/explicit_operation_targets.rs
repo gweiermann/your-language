@@ -20,13 +20,14 @@ fn analyze(source: &str) -> AnalysisResult {
 }
 fn grammar(operations: &str, meanings: &str) -> String {
     format!(
-        r#"import {{ get, contribute, contributeAll, facts, isPresent, equal, choose, text, map, first }} from "std/query"
+        r#"import {{ error, warn, hint }} from "core/diagnostics"
+import {{ get, contribute, contributeAll, facts, isPresent, equal, choose, text, map, first }} from "core/query"
 import * as types from "std/types"
 symbol number
 symbol slot
 {operations}
 node Item = "y"
-node Root = "x" optional: Item? {{ meanings {{ {meanings} }} }}
+node Root = "x" optional: Item? {{ semantics {{ {meanings} }} }}
 entry Root"#
     )
 }
@@ -38,7 +39,7 @@ fn unused_operations_cannot_capture_contextual_self() {
         "operation invalid() { contribute((self, slot), number) }",
         "operation invalid() = map([], item => self)",
         "operation invalid(target = self) = target",
-        "operation invalid() { if true { error(\"Hidden ${self}\") } }",
+        "operation invalid() { when true { error(\"Hidden ${self}\") } }",
     ] {
         let errors = compile(&grammar(operation, "")).unwrap_err();
         assert_eq!(errors[0].code, "yl.operation_self", "{errors:?}");
@@ -54,7 +55,7 @@ fn unused_operations_cannot_capture_contextual_self() {
 #[test]
 fn self_can_be_an_explicit_parameter_and_is_forwarded_through_wrappers() {
     let result = analyze(&grammar(
-        "operation nested(self, value) { types::annotate(self, value) } operation wrapper(target, value) { nested(target, value) }",
+        "operation nested(self, value) { types::annotateWithType(self, value) } operation wrapper(target, value) { nested(target, value) }",
         "wrapper(self, number)",
     ));
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
@@ -69,8 +70,8 @@ fn self_can_be_an_explicit_parameter_and_is_forwarded_through_wrappers() {
 fn absent_optional_argument_ends_only_dependent_actions() {
     let result = analyze(&grammar(
         r#"operation apply(target, annotation) {
-            types::annotate(target, types::typeof(annotation))
-            types::restrictTo(target, types::typeof(annotation))
+            types::annotateWithType(target, types::typeOf(annotation))
+            types::restrictTypeTo(target, types::typeOf(annotation))
             contribute((target, slot), "unaffected")
             warn("Still executed", target)
         }"#,
@@ -90,11 +91,11 @@ fn absent_queries_do_not_turn_missing_syntax_into_unknown() {
     let result = analyze(&grammar(
         "",
         r#"
-        types::annotate(self, types::typeof(optional))
-        contribute((self, slot), [optional, types::typeof(optional), types::typeof(self)])
-        if !equal(types::typeof(optional), absent) { error("Missing syntax became unknown") }
-        if !equal(types::typeof(self), types::unknown) { error("Untyped syntax lost unknown") }
-        if text(optional) { error("Absent condition entered") } else { error("Absent condition entered else") }
+        types::annotateWithType(self, types::typeOf(optional))
+        contribute((self, slot), [optional, types::typeOf(optional), types::typeOf(self)])
+        when !equal(types::typeOf(optional), absent) { error("Missing syntax became unknown") }
+        when !equal(types::typeOf(self), types::unknown) { error("Untyped syntax lost unknown") }
+        when text(optional) { error("Absent condition entered") } else { error("Absent condition entered else") }
     "#,
     ));
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
@@ -174,7 +175,7 @@ fn repeated_optional_types_keep_positions_but_absent_contributions_add_no_fact()
         "",
         r#"
         contributeAll((self, slot), [absent, number])
-        contribute((self, "shape"), map([optional, self], value => types::typeof(value)))
+        contribute((self, "shape"), map([optional, self], value => types::typeOf(value)))
     "#,
     ));
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);

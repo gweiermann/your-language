@@ -4,13 +4,14 @@ use your_language::{
     semantics::{queries::QueryKey, SemanticEngine, SemanticIdentity, SemanticValue},
 };
 
-const LANGUAGE: &str = r#"
-import { get, getAll, contribute, ancestors, find, text, isPresent, equal, hasMultiple } from "std/query"
+const LANGUAGE: &str = r#"import { error, warn, hint } from "core/diagnostics"
+
+import { get, getAll, contribute, ancestors, find, text, isPresent, equal, hasMultiple } from "core/query"
 symbol scope
 symbol declarations
 symbol reference
 
-operation lexicalScope(target) {
+operation createLexicalScope(target) {
     contribute((target, scope), target)
 }
 
@@ -20,17 +21,17 @@ operation resolve(name) = find(ancestors(name), ancestor =>
     get((get((ancestor, scope)), declarations, text(name)))
 )
 
-operation declare(target, name) {
+operation declareName(target, name) {
     contribute((nearestScope(target), declarations, text(name)), target)
     contribute((name, reference), target)
-    if hasMultiple(getAll((nearestScope(target), declarations, text(name)))) {
+    when hasMultiple(getAll((nearestScope(target), declarations, text(name)))) {
         error("Duplicate declaration ${name}")
     }
 }
 
-operation use(target, name) {
+operation connectReference(target, name) {
     contribute((name, reference), resolve(name))
-    if !isPresent(resolve(name)) {
+    when !isPresent(resolve(name)) {
         error("Unknown name ${name}")
     }
 }
@@ -39,18 +40,18 @@ node Name = value: /[a-z]+/
 
 node Statement {
     node Declare = "let" name: Name ";" {
-        meanings { declare(self, name) }
+        semantics { declareName(self, name) }
     }
     node Use = name: Name ";" {
-        meanings { use(self, name) }
+        semantics { connectReference(self, name) }
     }
     node Block = "{" statements: Statement* "}" {
-        meanings { lexicalScope(self) }
+        semantics { createLexicalScope(self) }
     }
 }
 
 node Program = statements: Statement* {
-    meanings { lexicalScope(self) }
+    semantics { createLexicalScope(self) }
 }
 trivia Whitespace = /\s+/
 entry Program { trivia Whitespace }
@@ -119,10 +120,10 @@ fn authored_missing_and_duplicate_diagnostics_are_not_native_reference_policy() 
 #[test]
 fn nested_structural_keys_keep_identity_symbol_and_text_distinct() {
     let grammar = r#"
-        import { contribute, get } from "std/query"
+        import { contribute, get } from "core/query"
         symbol slot
         node Program = "x" {
-            meanings {
+            semantics {
                 contribute(((self, slot), "slot"), "value")
                 contribute((self, "result"), get(((self, slot), "slot")))
             }
@@ -142,14 +143,15 @@ fn nested_structural_keys_keep_identity_symbol_and_text_distinct() {
 
 #[test]
 fn conditional_producers_are_discovered_before_guards_or_match_inputs_settle() {
-    let grammar = r#"
-        import { contribute, get, equal } from "std/query"
+    let grammar = r#"import { error, warn, hint } from "core/diagnostics"
+
+        import { contribute, get, equal } from "core/query"
         symbol selection
         symbol result
         symbol selected
         node Program = "x" {
-            meanings {
-                if equal(get((self, selection)), true) {
+            semantics {
+                when equal(get((self, selection)), true) {
                     contribute((self, result), "enabled")
                 } else {
                     contribute((self, result), "disabled")
@@ -179,17 +181,18 @@ fn conditional_producers_are_discovered_before_guards_or_match_inputs_settle() {
 
 #[test]
 fn hypothetical_overrides_only_supplied_keys_and_recomputes_conditional_relationships() {
-    let grammar = r#"
-        import { contribute, get, equal, hypothetical } from "std/query"
+    let grammar = r#"import { error, warn, hint } from "core/diagnostics"
+
+        import { contribute, get, equal, hypothetical } from "core/query"
         symbol parameter
         symbol outside
         symbol result
         symbol trial
         node Program = "x" {
-            meanings {
+            semantics {
                 contribute((self, parameter), "number")
                 contribute((self, outside), "number")
-                if equal(get((self, parameter)), "string") {
+                when equal(get((self, parameter)), "string") {
                     contribute((self, result), "string")
                     warn("A hypothetical diagnostic must not leak")
                 } else {
@@ -214,12 +217,12 @@ fn hypothetical_overrides_only_supplied_keys_and_recomputes_conditional_relation
 #[test]
 fn positive_fact_cycles_reach_a_fixed_point_without_final_value_deadlock() {
     let grammar = r#"
-        import { contribute, contributeAll, facts, getAll } from "std/query"
+        import { contribute, contributeAll, facts, getAll } from "core/query"
         symbol left
         symbol right
         symbol result
         node Program = "x" {
-            meanings {
+            semantics {
                 contributeAll((self, left), facts((self, right)))
                 contributeAll((self, right), facts((self, left)))
                 contribute((self, left), "seed")
@@ -240,12 +243,12 @@ fn positive_fact_cycles_reach_a_fixed_point_without_final_value_deadlock() {
 #[test]
 fn absence_dependent_cycles_diagnose_while_independent_footprints_still_settle() {
     let grammar = r#"
-        import { contribute, get, isPresent } from "std/query"
+        import { contribute, get, isPresent } from "core/query"
         symbol cyclic
         symbol good
         node Program = "x" {
-            meanings {
-                if isPresent(get((self, cyclic))) {
+            semantics {
+                when isPresent(get((self, cyclic))) {
                     contribute((self, cyclic), "cycle")
                 }
                 contribute((self, good), "ready")
@@ -266,10 +269,10 @@ fn absence_dependent_cycles_diagnose_while_independent_footprints_still_settle()
 #[test]
 fn terminal_captures_are_direct_keys_and_can_traverse_their_parents() {
     let grammar = r#"
-        import { contribute, ancestors } from "std/query"
+        import { contribute, ancestors } from "core/query"
         symbol parents
         node Program = token: /[a-z]+/ {
-            meanings { contribute((token, parents), ancestors(token)) }
+            semantics { contribute((token, parents), ancestors(token)) }
         }
         entry Program
     "#;
@@ -300,14 +303,15 @@ fn corrupted_query_artifacts_are_rejected_before_runtime_indexing() {
         .values_mut()
         .next()
         .unwrap();
-    owner[0]["actions"][0] = serde_json::json!({"Call":{"name":"std/query#contribute","args":[],"span":{"file":"bad","start":0,"end":0}}});
+    owner[0]["actions"][0] = serde_json::json!({"Call":{"name":"core/query#contribute","args":[],"span":{"file":"bad","start":0,"end":0}}});
     assert!(load_compiled_language(&serde_json::to_vec(&json).unwrap()).is_err());
 }
 
 #[test]
 fn compound_data_and_authored_field_compatibility_use_generic_collection_queries() {
-    let grammar = r#"
-        import { contribute, get, keys, lookup, isSubset, every, contains, equal } from "std/query"
+    let grammar = r#"import { error, warn, hint } from "core/diagnostics"
+
+        import { contribute, get, keys, lookup, isSubset, every, contains, equal } from "core/query"
         symbol number
         symbol string
         symbol fields
@@ -315,16 +319,16 @@ fn compound_data_and_authored_field_compatibility_use_generic_collection_queries
         operation compatible(actual, expected) =
             every(expected, field => contains(actual, field))
         node Program = "point" {
-            meanings {
+            semantics {
                 contribute((self, fields), [("x", number), ("y", number)])
-                if !isSubset(["x"], keys(get((self, fields)))) {
+                when !isSubset(["x"], keys(get((self, fields)))) {
                     error("Missing required x field")
                 }
-                if !compatible(keys(get((self, fields))), ["x", "y"]) {
+                when !compatible(keys(get((self, fields))), ["x", "y"]) {
                     error("Incompatible fields")
                 }
                 contribute((self, selected), lookup(get((self, fields)), "x"))
-                if !equal(lookup(get((self, fields)), "missing"), absent) {
+                when !equal(lookup(get((self, fields)), "missing"), absent) {
                     error("Missing field should be absent")
                 }
             }
@@ -343,10 +347,10 @@ fn compound_data_and_authored_field_compatibility_use_generic_collection_queries
 #[test]
 fn repeated_captures_are_direct_lists_and_preserve_terminal_match_spans() {
     let grammar = r#"
-        import { contribute, map, text } from "std/query"
+        import { contribute, map, text } from "core/query"
         symbol namesSlot
         node Program = names: /[a-z]+/* {
-            meanings { contribute((self, namesSlot), map(names, name => text(name))) }
+            semantics { contribute((self, namesSlot), map(names, name => text(name))) }
         }
         trivia Spaces = /\s+/
         trivia Comment = /\/\/[^\n]*/
@@ -370,12 +374,12 @@ fn repeated_captures_are_direct_lists_and_preserve_terminal_match_spans() {
 #[test]
 fn conditional_operations_compose_through_ordinary_authored_operation_wrappers() {
     let grammar = r#"
-        import { contribute } from "std/query"
+        import { contribute } from "core/query"
         operation inner(value) {
-            if true { contribute("result", value) }
+            when true { contribute("result", value) }
         }
         operation outer(value) { inner(value) }
-        node Program = "x" { meanings { outer("works") } }
+        node Program = "x" { semantics { outer("works") } }
         entry Program
     "#;
     let result = analyze(grammar, "x");

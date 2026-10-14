@@ -2,13 +2,14 @@ use std::collections::BTreeMap;
 use your_language::semantics::{queries::QueryKey, SemanticEngine, SemanticValue};
 fn analyze(body: &str) -> your_language::semantics::AnalysisResult {
     let source = format!(
-        r#"import * as types from "std/types"
-import {{ contribute, equal, isPresent, get }} from "std/query"
+        r#"import {{ error, warn, hint }} from "core/diagnostics"
+import * as types from "std/types"
+import {{ contribute, equal, isPresent, get }} from "core/query"
 symbol Red
 symbol Blue
 symbol color
 symbol other
-node Root = "x" {{ meanings {{ {body} }} }} entry Root"#
+node Root = "x" {{ semantics {{ {body} }} }} entry Root"#
     );
     let engine = SemanticEngine::default();
     let language = engine
@@ -29,11 +30,11 @@ fn authored_type_exports_keep_concrete_types_language_owned() {
     for export in [
         "unknown",
         "type",
-        "annotate",
-        "restrictTo",
-        "typeof",
+        "annotateWithType",
+        "restrictTypeTo",
+        "typeOf",
         "candidates",
-        "resolveWith",
+        "resolveTypeWith",
     ] {
         let source =
             format!(r#"import {{ {export} }} from "std/types" node Root = "x" entry Root"#);
@@ -72,13 +73,13 @@ fn authored_type_exports_keep_concrete_types_language_owned() {
 fn nested_tuple_slots_are_independent() {
     let result = analyze(
         r#"
- types::annotate((self, color), Red)
- types::annotate((self, other), Blue)
- types::annotate(((self, color), other), Blue)
- if !equal(types::typeof((self,color)), Red) { error("Wrong color") }
- if !equal(types::typeof((self,other)), Blue) { error("Wrong other") }
- if !equal(types::typeof(((self,color),other)), Blue) { error("Wrong nested slot") }
- if !equal(types::typeof(self), types::unknown) { error("Unexpected direct type") }
+ types::annotateWithType((self, color), Red)
+ types::annotateWithType((self, other), Blue)
+ types::annotateWithType(((self, color), other), Blue)
+ when !equal(types::typeOf((self,color)), Red) { error("Wrong color") }
+ when !equal(types::typeOf((self,other)), Blue) { error("Wrong other") }
+ when !equal(types::typeOf(((self,color),other)), Blue) { error("Wrong nested slot") }
+ when !equal(types::typeOf(self), types::unknown) { error("Unexpected direct type") }
 "#,
     );
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
@@ -87,8 +88,8 @@ fn nested_tuple_slots_are_independent() {
 fn restriction_checks_evidence_without_annotating_missing_evidence() {
     let result = analyze(
         r#"
- types::restrictTo(self, Red)
- if !equal(types::typeof(self), types::unknown) { error("Restriction became evidence") }
+ types::restrictTypeTo(self, Red)
+ when !equal(types::typeOf(self), types::unknown) { error("Restriction became evidence") }
  contribute("observed", types::candidates(self))
 "#,
     );
@@ -102,7 +103,7 @@ fn restriction_checks_evidence_without_annotating_missing_evidence() {
 }
 #[test]
 fn restrictions_target_the_supplied_syntax_span() {
-    let result = analyze("types::annotate(self, Blue) types::restrictTo(self, Red)");
+    let result = analyze("types::annotateWithType(self, Blue) types::restrictTypeTo(self, Red)");
     let error = result
         .diagnostics
         .iter()
@@ -114,7 +115,7 @@ fn restrictions_target_the_supplied_syntax_span() {
 }
 #[test]
 fn invalid_scalar_keys_are_structured_diagnostics() {
-    let result = analyze("types::annotate([self], Red)");
+    let result = analyze("types::annotateWithType([self], Red)");
     assert!(result
         .diagnostics
         .iter()

@@ -1,10 +1,11 @@
-import { annotateWithType, inheritType, typeof } from "./typing"
+import { inheritType } from "./typing"
+import { annotateWithType, typeOf } from "std/types"
 
-export symbol number
-
-export symbol string
-
-export symbol boolean
+export enum Type {
+    number
+    string
+    boolean
+}
 
 export symbol parameters
 
@@ -20,24 +21,24 @@ export symbol functionIdentity
 
 export node TypeName {
     node NumberType = "number" {
-        meanings {
-            annotateWithType(self, number)
+        semantics {
+            annotateWithType(self, Type::number)
         }
     }
 
     node StringType = "string" {
-        meanings {
-            annotateWithType(self, string)
+        semantics {
+            annotateWithType(self, Type::string)
         }
     }
 
     node BooleanType = "boolean" {
-        meanings {
-            annotateWithType(self, boolean)
+        semantics {
+            annotateWithType(self, Type::boolean)
         }
     }
 
-    meanings {
+    semantics {
         inheritType(self)
     }
 }
@@ -46,8 +47,8 @@ export node Annotation =
     ":"
     value: TypeName
 {
-    meanings {
-        annotateWithType(self, typeof(value))
+    semantics {
+        annotateWithType(self, typeOf(value))
     }
 }
 

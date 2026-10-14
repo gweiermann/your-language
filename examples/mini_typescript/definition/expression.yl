@@ -1,14 +1,17 @@
-import { use } from "std/references"
-import { annotateWithType, typeof, call, inheritType, referenceType } from "./typing"
+import { error } from "core/diagnostics"
+import { connectReference } from "std/references"
+import { call, inheritType } from "./typing"
+import { annotateWithType, typeOf } from "std/types"
 import { unknown } from "std/types"
 import { separatedBy } from "std/parser"
 import { Name } from "./lexical"
-import { number, string, boolean } from "./types"
+import { Type } from "./types"
 
 node Reference = name: Name {
-    meanings {
-        use(self, name)
-        referenceType(self, name)
+    semantics {
+        ref := connectReference(self, name)
+        annotateWithType(self, typeOf(ref))
+        annotateWithType(name, typeOf(ref))
     }
 }
 
@@ -18,26 +21,26 @@ node Call =
     arguments: Expression* |> separatedBy(",")
     ")"
 {
-    meanings {
+    semantics {
         call(self, callee, arguments)
     }
 }
 
 node Number = value: /[0-9]+/ {
-    meanings {
-        annotateWithType(self, number)
+    semantics {
+        annotateWithType(self, Type::number)
     }
 }
 
 node String = value: /"[^"\n]*"/ {
-    meanings {
-        annotateWithType(self, string)
+    semantics {
+        annotateWithType(self, Type::string)
     }
 }
 
 node Boolean = value: /true|false/ {
-    meanings {
-        annotateWithType(self, boolean)
+    semantics {
+        annotateWithType(self, Type::boolean)
     }
 }
 
@@ -46,12 +49,12 @@ node Addition =
     "+"
     right: Expression
 {
-    meanings {
-        match (typeof(left), typeof(right)) {
-            string, string | string, number | number, string => annotateWithType(self, string),
-            number, number                                   => annotateWithType(self, number),
-            unknown, _ | _, unknown                          => annotateWithType(self, unknown),
-            _                                                => error("${left} + ${right} is not possible")
+    semantics {
+        match (typeOf(left), typeOf(right)) {
+            Type::string, Type::string | Type::string, Type::number | Type::number, Type::string => annotateWithType(self, Type::string),
+            Type::number, Type::number                                                           => annotateWithType(self, Type::number),
+            unknown, _ | _, unknown                                                              => annotateWithType(self, unknown),
+            _                                                                                    => error("${left} + ${right} is not possible")
         }
     }
 }
@@ -69,7 +72,7 @@ export node Expression {
 
     node Reference
 
-    meanings {
+    semantics {
         inheritType(self)
     }
 }

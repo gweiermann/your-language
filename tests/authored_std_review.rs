@@ -19,11 +19,12 @@ fn analyze(grammar: &str, source: &str) -> AnalysisResult {
 #[test]
 fn inner_assumption_without_origin_does_not_reuse_outer_origin() {
     let result = analyze(
-        r#"import { contribute, get, equal, hypotheticalChecked } from "std/query"
- node Program = a: /a/ b: /b/ { meanings {
+        r#"import { error, warn, hint } from "core/diagnostics"
+import { contribute, get, equal, hypotheticalChecked } from "core/query"
+ node Program = a: /a/ b: /b/ { semantics {
    contribute("parameter", false)
    contribute("result", get("parameter"))
-   if equal(get("parameter"), true) { error("bad", b) }
+   when equal(get("parameter"), true) { error("bad", b) }
    contribute("inner", hypotheticalChecked("result", [("parameter", true, absent)]))
    contribute("outer", hypotheticalChecked("inner", [("parameter", false, a)]))
  } } entry Program"#,
@@ -44,11 +45,11 @@ fn selected_alternative_branch_preserves_its_matched_value() {
  symbol Red
  symbol Blue
  symbol result
- node Program = "x" { meanings {
-   types::annotate(self, Red)
-   types::annotate(self, Blue)
-   match (types::typeof(self)) {
-      Red => types::annotate((self, result), types::typeof(self)),
+ node Program = "x" { semantics {
+   types::annotateWithType(self, Red)
+   types::annotateWithType(self, Blue)
+   match (types::typeOf(self)) {
+      Red => types::annotateWithType((self, result), types::typeOf(self)),
       _ => {}
    }
  } } entry Program"#,
@@ -62,17 +63,18 @@ fn selected_alternative_branch_preserves_its_matched_value() {
 fn matched(body: &str) -> AnalysisResult {
     analyze(
         &format!(
-            r#"import * as types from "std/types"
- import {{ contribute, equal }} from "std/query"
+            r#"import {{ error, warn, hint }} from "core/diagnostics"
+import * as types from "std/types"
+ import {{ contribute, equal }} from "core/query"
  symbol Red
  symbol Blue
  symbol left
  symbol right
- node Program = "x" {{ meanings {{
-   types::annotate((self,left), Red)
-   types::annotate((self,left), Blue)
-   types::annotate((self,right), Red)
-   types::annotate((self,right), Blue)
+ node Program = "x" {{ semantics {{
+   types::annotateWithType((self,left), Red)
+   types::annotateWithType((self,left), Blue)
+   types::annotateWithType((self,right), Red)
+   types::annotateWithType((self,right), Blue)
    {body}
  }} }} entry Program"#
         ),
@@ -83,8 +85,8 @@ fn matched(body: &str) -> AnalysisResult {
 #[test]
 fn repeated_match_input_is_correlated_instead_of_cartesian_with_itself() {
     let result = matched(
-        r#"match (types::typeof((self,left)), types::typeof((self,left))) {
-       Red, Red | Blue, Blue => contribute("pairs", (types::typeof((self,left)), types::typeof((self,left)))),
+        r#"match (types::typeOf((self,left)), types::typeOf((self,left))) {
+       Red, Red | Blue, Blue => contribute("pairs", (types::typeOf((self,left)), types::typeOf((self,left)))),
        _ => error("Impossible mixed pair")
     }"#,
     );
@@ -107,8 +109,8 @@ fn repeated_match_input_is_correlated_instead_of_cartesian_with_itself() {
 #[test]
 fn independent_inputs_produce_every_correlated_pair_from_one_case() {
     let result = matched(
-        r#"match (types::typeof((self,left)), types::typeof((self,right))) {
-       _, _ => contribute("pairs", (types::typeof((self,left)), types::typeof((self,right))))
+        r#"match (types::typeOf((self,left)), types::typeOf((self,right))) {
+       _, _ => contribute("pairs", (types::typeOf((self,left)), types::typeOf((self,right))))
     }"#,
     );
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
@@ -125,9 +127,9 @@ fn independent_inputs_produce_every_correlated_pair_from_one_case() {
 #[test]
 fn nested_match_and_if_keep_outer_case_selection() {
     let result = matched(
-        r#"match (types::typeof((self,left))) {
-       Red => match (types::typeof((self,left))) {
-         Red => if equal(types::typeof((self,left)), Red) { contribute("selected", types::typeof((self,left))) },
+        r#"match (types::typeOf((self,left))) {
+       Red => match (types::typeOf((self,left))) {
+         Red => when equal(types::typeOf((self,left)), Red) { contribute("selected", types::typeOf((self,left))) },
          _ => error("Lost outer branch")
        },
        _ => {}
@@ -147,8 +149,8 @@ fn nested_match_and_if_keep_outer_case_selection() {
 #[test]
 fn branch_local_values_can_address_distinct_keys() {
     let result = matched(
-        r#"match (types::typeof((self,left))) {
-      _ => contribute(("selected",types::typeof((self,left))), types::typeof((self,left)))
+        r#"match (types::typeOf((self,left))) {
+      _ => contribute(("selected",types::typeOf((self,left))), types::typeOf((self,left)))
     }"#,
     );
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
@@ -168,9 +170,9 @@ fn branch_local_values_can_address_distinct_keys() {
 #[test]
 fn branch_local_diagnostics_do_not_report_unmatched_candidates() {
     let result = matched(
-        r#"match (types::typeof((self,left))) {
+        r#"match (types::typeOf((self,left))) {
       Red => {},
-      _ => error("Bad type ${types::typeof((self,left))}")
+      _ => error("Bad type ${types::typeOf((self,left))}")
     }"#,
     );
     assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);

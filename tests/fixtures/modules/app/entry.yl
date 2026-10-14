@@ -1,4 +1,8 @@
 import { Name } from "../names"
 import { Name as Second } from "../names.yl"
-export node P = first: Name second: Second
+
+export node P =
+    first: Name
+    second: Second
+
 entry P

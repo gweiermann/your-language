@@ -1,5 +1,5 @@
 import * as types from "std/types"
-import { children, first as firstChild, contribute } from "std/query"
+import { children, first as firstChild, contribute } from "core/query"
 
 symbol number
 
@@ -12,20 +12,20 @@ trivia Whitespace = /\s+/
 node Parameter = "value"
 
 node Number = /[0-9]+/ {
-    meanings {
-        types::annotate(self, number)
+    semantics {
+        types::annotateWithType(self, number)
     }
 }
 
 node String = /"[^"\n]*"/ {
-    meanings {
-        types::annotate(self, string)
+    semantics {
+        types::annotateWithType(self, string)
     }
 }
 
 node RequiredNumber = "number" {
-    meanings {
-        types::annotate(self, number)
+    semantics {
+        types::annotateWithType(self, number)
     }
 }
 
@@ -34,8 +34,8 @@ node Argument {
 
     node String
 
-    meanings {
-        types::annotate(self, types::typeof(firstChild(children(self))))
+    semantics {
+        types::annotateWithType(self, types::typeOf(firstChild(children(self))))
     }
 }
 
@@ -45,12 +45,12 @@ node Template =
     local: Parameter
     ")"
 {
-    meanings {
-        types::annotate((self, output), types::typeof(local))
+    semantics {
+        types::annotateWithType((self, output), types::typeOf(local))
     }
 }
 
-operation resultWith(template, parameter, argument) = types::resolveWith((template, output), [(parameter, types::typeof(argument))])
+operation resultWith(template, parameter, argument) = types::resolveTypeWith((template, output), [(parameter, types::typeOf(argument))])
 
 node Program =
     template: Template
@@ -58,9 +58,9 @@ node Program =
     secondArgument: Argument
     required: RequiredNumber
 {
-    meanings {
-        types::annotate(firstArgument, resultWith(template, template.local, firstArgument))
-        types::restrictTo(firstArgument, types::typeof(required), firstArgument)
+    semantics {
+        types::annotateWithType(firstArgument, resultWith(template, template.local, firstArgument))
+        types::restrictTypeTo(firstArgument, types::typeOf(required), firstArgument)
         contribute("first", resultWith(template, template.local, firstArgument))
         contribute("second", resultWith(template, template.local, secondArgument))
     }

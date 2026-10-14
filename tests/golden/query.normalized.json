@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "entry": "golden.yl#Program",
   "rules": {
     "golden.yl#Name": {
@@ -18,8 +18,8 @@
       "constraints": [],
       "span": {
         "file": "golden.yl",
-        "start": 102,
-        "end": 129
+        "start": 103,
+        "end": 130
       }
     },
     "golden.yl#Program": {
@@ -38,8 +38,8 @@
       "constraints": [],
       "span": {
         "file": "golden.yl",
-        "start": 131,
-        "end": 412
+        "start": 132,
+        "end": 415
       }
     }
   },
@@ -53,8 +53,8 @@
           "calls": [],
           "span": {
             "file": "golden.yl",
-            "start": 182,
-            "end": 213
+            "start": 184,
+            "end": 215
           }
         },
         {
@@ -62,8 +62,8 @@
           "calls": [],
           "span": {
             "file": "golden.yl",
-            "start": 223,
-            "end": 404
+            "start": 224,
+            "end": 407
           }
         }
       ],
@@ -77,7 +77,7 @@
         "actions": [
           {
             "Call": {
-              "name": "std/query#contribute",
+              "name": "core/query#contribute",
               "args": [
                 {
                   "Tuple": [
@@ -91,16 +91,16 @@
               ],
               "span": {
                 "file": "golden.yl",
-                "start": 182,
-                "end": 213
+                "start": 184,
+                "end": 215
               }
             }
           }
         ],
         "span": {
           "file": "golden.yl",
-          "start": 182,
-          "end": 213
+          "start": 184,
+          "end": 215
         }
       },
       {
@@ -110,15 +110,15 @@
             "If": {
               "condition": {
                 "Call": {
-                  "name": "std/query#isPresent",
+                  "name": "core/query#isPresent",
                   "args": [
                     {
                       "Call": {
-                        "name": "std/query#find",
+                        "name": "core/query#find",
                         "args": [
                           {
                             "Call": {
-                              "name": "std/query#ancestors",
+                              "name": "core/query#ancestors",
                               "args": [
                                 {
                                   "Capture": "name"
@@ -128,15 +128,15 @@
                           },
                           {
                             "Lambda": {
-                              "parameter": "ancestor@golden.yl:258",
+                              "parameter": "ancestor@golden.yl:261",
                               "body": {
                                 "Call": {
-                                  "name": "std/query#get",
+                                  "name": "core/query#get",
                                   "args": [
                                     {
                                       "Tuple": [
                                         {
-                                          "Local": "ancestor@golden.yl:258"
+                                          "Local": "ancestor@golden.yl:261"
                                         },
                                         {
                                           "Symbol": "golden.yl#scope"
@@ -157,7 +157,7 @@
               "then_actions": [
                 {
                   "Call": {
-                    "name": "std/query#contribute",
+                    "name": "core/query#contribute",
                     "args": [
                       {
                         "Tuple": [
@@ -171,11 +171,11 @@
                       },
                       {
                         "Call": {
-                          "name": "std/query#find",
+                          "name": "core/query#find",
                           "args": [
                             {
                               "Call": {
-                                "name": "std/query#ancestors",
+                                "name": "core/query#ancestors",
                                 "args": [
                                   {
                                     "Capture": "name"
@@ -185,15 +185,15 @@
                             },
                             {
                               "Lambda": {
-                                "parameter": "ancestor@golden.yl:358",
+                                "parameter": "ancestor@golden.yl:361",
                                 "body": {
                                   "Call": {
-                                    "name": "std/query#get",
+                                    "name": "core/query#get",
                                     "args": [
                                       {
                                         "Tuple": [
                                           {
-                                            "Local": "ancestor@golden.yl:358"
+                                            "Local": "ancestor@golden.yl:361"
                                           },
                                           {
                                             "Symbol": "golden.yl#scope"
@@ -211,8 +211,8 @@
                     ],
                     "span": {
                       "file": "golden.yl",
-                      "start": 309,
-                      "end": 394
+                      "start": 312,
+                      "end": 397
                     }
                   }
                 }
@@ -220,16 +220,16 @@
               "else_actions": [],
               "span": {
                 "file": "golden.yl",
-                "start": 223,
-                "end": 404
+                "start": 224,
+                "end": 407
               }
             }
           }
         ],
         "span": {
           "file": "golden.yl",
-          "start": 223,
-          "end": 404
+          "start": 224,
+          "end": 407
         }
       }
     ]

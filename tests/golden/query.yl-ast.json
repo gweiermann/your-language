@@ -26,13 +26,13 @@
               "isPresent"
             ]
           ],
-          "path": "std/query"
+          "path": "core/query"
         }
       },
       "span": {
         "file": "golden.yl",
         "start": 0,
-        "end": 71
+        "end": 72
       }
     },
     {
@@ -44,8 +44,8 @@
       },
       "span": {
         "file": "golden.yl",
-        "start": 73,
-        "end": 85
+        "start": 74,
+        "end": 86
       }
     },
     {
@@ -57,8 +57,8 @@
       },
       "span": {
         "file": "golden.yl",
-        "start": 87,
-        "end": 100
+        "start": 88,
+        "end": 101
       }
     },
     {
@@ -77,16 +77,16 @@
                   },
                   "span": {
                     "file": "golden.yl",
-                    "start": 121,
-                    "end": 129
+                    "start": 122,
+                    "end": 130
                   }
                 }
               ]
             },
             "span": {
               "file": "golden.yl",
-              "start": 114,
-              "end": 129
+              "start": 115,
+              "end": 130
             }
           },
           "members": [],
@@ -96,8 +96,8 @@
       },
       "span": {
         "file": "golden.yl",
-        "start": 102,
-        "end": 129
+        "start": 103,
+        "end": 130
       }
     },
     {
@@ -116,16 +116,16 @@
                   },
                   "span": {
                     "file": "golden.yl",
-                    "start": 152,
-                    "end": 156
+                    "start": 153,
+                    "end": 157
                   }
                 }
               ]
             },
             "span": {
               "file": "golden.yl",
-              "start": 146,
-              "end": 156
+              "start": 147,
+              "end": 157
             }
           },
           "members": [],
@@ -151,8 +151,8 @@
                                 },
                                 "span": {
                                   "file": "golden.yl",
-                                  "start": 194,
-                                  "end": 198
+                                  "start": 196,
+                                  "end": 200
                                 }
                               },
                               {
@@ -161,22 +161,22 @@
                                 },
                                 "span": {
                                   "file": "golden.yl",
-                                  "start": 200,
-                                  "end": 205
+                                  "start": 202,
+                                  "end": 207
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "golden.yl",
-                            "start": 193,
-                            "end": 206
+                            "start": 195,
+                            "end": 208
                           }
                         },
                         "span": {
                           "file": "golden.yl",
-                          "start": 193,
-                          "end": 206
+                          "start": 195,
+                          "end": 208
                         }
                       },
                       {
@@ -187,28 +187,28 @@
                           },
                           "span": {
                             "file": "golden.yl",
-                            "start": 208,
-                            "end": 212
+                            "start": 210,
+                            "end": 214
                           }
                         },
                         "span": {
                           "file": "golden.yl",
-                          "start": 208,
-                          "end": 212
+                          "start": 210,
+                          "end": 214
                         }
                       }
                     ],
                     "span": {
                       "file": "golden.yl",
-                      "start": 182,
-                      "end": 213
+                      "start": 184,
+                      "end": 215
                     }
                   }
                 ],
                 "span": {
                   "file": "golden.yl",
-                  "start": 182,
-                  "end": 213
+                  "start": 184,
+                  "end": 215
                 }
               },
               {
@@ -242,14 +242,14 @@
                                                       },
                                                       "span": {
                                                         "file": "golden.yl",
-                                                        "start": 251,
-                                                        "end": 255
+                                                        "start": 254,
+                                                        "end": 258
                                                       }
                                                     },
                                                     "span": {
                                                       "file": "golden.yl",
-                                                      "start": 251,
-                                                      "end": 255
+                                                      "start": 254,
+                                                      "end": 258
                                                     }
                                                   }
                                                 ]
@@ -257,14 +257,14 @@
                                             },
                                             "span": {
                                               "file": "golden.yl",
-                                              "start": 241,
-                                              "end": 256
+                                              "start": 244,
+                                              "end": 259
                                             }
                                           },
                                           "span": {
                                             "file": "golden.yl",
-                                            "start": 241,
-                                            "end": 256
+                                            "start": 244,
+                                            "end": 259
                                           }
                                         },
                                         {
@@ -289,8 +289,8 @@
                                                                   },
                                                                   "span": {
                                                                     "file": "golden.yl",
-                                                                    "start": 275,
-                                                                    "end": 283
+                                                                    "start": 278,
+                                                                    "end": 286
                                                                   }
                                                                 },
                                                                 {
@@ -299,22 +299,22 @@
                                                                   },
                                                                   "span": {
                                                                     "file": "golden.yl",
-                                                                    "start": 285,
-                                                                    "end": 290
+                                                                    "start": 288,
+                                                                    "end": 293
                                                                   }
                                                                 }
                                                               ]
                                                             },
                                                             "span": {
                                                               "file": "golden.yl",
-                                                              "start": 274,
-                                                              "end": 291
+                                                              "start": 277,
+                                                              "end": 294
                                                             }
                                                           },
                                                           "span": {
                                                             "file": "golden.yl",
-                                                            "start": 274,
-                                                            "end": 291
+                                                            "start": 277,
+                                                            "end": 294
                                                           }
                                                         }
                                                       ]
@@ -322,22 +322,22 @@
                                                   },
                                                   "span": {
                                                     "file": "golden.yl",
-                                                    "start": 270,
-                                                    "end": 292
+                                                    "start": 273,
+                                                    "end": 295
                                                   }
                                                 }
                                               }
                                             },
                                             "span": {
                                               "file": "golden.yl",
-                                              "start": 258,
-                                              "end": 292
+                                              "start": 261,
+                                              "end": 295
                                             }
                                           },
                                           "span": {
                                             "file": "golden.yl",
-                                            "start": 258,
-                                            "end": 292
+                                            "start": 261,
+                                            "end": 295
                                           }
                                         }
                                       ]
@@ -345,14 +345,14 @@
                                   },
                                   "span": {
                                     "file": "golden.yl",
-                                    "start": 236,
-                                    "end": 293
+                                    "start": 239,
+                                    "end": 296
                                   }
                                 },
                                 "span": {
                                   "file": "golden.yl",
-                                  "start": 236,
-                                  "end": 293
+                                  "start": 239,
+                                  "end": 296
                                 }
                               }
                             ]
@@ -360,8 +360,8 @@
                         },
                         "span": {
                           "file": "golden.yl",
-                          "start": 226,
-                          "end": 294
+                          "start": 229,
+                          "end": 297
                         }
                       },
                       "actions": [
@@ -380,8 +380,8 @@
                                         },
                                         "span": {
                                           "file": "golden.yl",
-                                          "start": 321,
-                                          "end": 325
+                                          "start": 324,
+                                          "end": 328
                                         }
                                       },
                                       {
@@ -390,22 +390,22 @@
                                         },
                                         "span": {
                                           "file": "golden.yl",
-                                          "start": 327,
-                                          "end": 333
+                                          "start": 330,
+                                          "end": 336
                                         }
                                       }
                                     ]
                                   },
                                   "span": {
                                     "file": "golden.yl",
-                                    "start": 320,
-                                    "end": 334
+                                    "start": 323,
+                                    "end": 337
                                   }
                                 },
                                 "span": {
                                   "file": "golden.yl",
-                                  "start": 320,
-                                  "end": 334
+                                  "start": 323,
+                                  "end": 337
                                 }
                               },
                               {
@@ -430,14 +430,14 @@
                                                       },
                                                       "span": {
                                                         "file": "golden.yl",
-                                                        "start": 351,
-                                                        "end": 355
+                                                        "start": 354,
+                                                        "end": 358
                                                       }
                                                     },
                                                     "span": {
                                                       "file": "golden.yl",
-                                                      "start": 351,
-                                                      "end": 355
+                                                      "start": 354,
+                                                      "end": 358
                                                     }
                                                   }
                                                 ]
@@ -445,14 +445,14 @@
                                             },
                                             "span": {
                                               "file": "golden.yl",
-                                              "start": 341,
-                                              "end": 356
+                                              "start": 344,
+                                              "end": 359
                                             }
                                           },
                                           "span": {
                                             "file": "golden.yl",
-                                            "start": 341,
-                                            "end": 356
+                                            "start": 344,
+                                            "end": 359
                                           }
                                         },
                                         {
@@ -477,8 +477,8 @@
                                                                   },
                                                                   "span": {
                                                                     "file": "golden.yl",
-                                                                    "start": 375,
-                                                                    "end": 383
+                                                                    "start": 378,
+                                                                    "end": 386
                                                                   }
                                                                 },
                                                                 {
@@ -487,22 +487,22 @@
                                                                   },
                                                                   "span": {
                                                                     "file": "golden.yl",
-                                                                    "start": 385,
-                                                                    "end": 390
+                                                                    "start": 388,
+                                                                    "end": 393
                                                                   }
                                                                 }
                                                               ]
                                                             },
                                                             "span": {
                                                               "file": "golden.yl",
-                                                              "start": 374,
-                                                              "end": 391
+                                                              "start": 377,
+                                                              "end": 394
                                                             }
                                                           },
                                                           "span": {
                                                             "file": "golden.yl",
-                                                            "start": 374,
-                                                            "end": 391
+                                                            "start": 377,
+                                                            "end": 394
                                                           }
                                                         }
                                                       ]
@@ -510,22 +510,22 @@
                                                   },
                                                   "span": {
                                                     "file": "golden.yl",
-                                                    "start": 370,
-                                                    "end": 392
+                                                    "start": 373,
+                                                    "end": 395
                                                   }
                                                 }
                                               }
                                             },
                                             "span": {
                                               "file": "golden.yl",
-                                              "start": 358,
-                                              "end": 392
+                                              "start": 361,
+                                              "end": 395
                                             }
                                           },
                                           "span": {
                                             "file": "golden.yl",
-                                            "start": 358,
-                                            "end": 392
+                                            "start": 361,
+                                            "end": 395
                                           }
                                         }
                                       ]
@@ -533,21 +533,21 @@
                                   },
                                   "span": {
                                     "file": "golden.yl",
-                                    "start": 336,
-                                    "end": 393
+                                    "start": 339,
+                                    "end": 396
                                   }
                                 },
                                 "span": {
                                   "file": "golden.yl",
-                                  "start": 336,
-                                  "end": 393
+                                  "start": 339,
+                                  "end": 396
                                 }
                               }
                             ],
                             "span": {
                               "file": "golden.yl",
-                              "start": 309,
-                              "end": 394
+                              "start": 312,
+                              "end": 397
                             }
                           }
                         }
@@ -555,8 +555,8 @@
                       "otherwise": [],
                       "span": {
                         "file": "golden.yl",
-                        "start": 223,
-                        "end": 404
+                        "start": 224,
+                        "end": 407
                       }
                     }
                   }
@@ -565,24 +565,24 @@
                 "calls": [],
                 "span": {
                   "file": "golden.yl",
-                  "start": 223,
-                  "end": 404
+                  "start": 224,
+                  "end": 407
                 }
               }
             ],
             "precedence": [],
             "span": {
               "file": "golden.yl",
-              "start": 172,
-              "end": 410
+              "start": 174,
+              "end": 413
             }
           }
         }
       },
       "span": {
         "file": "golden.yl",
-        "start": 131,
-        "end": 412
+        "start": 132,
+        "end": 415
       }
     },
     {
@@ -595,8 +595,8 @@
             },
             "span": {
               "file": "golden.yl",
-              "start": 420,
-              "end": 427
+              "start": 423,
+              "end": 430
             }
           },
           "trivia": []
@@ -604,14 +604,14 @@
       },
       "span": {
         "file": "golden.yl",
-        "start": 414,
-        "end": 427
+        "start": 417,
+        "end": 430
       }
     }
   ],
   "span": {
     "file": "golden.yl",
     "start": 0,
-    "end": 428
+    "end": 431
   }
 }

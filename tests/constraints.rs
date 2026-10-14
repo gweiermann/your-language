@@ -4,8 +4,9 @@ use your_language::{compile_sources, parse};
 #[test]
 fn reusable_regex_constraint_substitutes_receiver_and_regex_parameters() {
     let sources=BTreeMap::from([
-        ("main.yl".into(),r#"import { starts } from "./checks" node P = name: /x/ { constraints { starts(name, /x/) } } entry P"#.into()),
-        ("checks.yl".into(),r#"export constraint starts(input, pattern) { when input.matches(pattern) { warning("matched") } }"#.into()),
+        ("main.yl".into(),r#"import { starts } from "./checks" node P = name: /x/ { checks { starts(name, /x/) } } entry P"#.into()),
+        ("checks.yl".into(),r#"import { error, warn, hint } from "core/diagnostics"
+export constraint starts(input, pattern) { when input.matches(pattern) { warn("matched") } }"#.into()),
     ]);
     let language = compile_sources("main.yl", &sources).unwrap();
     let result = parse(&language, "x");
@@ -18,10 +19,11 @@ fn reusable_regex_constraint_substitutes_receiver_and_regex_parameters() {
 fn reusable_constraint_named_arguments_bind_by_name() {
     let sources = BTreeMap::from([(
         "main.yl".into(),
-        r#"
+        r#"import { error, warn, hint } from "core/diagnostics"
+
         trivia W = /\s+/
         constraint tight(left, right) { when trivia.between(left, right) { error("not tight") } }
-        node P = first: "a" second: "b" { constraints { tight(right=second, left=first) } }
+        node P = first: "a" second: "b" { checks { tight(right=second, left=first) } }
         entry P { trivia W }
     "#
         .into(),
@@ -35,12 +37,13 @@ fn reusable_constraint_named_arguments_bind_by_name() {
 fn constraint_forwarding_defaults_grouping_and_message_arguments() {
     let sources = BTreeMap::from([(
         "main.yl".into(),
-        r#"
+        r#"import { error, warn, hint } from "core/diagnostics"
+
         constraint check(value, pattern=/x/, message="matched") {
-            when (value.matches(pattern)) { warning(message) }
+            when (value.matches(pattern)) { warn(message) }
         }
         constraint forward(input) { check(message="forwarded",value=(input)) }
-        node P = name: /x/ { constraints { forward(name) } }
+        node P = name: /x/ { checks { forward(name) } }
         entry P
     "#
         .into(),
@@ -60,7 +63,8 @@ fn invalid_constraint_arguments_are_compile_diagnostics() {
         "value=name,name",
     ] {
         let source = format!(
-            r#"constraint c(value) {{ when value.matches(/x/) {{ warning("x") }} }} node P = name: /x/ {{ constraints {{ c({arguments}) }} }} entry P"#
+            r#"import {{ error, warn, hint }} from "core/diagnostics"
+constraint c(value) {{ when value.matches(/x/) {{ warn("x") }} }} node P = name: /x/ {{ checks {{ c({arguments}) }} }} entry P"#
         );
         let result = compile_sources("main.yl", &BTreeMap::from([("main.yl".into(), source)]));
         assert_eq!(

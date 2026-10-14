@@ -31,7 +31,7 @@ Definitions live in `definition/`; inputs live in `programs/`.
 - `typing.yl` composes the standard reference and type operations into language-specific rules.
 - `parameter.yl`, `function.yl`, `expression.yl` and `let.yl` attach those rules to syntax.
 
-`std/references` resolves names through scope identifiers attached to syntax ancestors. `std/types` accumulates candidate facts, checks restrictions and resolves hypothetical inputs. Both are authored standard YL modules over the generic `std/query` primitives. Concrete target-language types belong to this example; only `unknown` belongs to the standard type module.
+`std/references` resolves names through scope identifiers attached to syntax ancestors. `std/types` accumulates candidate facts, checks restrictions and resolves hypothetical inputs. Both are authored standard YL modules over the generic `core/query` primitives. Concrete target-language types belong to this example; only `unknown` belongs to the standard type module.
 
 ## Syntax and reference types
 
@@ -39,7 +39,7 @@ A number publishes its type directly:
 
 ```yl
 node Number = value: /[0-9]+/ {
-    meanings {
+    semantics {
         annotateWithType(self, number)
     }
 }
@@ -49,10 +49,10 @@ A reference resolves its name and shares the resolved declaration's type. A let 
 
 ```yl
 export operation bindingType(name, value, annotation = absent) {
-    types::annotate(referenceOf(name), typeof(value))
-    if isPresent(annotation) {
-        types::annotate(referenceOf(name), typeof(annotation))
-        types::restrictTo(referenceOf(name), typeof(annotation), value, annotation.value)
+    annotateWithType(referenceOf(name), typeOf(value))
+    when isPresent(annotation) {
+        annotateWithType(referenceOf(name), typeOf(annotation))
+        restrictTypeTo(referenceOf(name), typeOf(annotation), value, annotation.value)
     }
 }
 ```
@@ -68,9 +68,9 @@ A function's type value is its resolved binding identity. Signature metadata liv
 Each parameter has its own `(functionIdentity, parameters, parameterName)` type key. The `parameters` slot also presents the ordered signature for inspection. Calling a function asks what its return slot would contain under temporary argument types:
 
 ```yl
-types::resolveWith(
-    (typeof(callee), returnType),
-    [((typeof(callee), parameters, "value"), typeof(argument), argument)]
+resolveTypeWith(
+    (typeOf(callee), returnType),
+    [((typeOf(callee), parameters, "value"), typeOf(argument), argument)]
 )
 ```
 
@@ -81,7 +81,9 @@ The optional third assumption member preserves the argument source for diagnosti
 The language chooses supported operand combinations:
 
 ```yl
-match (typeof(left), typeof(right)) {
+import { error } from "core/diagnostics"
+
+match (typeOf(left), typeOf(right)) {
     string, string | string, number | number, string => annotateWithType(self, string),
     number, number                                  => annotateWithType(self, number),
     unknown, _ | _, unknown                         => annotateWithType(self, unknown),

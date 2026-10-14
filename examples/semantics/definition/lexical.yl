@@ -1,5 +1,3 @@
-export node Name =
-    value: /[a-z]+/
+export node Name = value: /[a-z]+/
 
-export trivia Whitespace =
-    /\s+/
+export trivia Whitespace = /\s+/

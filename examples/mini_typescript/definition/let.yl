@@ -1,4 +1,4 @@
-import { declare } from "std/references"
+import { declareName } from "std/references"
 import { bindingType } from "./typing"
 import { Name } from "./lexical"
 import { Annotation } from "./types"
@@ -12,9 +12,9 @@ export node LetDeclaration =
     initializer: Expression
     ";"
 {
-    meanings {
+    semantics {
         group Register {
-            declare(self, name)
+            declareName(self, name)
             bindingType(name, initializer, annotation)
         }
     }

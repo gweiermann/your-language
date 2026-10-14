@@ -364,7 +364,7 @@ fn cli_pipe_diagnostics_underline_caller_arguments_before_definition() {
     let text = String::from_utf8(output.stderr).unwrap();
     assert!(text.contains("This combination is not allowed."));
     assert!(text.contains("^^  ^^"));
-    let caller = text.find("node Program").unwrap();
+    let caller = text.find("items: /x/*").unwrap();
     let definition = text.find("error(\"This combination").unwrap();
     assert!(caller < definition, "{text}");
 }
@@ -379,7 +379,7 @@ fn cli_source_underlines_align_with_the_marked_columns() {
     let text = String::from_utf8(output.stderr).unwrap();
     let lines: Vec<_> = text.lines().collect();
     for (index, line) in lines.iter().enumerate() {
-        if line.contains("node Program") {
+        if line.contains("items: /x/*") {
             let underline = lines[index + 1];
             assert_eq!(underline.find('^'), line.find(".a"));
             assert_eq!(
@@ -463,7 +463,8 @@ fn cli_language_tools_handle_relative_paths_eof_and_constraint_errors() {
         "{diagnostic}"
     );
     assert!(diagnostic.contains('^'));
-    let constrained=compile_sources("checks.yl",&BTreeMap::from([("checks.yl".into(),r#"node P = value: /x/ { constraints { when true { error("Rejected value") } } } entry P"#.into())])).unwrap();
+    let constrained=compile_sources("checks.yl",&BTreeMap::from([("checks.yl".into(),r#"import { error, warn, hint } from "core/diagnostics"
+node P = value: /x/ { checks { when true { error("Rejected value") } } } entry P"#.into())])).unwrap();
     fs::write(&artifact, constrained.to_bytes().unwrap()).unwrap();
     let input = fixture("target/cli-human-constrained.txt");
     fs::write(&input, "x").unwrap();
@@ -539,7 +540,8 @@ fn language_ast_failures_are_json_and_checks_never_emit_an_ast() {
         "checks.yl",
         &BTreeMap::from([(
             "checks.yl".into(),
-            r#"node P = /x/ { constraints { when true { error("Rejected") } } } entry P"#.into(),
+            r#"import { error, warn, hint } from "core/diagnostics"
+node P = /x/ { checks { when true { error("Rejected") } } } entry P"#.into(),
         )]),
     )
     .unwrap();

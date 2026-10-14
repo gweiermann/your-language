@@ -54,7 +54,7 @@ fn capture_handles_select_original_alias_pattern_and_pipe_occurrences() {
                 import { separatedBy } from "std/parser"
                 pipe wrapped() { rewrite value => "(" value ")" }
                 node Root = value: Alias |> wrapped() ";" items: Alias* |> separatedBy(",") {
-                    meanings { inspect(value) inspect(items) }
+                    semantics { inspect(value) inspect(items) }
                 }
                 entry Root
             "#
@@ -106,7 +106,7 @@ fn capture_handles_select_original_alias_pattern_and_pipe_occurrences() {
 }
 #[test]
 fn terminals_and_absent_captures_have_no_occurrence_handles() {
-    let source = r#"import { inspect } from "test/identity" node Root = value: "a" absent: "b"? { meanings { inspect(value) inspect(absent) } } entry Root"#;
+    let source = r#"import { inspect } from "test/identity" node Root = value: "a" absent: "b"? { semantics { inspect(value) inspect(absent) } } entry Root"#;
     let result = engine()
         .compile_and_analyze(
             "main.yl",
@@ -128,7 +128,7 @@ fn pratt_capture_handles_refer_to_committed_subexpressions_not_equal_spans() {
         import { inspect } from "test/identity"
         node Number = /[0-9]+/
         node Add = left: Expression "+" right: Expression {
-            meanings { inspect(left) inspect(right) }
+            semantics { inspect(left) inspect(right) }
         }
         node Expression {
             node Add
@@ -136,7 +136,7 @@ fn pratt_capture_handles_refer_to_committed_subexpressions_not_equal_spans() {
             precedence { Add }
         }
         node Root = value: Expression "!" {
-            meanings { inspect(value) }
+            semantics { inspect(value) }
         }
         entry Root
     "#;

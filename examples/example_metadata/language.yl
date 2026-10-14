@@ -20,4 +20,6 @@ node Program =
 
 node List = Number* |> separatedBy(",")
 
-entry Program { trivia Whitespace }
+entry Program {
+    trivia Whitespace
+}

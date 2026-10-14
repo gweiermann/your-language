@@ -41,10 +41,10 @@ fn source_underlines_preserve_unicode_columns_secondary_locations_and_color() {
 fn semantic_pipe_origin_is_rendered_at_the_original_name() {
     let engine = SemanticEngine::default();
     let grammar = r#"
-        import { lexicalScope, use } from "std/variables"
+        import { createLexicalScope, connectReference } from "std/references"
         pipe wrapped() { rewrite value => "(" value ")" }
         pattern Name = /[a-z]+/
-        node Root = name: Name |> wrapped() { meanings { lexicalScope(self) use(self, name) } }
+        node Root = name: Name |> wrapped() { semantics { createLexicalScope(self) connectReference(self, name) } }
         entry Root
     "#;
     let sources = BTreeMap::from([("language.yl".into(), grammar.into())]);

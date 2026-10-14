@@ -15,9 +15,9 @@ fn analyze(grammar: &str, source: &str) -> your_language::semantics::AnalysisRes
 #[test]
 fn mixed_repeated_nodes_and_terminals_keep_individual_text() {
     let result = analyze(
-        r#"import { contribute, map, text } from "std/query"
+        r#"import { contribute, map, text } from "core/query"
  node Name = /[a-z]+/
- node Program = values: (Name | /[0-9]+/)* { meanings { contribute("texts", map(values, item => text(item))) } }
+ node Program = values: (Name | /[0-9]+/)* { semantics { contribute("texts", map(values, item => text(item))) } }
  trivia Whitespace = /\s+/
  trivia Comment = /\/\/[^\n]*/
  entry Program { trivia Whitespace, Comment }"#,
@@ -38,8 +38,8 @@ fn mixed_repeated_nodes_and_terminals_keep_individual_text() {
 #[test]
 fn nested_hypothetical_memo_includes_inherited_and_shadowed_overrides() {
     let result = analyze(
-        r#"import { contribute, get, hypothetical, concat } from "std/query"
- node Program = "x" { meanings {
+        r#"import { contribute, get, hypothetical, concat } from "core/query"
+ node Program = "x" { semantics {
    contribute("a", "original-a")
    contribute("b", "original-b")
    contribute("return", concat([get("a"), get("b")]))
@@ -69,9 +69,9 @@ fn nested_hypothetical_memo_includes_inherited_and_shadowed_overrides() {
 #[test]
 fn projected_repeated_terminal_fields_keep_individual_spans() {
     let result = analyze(
-        r#"import { contribute, map, text } from "std/query"
+        r#"import { contribute, map, text } from "core/query"
  node Name = value: /[a-z]+/
- node Program = names: Name* { meanings { contribute("texts", map(names.value, item => text(item))) } }
+ node Program = names: Name* { semantics { contribute("texts", map(names.value, item => text(item))) } }
  trivia Whitespace = /\s+/
  trivia Comment = /\/\/[^\n]*/
  entry Program { trivia Whitespace, Comment }"#,
@@ -90,9 +90,9 @@ fn projected_repeated_terminal_fields_keep_individual_spans() {
 #[test]
 fn facts_deduplicate_capture_and_explicit_identity_of_same_occurrence() {
     let result = analyze(
-        r#"import { contribute, facts } from "std/query"
- node Name = /[a-z]+/ { meanings { contribute("fact", self) } }
- node Program = name: Name { meanings {
+        r#"import { contribute, facts } from "core/query"
+ node Name = /[a-z]+/ { semantics { contribute("fact", self) } }
+ node Program = name: Name { semantics {
     contribute("fact", name)
     contribute("result", facts("fact"))
  } } entry Program"#,
@@ -114,10 +114,10 @@ fn facts_deduplicate_capture_and_explicit_identity_of_same_occurrence() {
 #[test]
 fn nested_repeated_projections_keep_empty_groups_and_terminal_text() {
     let result = analyze(
-        r#"import { contribute, map, text } from "std/query"
+        r#"import { contribute, map, text } from "core/query"
  node Name = value: /[a-z]+/
  node Group = "{" names: Name* "}"
- node Program = groups: Group* { meanings {
+ node Program = groups: Group* { semantics {
    contribute("texts", map(groups.names.value, group => map(group, item => text(item))))
  } }
  trivia Whitespace = /\s+/
@@ -142,11 +142,11 @@ fn nested_repeated_projections_keep_empty_groups_and_terminal_text() {
 #[test]
 fn mixed_repeated_pipe_projections_keep_each_original_text() {
     let result = analyze(
-        r#"import { contribute, map, text } from "std/query"
+        r#"import { contribute, map, text } from "core/query"
  import { separatedBy } from "std/parser"
  node Name = /[a-z]+/
  node Program = values: (Name | /[0-9]+/)* |> separatedBy(",") {
-   meanings { contribute("texts", map(values, item => text(item))) }
+   semantics { contribute("texts", map(values, item => text(item))) }
  }
  trivia Whitespace = /\s+/
  trivia Comment = /\/\/[^\n]*/
@@ -167,9 +167,9 @@ fn mixed_repeated_pipe_projections_keep_each_original_text() {
 #[test]
 fn nested_terminal_lists_skip_empty_group_span_slots() {
     let result = analyze(
-        r#"import { contribute, map, text } from "std/query"
+        r#"import { contribute, map, text } from "core/query"
 node Group = "{" names: /[a-z]+/* "}"
-node Program = groups: Group* { meanings {
+node Program = groups: Group* { semantics {
     contribute("texts", map(groups.names, group => map(group, item => text(item))))
 } }
 trivia Whitespace = /\s+/

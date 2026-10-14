@@ -19,21 +19,22 @@ fn analyze(source: &str, input: &str) -> your_language::semantics::AnalysisResul
 }
 #[test]
 fn authored_named_group_precedence_controls_reference_visibility() {
-    let source = r#"
-import {lexicalScope, declare, use, referenceOf} from "std/references"
-import {equal} from "std/query"
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+
+import {createLexicalScope, declareName, connectReference, referenceOf} from "std/references"
+import {equal} from "core/query"
 node Declare = "d" name:/[a-z]/ ";" {
- meanings {
-  group Late { if false { error("late") } }
-  group Register { declare(self, name) }
+ semantics {
+  group Late { when false { error("late") } }
+  group Register { declareName(self, name) }
  }
 }
-node Use = "u" name:/[a-z]/ ";" { meanings { use(self, name) } }
+node Use = "u" name:/[a-z]/ ";" { semantics { connectReference(self, name) } }
 node Root = usage:Use declaration:Declare {
- meanings {
-  lexicalScope(self)
-  precedence { Declare::meanings::Register > Use > Declare::meanings::Late }
-  if !equal(referenceOf(usage), referenceOf(declaration)) { error("Wrong identity") }
+ semantics {
+  createLexicalScope(self)
+  precedence { Declare::semantics::Register > Use > Declare::semantics::Late }
+  when !equal(referenceOf(usage), referenceOf(declaration)) { error("Wrong identity") }
  }
 }
 entry Root
@@ -44,11 +45,11 @@ entry Root
 #[test]
 fn outer_whole_region_deferral_and_inner_boundary_preserve_order() {
     let source = r#"
-import {lexicalScope, declare, use} from "std/references"
-node Declare = "d" name:/[a-z]/ ";" { meanings {declare(self, name)} }
-node Use = "u" name:/[a-z]/ ";" { meanings {use(self, name)} }
-node Block = "{" (Use | Declare)* "}" { meanings {boundary lexicalScope(self)} }
-node Root = (Declare | Use | Block)* { meanings {boundary lexicalScope(self) precedence { Declare > Block }} }
+import {createLexicalScope, declareName, connectReference} from "std/references"
+node Declare = "d" name:/[a-z]/ ";" { semantics {declareName(self, name)} }
+node Use = "u" name:/[a-z]/ ";" { semantics {connectReference(self, name)} }
+node Block = "{" (Use | Declare)* "}" { semantics {boundary createLexicalScope(self)} }
+node Root = (Declare | Use | Block)* { semantics {boundary createLexicalScope(self) precedence { Declare > Block }} }
 entry Root
 "#;
     let result = analyze(source, "{ux;}dx;");
@@ -65,19 +66,20 @@ entry Root
 }
 #[test]
 fn imported_symbols_never_replace_caller_captures_inside_nested_operations() {
-    let source = r#"
-import {scope, declarations, lexicalScope, declare, use, referenceOf} from "std/references"
-import {type, annotate, typeof} from "std/types"
-import {equal} from "std/query"
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+
+import {scope, declarations, createLexicalScope, declareName, connectReference, referenceOf} from "std/references"
+import {type, annotateWithType, typeOf} from "std/types"
+import {equal} from "core/query"
 symbol Red
 operation helper(type, scope, declarations) {
- annotate(type, Red)
- if !equal(typeof(type), Red) { error("Type lost") }
- if !equal(referenceOf(scope), referenceOf(declarations)) {error("Capture lost")}
+ annotateWithType(type, Red)
+ when !equal(typeOf(type), Red) { error("Type lost") }
+ when !equal(referenceOf(scope), referenceOf(declarations)) {error("Capture lost")}
 }
-node Declare = "d" name:/[a-z]/ ";" { meanings { declare(self, name) } }
-node Use = "u" name:/[a-z]/ ";" { meanings { use(self, name) } }
-node Root = scope:Declare declarations:Use type:/[a-z]/ {meanings {lexicalScope(self) helper(type,scope,declarations)}}
+node Declare = "d" name:/[a-z]/ ";" { semantics { declareName(self, name) } }
+node Use = "u" name:/[a-z]/ ";" { semantics { connectReference(self, name) } }
+node Root = scope:Declare declarations:Use type:/[a-z]/ {semantics {createLexicalScope(self) helper(type,scope,declarations)}}
 entry Root
 "#;
     let result = analyze(source, "dx;ux;z");
@@ -86,7 +88,7 @@ entry Root
 #[test]
 fn malformed_query_scheduling_placeholders_are_rejected_before_execution() {
     let language = compile(
-        r#"import {annotate} from "std/types" symbol Red node Root="x" {meanings {group Register {annotate(self,Red)}}} entry Root"#,
+        r#"import {annotateWithType} from "std/types" symbol Red node Root="x" {semantics {group Register {annotateWithType(self,Red)}}} entry Root"#,
     );
     let wire: serde_json::Value = serde_json::from_slice(&language.to_bytes().unwrap()).unwrap();
     for mutation in [0, 1, 2] {

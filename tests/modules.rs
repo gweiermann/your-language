@@ -84,7 +84,7 @@ fn import_order_does_not_change_extensions_or_artifact() {
         BTreeMap::from([
         ("main.yl".into(),format!("{imports} node P = Name entry P")),
         ("names.yl".into(),"export node Name = value: /[a-z]+/".into()),
-        ("checks.yl".into(),"import { Name } from \"./names\" export pattern Unused = /x/ extend node Name { constraints { when value.matches(/x/) { warning(\"x\") } } }".into()),
+        ("checks.yl".into(),"import { error, warn, hint } from \"core/diagnostics\"\nimport { Name } from \"./names\" export pattern Unused = /x/ extend node Name { checks { when value.matches(/x/) { warn(\"x\") } } }".into()),
     ])
     };
     let first = compile_sources(

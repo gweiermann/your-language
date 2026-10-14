@@ -1,67 +1,51 @@
-import * as types from "std/types"
+import { error } from "core/diagnostics"
+import { annotateWithType, typeOf, restrictTypeTo, resolveTypeWith, compatible, unknown } from "std/types"
 import { referenceOf, enclosingScope } from "std/references"
-import { get, contribute, children, first, last, find, map, zip, lookup, text, equal, isPresent, choose, every, values, filter, flatten, alternatives } from "std/query"
+import { get, contribute, children, first, last, find, map, zip, lookup, text, equal, isPresent, choose, every, values, filter, flatten, alternatives } from "core/query"
 import { parameters, parameterNames, parameterAnnotations, parameterSources, returnType, declaredReturnType, functionIdentity } from "./types"
 
-operation identityOf(value) = choose(isPresent(referenceOf(value)), referenceOf(value), value)
-
-export operation typeof(value) = types::typeof(value)
-
-export operation annotateWithType(target, value) {
-    types::annotate(identityOf(target), value)
-}
-
 export operation inheritType(target) {
-    annotateWithType(target, typeof(first(children(target))))
-}
-
-export operation restrictTypeTo(target, value) {
-    types::restrictTo(identityOf(target), typeof(value))
+    annotateWithType(target, typeOf(first(children(target))))
 }
 
 export operation bindingType(name, value, annotation = absent) {
-    types::annotate(referenceOf(name), typeof(value))
-    types::restrictTo(referenceOf(name), typeof(annotation), value, annotation.value)
-    types::annotate(name, types::typeof(referenceOf(name)))
+    annotateWithType(referenceOf(name), typeOf(value))
+    restrictTypeTo(referenceOf(name), typeOf(annotation), value, annotation.value)
+    annotateWithType(name, typeOf(referenceOf(name)))
 }
 
 operation functionOf(target) = get((enclosingScope(target), functionIdentity))
 
 export operation parameterType(target, name, annotation) {
-    types::annotate((functionOf(target), parameters, text(name)), typeof(annotation))
-    types::annotate(referenceOf(name), types::typeof((functionOf(target), parameters, text(name))))
-    types::annotate(name, types::typeof(referenceOf(name)))
-}
-
-export operation referenceType(target, name) {
-    types::annotate(target, types::typeof(referenceOf(name)))
-    types::annotate(name, types::typeof(referenceOf(name)))
+    annotateWithType((functionOf(target), parameters, text(name)), typeOf(annotation))
+    annotateWithType(referenceOf(name), typeOf((functionOf(target), parameters, text(name))))
+    annotateWithType(name, typeOf(referenceOf(name)))
 }
 
 export operation functionSignature(name, arguments, body, annotation, contents) {
-    types::annotate(referenceOf(name), referenceOf(name))
-    types::annotate(name, referenceOf(name))
+    annotateWithType(referenceOf(name), referenceOf(name))
+    annotateWithType(name, referenceOf(name))
     contribute((contents, functionIdentity), referenceOf(name))
     contribute((referenceOf(name), parameterNames), map(arguments.name, name => text(name)))
-    contribute((referenceOf(name), parameterAnnotations), map(arguments.annotation, annotation => typeof(annotation)))
+    contribute((referenceOf(name), parameterAnnotations), map(arguments.annotation, annotation => typeOf(annotation)))
     contribute((referenceOf(name), parameterSources), arguments.annotation.value)
-    types::annotate((referenceOf(name), parameters), zip(map(arguments.name, parameter => text(parameter)), map(arguments.name, parameter => types::typeof((referenceOf(name), parameters, text(parameter))))))
-    types::annotate((referenceOf(name), returnType), choose(isPresent(annotation), typeof(annotation), types::typeof((body, returnType))))
-    contribute((referenceOf(name), declaredReturnType), choose(isPresent(annotation), typeof(annotation), absent))
-    types::restrictTo((body, returnType), typeof(annotation), body.result, annotation.value)
+    annotateWithType((referenceOf(name), parameters), zip(map(arguments.name, parameter => text(parameter)), map(arguments.name, parameter => typeOf((referenceOf(name), parameters, text(parameter))))))
+    annotateWithType((referenceOf(name), returnType), choose(isPresent(annotation), typeOf(annotation), typeOf((body, returnType))))
+    contribute((referenceOf(name), declaredReturnType), choose(isPresent(annotation), typeOf(annotation), absent))
+    restrictTypeTo((body, returnType), typeOf(annotation), body.result, annotation.value)
 }
 
 operation sameLength(left, right) = equal(map(left, value => true), map(right, value => true))
 
-operation assumptions(function, arguments) = map(zip(get((function, parameterNames)), arguments), pair => ((function, parameters, first(pair)), typeof(last(pair)), last(pair)))
+operation assumptions(function, arguments) = map(zip(get((function, parameterNames)), arguments), pair => ((function, parameters, first(pair)), typeOf(last(pair)), last(pair)))
 
 operation requiredType(function, arguments, argument) = lookup(zip(arguments, get((function, parameterAnnotations))), argument)
 
 operation requiredAnnotation(function, arguments, argument) = lookup(zip(arguments, get((function, parameterSources))), argument)
 
-operation invalidArgument(function, arguments) = find(arguments, argument => choose(types::compatible(typeof(argument), requiredType(function, arguments, argument)), absent, argument))
+operation invalidArgument(function, arguments) = find(arguments, argument => choose(compatible(typeOf(argument), requiredType(function, arguments, argument)), absent, argument))
 
-operation functionsOf(callee) = filter(values(typeof(callee)), candidate => isPresent(get((candidate, parameterNames))))
+operation functionsOf(callee) = filter(values(typeOf(callee)), candidate => isPresent(get((candidate, parameterNames))))
 
 operation validFunctions(callee, arguments) = filter(functionsOf(callee), function => sameLength(get((function, parameterNames)), arguments))
 
@@ -69,17 +53,17 @@ operation invalidFunction(callee, arguments) = find(validFunctions(callee, argum
 
 operation declaredResult(function) = get((function, declaredReturnType))
 
-operation callResult(function, arguments) = choose(isPresent(declaredResult(function)), declaredResult(function), types::resolveWith((function, returnType), assumptions(function, arguments)))
+operation callResult(function, arguments) = choose(isPresent(declaredResult(function)), declaredResult(function), resolveTypeWith((function, returnType), assumptions(function, arguments)))
 
 operation restrictArgument(function, arguments, argument) {
-    types::restrictTo(identityOf(argument), requiredType(function, arguments, argument), argument, requiredAnnotation(function, arguments, argument))
+    restrictTypeTo(argument, requiredType(function, arguments, argument), argument, requiredAnnotation(function, arguments, argument))
 }
 
 export operation call(target, callee, arguments) {
-    if !every(values(typeof(callee)), candidate => choose(equal(candidate, types::unknown), true, isPresent(get((candidate, parameterNames))))) {
+    when !every(values(typeOf(callee)), candidate => choose(equal(candidate, unknown), true, isPresent(get((candidate, parameterNames))))) {
         error("Expression is not callable", callee)
     }
-    if !every(functionsOf(callee), function => sameLength(get((function, parameterNames)), arguments)) {
+    when !every(functionsOf(callee), function => sameLength(get((function, parameterNames)), arguments)) {
         error("Wrong number of arguments", callee)
     }
     restrictArgument(invalidFunction(callee, arguments), arguments, invalidArgument(invalidFunction(callee, arguments), arguments))

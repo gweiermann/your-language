@@ -28,13 +28,13 @@ fn tree(source: &str) -> serde_json::Value {
 }
 #[test]
 fn formats_semantic_blocks_without_changing_syntax() {
-    let source = "import{scope}from\"lib\"node Program=name:/[a-z]+/ {meanings{boundary scope() group Register{scope()} precedence{Program>Child}}}entry Program";
+    let source = "import{scope}from\"lib\"node Program=name:/[a-z]+/ {semantics{boundary scope() group Register{scope()} precedence{Program>Child}}}entry Program";
     let formatted = format_yl("source", source).unwrap();
     assert_eq!(tree(source), tree(&formatted));
     assert!(formatted.contains("import { scope } from \"lib\""));
     assert!(
         formatted.contains(
-            "node Program = name: /[a-z]+/ {\n    meanings {\n        boundary\n        scope()\n"
+            "node Program = name: /[a-z]+/ {\n    semantics {\n        boundary\n        scope()\n"
         ),
         "{formatted}"
     );
@@ -45,7 +45,7 @@ fn preserves_comments_and_raw_string_regex_spellings() {
     let source = r#"// module
 node A="line\n\t\"literal" // trailing A
 // docs B
-node B=/a\/b[{}]*/ { /* inner */ meanings{boundary} }
+node B=/a\/b[{}]*/ { /* inner */ semantics{boundary} }
 /* multiline
    exact contents */
 entry B"#;
@@ -198,12 +198,13 @@ fn preserves_comment_trailing_spaces_and_literal_line_endings() {
 
 #[test]
 fn supports_enums_constraints_extensions_and_tuple_rewrite_cases() {
-    let source = r#"
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+
         enum Mode{a,b}
-        constraint named(value: Node){when value.name?.matches(/a\/b/)&&value.isPresent{warning("check")}}
-        node Name=/[a-z]+/ node Family{node Name precedence{right Name} constraints{named(this)}}
-        extend node Family{constraints{when this.isPresent{help("extended")}}}
-        pipe wrap(first: Mode=.a,second: Mode=.b){rewrite value* match(first,second){(.a,.a)=>"(" value ")" (.a,.b)=>{warning("pair") value}(_,_)=>{error("unsupported")}}}
+        constraint named(value: Node){when value.name?.matches(/a\/b/)&&value.isPresent{warn("check")}}
+        node Name=/[a-z]+/ node Family{node Name precedence{right Name} checks{named(this)}}
+        extend node Family{checks{when this.isPresent{hint("extended")}}}
+        pipe wrap(first: Mode=.a,second: Mode=.b){rewrite value* match(first,second){(.a,.a)=>"(" value ")" (.a,.b)=>{warn("pair") value}(_,_)=>{error("unsupported")}}}
         pattern Many(item: Node)=item* |> wrap(.a,.b)
         entry Family{trivia Name}
     "#;
@@ -274,15 +275,15 @@ fn cli_read_only_files_and_literal_dash_paths_are_safe() {
 
 #[test]
 fn single_units_stay_inline_including_captures_postfix_and_pipes() {
-    let source = r#"node Name=/[a-z]+/ pattern Names=names:Name* |> separatedBy(",") node Value=item:Name? { meanings { scope() } }"#;
-    let expected = "node Name = /[a-z]+/\n\npattern Names = names: Name* |> separatedBy(\",\")\n\nnode Value = item: Name? {\n    meanings {\n        scope()\n    }\n}\n";
+    let source = r#"node Name=/[a-z]+/ pattern Names=names:Name* |> separatedBy(",") node Value=item:Name? { semantics { scope() } }"#;
+    let expected = "node Name = /[a-z]+/\n\npattern Names = names: Name* |> separatedBy(\",\")\n\nnode Value = item: Name? {\n    semantics {\n        scope()\n    }\n}\n";
     assert_eq!(format_yl("source", source).unwrap(), expected);
     assert_eq!(format_yl("source", expected).unwrap(), expected);
 }
 
 #[test]
 fn sequences_place_every_grammar_unit_on_its_own_line() {
-    let source = r#"pattern FunctionContents="(" parameters:Parameter* |> separatedBy(",") ")" annotation:Annotation? body:FunctionBody {meanings{lexicalScope(self) functionType(parameters,body,annotation)}}"#;
+    let source = r#"pattern FunctionContents="(" parameters:Parameter* |> separatedBy(",") ")" annotation:Annotation? body:FunctionBody {semantics{createLexicalScope(self) functionType(parameters,body,annotation)}}"#;
     let expected = r#"pattern FunctionContents =
     "("
     parameters: Parameter* |> separatedBy(",")
@@ -290,8 +291,8 @@ fn sequences_place_every_grammar_unit_on_its_own_line() {
     annotation: Annotation?
     body: FunctionBody
 {
-    meanings {
-        lexicalScope(self)
+    semantics {
+        createLexicalScope(self)
         functionType(parameters, body, annotation)
     }
 }
@@ -331,7 +332,7 @@ fn choices_have_separate_branches_without_splitting_captured_units() {
 
 #[test]
 fn sequence_comments_and_raw_literals_remain_parse_equivalent() {
-    let source = "node A = first:/a\\/b/ // first\n/* separator */ \";\" second:Name? |> wrap(\"x\") {meanings{scope()}}";
+    let source = "node A = first:/a\\/b/ // first\n/* separator */ \";\" second:Name? |> wrap(\"x\") {semantics{scope()}}";
     let formatted = format_yl("source", source).unwrap();
     assert!(
         formatted.contains("first: /a\\/b/ // first\n"),
@@ -347,10 +348,11 @@ fn sequence_comments_and_raw_literals_remain_parse_equivalent() {
 
 #[test]
 fn deferred_meaning_matches_are_formatted_and_keep_noop_branches() {
-    let source = r#"node Add=left:Expression "+" right:Expression {meanings{match(typeof(left),typeof(right)){string,string|string,number|number,string=>type(string),number,number=>type(number),unknown,_|_,unknown=>{},_=>error("${left} + ${right} is not possible")}}}"#;
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+node Add=left:Expression "+" right:Expression {semantics{match(typeOf(left),typeOf(right)){string,string|string,number|number,string=>type(string),number,number=>type(number),unknown,_|_,unknown=>{},_=>error("${left} + ${right} is not possible")}}}"#;
     let formatted = format_yl("source", source).unwrap();
     assert!(
-        formatted.contains("match (typeof(left), typeof(right)) {\n"),
+        formatted.contains("match (typeOf(left), typeOf(right)) {\n"),
         "{formatted}"
     );
     assert!(
@@ -368,7 +370,7 @@ fn deferred_meaning_matches_are_formatted_and_keep_noop_branches() {
 #[test]
 fn authored_symbols_have_one_declaration_per_paragraph() {
     let source =
-        "export symbol number export symbol string node Number=/[0-9]+/{meanings{type(number)}}";
+        "export symbol number export symbol string node Number=/[0-9]+/{semantics{type(number)}}";
     let formatted = format_yl("source", source).unwrap();
     assert!(
         formatted.starts_with(
@@ -383,10 +385,10 @@ fn authored_symbols_have_one_declaration_per_paragraph() {
 #[test]
 fn meaning_metadata_is_first_and_each_operation_has_its_own_line() {
     let expected = r#"node Program = Statements* {
-    meanings {
+    semantics {
         boundary
         types(unknown, functionTypeSymbol)
-        lexicalScope(self)
+        createLexicalScope(self)
         precedence {
             FunctionDeclaration > LetDeclaration > FunctionBody
         }
@@ -394,11 +396,11 @@ fn meaning_metadata_is_first_and_each_operation_has_its_own_line() {
 }
 "#;
     for body in [
-        "boundary types(unknown,functionTypeSymbol) lexicalScope(self) precedence{FunctionDeclaration>LetDeclaration>FunctionBody}",
-        "types(unknown,functionTypeSymbol) boundary lexicalScope(self) precedence{FunctionDeclaration>LetDeclaration>FunctionBody}",
-        "types(unknown,functionTypeSymbol) lexicalScope(self) precedence{FunctionDeclaration>LetDeclaration>FunctionBody} boundary",
+        "boundary types(unknown,functionTypeSymbol) createLexicalScope(self) precedence{FunctionDeclaration>LetDeclaration>FunctionBody}",
+        "types(unknown,functionTypeSymbol) boundary createLexicalScope(self) precedence{FunctionDeclaration>LetDeclaration>FunctionBody}",
+        "types(unknown,functionTypeSymbol) createLexicalScope(self) precedence{FunctionDeclaration>LetDeclaration>FunctionBody} boundary",
     ] {
-        let source = format!("node Program=Statements*{{meanings{{{body}}}}}");
+        let source = format!("node Program=Statements*{{semantics{{{body}}}}}");
         let formatted = format_yl("source", &source).unwrap();
         assert_eq!(formatted, expected);
         assert_eq!(tree(&source), tree(&formatted));
@@ -408,9 +410,9 @@ fn meaning_metadata_is_first_and_each_operation_has_its_own_line() {
 
 #[test]
 fn meaning_layout_keeps_groups_matches_and_precedence_separate() {
-    let source = r#"node Program=Statements*{meanings{first() group Register{register() check()} precedence{Register>Body} match(typeof(value)){number=>type(number),_=>{}} boundary last()}}"#;
+    let source = r#"node Program=Statements*{semantics{first() group Register{register() check()} precedence{Register>Body} match(typeOf(value)){number=>type(number),_=>{}} boundary last()}}"#;
     let expected = r#"node Program = Statements* {
-    meanings {
+    semantics {
         boundary
         first()
         group Register {
@@ -420,7 +422,7 @@ fn meaning_layout_keeps_groups_matches_and_precedence_separate() {
         precedence {
             Register > Body
         }
-        match (typeof(value)) {
+        match (typeOf(value)) {
             number => type(number),
             _      => {
             }
@@ -437,12 +439,12 @@ fn meaning_layout_keeps_groups_matches_and_precedence_separate() {
 
 #[test]
 fn metadata_movement_preserves_comments_literals_and_operation_order() {
-    let source = r#"node A=/a/{meanings{first("boundary", /boundary/) // first stays first
+    let source = r#"node A=/a/{semantics{first("boundary", /boundary/) // first stays first
 // metadata explanation
 boundary // boundary note
 second(value=boundary) precedence{A>B} third()}}"#;
     let formatted = format_yl("source", source).unwrap();
-    assert!(formatted.contains("meanings {\n        boundary\n        first(\"boundary\", /boundary/) // first stays first\n"), "{formatted}");
+    assert!(formatted.contains("semantics {\n        boundary\n        first(\"boundary\", /boundary/) // first stays first\n"), "{formatted}");
     for comment in ["// metadata explanation", "// boundary note"] {
         assert!(formatted.contains(comment));
     }
@@ -458,9 +460,9 @@ second(value=boundary) precedence{A>B} third()}}"#;
 
 #[test]
 fn meaning_boundary_does_not_move_other_boundary_words() {
-    let source = "symbol boundary node A=/a/{meanings{first(value=boundary) group G{second(boundary)} boundary last(\"boundary\")}}";
+    let source = "symbol boundary node A=/a/{semantics{first(value=boundary) group G{second(boundary)} boundary last(\"boundary\")}}";
     let formatted = format_yl("source", source).unwrap();
-    assert!(formatted.starts_with("symbol boundary\n\nnode A = /a/ {\n    meanings {\n        boundary\n        first(value = boundary)"), "{formatted}");
+    assert!(formatted.starts_with("symbol boundary\n\nnode A = /a/ {\n    semantics {\n        boundary\n        first(value = boundary)"), "{formatted}");
     assert!(formatted.contains("second(boundary)"));
     assert!(formatted.contains("last(\"boundary\")"));
     assert_eq!(tree(source), tree(&formatted));
@@ -470,9 +472,9 @@ fn meaning_boundary_does_not_move_other_boundary_words() {
 #[test]
 fn qualified_operations_named_like_metadata_are_not_moved_or_split() {
     let source =
-        "node A=/a/{meanings{lib::boundary() lib::precedence() boundary other() precedence{A>B}}}";
+        "node A=/a/{semantics{lib::boundary() lib::precedence() boundary other() precedence{A>B}}}";
     let formatted = format_yl("source", source).unwrap();
-    assert!(formatted.contains("meanings {\n        boundary\n        lib::boundary()\n        lib::precedence()\n        other()\n        precedence {"), "{formatted}");
+    assert!(formatted.contains("semantics {\n        boundary\n        lib::boundary()\n        lib::precedence()\n        other()\n        precedence {"), "{formatted}");
     assert_eq!(tree(source), tree(&formatted));
     assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
 }
@@ -747,24 +749,24 @@ fn namespace_import_star_is_spaced_without_changing_repetition() {
 #[test]
 fn owner_meanings_are_separated_from_nested_definitions() {
     let source = r#"export node Type {
-node NumberType = "number" { meanings { annotate(number) } }
-node BooleanType = "boolean" { meanings { annotate(boolean) } }
-meanings { inherit() }
+node NumberType = "number" { semantics { annotate(number) } }
+node BooleanType = "boolean" { semantics { annotate(boolean) } }
+semantics { inherit() }
 }"#;
     let expected = r#"export node Type {
     node NumberType = "number" {
-        meanings {
+        semantics {
             annotate(number)
         }
     }
 
     node BooleanType = "boolean" {
-        meanings {
+        semantics {
             annotate(boolean)
         }
     }
 
-    meanings {
+    semantics {
         inherit()
     }
 }
@@ -779,35 +781,35 @@ meanings { inherit() }
 fn owner_meaning_spacing_keeps_comments_and_first_section_layout() {
     let source = r#"node Outer {
 node Inner {
-pattern Name = "x" { meanings { annotate(string) } }
+pattern Name = "x" { semantics { annotate(string) } }
 // owner documentation
-meanings { inherit() }
+semantics { inherit() }
 }
 /* outer documentation */
-meanings { inherit() }
+semantics { inherit() }
 }
 node Only { // first section
-meanings { inherit() }
+semantics { inherit() }
 }
 node Early {
-meanings { inherit() }
+semantics { inherit() }
 node Child = "x"
 }"#;
     let formatted = format_yl("source", source).unwrap();
     assert!(
-        formatted.contains("        }\n\n        // owner documentation\n        meanings {"),
+        formatted.contains("        }\n\n        // owner documentation\n        semantics {"),
         "{formatted}"
     );
     assert!(
-        formatted.contains("    }\n\n    /* outer documentation */\n    meanings {"),
+        formatted.contains("    }\n\n    /* outer documentation */\n    semantics {"),
         "{formatted}"
     );
     assert!(
-        formatted.contains("node Only {\n    // first section\n    meanings {"),
+        formatted.contains("node Only {\n    // first section\n    semantics {"),
         "{formatted}"
     );
     assert!(
-        formatted.contains("node Early {\n    meanings {"),
+        formatted.contains("node Early {\n    semantics {"),
         "{formatted}"
     );
     assert_eq!(tree(source), tree(&formatted));
@@ -820,7 +822,7 @@ fn alias_members_are_separate_from_owner_precedence_and_meanings() {
 node Addition = left: Expression "+" right: Expression
 node Reference
 precedence { Addition }
-meanings { inherit() }
+semantics { inherit() }
 }"#;
     let expected = r#"node Expression {
     node Addition =
@@ -834,7 +836,7 @@ meanings { inherit() }
         Addition
     }
 
-    meanings {
+    semantics {
         inherit()
     }
 }
@@ -847,21 +849,22 @@ meanings { inherit() }
 
 #[test]
 fn owner_sections_preserve_comments_and_ignore_member_names() {
-    let source = r#"node Parent {
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+node Parent {
 node meanings
 node precedence
 node constraints
 // owner operator ordering
 precedence { precedence }
 // owner checks
-constraints { when true { warning("owner") } }
-meanings { inherit() }
+checks { when true { warn("owner") } }
+semantics { inherit() }
 }
-node Empty { precedence { Other } constraints { } meanings { inherit() } }"#;
+node Empty { precedence { Other } checks { } semantics { inherit() } }"#;
     let formatted = format_yl("source", source).unwrap();
     assert!(formatted.contains("    node meanings\n\n    node precedence\n\n    node constraints\n\n    // owner operator ordering\n    precedence {"), "{formatted}");
     assert!(
-        formatted.contains("    }\n\n    // owner checks\n    constraints {"),
+        formatted.contains("    }\n\n    // owner checks\n    checks {"),
         "{formatted}"
     );
     assert!(
@@ -907,7 +910,7 @@ fn meaning_match_alignment_is_default_and_aligns_tuple_alternatives() {
 }
 #[test]
 fn alignment_is_local_to_each_match_and_handles_unicode_and_blocks() {
-    let source = "node Container { node Outer=\"x\"{meanings{match(value){\"\u{4f60}\u{597d}\",veryLong => { first() second() } _=>{}}}} node Inner=\"y\"{meanings{match(value){\"\u{1f600}\"=>go() \"ab\"=>go() \"e\u{0301}\"=>go() _=>go()}}} }";
+    let source = "node Container { node Outer=\"x\"{semantics{match(value){\"\u{4f60}\u{597d}\",veryLong => { first() second() } _=>{}}}} node Inner=\"y\"{semantics{match(value){\"\u{1f600}\"=>go() \"ab\"=>go() \"e\u{0301}\"=>go() _=>go()}}} }";
     let formatted = aligned(source);
     let columns: Vec<_> = formatted
         .lines()
@@ -929,7 +932,7 @@ fn alignment_is_local_to_each_match_and_handles_unicode_and_blocks() {
 fn alignment_preserves_comments_multiline_headers_and_other_arrows() {
     let source = r#"pipe keep() { rewrite value => value }
 node Root = /a=>b/ {
-meanings {
+semantics {
 match(value) {
 "a=>b" => write("literal => stays")
 _ /* same line */ => { first() second() }
@@ -957,7 +960,7 @@ longer // split header
 #[test]
 fn alignment_padding_is_bounded_with_a_structured_error() {
     let source = format!(
-        "node Root=\"x\"{{meanings{{match(value){{\"{}\"=>go() {} }}}}}}",
+        "node Root=\"x\"{{semantics{{match(value){{\"{}\"=>go() {} }}}}}}",
         "x".repeat(1000),
         "_=>go() ".repeat(1100)
     );
@@ -1040,7 +1043,7 @@ fn cli_default_alignment_check_json_write_and_legacy_flag_agree() {
 #[test]
 fn default_options_enable_alignment_and_explicit_library_override_preserves_ast() {
     assert!(FormatOptions::default().align_match_arrows);
-    let source = "node Root=\"x\"{meanings{match(value){short=>go() longerName=>go()}}}";
+    let source = "node Root=\"x\"{semantics{match(value){short=>go() longerName=>go()}}}";
     let formatted = format_yl("source", source).unwrap();
     assert!(formatted.contains("short      => go()"), "{formatted}");
     let unaligned = format_yl_with_options(
@@ -1055,4 +1058,17 @@ fn default_options_enable_alignment_and_explicit_library_override_preserves_ast(
     assert_eq!(tree(source), tree(&formatted));
     assert_eq!(tree(source), tree(&unaligned));
     assert_eq!(format_yl("source", &unaligned).unwrap(), formatted);
+}
+
+#[test]
+fn immutable_definitions_reactive_guards_and_operation_results_have_separate_lines() {
+    let source = r#"import { error } from "core/diagnostics"
+operation attach(target,value){ result:=value return result }
+node Root="x" {semantics{ref:=attach(self,true) when ref {error("example")}}}
+entry Root"#;
+    let formatted = format_yl("source", source).unwrap();
+    assert!(formatted.contains("    result := value\n    return result"), "{formatted}");
+    assert!(formatted.contains("        ref := attach(self, true)\n        when ref {"), "{formatted}");
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
 }

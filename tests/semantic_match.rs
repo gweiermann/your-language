@@ -52,8 +52,9 @@ fn source(body: &str) -> BTreeMap<String, String> {
     BTreeMap::from([(
         "main.yl".into(),
         format!(
-            r#"import {{ echo }} from "native"
-node Program = name: /[a-z]+/ {{ meanings {{ {body} }} }}
+            r#"import {{ error, warn, hint }} from "core/diagnostics"
+import {{ echo }} from "native"
+node Program = name: /[a-z]+/ {{ semantics {{ {body} }} }}
 entry Program"#
         ),
     )])
@@ -236,9 +237,10 @@ fn pending_values_wait_for_settlement_without_repeating_effects() {
     let engine = SemanticEngine::new(registry);
     let sources = BTreeMap::from([(
         "main.yl".into(),
-        r#"
+        r#"import { error, warn, hint } from "core/diagnostics"
+
 import { waiting, echo } from "native"
-node Program = "x" { meanings {
+node Program = "x" { semantics {
     echo(waiting())
     match (waiting()) { "ready" => echo("once") _ => error("not ready") }
 } }
@@ -265,9 +267,9 @@ fn deferred_groups_preserve_explicit_definition_precedence() {
         "main.yl".into(),
         r#"
 import { echo } from "native"
-node A = "a" { meanings { match (echo("ready")) { _ => echo("A") } } }
-node B = "b" { meanings { match (echo("ready")) { _ => echo("B") } } }
-node Program = B A { meanings { precedence { A > B } } }
+node A = "a" { semantics { match (echo("ready")) { _ => echo("A") } } }
+node B = "b" { semantics { match (echo("ready")) { _ => echo("B") } } }
+node Program = B A { semantics { precedence { A > B } } }
 entry Program
 "#
         .into(),
@@ -289,9 +291,9 @@ fn deferred_before_ordinary_precedence_is_explicitly_rejected() {
         "main.yl".into(),
         r#"
 import { echo } from "native"
-node A = "a" { meanings { match (echo("ready")) { _ => echo("A") } } }
-node B = "b" { meanings { echo("B") } }
-node Program = B A { meanings { precedence { A > B } } }
+node A = "a" { semantics { match (echo("ready")) { _ => echo("A") } } }
+node B = "b" { semantics { echo("B") } }
+node Program = B A { semantics { precedence { A > B } } }
 entry Program
 "#
         .into(),
@@ -487,9 +489,10 @@ mod distributed {
         let sources = BTreeMap::from([(
             "main.yl".into(),
             format!(
-                r#"
+                r#"import {{ error, warn, hint }} from "core/diagnostics"
+
 import {{ read, collect, echo, raw, audit }} from "native"
-node Program = name: "x" {{ meanings {{ {body} }} }}
+node Program = name: "x" {{ semantics {{ {body} }} }}
 entry Program
 "#
             ),
@@ -571,9 +574,9 @@ match (read("left"), read("right")) {
             "main.yl".into(),
             r#"
 import { read, collect } from "native"
-node A = "x" { meanings { match (read("empty")) { "ready" => collect("observed"), _ => {} } } }
-node B = "y" { meanings { collect("seed") } }
-node Program = A B { meanings { precedence { A > B } } }
+node A = "x" { semantics { match (read("empty")) { "ready" => collect("observed"), _ => {} } } }
+node B = "y" { semantics { collect("seed") } }
+node Program = A B { semantics { precedence { A > B } } }
 entry Program
 "#
             .into(),
@@ -596,9 +599,9 @@ entry Program
             "main.yl".into(),
             r#"
 import { read, collect, echo, audit } from "native"
-node A = "x" { meanings { match (read("left"), read("right")) { _ => collect("pair") } } }
-node B = "y" { meanings { match (echo("scalar")) { _ => audit() } } }
-node Program = A B { meanings { precedence { A > B } } }
+node A = "x" { semantics { match (read("left"), read("right")) { _ => collect("pair") } } }
+node B = "y" { semantics { match (echo("scalar")) { _ => audit() } } }
+node Program = A B { semantics { precedence { A > B } } }
 entry Program
 "#
             .into(),

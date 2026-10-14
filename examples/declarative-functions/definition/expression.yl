@@ -1,22 +1,22 @@
 import { separatedBy } from "std/parser"
-import { contribute, children, first } from "std/query"
-import { use, referenceOf } from "../../../stdlib/references"
+import { contribute, children, first } from "core/query"
+import { connectReference, referenceOf } from "../../../stdlib/references"
 import { number, string, type } from "./types"
 import { annotateWithType, typeOf, callType } from "./typing"
 import { Name } from "./lexical"
 
 export node Expression {
-    meanings {
+    semantics {
         contribute((self, type), typeOf(first(children(self))))
     }
     node Number = /[0-9]+/ {
-        meanings {
+        semantics {
             annotateWithType(self, number)
         }
     }
 
     node String = /"[^"\n]*"/ {
-        meanings {
+        semantics {
             annotateWithType(self, string)
         }
     }
@@ -27,14 +27,14 @@ export node Expression {
         arguments: Expression* |> separatedBy(",")
         ")"
     {
-        meanings {
+        semantics {
             callType(self, callee, arguments)
         }
     }
 
     node Reference = name: Name {
-        meanings {
-            use(self, name)
+        semantics {
+            connectReference(self, name)
             annotateWithType(self, typeOf(referenceOf(name)))
         }
     }
