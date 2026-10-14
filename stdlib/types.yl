@@ -1,0 +1,2 @@
+// Shared sentinel; concrete target-language types belong to language definitions.
+export symbol unknown

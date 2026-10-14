@@ -22,7 +22,7 @@ The CLI equivalent is `yl compile <entry.yl> -o <language.ylc>`, followed by a `
 
 ## Representation
 
-Artifacts are versioned pretty JSON with deterministic ordered rule maps. Syntax-only languages retain version `1`; experimental languages with native meanings use version `2`. It includes the entry rule, selected trivia, normalized rules, precedence plans, syntax-local checks, and definition spans. It does not include the original module source. Compile-time warning/help records are excluded from serialization.
+Artifacts are versioned pretty JSON with deterministic ordered rule maps. Syntax-only languages retain version `1`; native lifecycle meanings use version `2`; declarative attachment queries use version `3`. They include the entry rule, selected trivia, normalized rules, precedence plans, syntax-local checks, definition spans, and normalized query actions when present. They do not include the original module source. Compile-time warning/help records are excluded from serialization.
 
 Rule bodies distinguish concrete grammar from abstract node families. Terms include literals, regexes, references, sequences, choices, repetitions, captures, negative lookaround, and generic value marking/projection. Marking and projection implement type-preserving rewrite results without teaching the runtime individual pipe names.
 

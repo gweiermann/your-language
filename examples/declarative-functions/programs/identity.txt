@@ -1,0 +1,6 @@
+identity(42);
+identity("hello");
+
+function identity(value) {
+    return value;
+}

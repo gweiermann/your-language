@@ -1,0 +1,33 @@
+import { declare, lexicalScope, use } from "../../../stdlib/references"
+import { Name } from "./lexical"
+
+export node Statement {
+    node Declaration =
+        "let"
+        name: Name
+        ";"
+    {
+        meanings {
+            declare(name)
+        }
+    }
+
+    node Reference =
+        name: Name
+        ";"
+    {
+        meanings {
+            use(name)
+        }
+    }
+
+    node Block =
+        "{"
+        statements: Statement*
+        "}"
+    {
+        meanings {
+            lexicalScope()
+        }
+    }
+}
