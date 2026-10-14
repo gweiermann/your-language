@@ -256,6 +256,7 @@ impl Drop for HypotheticalGuard {
 struct Engine<'a> {
     producers: Vec<Producer<'a>>,
     discovered_blocks: BTreeSet<(usize, String)>,
+    block_orders: BTreeMap<(usize, String), (usize, usize)>,
     occurrences: BTreeMap<usize, &'a Occurrence>,
     parents: BTreeMap<usize, Option<usize>>,
     terminal_parents: BTreeMap<usize, usize>,
@@ -591,6 +592,7 @@ impl<'a> Engine<'a> {
         let mut engine = Self {
             producers: vec![],
             discovered_blocks: BTreeSet::new(),
+            block_orders: BTreeMap::new(),
             occurrences: BTreeMap::new(),
             parents: BTreeMap::new(),
             terminal_parents: BTreeMap::new(),
@@ -670,6 +672,8 @@ impl<'a> Engine<'a> {
                 {
                     self.discover(owner, actions, guards, rank);
                     self.discover_expression(owner, result, guards, rank);
+                    self.block_orders
+                        .insert((owner.id, invocation.clone()), (rank, self.producers.len()));
                 }
             }
             QueryExpr::Call { name, args } if primitive(name) == "choose" => {
@@ -970,6 +974,23 @@ impl<'a> Engine<'a> {
         }
         let ready = |value| Ok(Outcome::Ready(value));
         match expression {
+            QueryExpr::BindingValue { invocation, result } => {
+                let order = self
+                    .block_orders
+                    .get(&(owner.id, invocation.clone()))
+                    .copied()
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "query.binding",
+                            "A binding has no defining invocation",
+                            owner.span.clone(),
+                        )
+                    })?;
+                let previous = trace.order.replace(order);
+                let value = self.eval(result, owner, locals, trace);
+                trace.order = previous;
+                value
+            }
             QueryExpr::Block { result, .. } => self.eval(result, owner, locals, trace),
             QueryExpr::SelfValue => ready(SemanticValue::Identity(SemanticIdentity::Occurrence(
                 owner.id,
@@ -1361,7 +1382,9 @@ impl<'a> Engine<'a> {
             }
         }
         match expr {
-            QueryExpr::Block { result, .. } => self.abstract_expr(result, owner, locals, depth + 1),
+            QueryExpr::Block { result, .. } | QueryExpr::BindingValue { result, .. } => {
+                self.abstract_expr(result, owner, locals, depth + 1)
+            }
             QueryExpr::Tuple(values) => Pattern::Tuple(
                 values
                     .iter()
@@ -1831,6 +1854,7 @@ impl<'a> Engine<'a> {
         let mut copy = Self {
             producers: self.producers.clone(),
             discovered_blocks: self.discovered_blocks.clone(),
+            block_orders: self.block_orders.clone(),
             occurrences: self.occurrences.clone(),
             parents: self.parents.clone(),
             terminal_parents: self.terminal_parents.clone(),
@@ -2248,7 +2272,9 @@ pub(crate) fn action_node_count(actions: &[QueryAction], limit: usize) -> Option
                 QueryExpr::Call { args, .. } | QueryExpr::Tuple(args) | QueryExpr::List(args) => {
                     pending.extend(args.iter().map(Node::Expression));
                 }
-                QueryExpr::Not(value) | QueryExpr::Lambda { body: value, .. } => {
+                QueryExpr::Not(value)
+                | QueryExpr::Lambda { body: value, .. }
+                | QueryExpr::BindingValue { result: value, .. } => {
                     pending.push(Node::Expression(value))
                 }
                 _ => {}
@@ -2269,6 +2295,7 @@ pub(crate) fn validate_groups(
         captures: &'a BTreeSet<String>,
         version: u32,
         blocks: BTreeMap<String, (Vec<QueryAction>, QueryExpr)>,
+        bindings: BTreeMap<String, Span>,
     }
     fn arity(name: &str) -> Option<usize> {
         if !name.starts_with("std/query#") && !name.starts_with("core/query#") {
@@ -2344,6 +2371,16 @@ pub(crate) fn validate_groups(
                 return Err(Self::bad(span, "Query nesting exceeds the resource limit"));
             }
             match value {
+                QueryExpr::BindingValue { invocation, result } => {
+                    if self.version < 5 || invocation.is_empty() {
+                        return Err(Self::bad(
+                            span,
+                            "A binding value requires a version 5 invocation identity",
+                        ));
+                    }
+                    self.bindings.insert(invocation.clone(), span.clone());
+                    self.expr(result, locals, span, depth + 1)
+                }
                 QueryExpr::Block {
                     invocation,
                     actions,
@@ -2530,9 +2567,18 @@ pub(crate) fn validate_groups(
         captures,
         version,
         blocks: BTreeMap::new(),
+        bindings: BTreeMap::new(),
     };
     for group in groups {
         validator.actions(&group.actions, 0)?;
+    }
+    for (invocation, span) in &validator.bindings {
+        if !validator.blocks.contains_key(invocation) {
+            return Err(Validator::bad(
+                span,
+                "A binding value has no defining invocation",
+            ));
+        }
     }
     Ok(())
 }
@@ -2544,6 +2590,10 @@ pub enum QueryExpr {
     Local(String),
     Tuple(Vec<QueryExpr>),
     List(Vec<QueryExpr>),
+    BindingValue {
+        invocation: String,
+        result: Box<QueryExpr>,
+    },
     Block {
         invocation: String,
         actions: Vec<QueryAction>,
@@ -2615,6 +2665,20 @@ pub struct QueryCase {
 #[cfg(test)]
 mod validation_tests {
     use super::*;
+
+    #[test]
+    fn binding_reads_require_a_declared_invocation_context() {
+        let read = QueryExpr::BindingValue {
+            invocation: "binding".into(),
+            result: Box::new(QueryExpr::Bool(true)),
+        };
+        assert!(validate(read.clone(), 5).is_err());
+        assert!(validate(
+            QueryExpr::Tuple(vec![read, block("binding", QueryExpr::Bool(true))]),
+            5
+        )
+        .is_ok());
+    }
 
     #[test]
     fn copy_budget_counts_payloads_inside_nested_action_blocks() {
