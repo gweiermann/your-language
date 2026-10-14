@@ -494,3 +494,38 @@ entry Root
     assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
     assert_eq!(result.diagnostics[0].message, "Unsupported parameter");
 }
+
+#[test]
+fn hypothetical_warning_contributions_preserve_the_result_without_effect_replay() {
+    let engine = SemanticEngine::default();
+    let language=engine.compile("language.yl",&BTreeMap::from([("language.yl".into(),r#"
+import * as types from "std/types"
+import { unknown } from "std/types"
+symbol number
+symbol boolean
+symbol result
+pattern Parameter = "p"
+pattern Body = parameter: Parameter {
+    meanings {
+        match (types::typeof(parameter)) {
+            number => types::annotate((self,result),number),
+            unknown => {},
+            _ => { types::annotate((self,result),number) warn("Fallback used") }
+        }
+    }
+}
+node Root = body: Body { meanings { types::annotate(self,types::resolveWith((body,result),[(body.parameter,boolean)])) } }
+entry Root
+"#.into())])).unwrap();
+    let result = engine.analyze(&language, "program", "p");
+    assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
+    assert_eq!(
+        result.diagnostics[0].severity,
+        your_language::diagnostic::Severity::Warning
+    );
+    assert_eq!(result.diagnostics[0].message, "Fallback used");
+    assert_eq!(
+        type_at(&result, occurrence(result.occurrences[0].id)),
+        atom("number")
+    );
+}

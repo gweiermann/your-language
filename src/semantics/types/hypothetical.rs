@@ -338,12 +338,12 @@ fn calculate(
                     })
                 });
                 let Some(case) = selected else { continue };
-                if case.effectful
-                    || case.diagnostics.iter().any(|diagnostic| {
-                        diagnostic.severity == crate::diagnostic::Severity::Warning
-                    })
-                {
-                    return Err(Diagnostic::error("types.hypothetical_effect", "PARKED: Hypothetical type cases cannot replay native effects or warning diagnostics", matching.span.clone()));
+                if case.effectful {
+                    return Err(Diagnostic::error(
+                        "types.hypothetical_effect",
+                        "PARKED: Hypothetical type cases cannot replay native effects",
+                        matching.span.clone(),
+                    ));
                 }
                 for transfer in &case.transfers {
                     let facts = local.eval(&transfer.value, &mut Default::default())?;
@@ -363,9 +363,7 @@ fn calculate(
                     if let Some(fact) = tuple.first() {
                         diagnostic.primary = Box::new(fact.origin.clone());
                     }
-                    if diagnostic.severity == crate::diagnostic::Severity::Error {
-                        diagnostics.push(diagnostic);
-                    }
+                    diagnostics.push(diagnostic);
                 }
             }
         }

@@ -118,4 +118,4 @@ cargo run --example mini_typescript -- errors --json
 
 The generics program includes independent number/string identity calls, nested calls and a captured outer number. Expect `count: number`, `title: string`, `numberResult: number`, `stringResult: string`, and an unchanged identity declaration signature. Error output underlines incompatible actual arguments and relates their required annotation. Invalid call assumptions do not contaminate declaration facts or stop unrelated diagnostics.
 
-Native effects and warning diagnostics inside a selected hypothetical type case are explicitly parked. Pure type contributions/restrictions and error cases are retained; arbitrary meaning effects are never replayed for a call. The generic key-value/ancestry-query prototype is separate from this engine change.
+Native effects inside a selected hypothetical type case are explicitly parked. Pure type contributions/restrictions and error/warning contributions are retained; arbitrary meaning effects are never replayed for a call. The generic key-value/ancestry-query prototype is separate from this engine change.
