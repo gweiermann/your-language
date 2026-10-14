@@ -282,3 +282,68 @@ entry Root
         .iter()
         .any(|diagnostic| diagnostic.code == "types.assumptions"));
 }
+
+#[test]
+fn hypothetical_queries_never_replay_arbitrary_native_effects() {
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+    use your_language::{
+        diagnostic::Diagnostic,
+        semantics::{NativeOperation, OperationContext, OperationSignature},
+    };
+    struct Effect(Arc<AtomicUsize>);
+    impl NativeOperation for Effect {
+        fn before(&mut self, _context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+    let count = Arc::new(AtomicUsize::new(0));
+    let mut engine = SemanticEngine::default();
+    let counter = count.clone();
+    engine
+        .registry_mut()
+        .register(
+            "host",
+            "effect",
+            OperationSignature {
+                id: "host#effect".into(),
+                parameters: vec![],
+                provides_context: false,
+                finalization_only: false,
+                contribution: false,
+            },
+            move || Box::new(Effect(counter.clone())),
+        )
+        .unwrap();
+    let language=engine.compile("language.yl",&BTreeMap::from([("language.yl".into(),r#"
+import * as types from "std/types"
+import { unknown } from "std/types"
+import { effect } from "host"
+symbol number
+symbol result
+pattern Parameter = "p"
+pattern Body = parameter: Parameter {
+    meanings {
+        match (types::typeof(parameter)) {
+            number => { types::annotate((self,result),number) effect() },
+            _ => {}
+        }
+    }
+}
+node Root = body: Body { meanings { types::annotate(self,types::resolveWith((body,result),[(body.parameter,number)])) } }
+entry Root
+"#.into())])).unwrap();
+    let result = engine.analyze(&language, "program", "p");
+    assert_eq!(count.load(Ordering::SeqCst), 0);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "types.hypothetical_effect"),
+        "{:?}",
+        result.diagnostics
+    );
+}
