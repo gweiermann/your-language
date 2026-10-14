@@ -21,6 +21,12 @@ fn syntax_key(value: &SemanticValue) -> SemanticValue {
                     OccurrenceSelection::One(id) => {
                         SemanticValue::Identity(SemanticIdentity::Occurrence(*id))
                     }
+                    OccurrenceSelection::Terminal(id) => {
+                        SemanticValue::Identity(SemanticIdentity::Service {
+                            service: "core/syntax".into(),
+                            id: *id,
+                        })
+                    }
                     OccurrenceSelection::List(items) => {
                         SemanticValue::List(items.iter().map(address).collect())
                     }

@@ -29,6 +29,14 @@ pub struct ParseResult {
     pub ast: Option<AstNode>,
     pub diagnostics: Vec<Diagnostic>,
 }
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct TerminalAddress {
+    file: String,
+    start: usize,
+    end: usize,
+    capture: String,
+    position: usize,
+}
 #[derive(Clone)]
 struct Captured {
     repeated: bool,
@@ -142,6 +150,83 @@ pub(crate) fn parse_occurrences(
                 }
                 for occurrence in &mut matched.occurrences {
                     remap(occurrence, &identities);
+                }
+                // Allocate terminal addresses only in the retained successful tree.
+                // This leaves node/pattern IDs and observable ASTs unchanged and
+                // avoids identities from failed alternatives entering analysis.
+                fn identify_terminals(
+                    occurrence: &mut crate::semantics::Occurrence,
+                    next: &mut usize,
+                    addresses: &mut BTreeMap<TerminalAddress, usize>,
+                ) {
+                    use crate::semantics::OccurrenceSelection;
+                    fn terminal(
+                        value: &AstValue,
+                        next: &mut usize,
+                        address: (Span, String, usize),
+                        addresses: &mut BTreeMap<TerminalAddress, usize>,
+                    ) -> OccurrenceSelection {
+                        if *value == AstValue::None {
+                            OccurrenceSelection::Absent
+                        } else {
+                            let address = TerminalAddress {
+                                file: address.0.file,
+                                start: address.0.start,
+                                end: address.0.end,
+                                capture: address.1,
+                                position: address.2,
+                            };
+                            let id = *addresses.entry(address).or_insert_with(|| {
+                                let id = *next;
+                                *next += 1;
+                                id
+                            });
+                            OccurrenceSelection::Terminal(id)
+                        }
+                    }
+                    for (name, capture) in &mut occurrence.captures {
+                        if capture.occurrences.is_empty() && capture.selection.is_none() {
+                            capture.selection = Some(if capture.repeated {
+                                match &capture.value {
+                                    AstValue::List(items) => OccurrenceSelection::List(
+                                        items
+                                            .iter()
+                                            .enumerate()
+                                            .map(|(index, value)| {
+                                                terminal(
+                                                    value,
+                                                    next,
+                                                    (capture.span.clone(), name.clone(), index),
+                                                    addresses,
+                                                )
+                                            })
+                                            .collect(),
+                                    ),
+                                    value => terminal(
+                                        value,
+                                        next,
+                                        (capture.span.clone(), name.clone(), 0),
+                                        addresses,
+                                    ),
+                                }
+                            } else {
+                                terminal(
+                                    &capture.value,
+                                    next,
+                                    (capture.span.clone(), name.clone(), 0),
+                                    addresses,
+                                )
+                            });
+                        }
+                    }
+                    for child in &mut occurrence.children {
+                        identify_terminals(child, next, addresses);
+                    }
+                }
+                let mut next_terminal = 0;
+                let mut terminal_addresses = BTreeMap::new();
+                for occurrence in &mut matched.occurrences {
+                    identify_terminals(occurrence, &mut next_terminal, &mut terminal_addresses);
                 }
                 return (
                     ParseResult {
@@ -942,10 +1027,11 @@ impl ParseResult {
 fn capture_repeats(term: &Term) -> bool {
     match term {
         Term::Repeat(_, Quantifier::Star | Quantifier::Plus) => true,
-        Term::Capture(_, term)
-        | Term::Mark { term, .. }
-        | Term::Meaning { term, .. }
-        | Term::Example { term, .. } => capture_repeats(term),
+        Term::Capture(_, term) | Term::Mark { term, .. } | Term::Example { term, .. } => {
+            capture_repeats(term)
+        }
+        // A single named pattern may return a list without being repeated.
+        Term::Meaning { .. } => false,
         Term::Project {
             quantifier: Some(Quantifier::Star | Quantifier::Plus),
             ..

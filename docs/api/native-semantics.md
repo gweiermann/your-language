@@ -298,7 +298,7 @@ operation annotateWithType(value) {
 operation typeof(value) = types::typeof(value)
 ```
 
-Dotted capture projections such as `contents.parameters` and `contents.body` follow retained original occurrences, including transparent patterns. They preserve captured source extents and nested repetition groups. Terminal-only literal/regex captures retain their text and spans but have no standalone occurrence identity; wrap them in a node or pattern to address their type. Legacy `std/syntax` identity helpers remain available; the MiniTS bridge uses only `childIdentity()` for transparent abstract-node inheritance.
+Dotted capture projections such as `contents.parameters` and `contents.body` follow retained original occurrences, including transparent patterns. They preserve captured source extents and nested repetition groups. Literal and regex captures also have stable syntax addresses without requiring node or pattern wrappers. Repeated terminals have separate ordered addresses; absent optional captures remain absent. Their original text, spans and AST values are preserved. Legacy `std/syntax` identity helpers remain available; the MiniTS bridge uses only `childIdentity()` for transparent abstract-node inheritance.
 
 `std/references` exposes `declare`, `use`, `lexicalScope`, `reference()` and `referenceOf(value)`. A declaration and a use record the binding associated with the exact name capture. `referenceOf(name)` retrieves that association; it never performs another text lookup. Given a captured reference node, it retrieves that node's recorded binding. An unassociated syntax occurrence returns `absent`, not its syntax identity. Scopes and same-scope duplicate rules retain their existing lifecycle implementation in this change. The earlier `std/variables` imports and graph metadata IDs remain compatible aliases; reference queries are the preferred new interface.
 
@@ -329,3 +329,25 @@ The engine retains pure type-match relationships as well as directed transfers a
 Unsupported native effects inside a selected hypothetical type case produce `types.hypothetical_effect` with a **PARKED** explanation. They are not replayed or silently discarded. Error and warning cases are retained as diagnostic contributions and report the temporary argument's original span. Supported alternatives still contribute results when another alternative errors. Direct hypothetical match inputs retain their diagnostics without generating a spurious pending-input error. This is a bounded experimental solver: nesting is limited to 32 hypothetical queries and key/fact combinations to the existing analysis limit. Query errors do not disable unrelated type checks. A general data store, `if`/callback syntax, ancestry queries and authored reference libraries are separate work.
 
 Reproduce with `cargo run --example mini_typescript -- generics`; expect `count: number`, `title: string`, `numberResult: number`, `stringResult: string`, with `identity: (unknown) => unknown` unchanged. `cargo run --example mini_typescript -- errors` prints source underlines and exits 1; append `--json` for the same structured spans.
+
+
+Hypothetical queries cannot execute an arbitrary Rust hook that writes a file,
+sends an email, or changes state outside the analysis context. For example:
+
+```yl
+match (types::typeof(parameter)) {
+    number => {
+        types::annotate((self, result), number)
+        host::sendEmail()
+    },
+    _ => {}
+}
+```
+
+If a temporary assumption selects this case, the engine reports
+`types.hypothetical_effect` before calling `sendEmail`. Copying the type table
+cannot undo an email. Authored type contributions and error/warning diagnostics
+are evaluated in the isolated table. Supporting speculative host hooks requires
+an explicit contract: their state must be cloneable, or their external actions
+must be buffered and committed only during ordinary analysis. Merely declaring
+a hook idempotent does not make its external actions reversible.

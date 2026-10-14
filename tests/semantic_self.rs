@@ -529,3 +529,63 @@ entry Root
         atom("number")
     );
 }
+
+#[test]
+fn terminal_captures_are_stable_scalar_list_and_optional_type_addresses() {
+    let result = analyze(
+        r#"
+import * as types from "std/types"
+import { separatedBy } from "std/parser"
+symbol number
+symbol items
+pipe wrapped() { rewrite value => "(" value ")" }
+pattern Contents = values: /[a-z]/* |> separatedBy(",")
+node Root = name: /[a-z]/ |> wrapped() ";" contents: Contents missing: /[0-9]/? {
+    meanings {
+        types::annotate(name, number)
+        types::annotate(contents.values, [number, number])
+        types::annotate(self, types::typeof(name))
+        types::annotate((self, items), types::typeof(contents.values))
+    }
+}
+entry Root
+"#,
+        "(x);a,b",
+    );
+    let root = &result.occurrences[0];
+    assert_eq!(type_at(&result, occurrence(root.id)), atom("number"));
+    assert_eq!(
+        type_at(
+            &result,
+            SemanticValue::Tuple(vec![occurrence(root.id), atom("items")])
+        ),
+        SemanticValue::List(vec![atom("number"), atom("number")])
+    );
+    let name = &root.captures["name"];
+    assert!(name.occurrences.is_empty());
+    assert_eq!(name.text, "x");
+    assert_eq!((name.span.start, name.span.end), (1, 2));
+    assert!(matches!(
+        name.occurrence_selection(),
+        Some(your_language::semantics::OccurrenceSelection::Terminal(_))
+    ));
+    assert_eq!(
+        root.captures["missing"].occurrence_selection(),
+        Some(your_language::semantics::OccurrenceSelection::Absent)
+    );
+    let contents = root
+        .children
+        .iter()
+        .find(|child| child.definition.ends_with("#Contents"))
+        .unwrap();
+    assert_eq!(
+        root.captures["values"].occurrence_selection(),
+        contents.captures["values"].occurrence_selection()
+    );
+    let selection = contents.captures["values"].occurrence_selection().unwrap();
+    let your_language::semantics::OccurrenceSelection::List(values) = selection else {
+        panic!("Expected a repeated terminal selection")
+    };
+    assert_eq!(values.len(), 2);
+    assert_ne!(values[0], values[1]);
+}

@@ -144,6 +144,8 @@ pub struct SourceCapture {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum OccurrenceSelection {
     One(usize),
+    /// Syntax captured directly from a terminal, without an AST wrapper.
+    Terminal(usize),
     List(Vec<OccurrenceSelection>),
     Absent,
 }
@@ -204,6 +206,11 @@ impl Occurrence {
                     })?;
                 Ok((capture.value.clone(), capture.occurrence_selection()))
             }
+            OccurrenceSelection::Terminal(_) => Err(Diagnostic::error(
+                "semantic.missing_capture",
+                format!("Terminal capture has no nested capture .{field}"),
+                span.clone(),
+            )),
             OccurrenceSelection::List(items) => {
                 let projected = items
                     .iter()
