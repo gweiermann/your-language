@@ -107,7 +107,104 @@ pub fn registry() -> OperationRegistry {
         false,
         Arc::new(|| Box::new(Use)),
     );
+    // Preserve legacy contracts while exposing the scope/binding library by its
+    // responsibility. New identity queries never fall back to syntax identities.
+    for ((module, name), id) in registry.exports.clone() {
+        if module == MODULE {
+            registry.exports.insert(("std/references".into(), name), id);
+        }
+    }
+    for ((module, name), id) in registry.symbols.clone() {
+        if module == MODULE && name != "reference" {
+            registry.symbols.insert(("std/references".into(), name), id);
+        }
+    }
     registry
+        .register_service("std/references", || Box::<Bindings>::default())
+        .expect("fresh service");
+    for (name, own) in [("reference", true), ("referenceOf", false)] {
+        registry
+            .register(
+                "std/references",
+                name,
+                OperationSignature {
+                    id: format!("std/references#{name}"),
+                    provides_context: false,
+                    finalization_only: false,
+                    contribution: false,
+                    parameters: if own {
+                        vec![]
+                    } else {
+                        vec![parameter("value", ParameterKind::Value, None)]
+                    },
+                },
+                move || Box::new(ReferenceIdentity { own }),
+            )
+            .expect("fresh reference query");
+    }
+    registry
+}
+
+#[derive(Default)]
+struct Bindings {
+    captures: BTreeMap<(String, usize, usize, Vec<usize>), usize>,
+}
+impl AnalysisService for Bindings {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+fn capture_key(source: &SourceCapture) -> (String, usize, usize, Vec<usize>) {
+    (
+        source.span.file.clone(),
+        source.span.start,
+        source.span.end,
+        source.occurrences.clone(),
+    )
+}
+fn associate(context: &mut OperationContext<'_>, source: &SourceCapture, binding: usize) {
+    context.with_service::<Bindings, _>("std/references", |service, _| {
+        service.captures.insert(capture_key(source), binding);
+    });
+}
+struct ReferenceIdentity {
+    own: bool,
+}
+impl NativeOperation for ReferenceIdentity {
+    fn evaluate(&mut self, context: &mut OperationContext<'_>) -> Result<Evaluation, Diagnostic> {
+        let value = if self.own {
+            occurrence_identity(context, context.occurrence.id)
+        } else {
+            context
+                .argument("value")
+                .cloned()
+                .unwrap_or(SemanticValue::Absent)
+        };
+        let result = match value {
+            SemanticValue::Source(source) => {
+                let binding = context
+                    .with_service::<Bindings, _>("std/references", |service, _| {
+                        service.captures.get(&capture_key(&source)).copied()
+                    })
+                    .flatten();
+                if let Some(binding) = binding {
+                    SemanticValue::Identity(SemanticIdentity::Binding(binding))
+                } else if source.occurrences.len() == 1 {
+                    occurrence_identity(context, source.occurrences[0])
+                } else {
+                    SemanticValue::Absent
+                }
+            }
+            SemanticValue::Identity(SemanticIdentity::Occurrence(id)) => {
+                occurrence_identity(context, id)
+            }
+            value => value,
+        };
+        Ok(Evaluation::Ready(match result {
+            SemanticValue::Identity(SemanticIdentity::Binding(_)) | SemanticValue::Absent => result,
+            _ => SemanticValue::Absent,
+        }))
+    }
 }
 
 #[derive(Default)]
@@ -196,6 +293,7 @@ impl NativeOperation for Declare {
             key("nameSymbol"),
             SemanticValue::Text(name.text.clone()),
         )?;
+        associate(context, &name, binding);
         context.set(binding, key("originSymbol"), SemanticValue::Source(name))?;
         context.set(binding, key("reassignableSymbol"), reassignable)?;
         context.set(scope, entry, SemanticValue::Record(binding))?;
@@ -221,6 +319,9 @@ impl NativeOperation for Use {
                 .get(id, &SemanticKey::Text(name.text.clone()))
                 .cloned()
             {
+                if let SemanticValue::Record(id) = binding {
+                    associate(context, &name, id);
+                }
                 context.attach(&symbol("reference"), binding.clone());
                 return Ok(());
             }

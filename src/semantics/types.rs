@@ -1,6 +1,7 @@
 //! Directed possible-type contributions and independent universal restrictions.
 //! Identities and slot symbols are opaque; target-language policy lives in YL.
 use super::*;
+mod hypothetical;
 mod instantiation;
 pub use instantiation::register_template;
 const MODULE: &str = "std/types";
@@ -11,8 +12,30 @@ struct Key {
     identity: SemanticIdentity,
     slot: Option<String>,
 }
-fn key(value: &SemanticValue, span: &Span) -> Result<Key, Diagnostic> {
+/// Convert original syntax values to opaque type addresses at the library seam.
+fn syntax_key(value: &SemanticValue) -> SemanticValue {
     match value {
+        SemanticValue::Source(source) if source.value == AstValue::None => SemanticValue::Absent,
+        SemanticValue::Source(source) if source.repeated => SemanticValue::List(
+            source
+                .occurrences
+                .iter()
+                .map(|id| SemanticValue::Identity(SemanticIdentity::Occurrence(*id)))
+                .collect(),
+        ),
+        SemanticValue::Source(source) if source.occurrences.len() == 1 => {
+            SemanticValue::Identity(SemanticIdentity::Occurrence(source.occurrences[0]))
+        }
+        SemanticValue::Tuple(values) => {
+            SemanticValue::Tuple(values.iter().map(syntax_key).collect())
+        }
+        SemanticValue::List(values) => SemanticValue::List(values.iter().map(syntax_key).collect()),
+        value => value.clone(),
+    }
+}
+fn key(value: &SemanticValue, span: &Span) -> Result<Key, Diagnostic> {
+    let value = syntax_key(value);
+    match &value {
         SemanticValue::Identity(identity) => Ok(Key {
             identity: identity.clone(),
             slot: None,
@@ -41,7 +64,8 @@ enum Destination {
     Positions(Vec<Key>),
 }
 fn destination(value: &SemanticValue, span: &Span) -> Result<Destination, Diagnostic> {
-    if let SemanticValue::List(values) = value {
+    let value = syntax_key(value);
+    if let SemanticValue::List(values) = &value {
         Ok(Destination::Positions(
             values
                 .iter()
@@ -49,7 +73,7 @@ fn destination(value: &SemanticValue, span: &Span) -> Result<Destination, Diagno
                 .collect::<Result<_, _>>()?,
         ))
     } else {
-        Ok(Destination::One(key(value, span)?))
+        Ok(Destination::One(key(&value, span)?))
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -88,6 +112,7 @@ impl Member {
 }
 #[derive(Clone, Debug)]
 struct Fact {
+    implicit_unknown: bool,
     member: Member,
     origin: Span,
     anchors: Vec<Key>,
@@ -96,6 +121,7 @@ struct Fact {
 impl Fact {
     fn scalar(member: Member, origin: Span) -> Self {
         Self {
+            implicit_unknown: false,
             member,
             origin,
             anchors: vec![],
@@ -109,6 +135,7 @@ enum Expr {
     Read(Key, Span),
     List(Vec<Expr>, Span),
     Empty,
+    Hypothetical(Box<Expr>, Vec<(Destination, Expr)>, Span),
 }
 impl Expr {
     fn parse(value: &SemanticValue, origin: &Span) -> Result<Self, Diagnostic> {
@@ -126,7 +153,13 @@ impl Expr {
                 service,
                 key: value,
                 span,
-            } if service == MODULE => Self::read(value, span),
+            } if service == MODULE => {
+                if let Some(query) = hypothetical::parse(value, span)? {
+                    Ok(query)
+                } else {
+                    Self::read(value, span)
+                }
+            }
             SemanticValue::List(xs) => Ok(Self::List(
                 xs.iter()
                     .map(|v| Self::parse(v, origin))
@@ -141,7 +174,8 @@ impl Expr {
         }
     }
     fn read(value: &SemanticValue, span: &Span) -> Result<Self, Diagnostic> {
-        match value {
+        let value = syntax_key(value);
+        match &value {
             SemanticValue::Absent => Ok(Self::Empty),
             SemanticValue::List(xs) => Ok(Self::List(
                 xs.iter()
@@ -149,7 +183,7 @@ impl Expr {
                     .collect::<Result<_, _>>()?,
                 span.clone(),
             )),
-            _ => Ok(Self::Read(key(value, span)?, span.clone())),
+            _ => Ok(Self::Read(key(&value, span)?, span.clone())),
         }
     }
     fn dependencies(&self, depth: i32, output: &mut Vec<(Key, i32)>) {
@@ -158,6 +192,12 @@ impl Expr {
             Self::List(xs, _) => {
                 for x in xs {
                     x.dependencies(depth + 1, output)
+                }
+            }
+            Self::Hypothetical(result, assumptions, _) => {
+                result.dependencies(depth, output);
+                for (_, value) in assumptions {
+                    value.dependencies(depth, output);
                 }
             }
             _ => {}
@@ -179,6 +219,8 @@ struct Restriction {
     target_span: Span,
     rule: Span,
 }
+type HypotheticalFrame = (Expr, Vec<(Destination, Vec<Member>)>);
+
 #[derive(Default)]
 struct Possibilities {
     facts: BTreeMap<Key, BTreeMap<Member, Fact>>,
@@ -189,6 +231,10 @@ struct Possibilities {
     edges: std::collections::BTreeSet<(Key, Key, i32)>,
     settled: bool,
     instances: instantiation::Instances,
+    hypothetical_depth: usize,
+    hypothetical_stack: Vec<HypotheticalFrame>,
+    residual_matches: Vec<hypothetical::TypeMatch>,
+    query_errors: BTreeMap<usize, Diagnostic>,
 }
 impl Possibilities {
     fn connect(
@@ -197,6 +243,11 @@ impl Possibilities {
         expr: &Expr,
         span: &Span,
     ) -> Result<(), Diagnostic> {
+        if let (Destination::One(target), Expr::Read(source, _)) = (target, expr) {
+            if source.slot.is_none() && target.slot.is_none() && source != target {
+                self.forwarding.insert((source.clone(), target.clone()));
+            }
+        }
         let mut dependencies = vec![];
         expr.dependencies(0, &mut dependencies);
         let destinations = match target {
@@ -274,6 +325,7 @@ impl Possibilities {
                     .collect();
                 let children = children?;
                 Some(Fact {
+                    implicit_unknown: false,
                     member: Member::List(children.iter().map(|c| c.member.clone()).collect()),
                     origin: right.origin.clone(),
                     anchors: vec![],
@@ -425,6 +477,9 @@ impl Possibilities {
         seen: &mut std::collections::BTreeSet<Key>,
     ) -> Result<Vec<Fact>, Diagnostic> {
         match expr {
+            Expr::Hypothetical(result, assumptions, span) => {
+                hypothetical::evaluate(self, result, assumptions, span)
+            }
             Expr::Empty => Ok(vec![]),
             Expr::Constant(m, s) => Ok(vec![Fact::scalar(m.clone(), s.clone())]),
             Expr::Read(k, s) => {
@@ -451,7 +506,9 @@ impl Possibilities {
                     }
                 }
                 if result.is_empty() && self.settled {
-                    result.push(Fact::scalar(Member::Unknown, s.clone()));
+                    let mut unknown = Fact::scalar(Member::Unknown, s.clone());
+                    unknown.implicit_unknown = true;
+                    result.push(unknown);
                 }
                 // An annotation supplies a contract-derived value, not the
                 // token that used that value. Rebase only such binding reads
@@ -529,6 +586,7 @@ impl Possibilities {
                                 product = next;
                             }
                             contracts.extend(product.into_iter().map(|children: Vec<Fact>| Fact {
+                                implicit_unknown: false,
                                 member: Member::List(
                                     children.iter().map(|c| c.member.clone()).collect(),
                                 ),
@@ -563,6 +621,7 @@ impl Possibilities {
                 Ok(product
                     .into_iter()
                     .map(|children| Fact {
+                        implicit_unknown: false,
                         member: Member::List(children.iter().map(|c| c.member.clone()).collect()),
                         origin: s.clone(),
                         anchors: vec![],
@@ -573,6 +632,9 @@ impl Possibilities {
         }
     }
     fn insert(&mut self, k: &Key, mut fact: Fact) -> Result<bool, Diagnostic> {
+        if fact.implicit_unknown {
+            return Ok(false);
+        }
         if let Some(slot) = &k.slot {
             if fact.children.iter().any(|child| {
                 child
@@ -623,6 +685,10 @@ impl Possibilities {
         Ok(changed)
     }
     fn contribute(&mut self, target: &Destination, fact: Fact) -> Result<bool, Diagnostic> {
+        // Settlement defaults describe missing evidence, not reusable facts.
+        if fact.implicit_unknown {
+            return Ok(false);
+        }
         match target {
             Destination::One(k) => self.insert(k, fact),
             Destination::Positions(ks) => {
@@ -697,69 +763,8 @@ impl Possibilities {
         }
         context.emit(diagnostic);
     }
-    fn snapshot(&self, k: &Key) -> Result<Vec<Fact>, Diagnostic> {
-        self.eval(
-            &Expr::Read(k.clone(), Span::default()),
-            &mut Default::default(),
-        )
-    }
-    fn value(facts: &[Fact]) -> SemanticValue {
-        let values: std::collections::BTreeSet<_> =
-            facts.iter().map(|f| f.member.clone()).collect();
-        if values.len() == 1 {
-            return values.iter().next().unwrap().value();
-        }
-        SemanticValue::Alternatives {
-            service: MODULE.into(),
-            values: values.iter().map(Member::value).collect(),
-        }
-    }
-    fn display(facts: &[Fact]) -> String {
-        let values: std::collections::BTreeSet<_> =
-            facts.iter().map(|f| f.member.display()).collect();
-        values.into_iter().collect::<Vec<_>>().join(" | ")
-    }
-}
-impl AnalysisService for Possibilities {
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-    fn offers_alternatives(&self) -> bool {
-        true
-    }
-    fn resolve_value(
-        &mut self,
-        value: &SemanticValue,
-        context: &mut OperationContext<'_>,
-    ) -> Result<Evaluation, Diagnostic> {
-        let expr = Expr::read(value, context.operation_span)?;
-        self.register_expr(&expr);
-        let facts = self.eval(&expr, &mut Default::default())?;
-        if facts.is_empty() {
-            return Ok(Evaluation::Pending);
-        }
-        let values: std::collections::BTreeSet<_> =
-            facts.iter().map(|f| f.member.clone()).collect();
-        Ok(Evaluation::Ready(SemanticValue::Alternatives {
-            service: MODULE.into(),
-            values: values.iter().map(Member::value).collect(),
-        }))
-    }
-    fn progress(&mut self, context: &mut OperationContext<'_>) -> Result<bool, Diagnostic> {
-        let mut changed = instantiation::refresh(self, context.operation_span)?;
-        for transfer in self.transfers.clone() {
-            for fact in self
-                .eval(&transfer.value, &mut Default::default())
-                .map_err(|mut diagnostic| {
-                    if diagnostic.primary.file.is_empty() {
-                        diagnostic.primary = Box::new(transfer.span.clone());
-                    }
-                    diagnostic
-                })?
-            {
-                changed |= self.contribute(&transfer.destination, fact)?;
-            }
-        }
+    fn propagate_slots(&mut self) -> Result<bool, Diagnostic> {
+        let mut changed = false;
         for (source, target) in self.forwarding.clone() {
             // A copied value retains its authored structural slot handles. Base
             // possibilities flow one way; slot contributions address the same
@@ -791,7 +796,7 @@ impl AnalysisService for Possibilities {
                             .and_then(|facts| facts.values().next())
                     })
                     .map(|fact| fact.origin.clone())
-                    .unwrap_or_else(|| context.operation_span.clone());
+                    .unwrap_or_default();
                 self.add_edge(&source_slot, &target_slot, 0, &origin)?;
                 self.add_edge(&target_slot, &source_slot, 0, &origin)?;
                 for fact in self.snapshot(&source_slot)? {
@@ -802,6 +807,95 @@ impl AnalysisService for Possibilities {
                 }
             }
         }
+        Ok(changed)
+    }
+    fn snapshot(&self, k: &Key) -> Result<Vec<Fact>, Diagnostic> {
+        self.eval(
+            &Expr::Read(k.clone(), Span::default()),
+            &mut Default::default(),
+        )
+    }
+    fn value(facts: &[Fact]) -> SemanticValue {
+        let values: std::collections::BTreeSet<_> =
+            facts.iter().map(|f| f.member.clone()).collect();
+        if values.len() == 1 {
+            return values.iter().next().unwrap().value();
+        }
+        SemanticValue::Alternatives {
+            service: MODULE.into(),
+            values: values.iter().map(Member::value).collect(),
+        }
+    }
+    fn display(facts: &[Fact]) -> String {
+        let values: std::collections::BTreeSet<_> =
+            facts.iter().map(|f| f.member.display()).collect();
+        values.into_iter().collect::<Vec<_>>().join(" | ")
+    }
+}
+impl AnalysisService for Possibilities {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+    fn retain_match(&mut self, matching: &ResidualMatch) -> Result<(), Diagnostic> {
+        hypothetical::retain(self, matching)
+    }
+    fn offers_alternatives(&self) -> bool {
+        true
+    }
+    fn resolve_value(
+        &mut self,
+        value: &SemanticValue,
+        context: &mut OperationContext<'_>,
+    ) -> Result<Evaluation, Diagnostic> {
+        let expr = if let Some(query) = hypothetical::parse(value, context.operation_span)? {
+            query
+        } else {
+            Expr::read(value, context.operation_span)?
+        };
+        self.register_expr(&expr);
+        let facts = self.eval(&expr, &mut Default::default())?;
+        if facts.is_empty() {
+            return Ok(Evaluation::Pending);
+        }
+        let values: std::collections::BTreeSet<_> =
+            facts.iter().map(|f| f.member.clone()).collect();
+        Ok(Evaluation::Ready(SemanticValue::Alternatives {
+            service: MODULE.into(),
+            values: values.iter().map(Member::value).collect(),
+        }))
+    }
+    fn progress(&mut self, context: &mut OperationContext<'_>) -> Result<bool, Diagnostic> {
+        let mut changed = instantiation::refresh(self, context.operation_span)?;
+        for (index, transfer) in self.transfers.clone().into_iter().enumerate() {
+            let facts = match self.eval(&transfer.value, &mut Default::default()) {
+                Ok(facts) => {
+                    self.query_errors.remove(&index);
+                    facts
+                }
+                Err(diagnostic)
+                    if matches!(
+                        diagnostic.code.as_str(),
+                        "types.mismatch"
+                            | "types.hypothetical_effect"
+                            | "types.hypothetical_cycle"
+                            | "semantic.meaning_case"
+                    ) =>
+                {
+                    self.query_errors.insert(index, diagnostic);
+                    continue;
+                }
+                Err(mut diagnostic) => {
+                    if diagnostic.primary.file.is_empty() {
+                        diagnostic.primary = Box::new(transfer.span.clone());
+                    }
+                    return Err(diagnostic);
+                }
+            };
+            for fact in facts {
+                changed |= self.contribute(&transfer.destination, fact)?;
+            }
+        }
+        changed |= self.propagate_slots()?;
         // Restrictions are checked only at finalization: future alternatives can
         // legitimately enlarge an allowed set. Facts are never deleted.
         let _ = context;
@@ -813,6 +907,15 @@ impl AnalysisService for Possibilities {
     }
     fn finish(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
         self.settled = true;
+        let mut query_errors = vec![];
+        for error in self.query_errors.values() {
+            if !query_errors.contains(error) {
+                query_errors.push(error.clone());
+            }
+        }
+        for error in query_errors {
+            context.emit(error);
+        }
         let mut checked_domains = std::collections::BTreeSet::new();
         for (index, bound) in self.restrictions.clone().into_iter().enumerate() {
             let mut allowed = self.eval(&bound.value, &mut Default::default())?;
@@ -997,10 +1100,12 @@ impl NativeOperation for Collect {
 struct TypeOf;
 impl NativeOperation for TypeOf {
     fn evaluate(&mut self, context: &mut OperationContext<'_>) -> Result<Evaluation, Diagnostic> {
-        let key = context
-            .argument("key")
-            .cloned()
-            .unwrap_or(SemanticValue::Absent);
+        let key = syntax_key(
+            &context
+                .argument("key")
+                .cloned()
+                .unwrap_or(SemanticValue::Absent),
+        );
         if key == SemanticValue::Absent {
             return Ok(Evaluation::Ready(SemanticValue::Absent));
         }
@@ -1025,8 +1130,16 @@ impl NativeOperation for TypeOf {
 pub fn register(registry: &mut OperationRegistry) -> Result<(), String> {
     registry.export_symbol(MODULE, "unknown")?;
     registry.register_service(MODULE, || Box::<Possibilities>::default())?;
-    for name in ["annotate", "restrictTo", "typeof", "instantiate"] {
-        let parameters = if name == "instantiate" {
+    for name in [
+        "annotate",
+        "restrictTo",
+        "typeof",
+        "instantiate",
+        "resolveWith",
+    ] {
+        let parameters = if name == "resolveWith" {
+            vec!["result", "assumptions"]
+        } else if name == "instantiate" {
             vec!["template", "use"]
         } else if name == "typeof" {
             vec!["key"]
@@ -1053,6 +1166,7 @@ pub fn register(registry: &mut OperationRegistry) -> Result<(), String> {
             move || match name {
                 "typeof" => Box::new(TypeOf) as Box<dyn NativeOperation>,
                 "instantiate" => Box::new(instantiation::Instantiate),
+                "resolveWith" => Box::new(hypothetical::ResolveWith),
                 name => Box::new(Collect {
                     restriction: name == "restrictTo",
                 }),

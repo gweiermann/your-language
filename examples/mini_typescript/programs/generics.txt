@@ -1,0 +1,17 @@
+let outside = 10;
+
+function identity(value) {
+    return value;
+}
+
+function describe(value) {
+    return identity(value) + outside;
+}
+
+let count: number = identity(42);
+
+let title: string = identity("hello");
+
+let numberResult = describe(count);
+
+let stringResult = describe(title);

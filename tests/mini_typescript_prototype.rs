@@ -34,7 +34,7 @@ fn literals_annotations_and_calls() {
         "../examples/mini_typescript/programs/program.txt"
     ));
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(types(&result, "identity"), ["(number) => number"]);
+    assert_eq!(types(&result, "identity"), ["(unknown) => unknown"]);
     assert_eq!(types(&result, "again"), ["number"]);
     assert_eq!(types(&result, "title"), ["string"]);
     assert_eq!(types(&result, "enabled"), ["boolean"]);
@@ -50,9 +50,9 @@ fn multiple_parameters_nested_calls_and_zero_arguments() {
 fn annotation_and_call_errors_have_original_spans() {
     let source = include_str!("../examples/mini_typescript/programs/errors.txt");
     let result = analyze(source);
-    // Retained facts are each checked; invalid call evidence also reaches the
-    // declared return requirement instead of being erased after its first error.
-    assert_eq!(result.diagnostics.len(), 6, "{:?}", result.diagnostics);
+    // Invalid call assumptions are isolated; they do not contaminate the
+    // declaration's return facts or unrelated checks.
+    assert_eq!(result.diagnostics.len(), 5, "{:?}", result.diagnostics);
     assert!(result
         .diagnostics
         .iter()
@@ -119,18 +119,15 @@ fn arity_mismatch_is_diagnosed() {
     assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
 }
 #[test]
-fn shared_unannotated_signature_collects_mixed_call_evidence() {
+fn unannotated_signature_keeps_mixed_calls_isolated() {
     let result = analyze(
         "function echo(value) { return value; } let one = echo(1); let two = echo(\"two\");",
     );
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(types(&result, "value"), ["number | string"]);
-    assert_eq!(
-        types(&result, "echo"),
-        ["(number | string) => number | string"]
-    );
-    assert_eq!(types(&result, "one"), ["number | string"]);
-    assert_eq!(types(&result, "two"), ["number | string"]);
+    assert_eq!(types(&result, "value"), ["unknown"]);
+    assert_eq!(types(&result, "echo"), ["(unknown) => unknown"]);
+    assert_eq!(types(&result, "one"), ["number"]);
+    assert_eq!(types(&result, "two"), ["string"]);
 }
 #[test]
 fn lexical_errors_and_syntax_errors_remain_distinct() {
@@ -231,8 +228,8 @@ fn function_aliases_share_parameter_and_return_slots() {
     let result =
         analyze("function id(value) { return value; } let alias = id; let result = alias(1);");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(types(&result, "id"), ["(number) => number"]);
-    assert_eq!(types(&result, "alias"), ["(number) => number"]);
+    assert_eq!(types(&result, "id"), ["(unknown) => unknown"]);
+    assert_eq!(types(&result, "alias"), ["(unknown) => unknown"]);
     assert_eq!(types(&result, "result"), ["number"]);
 }
 
@@ -240,7 +237,7 @@ fn function_aliases_share_parameter_and_return_slots() {
 fn function_arguments_propagate_signature_slots_through_parameters() {
     let result = analyze("function identity(value) { return value; } function apply(f, value) { return f(value); } let result = apply(identity, 1);");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(types(&result, "identity"), ["(number) => number"]);
+    assert_eq!(types(&result, "identity"), ["(unknown) => unknown"]);
     assert_eq!(types(&result, "result"), ["number"]);
 }
 

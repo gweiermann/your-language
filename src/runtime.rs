@@ -31,6 +31,7 @@ pub struct ParseResult {
 }
 #[derive(Clone)]
 struct Captured {
+    repeated: bool,
     occurrences: Vec<usize>,
     value: AstValue,
     span: Span,
@@ -458,6 +459,7 @@ impl Runtime<'_> {
                 (
                     name.clone(),
                     crate::semantics::SourceCapture {
+                        repeated: capture.repeated,
                         value: capture.value.clone(),
                         occurrences: capture.occurrences.clone(),
                         span: capture.origin.clone(),
@@ -764,6 +766,7 @@ impl Runtime<'_> {
                 result.fields.insert(
                     name.clone(),
                     Captured {
+                        repeated: capture_repeats(term),
                         occurrences: result
                             .occurrences
                             .iter()
@@ -931,5 +934,21 @@ impl ParseResult {
         self.diagnostics
             .iter()
             .any(|d| d.severity == Severity::Error)
+    }
+}
+
+/// Capture cardinality comes from normalized grammar, not the returned value.
+fn capture_repeats(term: &Term) -> bool {
+    match term {
+        Term::Repeat(_, Quantifier::Star | Quantifier::Plus) => true,
+        Term::Capture(_, term)
+        | Term::Mark { term, .. }
+        | Term::Meaning { term, .. }
+        | Term::Example { term, .. } => capture_repeats(term),
+        Term::Project {
+            quantifier: Some(Quantifier::Star | Quantifier::Plus),
+            ..
+        } => true,
+        _ => false,
     }
 }

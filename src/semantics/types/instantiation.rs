@@ -222,6 +222,22 @@ impl Instance {
                 values.iter().map(|value| self.expr(value)).collect(),
                 span.clone(),
             ),
+            Expr::Hypothetical(result, assumptions, span) => Expr::Hypothetical(
+                Box::new(self.expr(result)),
+                assumptions
+                    .iter()
+                    .map(|(destination, value)| {
+                        let destination = match destination {
+                            Destination::One(key) => Destination::One(self.key(key)),
+                            Destination::Positions(keys) => Destination::Positions(
+                                keys.iter().map(|key| self.key(key)).collect(),
+                            ),
+                        };
+                        (destination, self.expr(value))
+                    })
+                    .collect(),
+                span.clone(),
+            ),
             other => other.clone(),
         }
     }

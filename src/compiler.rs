@@ -1912,7 +1912,22 @@ impl Compiler {
                 if let Some(value) = bindings.get(name) {
                     return Ok(value.clone());
                 }
-                if symbol_has_capture(context, name) {
+                if let Some((root, suffix)) = name.split_once('.') {
+                    if let Some(value) = bindings.get(root) {
+                        if let ExprKind::Ref(actual) = &value.kind {
+                            return Ok(Expr {
+                                kind: ExprKind::Ref(format!("{actual}.{suffix}")),
+                                span: value.span.clone(),
+                            });
+                        }
+                        if matches!(value.kind, ExprKind::Absent) {
+                            return Ok(value.clone());
+                        }
+                    }
+                }
+                if name == "self"
+                    || symbol_has_capture(context, name.split('.').next().unwrap_or(name))
+                {
                     ExprKind::Ref(name.clone())
                 } else if name == "absent" {
                     ExprKind::Absent
@@ -2176,7 +2191,11 @@ impl Compiler {
                     self.lower_meaning_value(symbol, &argument.value, false)?
                 }
                 (ParameterKind::Capture, ExprKind::Ref(name)) => {
-                    MeaningValue::Capture(name.clone())
+                    if name == "self" {
+                        MeaningValue::SelfValue
+                    } else {
+                        MeaningValue::Capture(name.clone())
+                    }
                 }
                 (ParameterKind::Text, ExprKind::Literal(text)) => MeaningValue::Text(text.clone()),
                 (ParameterKind::Bool, ExprKind::Bool(value)) => MeaningValue::Bool(*value),
@@ -2288,6 +2307,7 @@ impl Compiler {
         pattern: bool,
     ) -> Result<MeaningValue> {
         match &expr.kind {
+            ExprKind::Ref(name) if name == "self" && !pattern => Ok(MeaningValue::SelfValue),
             ExprKind::Absent if !pattern => Ok(MeaningValue::Absent),
             ExprKind::Group(value) if !pattern => self.lower_meaning_value(symbol, value, false),
             ExprKind::Tuple(values) if !pattern => Ok(MeaningValue::Tuple(
@@ -3644,6 +3664,7 @@ fn meaning_value_matches(value: &MeaningValue, kind: &ParameterKind) -> bool {
     match (value, kind) {
         (_, ParameterKind::Value) => semantic_value_is_well_formed(value),
         (MeaningValue::Call(_), _) => true,
+        (MeaningValue::SelfValue, ParameterKind::Capture) => true,
         (MeaningValue::Capture(name), ParameterKind::Capture)
         | (MeaningValue::Symbol(name), ParameterKind::Symbol) => !name.is_empty(),
         (MeaningValue::Text(_), ParameterKind::Text)
@@ -3678,7 +3699,9 @@ fn validate_semantic_capture_value(
     span: &Span,
 ) -> Result<()> {
     match value {
-        MeaningValue::Capture(name) if !captures.contains(name) => {
+        MeaningValue::Capture(name)
+            if !captures.contains(name.split('.').next().unwrap_or(name)) =>
+        {
             return Err(Diagnostic::error(
                 "yl.artifact",
                 format!("Meaning argument references unavailable capture {name}"),

@@ -1,4 +1,4 @@
-import { lexicalScope } from "std/variables"
+import { lexicalScope } from "std/references"
 import { Whitespace } from "./lexical"
 import { FunctionDeclaration, FunctionBody } from "./function"
 import { LetDeclaration } from "./let"

@@ -74,6 +74,8 @@ pub struct MeaningCall {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MeaningValue {
+    /// Current caller occurrence, independent of imported libraries.
+    SelfValue,
     Absent,
     Tuple(Vec<MeaningValue>),
     List(Vec<MeaningValue>),
@@ -124,6 +126,9 @@ pub struct MeaningSelector {
 /// Preserved semantic value and its original source extent. Pipe wrappers do not
 /// widen this extent; syntax-local captures separately retain grammar match spans.
 pub struct SourceCapture {
+    /// Repetition of syntax occurrences, independent of a pattern's value shape.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub repeated: bool,
     pub value: AstValue,
     pub span: Span,
     pub text: String,
@@ -140,6 +145,74 @@ pub struct Occurrence {
     pub captures: BTreeMap<String, SourceCapture>,
     pub children: Vec<Occurrence>,
 }
+impl Occurrence {
+    fn find(&self, id: usize) -> Option<&Occurrence> {
+        if self.id == id {
+            Some(self)
+        } else {
+            self.children.iter().find_map(|child| child.find(id))
+        }
+    }
+    /// Follow captured occurrence roots rather than reconstructed AST wrappers.
+    fn capture_path(&self, path: &str) -> Result<SourceCapture, Diagnostic> {
+        let mut parts = path.split('.');
+        let root = parts.next().unwrap_or(path);
+        let mut capture = self.captures.get(root).cloned().ok_or_else(|| {
+            Diagnostic::error(
+                "semantic.missing_capture",
+                format!("Capture {root} is unavailable"),
+                self.span.clone(),
+            )
+        })?;
+        for field in parts {
+            if capture.value == AstValue::None {
+                return Ok(capture);
+            }
+            let repeated = capture.repeated;
+            let selected = capture
+                .occurrences
+                .iter()
+                .map(|id| {
+                    self.find(*id)
+                        .and_then(|owner| owner.captures.get(field))
+                        .cloned()
+                        .ok_or_else(|| {
+                            Diagnostic::error(
+                                "semantic.missing_capture",
+                                format!("Capture projection {path} is unavailable"),
+                                capture.span.clone(),
+                            )
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            if !repeated && selected.len() == 1 {
+                capture = selected[0].clone();
+                continue;
+            }
+            let span = selected
+                .first()
+                .zip(selected.last())
+                .map(|(a, b)| Span::new(&a.span.file, a.span.start, b.span.end))
+                .unwrap_or_else(|| capture.span.clone());
+            capture = SourceCapture {
+                repeated: true,
+                value: AstValue::List(selected.iter().map(|item| item.value.clone()).collect()),
+                span,
+                text: selected
+                    .iter()
+                    .map(|item| item.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" "),
+                occurrences: selected
+                    .iter()
+                    .flat_map(|item| item.occurrences.clone())
+                    .collect(),
+            };
+        }
+        Ok(capture)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum SemanticValue {
     /// An observational query's growing set of possible values. Unlike List,
@@ -361,6 +434,28 @@ pub enum Evaluation {
     Pending,
     Ready(SemanticValue),
 }
+/// Observational match relationship offered to interested analysis services.
+/// Native effects are not executed while retaining a relationship.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResidualMatch {
+    pub inputs: Vec<SemanticValue>,
+    pub cases: Vec<ResidualCase>,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResidualCase {
+    pub alternatives: Vec<Vec<Option<SemanticValue>>>,
+    pub actions: Vec<ResidualAction>,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub enum ResidualAction {
+    Call {
+        operation: String,
+        arguments: BTreeMap<String, SemanticValue>,
+        span: Span,
+    },
+    Diagnostic(Diagnostic),
+}
 /// An analysis-local native library service. The engine drives progress to a
 /// fixed point, calls settle once, resumes propagation, then calls finish once.
 /// No target-language policy is built into this lifecycle.
@@ -368,6 +463,9 @@ pub trait AnalysisService: Any {
     fn as_any_mut(&mut self) -> &mut dyn Any;
     /// Its handles resolve to growing alternative sets. This lets pending
     /// readers release writers ordered after them without choosing a case early.
+    fn retain_match(&mut self, _matching: &ResidualMatch) -> Result<(), Diagnostic> {
+        Ok(())
+    }
     fn offers_alternatives(&self) -> bool {
         false
     }
@@ -467,6 +565,7 @@ impl OperationContext<'_> {
                     .unwrap_or_else(|| self.occurrence.span.clone())
             }
             SemanticValue::Deferred { span, .. } => return span.clone(),
+            SemanticValue::Source(source) => return source.span.clone(),
             _ => return self.occurrence.span.clone(),
         };
         for capture in self.occurrence.captures.values() {
@@ -736,6 +835,7 @@ mod tests {
             captures: BTreeMap::from([(
                 "name".into(),
                 SourceCapture {
+                    repeated: false,
                     occurrences: vec![],
                     value: AstValue::Text(text.into()),
                     span: Span::new("program", id, id + 1),
