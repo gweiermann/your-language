@@ -1,5 +1,7 @@
 # Authored semantic standard libraries
 
+For a step-by-step introduction with runnable examples, follow [Build type inference with std/types](/tutorials/std-types).
+
 The compiler bundles `std/references` and `std/types` as ordinary YL modules. Their operations expand into generic attachment queries during compilation. Reloaded `.ylc` files execute normalized query IR and need no library source, native lexical stack or native type solver.
 
 ## Reference identities and scopes
@@ -54,12 +56,11 @@ The standard library defines `unknown` and the metadata-channel symbol `type`. T
 
 Keys can be syntax identities, resolved declaration identities or nested tuples. `(functionIdentity, returnType)` can describe a function's return without assigning a type to its body block. An ordered list is an ordinary compound value, not automatically a union. Repeated syntax captures are lists: use `map(captures, value => types::typeof(value))` to form a positional type list.
 
-A restriction alone does not annotate a value. An explicit declaration annotation usually contributes both evidence and a restriction:
+A restriction alone does not annotate a value. An initializer contributes actual evidence; an explicit declaration annotation restricts that evidence:
 
 ```yl
 operation bindingType(name, initializer, annotation) {
     types::annotate(referenceOf(name), types::typeof(initializer))
-    types::annotate(referenceOf(name), types::typeof(annotation))
     types::restrictTo(referenceOf(name), types::typeof(annotation), initializer, annotation.value)
 }
 ```

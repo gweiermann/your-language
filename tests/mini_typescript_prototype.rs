@@ -65,6 +65,27 @@ fn mixed_calls_do_not_contaminate_the_declaration_signature() {
 }
 
 #[test]
+fn rejected_annotation_does_not_become_an_inferred_generic_call_type() {
+    let source = "function identity(value) { return value; } let count: string = identity(42); let title: string = identity(\"hello\"); let copy = count;";
+    let result = analyze(source);
+    assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
+    let diagnostic = &result.diagnostics[0];
+    assert_eq!(diagnostic.message, "Type number does not match string");
+    assert_eq!(
+        &source[diagnostic.primary.start..diagnostic.primary.end],
+        "identity(42)"
+    );
+    assert!(diagnostic
+        .secondary
+        .iter()
+        .any(|span| span.file == "test.ts" && &source[span.start..span.end] == "string"));
+    assert_eq!(binding(&result, "count"), ["number"]);
+    assert_eq!(binding(&result, "copy"), ["number"]);
+    assert_eq!(binding(&result, "title"), ["string"]);
+    assert_eq!(binding(&result, "value"), ["unknown"]);
+}
+
+#[test]
 fn aliases_keep_the_function_binding_identity() {
     let result =
         analyze("function id(value) { return value; } let alias = id; let result = alias(1);");
@@ -89,6 +110,28 @@ fn nested_hypotheticals_keep_captured_outer_values_shared() {
         "../examples/mini_typescript/programs/generics.txt"
     ));
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    for (name, expected) in [
+        ("outside", "number"),
+        ("count", "number"),
+        ("title", "string"),
+        ("numberResult", "number"),
+        ("stringResult", "string"),
+    ] {
+        assert_eq!(binding(&result, name), [expected]);
+    }
+}
+
+#[test]
+fn generic_error_fixture_keeps_nested_returns_and_outer_types_independent() {
+    let source = include_str!("../examples/mini_typescript/programs/generics-errors.txt");
+    let result = analyze(source);
+    assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
+    let diagnostic = &result.diagnostics[0];
+    assert_eq!(diagnostic.message, "Type number does not match string");
+    assert_eq!(
+        &source[diagnostic.primary.start..diagnostic.primary.end],
+        "identity(42)"
+    );
     for (name, expected) in [
         ("outside", "number"),
         ("count", "number"),

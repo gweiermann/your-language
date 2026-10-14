@@ -22,7 +22,6 @@ export operation restrictTypeTo(value) {
 export operation bindingType(name, value, annotation = absent) {
     types::annotate(referenceOf(name), typeof(value))
     if isPresent(annotation) {
-        types::annotate(referenceOf(name), typeof(annotation))
         types::restrictTo(referenceOf(name), typeof(annotation), value, annotation.value)
     }
     types::annotate(name, types::typeof(referenceOf(name)))

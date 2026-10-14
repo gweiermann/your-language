@@ -4,11 +4,11 @@ Your Language brings grammar, AST structure, and diagnostics into a shared langu
 
 ## Language analysis
 
-Relations, traits, scopes, declaration and reference resolution, and semantic graphs will describe relationships beyond local syntax. Semantic diagnostics and target-language type checking depend on this analysis model. They remain separate from grammar matching and syntax-local constraints.
+Native meaning libraries already provide experimental lexical scopes, declaration/reference identity and type constraints. Further work will develop composable analysis protocols, union-producing annotations, directional compatibility and per-call generic inference, followed by flow-sensitive narrowing and ownership experiments. These analyses remain separate from grammar matching and syntax-local constraints.
 
 ## Developer tooling
 
-Editor integration and language-server support will make definitions and parsed languages easier to work with. Incremental parsing will support responsive feedback as source changes. Grammar inspection tools and diagnostic navigation will assist language authors.
+The YL language server supplies live definition diagnostics, formatting and composed example previews. Next steps include completion, navigation and rename with explicit semantic contracts. Target-language servers and incremental analysis will extend tooling beyond full-graph YL authoring.
 
 ## Execution and integration
 
@@ -16,7 +16,7 @@ Parser generation and runtime optimization will address execution cost while pre
 
 ## Language authoring
 
-Reusable libraries, richer inspection of normalized grammars, and metadata for nodes will support larger definitions and downstream tooling. Metadata requires explicit syntax and composition rules before becoming part of the language contract.
+Parser-validated `example` metadata and bounded generation already provide representative syntax for nodes and parameterless patterns. Further grammar inspection and reusable library mechanisms will support larger definitions. Additional metadata must define its syntax and composition rules before introduction.
 
 ## Design principles
 

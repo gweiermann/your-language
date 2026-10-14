@@ -13,7 +13,7 @@ examples/declarative-queries/
     └── errors.txt
 ```
 
-The authored library is `stdlib/references.yl`, imported as a normal relative module by this example. The older native `std/references` adapter remains available to existing native type consumers; replacing that adapter requires migration to the shared declarative hook contract. The example does not use that adapter or a mutable current-scope stack.
+The authored library is `stdlib/references.yl`, available through the canonical `std/references` import. It compiles to generic attachment queries. The separate declarative-query example uses an authored variation that makes declarations visible throughout a scope; the canonical library preserves meaning-schedule visibility. Neither uses a native reference adapter or a mutable current-scope stack.
 
 ## Give each scope an identity
 

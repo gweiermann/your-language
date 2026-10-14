@@ -2,6 +2,8 @@
 
 Your Language provides highlighting, live diagnostics, formatting and composed example hints for `.yl` definitions. The editor connects to the Rust language server through `yl lsp`; current buffers, including unsaved imports, participate in analysis.
 
+Highlighting includes the `=>` operator in both match cases and expression callbacks, together with `if`, `else`, and `self`. Strings, regexes, and comments retain their own highlighting even when they contain these tokens. Upgrade and reload an older installed VSIX to pick up grammar changes.
+
 ## Install or upgrade
 
 Build the CLI and extension from the same revision:

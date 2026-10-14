@@ -358,13 +358,24 @@ entry Root
 
 #[test]
 fn hypothetical_union_keeps_supported_results_alongside_error_diagnostics() {
-    let result = mini(
-        r#"
-function add(value) { return value + 1; }
-let mixed: number = true;
-let result = add(mixed);
-"#,
+    let mut sources = definition::sources();
+    // Supply a genuine union contribution; a declared annotation is a
+    // restriction and must not manufacture an extra observed type.
+    let grammar = sources.get_mut("definition/expression.yl").unwrap();
+    *grammar = grammar.replacen(
+        "annotateWithType(boolean)",
+        "annotateWithType(boolean)\n        annotateWithType(number)",
+        1,
     );
+    let engine = SemanticEngine::default();
+    let language = engine.compile(definition::ENTRY, &sources).unwrap();
+    let loaded = engine.load(&language.to_bytes().unwrap()).unwrap();
+    let source = r#"
+function add(value) { return value + 1; }
+let mixed = true;
+let result = add(mixed);
+"#;
+    let result = engine.analyze(&loaded, "test.ts", source);
     assert!(
         result
             .diagnostics
