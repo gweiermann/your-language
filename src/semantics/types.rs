@@ -241,7 +241,8 @@ struct Possibilities {
     hypothetical_depth: usize,
     hypothetical_stack: Vec<HypotheticalFrame>,
     residual_matches: Vec<hypothetical::TypeMatch>,
-    query_errors: BTreeMap<usize, Diagnostic>,
+    query_errors: BTreeMap<usize, Vec<Diagnostic>>,
+    observed_hypotheses: Vec<Expr>,
 }
 impl Possibilities {
     fn connect(
@@ -860,8 +861,22 @@ impl AnalysisService for Possibilities {
             Expr::read(value, context.operation_span)?
         };
         self.register_expr(&expr);
+        if matches!(expr, Expr::Hypothetical(..)) && !self.observed_hypotheses.contains(&expr) {
+            self.observed_hypotheses.push(expr.clone());
+        }
         let facts = self.eval(&expr, &mut Default::default())?;
         if facts.is_empty() {
+            if self.settled && matches!(expr, Expr::Hypothetical(..)) {
+                let diagnostics = hypothetical::diagnostics(self, &expr)?;
+                return Ok(Evaluation::Ready(SemanticValue::Alternatives {
+                    service: MODULE.into(),
+                    values: if diagnostics.is_empty() {
+                        vec![SemanticValue::Symbol(UNKNOWN.into())]
+                    } else {
+                        vec![]
+                    },
+                }));
+            }
             return Ok(Evaluation::Pending);
         }
         let values: std::collections::BTreeSet<_> =
@@ -888,7 +903,7 @@ impl AnalysisService for Possibilities {
                             | "semantic.meaning_case"
                     ) =>
                 {
-                    self.query_errors.insert(index, diagnostic);
+                    self.query_errors.insert(index, vec![diagnostic]);
                     continue;
                 }
                 Err(mut diagnostic) => {
@@ -898,6 +913,10 @@ impl AnalysisService for Possibilities {
                     return Err(diagnostic);
                 }
             };
+            let diagnostics = hypothetical::diagnostics(self, &transfer.value)?;
+            if !diagnostics.is_empty() {
+                self.query_errors.insert(index, diagnostics);
+            }
             for fact in facts {
                 changed |= self.contribute(&transfer.destination, fact)?;
             }
@@ -915,13 +934,26 @@ impl AnalysisService for Possibilities {
     fn finish(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
         self.settled = true;
         let mut query_errors = vec![];
-        for error in self.query_errors.values() {
+        for error in self.query_errors.values().flatten() {
             if !query_errors.contains(error) {
                 query_errors.push(error.clone());
             }
         }
+        for query in &self.observed_hypotheses {
+            let diagnostics = match hypothetical::diagnostics(self, query) {
+                Ok(diagnostics) => diagnostics,
+                Err(diagnostic) => vec![diagnostic],
+            };
+            for diagnostic in diagnostics {
+                if !query_errors.contains(&diagnostic) {
+                    query_errors.push(diagnostic);
+                }
+            }
+        }
         for error in query_errors {
-            context.emit(error);
+            if !context.state.diagnostics.contains(&error) {
+                context.emit(error);
+            }
         }
         let mut checked_domains = std::collections::BTreeSet::new();
         for (index, bound) in self.restrictions.clone().into_iter().enumerate() {
@@ -1107,16 +1139,15 @@ impl NativeOperation for Collect {
 struct TypeOf;
 impl NativeOperation for TypeOf {
     fn evaluate(&mut self, context: &mut OperationContext<'_>) -> Result<Evaluation, Diagnostic> {
-        let key = syntax_key(
-            &context
-                .argument("key")
-                .cloned()
-                .unwrap_or(SemanticValue::Absent),
-        );
+        let value = context
+            .argument("key")
+            .cloned()
+            .unwrap_or(SemanticValue::Absent);
+        let span = context.identity_span(&value);
+        let key = syntax_key(&value);
         if key == SemanticValue::Absent {
             return Ok(Evaluation::Ready(SemanticValue::Absent));
         }
-        let span = context.identity_span(&key);
         let expr = Expr::read(&key, &span)?;
         context
             .with_service::<Possibilities, _>(MODULE, |state, _| state.register_expr(&expr))

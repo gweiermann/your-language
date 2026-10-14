@@ -377,3 +377,120 @@ entry Root
         ])
     );
 }
+
+#[test]
+fn hypothetical_union_keeps_supported_results_alongside_error_diagnostics() {
+    let result = mini(
+        r#"
+function add(value) { return value + 1; }
+let mixed: number = true;
+let result = add(mixed);
+"#,
+    );
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "semantic.meaning_case"),
+        "{:?}",
+        result.diagnostics
+    );
+    assert_eq!(binding(&result, "result"), "number");
+}
+
+#[test]
+fn direct_hypothetical_match_queries_report_errors_and_keep_valid_combinations() {
+    let engine = SemanticEngine::default();
+    let language = engine
+        .compile(
+            "language.yl",
+            &BTreeMap::from([(
+                "language.yl".into(),
+                r#"
+import * as types from "std/types"
+import { unknown } from "std/types"
+symbol number
+symbol boolean
+symbol result
+pattern Parameter = "p"
+pattern Actual = "a" { meanings { types::annotate(self,number) types::annotate(self,boolean) } }
+pattern Body = parameter: Parameter {
+    meanings {
+        match (types::typeof(parameter)) {
+            number => types::annotate((self,result),number),
+            unknown => {},
+            _ => error("Unsupported parameter")
+        }
+    }
+}
+node Root = body: Body actual: Actual {
+    meanings {
+        match (types::resolveWith((body,result),[(body.parameter,types::typeof(actual))])) {
+            number => types::annotate(self,number),
+            _ => {}
+        }
+    }
+}
+entry Root
+"#
+                .into(),
+            )]),
+        )
+        .unwrap();
+    let result = engine.analyze(&language, "program", "pa");
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message == "Unsupported parameter"),
+        "{:?}",
+        result.diagnostics
+    );
+    assert_eq!(
+        type_at(&result, occurrence(result.occurrences[0].id)),
+        atom("number")
+    );
+}
+
+#[test]
+fn rejected_direct_hypothetical_query_has_no_internal_unsettled_diagnostic() {
+    let engine = SemanticEngine::default();
+    let language = engine
+        .compile(
+            "language.yl",
+            &BTreeMap::from([(
+                "language.yl".into(),
+                r#"
+import * as types from "std/types"
+import { unknown } from "std/types"
+symbol number
+symbol boolean
+symbol result
+pattern Parameter = "p"
+pattern Body = parameter: Parameter {
+    meanings {
+        match (types::typeof(parameter)) {
+            number => types::annotate((self,result),number),
+            unknown => {},
+            _ => error("Unsupported parameter")
+        }
+    }
+}
+node Root = body: Body {
+    meanings {
+        match (types::resolveWith((body,result),[(body.parameter,boolean)])) {
+            number => types::annotate(self,number),
+            _ => {}
+        }
+    }
+}
+entry Root
+"#
+                .into(),
+            )]),
+        )
+        .unwrap();
+    let result = engine.analyze(&language, "program", "p");
+    assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
+    assert_eq!(result.diagnostics[0].message, "Unsupported parameter");
+}

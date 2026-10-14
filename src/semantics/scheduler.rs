@@ -173,6 +173,7 @@ pub(super) fn execute(
                     next: 0,
                     selected: None,
                     reactive: false,
+                    observed_ready: false,
                     released: false,
                     combinations: vec![],
                     parked: Default::default(),
@@ -196,6 +197,7 @@ pub(super) fn execute(
                         next: 0,
                         selected: None,
                         reactive: false,
+                        observed_ready: false,
                         released: false,
                         combinations: vec![],
                         parked: Default::default(),
@@ -793,7 +795,7 @@ pub(super) fn execute(
             for job in &deferred {
                 if (!job.done && !job.reactive)
                     || (job.reactive
-                        && (job.combinations.is_empty()
+                        && ((job.combinations.is_empty() && !job.observed_ready)
                             || job.combinations.iter().any(|combination| !combination.done)))
                 {
                     state.diagnostics.push(Diagnostic::error(
@@ -894,6 +896,7 @@ struct Deferred<'a> {
     kind: DeferredKind<'a>,
     selected: Option<usize>,
     reactive: bool,
+    observed_ready: bool,
     released: bool,
     combinations: Vec<Combination>,
     parked: std::collections::BTreeSet<(usize, usize)>,
@@ -1335,6 +1338,7 @@ fn advance_combinations(
     registry: &OperationRegistry,
     state: &mut AnalysisState,
 ) -> Result<bool, Diagnostic> {
+    job.observed_ready = true;
     let mut tuples = vec![vec![]];
     for value in values {
         let alternatives = match value {

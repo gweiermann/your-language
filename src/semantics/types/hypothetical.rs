@@ -74,6 +74,32 @@ pub(super) fn evaluate(
     assumptions: &[(Destination, Expr)],
     span: &Span,
 ) -> Result<Vec<Fact>, Diagnostic> {
+    calculate(state, result, assumptions, span).map(|(facts, _)| facts)
+}
+pub(super) fn diagnostics(
+    state: &Possibilities,
+    expr: &Expr,
+) -> Result<Vec<Diagnostic>, Diagnostic> {
+    match expr {
+        Expr::Hypothetical(result, assumptions, span) => {
+            calculate(state, result, assumptions, span).map(|(_, diagnostics)| diagnostics)
+        }
+        Expr::List(values, _) => {
+            let mut output = vec![];
+            for value in values {
+                output.extend(diagnostics(state, value)?);
+            }
+            Ok(output)
+        }
+        _ => Ok(vec![]),
+    }
+}
+fn calculate(
+    state: &Possibilities,
+    result: &Expr,
+    assumptions: &[(Destination, Expr)],
+    span: &Span,
+) -> Result<(Vec<Fact>, Vec<Diagnostic>), Diagnostic> {
     if state.hypothetical_depth >= 32 {
         return Err(Diagnostic::error(
             "types.hypothetical_cycle",
@@ -133,7 +159,7 @@ pub(super) fn evaluate(
     for (target, expr) in assumptions {
         let facts = state.eval(expr, &mut Default::default())?;
         if facts.is_empty() {
-            return Ok(vec![]);
+            return Ok((vec![], vec![]));
         }
         values.push((target.clone(), facts));
     }
@@ -150,7 +176,7 @@ pub(super) fn evaluate(
             .collect(),
     );
     if state.hypothetical_stack.contains(&signature) {
-        return state.eval(result, &mut Default::default());
+        return Ok((state.eval(result, &mut Default::default())?, vec![]));
     }
     let mut stack = state.hypothetical_stack.clone();
     stack.push(signature);
@@ -223,6 +249,7 @@ pub(super) fn evaluate(
     }
     for _ in 0..LIMIT {
         let mut changed = false;
+        let mut diagnostics = vec![];
         for transfer in &state.transfers {
             if match_rules.contains(&(
                 transfer.rule.file.clone(),
@@ -238,6 +265,7 @@ pub(super) fn evaluate(
                 continue;
             }
             let facts = local.eval(&transfer.value, &mut Default::default())?;
+            diagnostics.extend(self::diagnostics(&local, &transfer.value)?);
             for fact in facts {
                 match &transfer.destination {
                     Destination::One(key) if overrides.contains(key) => {}
@@ -265,7 +293,6 @@ pub(super) fn evaluate(
             }
         }
         changed |= local.propagate_slots()?;
-        let mut diagnostics = vec![];
         for matching in &state.residual_matches {
             if !matching
                 .cases
@@ -343,9 +370,6 @@ pub(super) fn evaluate(
             }
         }
         if !changed {
-            if let Some(diagnostic) = diagnostics.into_iter().next() {
-                return Err(diagnostic);
-            }
             for restriction in &local.restrictions {
                 let allowed = local.eval(&restriction.value, &mut Default::default())?;
                 let keys = Possibilities::destination_keys(&restriction.destination);
@@ -406,7 +430,7 @@ pub(super) fn evaluate(
                     }
                 }
             }
-            return local.eval(result, &mut Default::default());
+            return Ok((local.eval(result, &mut Default::default())?, diagnostics));
         }
     }
     Err(Diagnostic::error(
