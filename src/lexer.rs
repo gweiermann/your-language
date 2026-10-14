@@ -130,7 +130,7 @@ fn tokenize(file: &str, source: &str, comments: bool) -> Result<Vec<Token>, Diag
             }
             TokenKind::Word(source[start..i].into())
         } else {
-            let symbol = ["::", "|>", "=>", "?.", "&&", "||", "==", "!="]
+            let symbol = [":=", "::", "|>", "=>", "?.", "&&", "||", "==", "!="]
                 .into_iter()
                 .find(|s| source[i..].starts_with(s));
             if let Some(s) = symbol {

@@ -15,6 +15,12 @@ pub enum ExprKind {
     Local(String),
     /// Compiler-only caller capture; never re-resolved inside an authored operation.
     SemanticCapture(String),
+    /// Compiler-only dependency-preserving result of an authored action operation.
+    SemanticBlock {
+        invocation: String,
+        actions: Vec<crate::semantics::queries::QueryAction>,
+        result: Box<Expr>,
+    },
     EnumConstant(String, String),
     Bool(bool),
     Absent,
@@ -232,6 +238,15 @@ pub enum OperationBody {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MeaningSyntaxAction {
+    Binding {
+        name: String,
+        value: Expr,
+        span: Span,
+    },
+    Return {
+        value: Expr,
+        span: Span,
+    },
     Call(MeaningSyntaxCall),
     If {
         condition: Expr,
