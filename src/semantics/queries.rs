@@ -2188,6 +2188,78 @@ pub(super) fn execute(
     }
 }
 
+/// Count normalized operation payloads before the compiler clones them. The
+/// explicit stack includes nested action expressions and invocation blocks.
+pub(crate) fn action_node_count(actions: &[QueryAction], limit: usize) -> Option<usize> {
+    enum Node<'a> {
+        Action(&'a QueryAction),
+        Expression(&'a QueryExpr),
+        Message(&'a QueryMessagePart),
+    }
+    let mut pending: Vec<_> = actions.iter().map(Node::Action).collect();
+    let mut count = 0usize;
+    while let Some(node) = pending.pop() {
+        count = count.checked_add(1)?;
+        if count > limit {
+            return None;
+        }
+        match node {
+            Node::Action(action) => match action {
+                QueryAction::Call { args, .. } => pending.extend(args.iter().map(Node::Expression)),
+                QueryAction::If {
+                    condition,
+                    then_actions,
+                    else_actions,
+                    ..
+                } => {
+                    pending.push(Node::Expression(condition));
+                    pending.extend(then_actions.iter().chain(else_actions).map(Node::Action));
+                }
+                QueryAction::Match { inputs, cases, .. } => {
+                    pending.extend(inputs.iter().map(Node::Expression));
+                    for case in cases {
+                        pending.extend(
+                            case.alternatives
+                                .iter()
+                                .flatten()
+                                .flatten()
+                                .map(Node::Expression),
+                        );
+                        pending.extend(case.actions.iter().map(Node::Action));
+                    }
+                }
+                QueryAction::Emit {
+                    message,
+                    target,
+                    related,
+                    ..
+                } => {
+                    pending.extend(message.iter().map(Node::Message));
+                    pending.extend(target.iter().chain(related).map(Node::Expression));
+                }
+            },
+            Node::Expression(expression) => match expression {
+                QueryExpr::Block {
+                    actions, result, ..
+                } => {
+                    pending.extend(actions.iter().map(Node::Action));
+                    pending.push(Node::Expression(result));
+                }
+                QueryExpr::Call { args, .. } | QueryExpr::Tuple(args) | QueryExpr::List(args) => {
+                    pending.extend(args.iter().map(Node::Expression));
+                }
+                QueryExpr::Not(value) | QueryExpr::Lambda { body: value, .. } => {
+                    pending.push(Node::Expression(value))
+                }
+                _ => {}
+            },
+            Node::Message(QueryMessagePart::Value(value)) => pending.push(Node::Expression(value)),
+            Node::Message(QueryMessagePart::Text(_)) => {}
+        }
+    }
+    Some(count)
+}
+
 pub(crate) fn validate_groups(
     groups: &[QueryGroup],
     captures: &BTreeSet<String>,
@@ -2543,6 +2615,30 @@ pub struct QueryCase {
 #[cfg(test)]
 mod validation_tests {
     use super::*;
+
+    #[test]
+    fn copy_budget_counts_payloads_inside_nested_action_blocks() {
+        let actions = vec![QueryAction::Call {
+            name: "core/query#contribute".into(),
+            args: vec![
+                QueryExpr::Text("key".into()),
+                QueryExpr::Block {
+                    invocation: "nested".into(),
+                    actions: vec![QueryAction::Call {
+                        name: "core/query#contribute".into(),
+                        args: vec![QueryExpr::List(vec![QueryExpr::Bool(true); 32])],
+                        span: Span::default(),
+                    }],
+                    result: Box::new(QueryExpr::Absent),
+                },
+            ],
+            span: Span::default(),
+        }];
+        let count = action_node_count(&actions, usize::MAX).unwrap();
+        assert_eq!(count, 38);
+        assert_eq!(action_node_count(&actions, count), Some(count));
+        assert_eq!(action_node_count(&actions, count - 1), None);
+    }
 
     fn block(invocation: &str, result: QueryExpr) -> QueryExpr {
         QueryExpr::Block {
