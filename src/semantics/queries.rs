@@ -905,6 +905,7 @@ impl<'a> Engine<'a> {
             }
             QueryExpr::Not(value) => match self.eval(value, owner, locals, trace)? {
                 Outcome::Ready(SemanticValue::Bool(value)) => ready(SemanticValue::Bool(!value)),
+                Outcome::Ready(SemanticValue::Absent) => ready(SemanticValue::Absent),
                 Outcome::Ready(_) => Err(Diagnostic::error(
                     "query.condition",
                     "Condition must be boolean",
@@ -923,6 +924,36 @@ impl<'a> Engine<'a> {
         }
     }
 
+    // Address evaluation can rule out a path even when another component is
+    // pending. Ordinary data tuples still preserve absent fields and shapes.
+    fn eval_key(
+        &self,
+        expression: &QueryExpr,
+        owner: &Occurrence,
+        locals: &Locals,
+        trace: &mut Trace,
+    ) -> Result<Outcome, Diagnostic> {
+        let QueryExpr::Tuple(parts) = expression else {
+            return self.eval(expression, owner, locals, trace);
+        };
+        let mut values = vec![];
+        let mut cost = (1, 0);
+        let mut blocked = None;
+        for part in parts {
+            match self.eval_key(part, owner, locals, trace)? {
+                Outcome::Ready(value) if address(&value, &owner.span)?.is_none() => {
+                    return Ok(Outcome::Ready(SemanticValue::Absent));
+                }
+                Outcome::Ready(value) => {
+                    add_value_cost(&mut cost, &value, &owner.span)?;
+                    values.push(value);
+                }
+                outcome => blocked = Some(outcome),
+            }
+        }
+        Ok(blocked.unwrap_or(Outcome::Ready(SemanticValue::Tuple(values))))
+    }
+
     fn call(
         &self,
         name: &str,
@@ -938,11 +969,27 @@ impl<'a> Engine<'a> {
                 owner.span.clone(),
             )
         };
+        if matches!(name, "get" | "getEarlier" | "getAll" | "facts") {
+            return match self.eval_key(&args[0], owner, locals, trace)? {
+                Outcome::Ready(value) => match address(&value, &owner.span)? {
+                    Some(key) => Ok(self.lookup_visible(
+                        &key,
+                        name == "getAll",
+                        name == "facts",
+                        name == "getEarlier",
+                        trace,
+                    )),
+                    None => Ok(Outcome::Ready(SemanticValue::Absent)),
+                },
+                outcome => Ok(outcome),
+            };
+        }
         if name == "choose" {
             return match self.eval(&args[0], owner, locals, trace)? {
                 Outcome::Ready(SemanticValue::Bool(condition)) => {
                     self.eval(&args[if condition { 1 } else { 2 }], owner, locals, trace)
                 }
+                Outcome::Ready(SemanticValue::Absent) => Ok(Outcome::Ready(SemanticValue::Absent)),
                 Outcome::Ready(_) => Err(bad()),
                 value => Ok(value),
             };
@@ -950,6 +997,9 @@ impl<'a> Engine<'a> {
         if matches!(name, "find" | "map" | "every" | "filter") {
             let values = match self.eval(&args[0], owner, locals, trace)? {
                 Outcome::Ready(SemanticValue::List(values)) => values,
+                Outcome::Ready(SemanticValue::Absent) => {
+                    return Ok(Outcome::Ready(SemanticValue::Absent))
+                }
                 Outcome::Ready(_) => return Err(bad()),
                 pending => return Ok(pending),
             };
@@ -972,6 +1022,10 @@ impl<'a> Engine<'a> {
                     }
                     ("filter", Outcome::Ready(SemanticValue::Bool(true))) => mapped.push(value),
                     ("filter", Outcome::Ready(SemanticValue::Bool(false))) => {}
+                    ("filter", Outcome::Ready(SemanticValue::Absent)) => {}
+                    ("every", Outcome::Ready(SemanticValue::Absent)) => {
+                        return Ok(Outcome::Ready(SemanticValue::Absent))
+                    }
                     ("every", Outcome::Ready(SemanticValue::Bool(false))) => {
                         return Ok(Outcome::Ready(SemanticValue::Bool(false)))
                     }
@@ -991,26 +1045,25 @@ impl<'a> Engine<'a> {
                 })
             });
         }
+        // Presence inspectors and explicit value materialization observe absence.
+        // Other pure primitives end only this dependent expression, not its caller.
+        let strict = !matches!(name, "isPresent" | "equal" | "isList" | "values");
         let mut values = vec![];
+        let mut blocked = None;
         for arg in args {
             match self.eval(arg, owner, locals, trace)? {
+                Outcome::Ready(SemanticValue::Absent) if strict => {
+                    return Ok(Outcome::Ready(SemanticValue::Absent));
+                }
                 Outcome::Ready(value) => values.push(value),
-                value => return Ok(value),
+                outcome if strict => blocked = Some(outcome),
+                outcome => return Ok(outcome),
             }
         }
+        if let Some(blocked) = blocked {
+            return Ok(blocked);
+        }
         let result = match (name, values.as_slice()) {
-            ("get" | "getEarlier" | "getAll" | "facts", [value]) => {
-                let Some(key) = address(value, &owner.span)? else {
-                    return Ok(Outcome::Ready(SemanticValue::Absent));
-                };
-                return Ok(self.lookup_visible(
-                    &key,
-                    name == "getAll",
-                    name == "facts",
-                    name == "getEarlier",
-                    trace,
-                ));
-            }
             ("ancestors", [value]) => SemanticValue::List(self.ancestors(value, &owner.span)?),
             ("children", [value]) => {
                 let identity = match value {
@@ -1301,6 +1354,9 @@ impl<'a> Engine<'a> {
                     Outcome::Ready(SemanticValue::Bool(value)) => {
                         Outcome::Ready(SemanticValue::Bool(value == *expected))
                     }
+                    Outcome::Ready(SemanticValue::Absent) => {
+                        Outcome::Ready(SemanticValue::Bool(false))
+                    }
                     Outcome::Ready(_) => {
                         return Err(Diagnostic::error(
                             "query.condition",
@@ -1461,9 +1517,23 @@ impl<'a> Engine<'a> {
     ) -> Result<ProducerState, Diagnostic> {
         match &producer.effect {
             Effect::Contribution(key, value) | Effect::Contributions(key, value) => {
-                let key = match self.eval(key, producer.owner, &Locals::new(), trace)? {
+                let key = match self.eval_key(key, producer.owner, &Locals::new(), trace)? {
                     Outcome::Ready(value) => address(&value, &producer.span)?,
-                    Outcome::Pending => return Ok(ProducerState::Pending),
+                    Outcome::Pending => {
+                        // A missing value cannot contribute even to a pending key.
+                        return Ok(
+                            match self.eval(value, producer.owner, &Locals::new(), trace)? {
+                                Outcome::Ready(SemanticValue::Absent) => ProducerState::Absent,
+                                Outcome::Ready(SemanticValue::List(values))
+                                    if values.is_empty()
+                                        && matches!(producer.effect, Effect::Contributions(..)) =>
+                                {
+                                    ProducerState::Absent
+                                }
+                                _ => ProducerState::Pending,
+                            },
+                        );
+                    }
                     Outcome::Conflict(ids) => return Ok(ProducerState::Conflict(ids)),
                 };
                 let Some(key) = key else {
@@ -1476,7 +1546,9 @@ impl<'a> Engine<'a> {
                     {
                         let mut unique = vec![];
                         for value in values {
-                            if !unique.iter().any(|item| equal_values(item, &value)) {
+                            if !matches!(value, SemanticValue::Absent)
+                                && !unique.iter().any(|item| equal_values(item, &value))
+                            {
                                 unique.push(value);
                             }
                         }

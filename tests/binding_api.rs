@@ -19,14 +19,14 @@ fn analyze(source: &str, input: &str) -> your_language::semantics::AnalysisResul
 fn reference_contracts_reject_invalid_arguments_and_removed_categories() {
     let engine = SemanticEngine::default();
     for bad in [
-        "v::identity(name)",
+        "v::identity()",
         "v::identityOf()",
         "v::declareVariable(name)",
         "v::declareFunction(name)",
         "v::useVariable(name)",
-        "v::declare(v::variable,name)",
-        "v::declare(name, reassignable=true, reassignable=false)",
-        "v::declare(name, nope=true)",
+        "v::declare(self, v::variable,name)",
+        "v::declare(self, name, reassignable=true, reassignable=false)",
+        "v::declare(self, name, nope=true)",
     ] {
         let source = format!(
             r#"import * as v from "std/references"
@@ -50,11 +50,11 @@ fn syntax_and_resolved_reference_identities_remain_distinct_through_reload() {
         r#"
 import * as r from "std/references"
 import { equal, isPresent, get } from "std/query"
-node Declaration = "let " name: /[a-z]+/ ";" { meanings { r::declare(name, reassignable=false) } }
-node Reference = name: /[a-z]+/ ";" { meanings { r::use(name) } }
+node Declaration = "let " name: /[a-z]+/ ";" { meanings { r::declare(self, name, reassignable=false) } }
+node Reference = name: /[a-z]+/ ";" { meanings { r::use(self, name) } }
 node Root = declaration: Declaration reference: Reference {
  meanings {
-  r::lexicalScope()
+  r::lexicalScope(self)
   if !equal(r::referenceOf(declaration), r::referenceOf(reference)) { error("Different references") }
   if equal(declaration, reference) { error("Different syntax must retain distinct identity") }
   if isPresent(r::identityOf(absent)) { error("Absent became an identity") }
@@ -73,10 +73,10 @@ entry Root
 fn scope_search_handles_shadowing_and_sibling_isolation() {
     let grammar = r#"
 import { lexicalScope, declare, use } from "std/references"
-node Declaration = "let " name: /[a-z]+/ ";" { meanings { declare(name) } }
-node Reference = name: /[a-z]+/ ";" { meanings { use(name) } }
-node Block = "{" (Declaration | Reference | Block)* "}" { meanings { lexicalScope() } }
-node Program = (Declaration | Reference | Block)* { meanings { lexicalScope() } }
+node Declaration = "let " name: /[a-z]+/ ";" { meanings { declare(self, name) } }
+node Reference = name: /[a-z]+/ ";" { meanings { use(self, name) } }
+node Block = "{" (Declaration | Reference | Block)* "}" { meanings { lexicalScope(self) } }
+node Program = (Declaration | Reference | Block)* { meanings { lexicalScope(self) } }
 entry Program
 "#;
     for input in ["let x;x;", "let x;{x;let x;}x;", "{let x;x;}{let x;x;}"] {
@@ -116,10 +116,10 @@ import {{ lexicalScope, declare, use, referenceOf }} from "std/references"
 import {{ equal }} from "std/query"
 pipe wrapped() {{ rewrite value => "(" value ")" }}
 {construct} Name = /[a-z]+/
-node Declaration = "let" name: Name |> wrapped() ";" {{ meanings {{ declare(name) }} }}
-node Reference = name: Name ";" {{ meanings {{ use(name) }} }}
+node Declaration = "let" name: Name |> wrapped() ";" {{ meanings {{ declare(self, name) }} }}
+node Reference = name: Name ";" {{ meanings {{ use(self, name) }} }}
 node Program = declaration: Declaration reference: Reference {{ meanings {{
- lexicalScope()
+ lexicalScope(self)
  if !equal(referenceOf(declaration), referenceOf(reference)) {{ error("Pipe lost binding") }}
 }} }}
 entry Program
@@ -143,20 +143,20 @@ fn nested_functions_find_mutual_names_later_bindings_and_outer_captures() {
         import { lexicalScope, declare, use } from "std/references"
         node Name = /[a-z]+/
         trivia Spaces = /\s+/
-        node Reference = name: Name { meanings { use(name) } }
+        node Reference = name: Name { meanings { use(self, name) } }
         node Expression { node FunctionExpression node Reference node Number = /[0-9]+/ }
         node ExpressionDeclaration = Expression
         node LetDeclaration = "let" name: Name "=" ExpressionDeclaration ";" {
-            meanings { declare(name) precedence { ExpressionDeclaration > LetDeclaration > FunctionBody } }
+            meanings { declare(self, name) precedence { ExpressionDeclaration > LetDeclaration > FunctionBody } }
         }
         node FunctionBody = "{" (FunctionDeclaration | LetDeclaration)* "return" Reference ";" "}" {
             meanings { boundary precedence { FunctionDeclaration > LetDeclaration > FunctionBody } }
         }
-        pattern FunctionContents = "(" ")" FunctionBody { meanings { lexicalScope() } }
+        pattern FunctionContents = "(" ")" FunctionBody { meanings { lexicalScope(self) } }
         node FunctionExpression = "function" FunctionContents
-        node FunctionDeclaration = "function" name: Name FunctionContents { meanings { declare(name) } }
+        node FunctionDeclaration = "function" name: Name FunctionContents { meanings { declare(self, name) } }
         node Program = (FunctionDeclaration | LetDeclaration)* {
-            meanings { boundary lexicalScope() precedence {
+            meanings { boundary lexicalScope(self) precedence {
                 FunctionDeclaration > ExpressionDeclaration
                 FunctionDeclaration > LetDeclaration > FunctionBody
             } }
@@ -178,8 +178,8 @@ fn declaration_and_use_in_the_same_group_keep_action_order() {
     let result = analyze(
         r#"
 import { lexicalScope, declare, use } from "std/references"
-node Declaration = name: /[a-z]+/ { meanings { declare(name) use(name) } }
-node Root = Declaration { meanings { lexicalScope() } }
+node Declaration = name: /[a-z]+/ { meanings { declare(self, name) use(self, name) } }
+node Root = Declaration { meanings { lexicalScope(self) } }
 entry Root
 "#,
         "x",
@@ -195,11 +195,11 @@ import { lexicalScope, declare, use } from "std/references"
 import { contribute } from "std/query"
 node Declaration = "let " name: /[a-z]+/ ";" { meanings {
  group Late { contribute("late", true) }
- group Register { declare(name) }
+ group Register { declare(self, name) }
 } }
-node Reference = name: /[a-z]+/ ";" { meanings { use(name) } }
+node Reference = name: /[a-z]+/ ";" { meanings { use(self, name) } }
 node Program = Reference Declaration { meanings {
- lexicalScope()
+ lexicalScope(self)
  precedence { Declaration::meanings::Register > Reference > Declaration::meanings::Late }
 } }
 entry Program
@@ -212,14 +212,17 @@ entry Program
 #[test]
 fn separate_unnamed_groups_keep_their_own_schedule_position() {
     for (actions, unresolved) in [
-        ("declare(name) group Divider {} use(name)", false),
-        ("use(name) group Divider {} declare(name)", true),
+        (
+            "declare(self, name) group Divider {} use(self, name)",
+            false,
+        ),
+        ("use(self, name) group Divider {} declare(self, name)", true),
     ] {
         let source = format!(
             r#"
 import {{ lexicalScope, declare, use }} from "std/references"
 node Declaration = name: /[a-z]+/ {{ meanings {{ {actions} }} }}
-node Root = Declaration {{ meanings {{ lexicalScope() }} }}
+node Root = Declaration {{ meanings {{ lexicalScope(self) }} }}
 entry Root
 "#
         );

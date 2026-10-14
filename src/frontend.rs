@@ -1234,16 +1234,16 @@ mod query_syntax_tests {
     fn expression_callbacks_and_nested_conditional_actions_roundtrip() {
         let source = r#"import { get, find, ancestors, contribute, isPresent } from "std/query"
 export symbol scope
-operation resolve(name) = find(ancestors(self), ancestor => get((get((ancestor, scope)), name)))
-operation declare(name) {
+operation resolve(target, name) = find(ancestors(target), ancestor => get((get((ancestor, scope)), name)))
+operation declare(target, name) {
     if isPresent(name) {
         match (name) {
-            true => { if true { contribute((self, scope), name) } },
+            true => { if true { contribute((target, scope), name) } },
             _ => warn("Missing ${name}")
         }
     } else { error("No name") }
 }
-node Program = name: /[a-z]+/ { meanings { if !isPresent(resolve(name)) { declare(name) } } }
+node Program = name: /[a-z]+/ { meanings { if !isPresent(resolve(self, name)) { declare(self, name) } } }
 entry Program
 "#;
         let parsed = parse_yl("query.yl", source).unwrap();

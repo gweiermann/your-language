@@ -44,7 +44,7 @@ fn semantic_pipe_origin_is_rendered_at_the_original_name() {
         import { lexicalScope, use } from "std/variables"
         pipe wrapped() { rewrite value => "(" value ")" }
         pattern Name = /[a-z]+/
-        node Root = name: Name |> wrapped() { meanings { lexicalScope() use(name) } }
+        node Root = name: Name |> wrapped() { meanings { lexicalScope(self) use(self, name) } }
         entry Root
     "#;
     let sources = BTreeMap::from([("language.yl".into(), grammar.into())]);

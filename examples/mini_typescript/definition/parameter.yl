@@ -8,7 +8,7 @@ export node Parameter =
     annotation: Annotation?
 {
     meanings {
-        declare(name)
-        parameterType(name, annotation)
+        declare(self, name)
+        parameterType(self, name, annotation)
     }
 }

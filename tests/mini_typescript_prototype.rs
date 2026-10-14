@@ -263,7 +263,7 @@ fn union_function_identities_resolve_each_signature() {
     let typing = sources.get_mut("definition/typing.yl").unwrap();
     *typing = typing.replace("referenceOf, enclosingScope", "referenceOf, enclosingScope, declarations").replacen(
         "types::annotate(referenceOf(name), typeof(value))",
-        "types::annotate(referenceOf(name), typeof(value))\n    if equal(text(name), \"choice\") {\n        types::annotate(referenceOf(name), get((enclosingScope(self), declarations, \"second\")))\n    }",
+        "types::annotate(referenceOf(name), typeof(value))\n    if equal(text(name), \"choice\") {\n        types::annotate(referenceOf(name), get((enclosingScope(name), declarations, \"second\")))\n    }",
         1,
     );
     let engine = inference::engine();

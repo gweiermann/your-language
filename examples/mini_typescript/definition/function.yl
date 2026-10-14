@@ -30,7 +30,7 @@ pattern FunctionContents =
     body: FunctionBody
 {
     meanings {
-        lexicalScope()
+        lexicalScope(self)
     }
 }
 
@@ -41,7 +41,7 @@ export node FunctionDeclaration =
 {
     meanings {
         group Register {
-            declare(name, reassignable = false)
+            declare(self, name, reassignable = false)
             functionSignature(name, contents.parameters, contents.body, contents.annotation, contents)
         }
     }

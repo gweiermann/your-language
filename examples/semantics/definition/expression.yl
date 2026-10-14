@@ -2,12 +2,10 @@ import { use } from "std/variables"
 import { Name } from "./lexical"
 import { FunctionExpression } from "./function"
 
-node Reference =
-    name: Name
-{
+node Reference = name: Name {
     meanings {
         group Resolve {
-            use(name)
+            use(self, name)
         }
     }
 }
@@ -17,9 +15,7 @@ export node Expression {
 
     node Reference
 
-    node Number =
-        value: /[0-9]+/
+    node Number = value: /[0-9]+/
 }
 
-export node ExpressionDeclaration =
-    value: Expression
+export node ExpressionDeclaration = value: Expression

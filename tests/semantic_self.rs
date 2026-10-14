@@ -52,14 +52,14 @@ fn atom(name: &str) -> SemanticValue {
     SemanticValue::Symbol(format!("language.yl#{name}"))
 }
 #[test]
-fn self_inside_authored_operation_is_the_callers_original_pattern_occurrence() {
+fn explicit_target_inside_authored_operation_is_the_original_pattern_occurrence() {
     let result = analyze(
         r#"
 import * as types from "std/types"
 import { map } from "std/query"
 symbol number
-operation annotate(value) { types::annotate(self, value) }
-pattern Item = "x" { meanings { annotate(number) } }
+operation annotate(target, value) { types::annotate(target, value) }
+pattern Item = "x" { meanings { annotate(self, number) } }
 node Program = item: Item { meanings { types::annotate(self, types::typeof(item)) } }
 entry Program
 "#,
@@ -112,11 +112,11 @@ import { map } from "std/query"
 symbol outer
 symbol inner
 pattern Name = /[a-z]+/
-node DeclareOuter = "$" name: Name { meanings { declare(name) types::annotate(referenceOf(name), outer) } }
-node DeclareInner = "$" name: Name { meanings { declare(name) types::annotate(referenceOf(name), inner) } }
-node Reference = name: Name { meanings { use(name) types::annotate(self, types::typeof(referenceOf(name))) } }
-node Block = "{" declaration: DeclareInner ";" value: Reference "}" { meanings { lexicalScope() } }
-node Root = declaration: DeclareOuter ";" block: Block ";" value: Reference { meanings { lexicalScope() } }
+node DeclareOuter = "$" name: Name { meanings { declare(self, name) types::annotate(referenceOf(name), outer) } }
+node DeclareInner = "$" name: Name { meanings { declare(self, name) types::annotate(referenceOf(name), inner) } }
+node Reference = name: Name { meanings { use(self, name) types::annotate(self, types::typeof(referenceOf(name))) } }
+node Block = "{" declaration: DeclareInner ";" value: Reference "}" { meanings { lexicalScope(self) } }
+node Root = declaration: DeclareOuter ";" block: Block ";" value: Reference { meanings { lexicalScope(self) } }
 entry Root
 "#,
         "$x;{$x;x};x",
@@ -363,8 +363,8 @@ fn hypothetical_union_keeps_supported_results_alongside_error_diagnostics() {
     // restriction and must not manufacture an extra observed type.
     let grammar = sources.get_mut("definition/expression.yl").unwrap();
     *grammar = grammar.replacen(
-        "annotateWithType(boolean)",
-        "annotateWithType(boolean)\n        annotateWithType(number)",
+        "annotateWithType(self, boolean)",
+        "annotateWithType(self, boolean)\n        annotateWithType(self, number)",
         1,
     );
     let engine = SemanticEngine::default();

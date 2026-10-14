@@ -8,7 +8,7 @@ export node Statement {
         ";"
     {
         meanings {
-            declare(name)
+            declare(self, name)
         }
     }
 
@@ -17,7 +17,7 @@ export node Statement {
         ";"
     {
         meanings {
-            use(name)
+            use(self, name)
         }
     }
 
@@ -28,7 +28,7 @@ export node Statement {
     {
         meanings {
             boundary
-            lexicalScope()
+            lexicalScope(self)
             precedence {
                 Statement::Declaration > Statement::Reference
             }

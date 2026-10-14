@@ -2038,6 +2038,13 @@ impl Compiler {
                     }
                 }
                 if name == "self" {
+                    if matches!(context.declaration.kind, DeclKind::Operation { .. }) {
+                        return Err(Diagnostic::error(
+                            "yl.operation_self",
+                            "Operations have no implicit self; pass the occurrence as an argument",
+                            expr.span.clone(),
+                        ));
+                    }
                     ExprKind::Ref(name.clone())
                 } else if symbol_has_capture(context, name.split('.').next().unwrap_or(name)) {
                     ExprKind::SemanticCapture(name.clone())
@@ -3085,8 +3092,14 @@ impl Compiler {
                                             arg.span.clone(),
                                         )
                                     })?;
-                            let value =
-                                self.lower_query_expr(symbol, &expression, bindings, stack)?;
+                            let value = self
+                                .lower_query_expr(symbol, &expression, bindings, stack)
+                                .map_err(|mut error| {
+                                    // Interpolation parser spans are relative to its substring.
+                                    // Report source errors on the original message argument.
+                                    *error.primary = arg.span.clone();
+                                    error
+                                })?;
                             message.push(QueryMessagePart::Value(value));
                             rest = tail;
                         }
@@ -5238,14 +5251,14 @@ mod declarative_query_frontend_tests {
         let source = r#"import { get, contribute, ancestors, find, isPresent, text } from "std/query"
 symbol scope
 symbol declarations
-operation resolve(name) = find(ancestors(self), ancestor => get((get((ancestor, scope)), declarations, text(name))))
-operation declare(name) {
-    if isPresent(name) { contribute((self, declarations, text(name)), self) }
+operation resolve(target, name) = find(ancestors(target), ancestor => get((get((ancestor, scope)), declarations, text(name))))
+operation declare(target, name) {
+    if isPresent(name) { contribute((target, declarations, text(name)), target) }
 }
 node Program = name: /[a-z]+/ {
     meanings {
-        group Register { declare(name) }
-        if !isPresent(resolve(name)) { error("Missing ${name}") }
+        group Register { declare(self, name) }
+        if !isPresent(resolve(self, name)) { error("Missing ${name}") }
     }
 }
 entry Program
@@ -5281,8 +5294,8 @@ entry Program
     fn pure_query_helpers_and_nested_callbacks_keep_lexical_bindings() {
         let language = compile(r#"import { contribute, find, ancestors, get } from "std/query"
 operation key(value) = (value, "tag")
-operation select(name) = find(ancestors(self), outer => find(ancestors(outer), inner => get((outer, inner, name))))
-node Program = name: /[a-z]+/ { meanings { contribute(key(self), select(name)) } }
+operation select(target, name) = find(ancestors(target), outer => find(ancestors(outer), inner => get((outer, inner, name))))
+node Program = name: /[a-z]+/ { meanings { contribute(key(self), select(self, name)) } }
 entry Program"#).unwrap();
         let QueryAction::Call { args, .. } =
             &language.query_meanings["query.yl#Program"][0].actions[0]
@@ -5329,8 +5342,8 @@ entry Program"#).unwrap();
     fn diagnostics_interpolate_bound_values_and_nested_queries() {
         use crate::semantics::queries::QueryMessagePart as P;
         let language = compile(r#"import { get } from "std/query"
-operation require(actual) { if !actual { error("Bad ${actual}; attachment ${get((self, \"}tag\"))}") } }
-node Program = "x" { meanings { require(false) } }
+operation require(target, actual) { if !actual { error("Bad ${actual}; attachment ${get((target, \"}tag\"))}") } }
+node Program = "x" { meanings { require(self, false) } }
 entry Program"#).unwrap();
         let QueryAction::If { then_actions, .. } =
             &language.query_meanings["query.yl#Program"][0].actions[0]
@@ -5416,14 +5429,14 @@ mod authored_standard_module_tests {
         import { contribute } from "std/query"
         trivia Space = /\s+/
         node Declaration = "let" name: /[a-z]+/ ";" {
-            meanings { declare(name) }
+            meanings { declare(self, name) }
         }
         node Reference = name: /[a-z]+/ ";" {
-            meanings { use(name) }
+            meanings { use(self, name) }
         }
         node Program = (Declaration | Reference)* {
             meanings {
-                references::lexicalScope()
+                references::lexicalScope(self)
                 contribute((self, unknown), unknown)
             }
         }
