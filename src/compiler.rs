@@ -2059,7 +2059,19 @@ impl Compiler {
                 ExprKind::SemanticBlock {
                     actions, result, ..
                 } => {
-                    count = count.saturating_add(actions.len());
+                    count = count.saturating_add(
+                        crate::semantics::queries::action_node_count(
+                            actions,
+                            LIMIT.saturating_sub(count),
+                        )
+                        .ok_or_else(|| {
+                            Diagnostic::error(
+                                "yl.expansion_limit",
+                                "Semantic definition expansion exceeds the resource limit",
+                                expr.span.clone(),
+                            )
+                        })?,
+                    );
                     nodes.push(result);
                 }
                 ExprKind::Call(_, args) => nodes.extend(args.iter().map(|arg| &arg.value)),
@@ -2071,6 +2083,62 @@ impl Compiler {
         }
         self.expansion_nodes.set(count);
         Ok(())
+    }
+    fn result_only(value: &Expr) -> Expr {
+        let kind = match &value.kind {
+            ExprKind::SemanticBlock { result, .. } => return Self::result_only(result),
+            ExprKind::Call(name, args) => ExprKind::Call(
+                name.clone(),
+                args.iter()
+                    .map(|arg| Argument {
+                        value: Self::result_only(&arg.value),
+                        ..arg.clone()
+                    })
+                    .collect(),
+            ),
+            ExprKind::Tuple(values) => {
+                ExprKind::Tuple(values.iter().map(Self::result_only).collect())
+            }
+            ExprKind::List(values) => {
+                ExprKind::List(values.iter().map(Self::result_only).collect())
+            }
+            ExprKind::Group(value) => ExprKind::Group(Box::new(Self::result_only(value))),
+            ExprKind::Not(value) => ExprKind::Not(Box::new(Self::result_only(value))),
+            // A callback owns its body; it is not evaluated by reading its value.
+            _ => value.kind.clone(),
+        };
+        Expr {
+            kind,
+            span: value.span.clone(),
+        }
+    }
+    fn argument_actions(
+        &self,
+        symbol: &Symbol,
+        bindings: &BTreeMap<String, Expr>,
+    ) -> Result<Vec<crate::semantics::queries::QueryAction>> {
+        fn has_block(value: &Expr) -> bool {
+            match &value.kind {
+                ExprKind::SemanticBlock { .. } => true,
+                ExprKind::Call(_, args) => args.iter().any(|arg| has_block(&arg.value)),
+                ExprKind::Tuple(values) | ExprKind::List(values) => values.iter().any(has_block),
+                ExprKind::Group(value) | ExprKind::Not(value) => has_block(value),
+                _ => false,
+            }
+        }
+        bindings
+            .values()
+            .filter(|value| has_block(value))
+            .map(|value| {
+                Ok(crate::semantics::queries::QueryAction::Call {
+                    name: "core/query#first".into(),
+                    args: vec![crate::semantics::queries::QueryExpr::List(vec![
+                        self.query_expr_normalized(symbol, value)?
+                    ])],
+                    span: value.span.clone(),
+                })
+            })
+            .collect()
     }
     fn expand_semantic_expr(
         &self,
@@ -2102,7 +2170,7 @@ impl Compiler {
             ExprKind::Ref(name) => {
                 if let Some(value) = bindings.get(name) {
                     self.charge_semantic_copy(value)?;
-                    return Ok(value.clone());
+                    return Ok(Self::result_only(value));
                 }
                 if let Some((root, suffix)) = name.split_once('.') {
                     if let Some(value) = bindings.get(root) {
@@ -2175,13 +2243,36 @@ impl Compiler {
                         parameters, body, ..
                     } = &wrapper.declaration.kind
                     {
+                        self.invocation_path.borrow_mut().push(expr.span.clone());
                         let env = self.bind_semantic_wrapper(
                             wrapper, parameters, &arguments, &expr.span, stack,
                         )?;
-                        self.invocation_path.borrow_mut().push(expr.span.clone());
+                        let mut argument_actions = self.argument_actions(wrapper, &env)?;
                         let expanded = match body {
                             OperationBody::Query(body) => {
-                                self.expand_semantic_expr(wrapper, body, &env, stack)
+                                let value =
+                                    self.expand_semantic_expr(wrapper, body, &env, stack)?;
+                                if argument_actions.is_empty() {
+                                    Ok(value)
+                                } else {
+                                    let invocation = self
+                                        .invocation_path
+                                        .borrow()
+                                        .iter()
+                                        .map(|span| {
+                                            format!("{}:{}:{}", span.file, span.start, span.end)
+                                        })
+                                        .collect::<Vec<_>>()
+                                        .join("/");
+                                    Ok(Expr {
+                                        kind: ExprKind::SemanticBlock {
+                                            invocation,
+                                            actions: argument_actions,
+                                            result: Box::new(value),
+                                        },
+                                        span: expr.span.clone(),
+                                    })
+                                }
                             }
                             _ => {
                                 let actions = self.operation_actions(body);
@@ -2199,8 +2290,10 @@ impl Compiler {
                                         self.local_bindings(wrapper, &actions, &env, stack)?;
                                     let result = self
                                         .expand_semantic_expr(wrapper, returns[0], &env, stack)?;
-                                    let actions =
-                                        self.lower_query_actions(wrapper, &actions, &env, stack)?;
+                                    argument_actions.extend(
+                                        self.lower_query_actions(wrapper, &actions, &env, stack)?,
+                                    );
+                                    let actions = argument_actions;
                                     let invocation = self
                                         .invocation_path
                                         .borrow()
@@ -2349,12 +2442,14 @@ impl Compiler {
                         call.span.clone(),
                     ));
                 };
+                self.invocation_path.borrow_mut().push(call.span.clone());
                 let env =
                     self.bind_semantic_wrapper(wrapper, parameters, &arguments, &call.span, stack)?;
                 let mut expanded = vec![];
                 for nested in calls {
                     expanded.extend(self.expand_semantic_actions(wrapper, nested, &env, stack)?);
                 }
+                self.invocation_path.borrow_mut().pop();
                 stack.pop();
                 for nested in &mut expanded {
                     nested.span = call.span.clone();
@@ -2870,7 +2965,6 @@ impl Compiler {
             .collect();
         let common_bindings =
             self.local_bindings(symbol, &ungrouped, &BTreeMap::new(), &mut vec![])?;
-        let empty_bindings = BTreeMap::new();
         let mut common_discovered = false;
         for group in &meanings.groups {
             if group
@@ -2897,16 +2991,8 @@ impl Compiler {
             if let Some(matching) = &group.matching {
                 syntax.push(MeaningSyntaxAction::Match(matching.clone()));
             }
-            let mut actions = self.lower_query_actions(
-                symbol,
-                &syntax,
-                if group.name.is_none() {
-                    &common_bindings
-                } else {
-                    &empty_bindings
-                },
-                &mut vec![],
-            )?;
+            let mut actions =
+                self.lower_query_actions(symbol, &syntax, &common_bindings, &mut vec![])?;
             if group.name.is_none() && !common_discovered {
                 common_discovered = true;
                 let definitions: Vec<_> = ungrouped
@@ -3508,6 +3594,7 @@ impl Compiler {
                             parameters, body, ..
                         } = &wrapper.declaration.kind
                         {
+                            self.invocation_path.borrow_mut().push(call.span.clone());
                             let env = self.bind_semantic_wrapper(
                                 wrapper, parameters, &args, &call.span, stack,
                             )?;
@@ -3526,7 +3613,7 @@ impl Compiler {
                                     ))
                                 }
                             };
-                            self.invocation_path.borrow_mut().push(call.span.clone());
+                            result.extend(self.argument_actions(wrapper, &env)?);
                             result.extend(self.lower_query_actions(wrapper, &nested, &env, stack)?);
                             self.invocation_path.borrow_mut().pop();
                             stack.pop();

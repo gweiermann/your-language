@@ -106,10 +106,9 @@ entry Program
 
 #[test]
 fn diagnostics_require_imports_and_support_namespace_imports() {
-    let errors = compile(
-        r#"node Program = "x" { semantics { error("missing import") } } entry Program"#,
-    )
-    .unwrap_err();
+    let errors =
+        compile(r#"node Program = "x" { semantics { error("missing import") } } entry Program"#)
+            .unwrap_err();
     assert!(!errors.is_empty());
     let source = r#"import { error, warn, hint } from "core/diagnostics"
 import * as diagnostics from "core/diagnostics"
@@ -319,4 +318,101 @@ fn compound_definition_expansion_is_bounded_before_large_copies() {
     let source = format!("node Program = \"x\" {{ semantics {{ {actions} }} }} entry Program");
     let errors = compile(&source).unwrap_err();
     assert_eq!(errors[0].code, "yl.expansion_limit");
+}
+
+#[test]
+fn effectful_default_values_belong_to_each_outer_invocation() {
+    let result = analyze(
+        r#"
+import { contribute } from "core/query"
+operation make() { contribute("events", true) return true }
+operation outer(value = make()) { return value }
+node Program = "x" {
+    semantics {
+        first := outer()
+        second := outer()
+        outer()
+    }
+}
+entry Program
+"#,
+    );
+    let events = entries_at(&result, "events");
+    assert_eq!(events.len(), 3);
+    assert_ne!(events[0].producer, events[1].producer);
+}
+
+#[test]
+fn ignored_explicit_and_default_arguments_keep_their_effects() {
+    let result = analyze(
+        r#"
+import { contribute } from "core/query"
+operation make() { contribute("events", true) return true }
+operation ignore(value) { return true }
+operation ignoreDefault(value = make()) { return true }
+operation ignoreQuery(value) = true
+node Program = "x" {
+    semantics {
+        first := ignore(make())
+        second := ignoreDefault()
+        third := ignoreQuery(make())
+        ignore(make())
+        ignoreDefault()
+    }
+}
+entry Program
+"#,
+    );
+    assert_eq!(entries_at(&result, "events").len(), 5);
+}
+
+#[test]
+fn named_groups_read_surrounding_definitions_and_shadow_locally() {
+    let result = analyze(
+        r#"
+import { contribute } from "core/query"
+node Program = "x" {
+    semantics {
+        ref := "outer"
+        group Register { contribute("outer", ref) }
+        group Local { ref := "inner" contribute("inner", ref) }
+    }
+}
+entry Program
+"#,
+    );
+    assert_eq!(
+        entries_at(&result, "outer")[0].value,
+        SemanticValue::Text("outer".into())
+    );
+    assert_eq!(
+        entries_at(&result, "inner")[0].value,
+        SemanticValue::Text("inner".into())
+    );
+}
+
+#[test]
+fn callbacks_can_read_an_outer_effectful_definition_without_replaying_it() {
+    let result = analyze(
+        r#"
+import { contribute, map } from "core/query"
+operation make() { contribute("events", true) return "ready" }
+node Program = "x" {
+    semantics {
+        ref := make()
+        values := map([true, false], item => ref)
+        contribute("result", values)
+    }
+}
+entry Program
+"#,
+    );
+    assert_eq!(entries_at(&result, "events").len(), 1);
+    assert_eq!(
+        entries_at(&result, "result")[0].value,
+        SemanticValue::List(vec![
+            SemanticValue::Text("ready".into()),
+            SemanticValue::Text("ready".into())
+        ])
+    );
 }

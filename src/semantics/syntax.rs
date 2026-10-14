@@ -39,10 +39,10 @@ pub fn register(registry: &mut OperationRegistry) -> Result<(), String> {
         ("childIdentity", false, false, true),
     ] {
         registry.register(
-            "std/syntax",
+            "core/syntax",
             name,
             OperationSignature {
-                id: format!("std/syntax#{name}"),
+                id: format!("core/syntax#{name}"),
                 provides_context: false,
                 finalization_only: false,
                 contribution: false,
