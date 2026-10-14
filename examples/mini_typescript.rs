@@ -1,4 +1,4 @@
-//! Throwaway Mini TypeScript inference through public native semantic APIs.
+//! Mini TypeScript: authored reference and type queries through the public API.
 #[path = "mini_typescript/definition.rs"]
 mod definition;
 #[path = "mini_typescript/inference.rs"]
@@ -27,13 +27,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "program" => include_str!("mini_typescript/programs/program.txt"),
         "errors" => include_str!("mini_typescript/programs/errors.txt"),
         "generics" => include_str!("mini_typescript/programs/generics.txt"),
+        "generics-errors" => include_str!("mini_typescript/programs/generics-errors.txt"),
         "higher-order" => include_str!("mini_typescript/programs/higher-order.txt"),
         "union" => include_str!("mini_typescript/programs/union.txt"),
         "union-errors" => include_str!("mini_typescript/programs/union-errors.txt"),
         "addition" => include_str!("mini_typescript/programs/addition.txt"),
         "addition-errors" => include_str!("mini_typescript/programs/addition-errors.txt"),
         _ => return Err(
-            "Choose program, errors, generics, higher-order, union, union-errors, addition or addition-errors, optionally --json"
+            "Choose program, errors, generics, generics-errors, higher-order, union, union-errors, addition or addition-errors, optionally --json"
                 .into(),
         ),
     };
@@ -60,21 +61,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 sources.get(&span.file).cloned()
             }
         });
-        for record in &result.graph.records {
-            let name = record
-                .entries
-                .iter()
-                .find_map(|(key, value)| match (key, value) {
-                    (
-                        your_language::semantics::SemanticKey::Symbol(key),
-                        your_language::semantics::SemanticValue::Text(value),
-                    ) if key == "std/variables#nameSymbol" => Some(value),
-                    _ => None,
-                });
-            let ty = inference::display_type(record);
-            if let (Some(name), Some(ty)) = (name, ty) {
-                println!("{name}: {ty}");
-            }
+        for (name, ty) in inference::bindings(&result) {
+            println!("{name}: {ty}");
         }
     }
     if result

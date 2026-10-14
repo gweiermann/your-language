@@ -82,6 +82,15 @@ pub fn compile_sources_with_registry(
     sources: &BTreeMap<String, String>,
     registry: &OperationRegistry,
 ) -> CompileResult<CompiledLanguage> {
+    for module in ["std/references", "std/variables", "std/types"] {
+        if registry.contains_module(module) {
+            return Err(vec![Diagnostic::error(
+                "yl.reserved_module",
+                format!("{module} is an authored standard module and cannot be replaced by native operations"),
+                Span::new(entry, 0, 0),
+            )]);
+        }
+    }
     let mut registry = registry.clone();
     if !registry.contains_module("std/query") {
         crate::semantics::queries::register(&mut registry).map_err(|error| {
@@ -115,8 +124,29 @@ fn module_id(path: &Path, root: &Path) -> String {
     }
     relative.to_string_lossy().replace('\\', "/")
 }
+/// Reserved standard modules have stable IDs in filesystem and in-memory graphs.
+/// The historical variables spelling denotes the same module, not a second copy.
+fn standard_module(path: &str) -> Option<&'static str> {
+    match path {
+        "std/parser" => Some("std/parser"),
+        "std/references" | "std/variables" => Some("std/references"),
+        "std/types" => Some("std/types"),
+        _ => None,
+    }
+}
+fn standard_source(id: &str) -> Option<&'static str> {
+    match id {
+        "std/parser" => Some(include_str!("../stdlib/parser.yl")),
+        "std/references" => Some(include_str!("../stdlib/references.yl")),
+        "std/types" => Some(include_str!("../stdlib/types.yl")),
+        _ => None,
+    }
+}
 fn import_path(module: &str, path: &str) -> String {
-    if path == "std/parser" || path == "core/parser" {
+    if let Some(id) = standard_module(path) {
+        return id.into();
+    }
+    if path == "core/parser" {
         return path.into();
     }
     let mut parts = vec![];
@@ -351,8 +381,8 @@ impl Compiler {
                 Span::new(id, 0, 0),
             ));
         }
-        let source = if id == "std/parser" {
-            include_str!("../stdlib/parser.yl")
+        let source = if let Some(source) = standard_source(id) {
+            source
         } else {
             sources.get(id).ok_or_else(|| {
                 Diagnostic::error(
@@ -435,6 +465,17 @@ impl Compiler {
             .collect();
         self.modules.insert(id.clone(), module);
         for (dependency, span) in dependencies {
+            if let Some(standard) = standard_module(&dependency) {
+                self.dependencies
+                    .insert((id.clone(), dependency), standard.into());
+                self.read_sources(standard, &BTreeMap::new())
+                    .map_err(|mut error| {
+                        error.secondary.push(*error.primary.clone());
+                        error.primary = Box::new(span);
+                        error
+                    })?;
+                continue;
+            }
             if self.registry.contains_module(&dependency) {
                 self.dependencies
                     .insert((id.clone(), dependency.clone()), dependency);
@@ -443,12 +484,6 @@ impl Compiler {
             if dependency == "core/parser" {
                 self.dependencies
                     .insert((id.clone(), dependency.clone()), dependency);
-                continue;
-            }
-            if dependency == "std/parser" {
-                self.dependencies
-                    .insert((id.clone(), dependency.clone()), dependency);
-                self.read_sources("std/parser", &BTreeMap::new())?;
                 continue;
             }
             let mut dep = path.parent().unwrap_or(root).join(&dependency);
@@ -1203,7 +1238,7 @@ impl Compiler {
             }
         }
         language.version = if !language.query_meanings.is_empty() {
-            3
+            4
         } else if language.meanings.is_empty() {
             1
         } else {
@@ -1276,7 +1311,7 @@ impl Compiler {
             return self.lower(module, scope, &sequence, env, depth + 1);
         }
         Ok(match &expr.kind {
-            ExprKind::Lambda { .. } | ExprKind::Local(_) => {
+            ExprKind::Lambda { .. } | ExprKind::Local(_) | ExprKind::SemanticCapture(_) => {
                 return Err(Diagnostic::error(
                     "yl.invalid_grammar",
                     "Callbacks are only valid in semantic queries",
@@ -1982,9 +2017,18 @@ impl Compiler {
                 }
                 if let Some((root, suffix)) = name.split_once('.') {
                     if let Some(value) = bindings.get(root) {
-                        if let ExprKind::Ref(actual) = &value.kind {
+                        let projected = match &value.kind {
+                            ExprKind::Ref(actual) => {
+                                Some(ExprKind::Ref(format!("{actual}.{suffix}")))
+                            }
+                            ExprKind::SemanticCapture(actual) => {
+                                Some(ExprKind::SemanticCapture(format!("{actual}.{suffix}")))
+                            }
+                            _ => None,
+                        };
+                        if let Some(kind) = projected {
                             return Ok(Expr {
-                                kind: ExprKind::Ref(format!("{actual}.{suffix}")),
+                                kind,
                                 span: value.span.clone(),
                             });
                         }
@@ -1993,10 +2037,10 @@ impl Compiler {
                         }
                     }
                 }
-                if name == "self"
-                    || symbol_has_capture(context, name.split('.').next().unwrap_or(name))
-                {
+                if name == "self" {
                     ExprKind::Ref(name.clone())
+                } else if symbol_has_capture(context, name.split('.').next().unwrap_or(name)) {
+                    ExprKind::SemanticCapture(name.clone())
                 } else if name == "absent" {
                     ExprKind::Absent
                 } else if matches!(name.as_str(), "true" | "false") {
@@ -2258,6 +2302,9 @@ impl Compiler {
                 (ParameterKind::Value, _) => {
                     self.lower_meaning_value(symbol, &argument.value, false)?
                 }
+                (ParameterKind::Capture, ExprKind::SemanticCapture(name)) => {
+                    MeaningValue::Capture(name.clone())
+                }
                 (ParameterKind::Capture, ExprKind::Ref(name)) => {
                     if name == "self" {
                         MeaningValue::SelfValue
@@ -2375,6 +2422,7 @@ impl Compiler {
         pattern: bool,
     ) -> Result<MeaningValue> {
         match &expr.kind {
+            ExprKind::SemanticCapture(name) if !pattern => Ok(MeaningValue::Capture(name.clone())),
             ExprKind::Ref(name) if name == "self" && !pattern => Ok(MeaningValue::SelfValue),
             ExprKind::Absent if !pattern => Ok(MeaningValue::Absent),
             ExprKind::Group(value) if !pattern => self.lower_meaning_value(symbol, value, false),
@@ -2723,6 +2771,7 @@ impl Compiler {
         use crate::semantics::queries::QueryExpr as Q;
         Ok(match &expr.kind {
             ExprKind::Local(name) => Q::Local(name.clone()),
+            ExprKind::SemanticCapture(name) => Q::Capture(name.clone()),
             ExprKind::Lambda { parameter, body } => Q::Lambda {
                 parameter: parameter.clone(),
                 body: Box::new(self.query_expr_normalized(symbol, body)?),
@@ -2948,8 +2997,8 @@ impl Compiler {
                 }
                 MeaningSyntaxAction::Call(call) => {
                     if matches!(call.name.as_str(), "error" | "warn" | "warning") {
-                        let (arg, target) = match call.arguments.as_slice() {
-                            [arg] => (arg, None),
+                        let (arg, target, related) = match call.arguments.as_slice() {
+                            [arg] => (arg, None, vec![]),
                             [arg, target] => (
                                 arg,
                                 Some(self.lower_query_expr(
@@ -2958,6 +3007,22 @@ impl Compiler {
                                     bindings,
                                     stack,
                                 )?),
+                                vec![],
+                            ),
+                            [arg, target, related] => (
+                                arg,
+                                Some(self.lower_query_expr(
+                                    symbol,
+                                    &target.value,
+                                    bindings,
+                                    stack,
+                                )?),
+                                vec![self.lower_query_expr(
+                                    symbol,
+                                    &related.value,
+                                    bindings,
+                                    stack,
+                                )?],
                             ),
                             _ => {
                                 return Err(Diagnostic::error(
@@ -3035,6 +3100,7 @@ impl Compiler {
                             message,
                             span: call.span.clone(),
                             target,
+                            related,
                         });
                         continue;
                     }
@@ -3894,8 +3960,20 @@ fn edge_ref(term: &Term, right: bool) -> Option<&str> {
     }
 }
 
+/// Native standard library artifacts must be recompiled against authored modules.
+pub(crate) fn reject_retired_standard_operation(id: &str, span: &Span) -> Result<()> {
+    if id.starts_with("std/variables#")
+        || id.starts_with("std/references#")
+        || id.starts_with("std/types#")
+    {
+        return Err(Diagnostic::error("yl.artifact_retired_std",
+            format!("Native standard operation {id} has been retired; recompile the language against the authored standard modules"),
+            span.clone()));
+    }
+    Ok(())
+}
 pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
-    if !matches!(language.version, 1..=3)
+    if !matches!(language.version, 1..=4)
         || (language.version < 3 && !language.query_meanings.is_empty())
         || (language.version == 1
             && (!language.meanings.is_empty() || !language.query_meanings.is_empty()))
@@ -3942,7 +4020,11 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                 })?;
                 validate_meaning_captures(meanings, &capture_sets(inner).0)?;
                 if let Some(groups) = language.query_meanings.get(definition) {
-                    crate::semantics::queries::validate_groups(groups, &capture_sets(inner).0)?;
+                    crate::semantics::queries::validate_groups(
+                        groups,
+                        &capture_sets(inner).0,
+                        language.version,
+                    )?;
                 }
                 term(inner, language, span, depth + 1)
             }
@@ -4027,7 +4109,7 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
             validate_meaning_captures(meanings, &captures)?;
         }
         if let Some(groups) = language.query_meanings.get(family) {
-            crate::semantics::queries::validate_groups(groups, &captures)?;
+            crate::semantics::queries::validate_groups(groups, &captures, language.version)?;
         }
         for check in &rule.constraints {
             let ty = validate_condition(
@@ -4047,13 +4129,41 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
             }
         }
     }
-    for owner in language.query_meanings.keys() {
-        if !language.meanings.contains_key(owner) {
-            return Err(Diagnostic::error(
+    for (owner, groups) in &language.query_meanings {
+        let placeholders = language.meanings.get(owner).ok_or_else(|| {
+            Diagnostic::error(
                 "yl.artifact",
                 "Query meanings have an unknown occurrence owner",
                 Span::default(),
-            ));
+            )
+        })?;
+        let mut used = BTreeSet::new();
+        for group in groups {
+            let mut matching = placeholders
+                .groups
+                .iter()
+                .enumerate()
+                .filter(|(_, placeholder)| {
+                    placeholder.name == group.name && placeholder.span == group.span
+                });
+            let Some((index, placeholder)) = matching.next() else {
+                return Err(Diagnostic::error(
+                    "yl.artifact",
+                    "Query meaning group has no scheduling placeholder",
+                    group.span.clone(),
+                ));
+            };
+            if matching.next().is_some()
+                || !used.insert(index)
+                || !placeholder.calls.is_empty()
+                || placeholder.matching.is_some()
+            {
+                return Err(Diagnostic::error(
+                    "yl.artifact",
+                    "Query meaning group has an invalid or ambiguous scheduling placeholder",
+                    group.span.clone(),
+                ));
+            }
         }
     }
     for id in &language.trivia {
@@ -4155,6 +4265,7 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                 }
             }
             for call in group.all_calls() {
+                reject_retired_standard_operation(&call.operation, &call.span)?;
                 if (call.contract.finalization_only || call.contract.contribution)
                     && call.contract.provides_context
                 {
@@ -5038,6 +5149,29 @@ mod semantic_artifact_tests {
         );
     }
     #[test]
+    fn artifacts_reject_retired_native_standard_operations_explicitly() {
+        for id in [
+            "std/variables#declare",
+            "std/references#use",
+            "std/types#annotate",
+        ] {
+            let mut language = artifact();
+            let call =
+                &mut language.meanings.get_mut("test.yl#Program").unwrap().groups[0].calls[0];
+            call.operation = id.into();
+            call.contract.id = id.into();
+            let bytes = serde_json::to_vec(&language).unwrap();
+            let error = crate::load_compiled_language(&bytes).unwrap_err();
+            assert_eq!(error[0].code, "yl.artifact_retired_std");
+            assert!(error[0].message.contains("recompile"));
+            let analyzed =
+                crate::semantics::SemanticEngine::default().analyze(&language, "input", "name");
+            assert_eq!(analyzed.diagnostics[0].code, "yl.artifact_retired_std");
+            assert!(analyzed.ast.is_none());
+        }
+    }
+
+    #[test]
     fn semantic_artifacts_reject_invalid_arguments_and_missing_captures() {
         let mut language = artifact();
         language.meanings.get_mut("test.yl#Program").unwrap().groups[0].calls[0]
@@ -5267,5 +5401,188 @@ entry Program"#,
                 "{errors:?}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod authored_standard_module_tests {
+    use super::*;
+    use crate::semantics::SemanticEngine;
+
+    const LANGUAGE: &str = r#"
+        import * as references from "std/references"
+        import { declare, use } from "std/variables"
+        import { unknown } from "std/types"
+        import { contribute } from "std/query"
+        trivia Space = /\s+/
+        node Declaration = "let" name: /[a-z]+/ ";" {
+            meanings { declare(name) }
+        }
+        node Reference = name: /[a-z]+/ ";" {
+            meanings { use(name) }
+        }
+        node Program = (Declaration | Reference)* {
+            meanings {
+                references::lexicalScope()
+                contribute((self, unknown), unknown)
+            }
+        }
+        entry Program { trivia Space }
+    "#;
+
+    fn assert_authored(language: &CompiledLanguage) {
+        assert!(!language.query_meanings.is_empty());
+        assert!(language.meanings.values().all(|definition| definition
+            .groups
+            .iter()
+            .all(|group| group.calls.is_empty() && group.matching.is_none())));
+        let json = serde_json::to_string(language).unwrap();
+        assert!(json.contains("std/types#unknown"));
+        assert!(json.contains("std/references#scope"));
+        assert!(!json.contains("std/variables#"));
+        assert!(!json.contains("std/references#declare"));
+        assert!(!json.contains("std/references#lexicalScope"));
+        let engine = SemanticEngine::default();
+        let reloaded = engine.load(&language.to_bytes().unwrap()).unwrap();
+        assert!(engine
+            .analyze(&reloaded, "program", "let x; x;")
+            .diagnostics
+            .is_empty());
+        let errors = engine.analyze(&reloaded, "program", "missing;");
+        assert!(errors
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("Unknown name 'missing'")));
+    }
+
+    #[test]
+    fn canonical_authored_imports_expand_and_reload_without_native_adapters() {
+        let sources = BTreeMap::from([
+            ("nested/language.yl".into(), LANGUAGE.into()),
+            // Caller-supplied source maps cannot replace reserved definitions.
+            ("std/types".into(), "export symbol wrong".into()),
+            ("std/references".into(), "export symbol wrong".into()),
+            ("std/variables".into(), "export symbol wrong".into()),
+        ]);
+        assert_authored(&compile_sources("nested/language.yl", &sources).unwrap());
+    }
+
+    #[test]
+    fn authored_operation_arguments_keep_caller_capture_identity() {
+        let source = r#"import * as types from "std/types"
+            symbol Red
+            node Root = first: /x/ { meanings {
+                types::annotate(first, Red)
+                types::restrictTo(first, Red)
+            } }
+            entry Root"#;
+        let engine = SemanticEngine::default();
+        let language = compile_sources(
+            "language.yl",
+            &BTreeMap::from([("language.yl".into(), source.into())]),
+        )
+        .unwrap();
+        let loaded = engine.load(&language.to_bytes().unwrap()).unwrap();
+        assert!(engine.analyze(&loaded, "input", "x").diagnostics.is_empty());
+    }
+
+    #[test]
+    fn nested_wrappers_preserve_caller_captures_and_member_projections() {
+        let source = r#"import * as types from "std/types"
+            import { apply, read } from "./helpers"
+            import { equal } from "std/query"
+            symbol Red
+            node Container = first: /x/
+            node Root = box: Container { meanings {
+                apply(box, Red)
+                if !equal(read(box), Red) { error("Wrong caller capture") }
+            } }
+            entry Root"#;
+        let helper = r#"import * as types from "std/types"
+            operation nested(value, annotation) { types::annotate(value.first, annotation) }
+            export operation apply(value, annotation) { nested(value, annotation) }
+            export operation read(value) = types::typeof(value.first)"#;
+        let engine = SemanticEngine::default();
+        let language = compile_sources(
+            "language.yl",
+            &BTreeMap::from([
+                ("language.yl".into(), source.into()),
+                ("helpers.yl".into(), helper.into()),
+            ]),
+        )
+        .unwrap();
+        assert!(engine
+            .analyze(&language, "input", "x")
+            .diagnostics
+            .is_empty());
+    }
+
+    #[test]
+    fn query_artifacts_reject_missing_and_ambiguous_scheduling_groups() {
+        let source = r#"import { contribute } from "std/query"
+            node Root = "x" { meanings { contribute("value", true) } } entry Root"#;
+        let language = compile_sources(
+            "language.yl",
+            &BTreeMap::from([("language.yl".into(), source.into())]),
+        )
+        .unwrap();
+        for mutation in 0..3 {
+            let mut broken = language.clone();
+            let groups = &mut broken.meanings.get_mut("language.yl#Root").unwrap().groups;
+            match mutation {
+                0 => groups.clear(),
+                1 => groups[0].span.start += 1,
+                _ => groups.push(groups[0].clone()),
+            }
+            let errors =
+                crate::load_compiled_language(&serde_json::to_vec(&broken).unwrap()).unwrap_err();
+            assert_eq!(errors[0].code, "yl.artifact");
+            assert!(errors[0].message.contains("scheduling placeholder"));
+        }
+    }
+
+    #[test]
+    fn filesystem_imports_use_the_same_canonical_modules() {
+        let directory = std::env::temp_dir().join(format!(
+            "yl-authored-std-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let entry = directory.join("language.yl");
+        std::fs::write(&entry, LANGUAGE).unwrap();
+        let compiled = compile_language(&entry);
+        std::fs::remove_file(&entry).unwrap();
+        std::fs::remove_dir(&directory).unwrap();
+        assert_authored(&compiled.unwrap());
+    }
+
+    #[test]
+    fn supplied_native_registry_cannot_replace_authored_standard_modules() {
+        for module in ["std/references", "std/variables", "std/types"] {
+            let mut registry = OperationRegistry::new();
+            registry.export_symbol(module, "replacement").unwrap();
+            let errors = compile_sources_with_registry(
+                "language.yl",
+                &BTreeMap::from([("language.yl".into(), LANGUAGE.into())]),
+                &registry,
+            )
+            .unwrap_err();
+            assert_eq!(errors[0].code, "yl.reserved_module");
+            assert!(errors[0].message.contains(module));
+        }
+    }
+
+    #[test]
+    fn default_engine_registers_only_generic_query_primitives() {
+        let engine = SemanticEngine::default();
+        assert!(engine.registry().contains_module("std/query"));
+        assert!(!engine.registry().contains_module("std/references"));
+        assert!(!engine.registry().contains_module("std/variables"));
+        assert!(!engine.registry().contains_module("std/types"));
+        assert!(!engine.registry().contains_module("std/syntax"));
     }
 }

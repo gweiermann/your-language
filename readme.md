@@ -70,7 +70,7 @@ The language owns its primitive type symbols and operator rules; the Rust librar
 cargo run --example mini_typescript -- addition
 ```
 
-It reports `numberSum: number`, `stringSum: string` and the types of the other bindings. This experimental inference API uses equality constraints and monomorphic function signatures. See the [semantic tutorial](https://gweiermann.github.io/your-language/tutorials/semantic-inference) for the full workflow and limits.
+It reports `numberSum: number`, `stringSum: string` and the types of the other bindings. The authored `std/types` library tracks type evidence and restrictions through generic queries. Function calls infer independent results under temporary parameter assignments. See the [std/types tutorial](https://gweiermann.github.io/your-language/tutorials/std-types) for the full workflow and limits.
 
 ## Run a language
 

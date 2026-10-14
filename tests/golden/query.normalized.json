@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "entry": "golden.yl#Program",
   "rules": {
     "golden.yl#Name": {

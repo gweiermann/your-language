@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 4,
   "entry": "definition/language.yl#Program",
   "rules": {
     "definition/expression.yl#Expression": {
@@ -467,32 +467,7 @@
       "groups": [
         {
           "name": "Resolve",
-          "calls": [
-            {
-              "operation": "std/variables#use",
-              "contract": {
-                "id": "std/variables#use",
-                "parameters": [
-                  {
-                    "name": "name",
-                    "kind": "Capture",
-                    "default": null
-                  }
-                ],
-                "provides_context": false
-              },
-              "arguments": {
-                "name": {
-                  "Capture": "name"
-                }
-              },
-              "span": {
-                "file": "definition/expression.yl",
-                "start": 203,
-                "end": 212
-              }
-            }
-          ],
+          "calls": [],
           "span": {
             "file": "definition/expression.yl",
             "start": 175,
@@ -512,22 +487,7 @@
       "groups": [
         {
           "name": null,
-          "calls": [
-            {
-              "operation": "std/variables#lexicalScope",
-              "contract": {
-                "id": "std/variables#lexicalScope",
-                "parameters": [],
-                "provides_context": true
-              },
-              "arguments": {},
-              "span": {
-                "file": "definition/function.yl",
-                "start": 566,
-                "end": 580
-              }
-            }
-          ],
+          "calls": [],
           "span": {
             "file": "definition/function.yl",
             "start": 566,
@@ -542,42 +502,7 @@
       "groups": [
         {
           "name": "Register",
-          "calls": [
-            {
-              "operation": "std/variables#declare",
-              "contract": {
-                "id": "std/variables#declare",
-                "parameters": [
-                  {
-                    "name": "name",
-                    "kind": "Capture",
-                    "default": null
-                  },
-                  {
-                    "name": "reassignable",
-                    "kind": "Bool",
-                    "default": {
-                      "Bool": true
-                    }
-                  }
-                ],
-                "provides_context": false
-              },
-              "arguments": {
-                "name": {
-                  "Capture": "name"
-                },
-                "reassignable": {
-                  "Bool": false
-                }
-              },
-              "span": {
-                "file": "definition/function.yl",
-                "start": 807,
-                "end": 840
-              }
-            }
-          ],
+          "calls": [],
           "span": {
             "file": "definition/function.yl",
             "start": 778,
@@ -592,42 +517,7 @@
       "groups": [
         {
           "name": null,
-          "calls": [
-            {
-              "operation": "std/variables#declare",
-              "contract": {
-                "id": "std/variables#declare",
-                "parameters": [
-                  {
-                    "name": "name",
-                    "kind": "Capture",
-                    "default": null
-                  },
-                  {
-                    "name": "reassignable",
-                    "kind": "Bool",
-                    "default": {
-                      "Bool": true
-                    }
-                  }
-                ],
-                "provides_context": false
-              },
-              "arguments": {
-                "name": {
-                  "Capture": "name"
-                },
-                "reassignable": {
-                  "Bool": true
-                }
-              },
-              "span": {
-                "file": "definition/function.yl",
-                "start": 267,
-                "end": 280
-              }
-            }
-          ],
+          "calls": [],
           "span": {
             "file": "definition/function.yl",
             "start": 267,
@@ -642,22 +532,7 @@
       "groups": [
         {
           "name": null,
-          "calls": [
-            {
-              "operation": "std/variables#lexicalScope",
-              "contract": {
-                "id": "std/variables#lexicalScope",
-                "parameters": [],
-                "provides_context": true
-              },
-              "arguments": {},
-              "span": {
-                "file": "definition/language.yl",
-                "start": 353,
-                "end": 367
-              }
-            }
-          ],
+          "calls": [],
           "span": {
             "file": "definition/language.yl",
             "start": 353,
@@ -711,42 +586,7 @@
       "groups": [
         {
           "name": "Register",
-          "calls": [
-            {
-              "operation": "std/variables#declare",
-              "contract": {
-                "id": "std/variables#declare",
-                "parameters": [
-                  {
-                    "name": "name",
-                    "kind": "Capture",
-                    "default": null
-                  },
-                  {
-                    "name": "reassignable",
-                    "kind": "Bool",
-                    "default": {
-                      "Bool": true
-                    }
-                  }
-                ],
-                "provides_context": false
-              },
-              "arguments": {
-                "name": {
-                  "Capture": "name"
-                },
-                "reassignable": {
-                  "Bool": true
-                }
-              },
-              "span": {
-                "file": "definition/let.yl",
-                "start": 320,
-                "end": 333
-              }
-            }
-          ],
+          "calls": [],
           "span": {
             "file": "definition/let.yl",
             "start": 291,
@@ -778,6 +618,1453 @@
         }
       ]
     }
+  },
+  "query_meanings": {
+    "definition/expression.yl#Reference": [
+      {
+        "name": "Resolve",
+        "actions": [
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    {
+                      "Capture": "name"
+                    },
+                    {
+                      "Symbol": "std/references#referenceIdentity"
+                    }
+                  ]
+                },
+                {
+                  "Call": {
+                    "name": "std/query#find",
+                    "args": [
+                      {
+                        "Call": {
+                          "name": "std/query#ancestors",
+                          "args": [
+                            {
+                              "Capture": "name"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "Lambda": {
+                          "parameter": "ancestor@std/references:474",
+                          "body": {
+                            "Call": {
+                              "name": "std/query#getEarlier",
+                              "args": [
+                                {
+                                  "Tuple": [
+                                    {
+                                      "Call": {
+                                        "name": "std/query#get",
+                                        "args": [
+                                          {
+                                            "Tuple": [
+                                              {
+                                                "Local": "ancestor@std/references:474"
+                                              },
+                                              {
+                                                "Symbol": "std/references#scope"
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "Symbol": "std/references#declarations"
+                                    },
+                                    {
+                                      "Call": {
+                                        "name": "std/query#text",
+                                        "args": [
+                                          {
+                                            "Capture": "name"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 1184,
+                "end": 1236
+              }
+            }
+          },
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    "SelfValue",
+                    {
+                      "Symbol": "std/references#referenceIdentity"
+                    }
+                  ]
+                },
+                {
+                  "Call": {
+                    "name": "std/query#find",
+                    "args": [
+                      {
+                        "Call": {
+                          "name": "std/query#ancestors",
+                          "args": [
+                            {
+                              "Capture": "name"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "Lambda": {
+                          "parameter": "ancestor@std/references:474",
+                          "body": {
+                            "Call": {
+                              "name": "std/query#getEarlier",
+                              "args": [
+                                {
+                                  "Tuple": [
+                                    {
+                                      "Call": {
+                                        "name": "std/query#get",
+                                        "args": [
+                                          {
+                                            "Tuple": [
+                                              {
+                                                "Local": "ancestor@std/references:474"
+                                              },
+                                              {
+                                                "Symbol": "std/references#scope"
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "Symbol": "std/references#declarations"
+                                    },
+                                    {
+                                      "Call": {
+                                        "name": "std/query#text",
+                                        "args": [
+                                          {
+                                            "Capture": "name"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 1241,
+                "end": 1293
+              }
+            }
+          },
+          {
+            "If": {
+              "condition": {
+                "Not": {
+                  "Call": {
+                    "name": "std/query#isPresent",
+                    "args": [
+                      {
+                        "Call": {
+                          "name": "std/query#find",
+                          "args": [
+                            {
+                              "Call": {
+                                "name": "std/query#ancestors",
+                                "args": [
+                                  {
+                                    "Capture": "name"
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "Lambda": {
+                                "parameter": "ancestor@std/references:474",
+                                "body": {
+                                  "Call": {
+                                    "name": "std/query#getEarlier",
+                                    "args": [
+                                      {
+                                        "Tuple": [
+                                          {
+                                            "Call": {
+                                              "name": "std/query#get",
+                                              "args": [
+                                                {
+                                                  "Tuple": [
+                                                    {
+                                                      "Local": "ancestor@std/references:474"
+                                                    },
+                                                    {
+                                                      "Symbol": "std/references#scope"
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "Symbol": "std/references#declarations"
+                                          },
+                                          {
+                                            "Call": {
+                                              "name": "std/query#text",
+                                              "args": [
+                                                {
+                                                  "Capture": "name"
+                                                }
+                                              ]
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "then_actions": [
+                {
+                  "Emit": {
+                    "severity": "error",
+                    "message": [
+                      {
+                        "Text": "Unknown name '"
+                      },
+                      {
+                        "Value": {
+                          "Capture": "name"
+                        }
+                      },
+                      {
+                        "Text": "'"
+                      }
+                    ],
+                    "span": {
+                      "file": "std/references",
+                      "start": 1337,
+                      "end": 1374
+                    },
+                    "target": {
+                      "Capture": "name"
+                    }
+                  }
+                }
+              ],
+              "else_actions": [],
+              "span": {
+                "file": "std/references",
+                "start": 1298,
+                "end": 1380
+              }
+            }
+          }
+        ],
+        "span": {
+          "file": "definition/expression.yl",
+          "start": 175,
+          "end": 222
+        }
+      }
+    ],
+    "definition/function.yl#FunctionContents": [
+      {
+        "name": null,
+        "actions": [
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    "SelfValue",
+                    {
+                      "Symbol": "std/references#scope"
+                    }
+                  ]
+                },
+                "SelfValue"
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 283,
+                "end": 314
+              }
+            }
+          }
+        ],
+        "span": {
+          "file": "definition/function.yl",
+          "start": 566,
+          "end": 580
+        }
+      }
+    ],
+    "definition/function.yl#FunctionDeclaration": [
+      {
+        "name": "Register",
+        "actions": [
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    {
+                      "Call": {
+                        "name": "std/query#find",
+                        "args": [
+                          {
+                            "Call": {
+                              "name": "std/query#ancestors",
+                              "args": [
+                                {
+                                  "Capture": "name"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "Lambda": {
+                              "parameter": "ancestor@std/references:382",
+                              "body": {
+                                "Call": {
+                                  "name": "std/query#get",
+                                  "args": [
+                                    {
+                                      "Tuple": [
+                                        {
+                                          "Local": "ancestor@std/references:382"
+                                        },
+                                        {
+                                          "Symbol": "std/references#scope"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "Symbol": "std/references#declarations"
+                    },
+                    {
+                      "Call": {
+                        "name": "std/query#text",
+                        "args": [
+                          {
+                            "Capture": "name"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "SelfValue"
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 609,
+                "end": 675
+              }
+            }
+          },
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    {
+                      "Capture": "name"
+                    },
+                    {
+                      "Symbol": "std/references#referenceIdentity"
+                    }
+                  ]
+                },
+                "SelfValue"
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 680,
+                "end": 723
+              }
+            }
+          },
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    "SelfValue",
+                    {
+                      "Symbol": "std/references#referenceIdentity"
+                    }
+                  ]
+                },
+                "SelfValue"
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 728,
+                "end": 771
+              }
+            }
+          },
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    "SelfValue",
+                    {
+                      "Symbol": "std/references#nameSymbol"
+                    }
+                  ]
+                },
+                {
+                  "Call": {
+                    "name": "std/query#text",
+                    "args": [
+                      {
+                        "Capture": "name"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 776,
+                "end": 818
+              }
+            }
+          },
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    "SelfValue",
+                    {
+                      "Symbol": "std/references#reassignableSymbol"
+                    }
+                  ]
+                },
+                {
+                  "Bool": false
+                }
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 823,
+                "end": 875
+              }
+            }
+          },
+          {
+            "If": {
+              "condition": {
+                "Call": {
+                  "name": "std/query#isPresent",
+                  "args": [
+                    {
+                      "Call": {
+                        "name": "std/query#find",
+                        "args": [
+                          {
+                            "Call": {
+                              "name": "std/query#ancestors",
+                              "args": [
+                                {
+                                  "Capture": "name"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "Lambda": {
+                              "parameter": "ancestor@std/references:382",
+                              "body": {
+                                "Call": {
+                                  "name": "std/query#get",
+                                  "args": [
+                                    {
+                                      "Tuple": [
+                                        {
+                                          "Local": "ancestor@std/references:382"
+                                        },
+                                        {
+                                          "Symbol": "std/references#scope"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "then_actions": [
+                {
+                  "If": {
+                    "condition": {
+                      "Call": {
+                        "name": "std/query#hasMultiple",
+                        "args": [
+                          {
+                            "Call": {
+                              "name": "std/query#getAll",
+                              "args": [
+                                {
+                                  "Tuple": [
+                                    {
+                                      "Call": {
+                                        "name": "std/query#find",
+                                        "args": [
+                                          {
+                                            "Call": {
+                                              "name": "std/query#ancestors",
+                                              "args": [
+                                                {
+                                                  "Capture": "name"
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "Lambda": {
+                                              "parameter": "ancestor@std/references:382",
+                                              "body": {
+                                                "Call": {
+                                                  "name": "std/query#get",
+                                                  "args": [
+                                                    {
+                                                      "Tuple": [
+                                                        {
+                                                          "Local": "ancestor@std/references:382"
+                                                        },
+                                                        {
+                                                          "Symbol": "std/references#scope"
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "Symbol": "std/references#declarations"
+                                    },
+                                    {
+                                      "Call": {
+                                        "name": "std/query#text",
+                                        "args": [
+                                          {
+                                            "Capture": "name"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "then_actions": [
+                      {
+                        "Emit": {
+                          "severity": "error",
+                          "message": [
+                            {
+                              "Text": "Duplicate declaration '"
+                            },
+                            {
+                              "Value": {
+                                "Capture": "name"
+                              }
+                            },
+                            {
+                              "Text": "'"
+                            }
+                          ],
+                          "span": {
+                            "file": "std/references",
+                            "start": 1012,
+                            "end": 1058
+                          },
+                          "target": {
+                            "Capture": "name"
+                          }
+                        }
+                      }
+                    ],
+                    "else_actions": [],
+                    "span": {
+                      "file": "std/references",
+                      "start": 925,
+                      "end": 1068
+                    }
+                  }
+                }
+              ],
+              "else_actions": [
+                {
+                  "Emit": {
+                    "severity": "error",
+                    "message": [
+                      {
+                        "Text": "Declaration has no lexical scope"
+                      }
+                    ],
+                    "span": {
+                      "file": "std/references",
+                      "start": 1094,
+                      "end": 1141
+                    },
+                    "target": {
+                      "Capture": "name"
+                    }
+                  }
+                }
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 880,
+                "end": 1147
+              }
+            }
+          }
+        ],
+        "span": {
+          "file": "definition/function.yl",
+          "start": 778,
+          "end": 850
+        }
+      }
+    ],
+    "definition/function.yl#Parameter": [
+      {
+        "name": null,
+        "actions": [
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    {
+                      "Call": {
+                        "name": "std/query#find",
+                        "args": [
+                          {
+                            "Call": {
+                              "name": "std/query#ancestors",
+                              "args": [
+                                {
+                                  "Capture": "name"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "Lambda": {
+                              "parameter": "ancestor@std/references:382",
+                              "body": {
+                                "Call": {
+                                  "name": "std/query#get",
+                                  "args": [
+                                    {
+                                      "Tuple": [
+                                        {
+                                          "Local": "ancestor@std/references:382"
+                                        },
+                                        {
+                                          "Symbol": "std/references#scope"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "Symbol": "std/references#declarations"
+                    },
+                    {
+                      "Call": {
+                        "name": "std/query#text",
+                        "args": [
+                          {
+                            "Capture": "name"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "SelfValue"
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 609,
+                "end": 675
+              }
+            }
+          },
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    {
+                      "Capture": "name"
+                    },
+                    {
+                      "Symbol": "std/references#referenceIdentity"
+                    }
+                  ]
+                },
+                "SelfValue"
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 680,
+                "end": 723
+              }
+            }
+          },
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    "SelfValue",
+                    {
+                      "Symbol": "std/references#referenceIdentity"
+                    }
+                  ]
+                },
+                "SelfValue"
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 728,
+                "end": 771
+              }
+            }
+          },
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    "SelfValue",
+                    {
+                      "Symbol": "std/references#nameSymbol"
+                    }
+                  ]
+                },
+                {
+                  "Call": {
+                    "name": "std/query#text",
+                    "args": [
+                      {
+                        "Capture": "name"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 776,
+                "end": 818
+              }
+            }
+          },
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    "SelfValue",
+                    {
+                      "Symbol": "std/references#reassignableSymbol"
+                    }
+                  ]
+                },
+                {
+                  "Bool": true
+                }
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 823,
+                "end": 875
+              }
+            }
+          },
+          {
+            "If": {
+              "condition": {
+                "Call": {
+                  "name": "std/query#isPresent",
+                  "args": [
+                    {
+                      "Call": {
+                        "name": "std/query#find",
+                        "args": [
+                          {
+                            "Call": {
+                              "name": "std/query#ancestors",
+                              "args": [
+                                {
+                                  "Capture": "name"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "Lambda": {
+                              "parameter": "ancestor@std/references:382",
+                              "body": {
+                                "Call": {
+                                  "name": "std/query#get",
+                                  "args": [
+                                    {
+                                      "Tuple": [
+                                        {
+                                          "Local": "ancestor@std/references:382"
+                                        },
+                                        {
+                                          "Symbol": "std/references#scope"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "then_actions": [
+                {
+                  "If": {
+                    "condition": {
+                      "Call": {
+                        "name": "std/query#hasMultiple",
+                        "args": [
+                          {
+                            "Call": {
+                              "name": "std/query#getAll",
+                              "args": [
+                                {
+                                  "Tuple": [
+                                    {
+                                      "Call": {
+                                        "name": "std/query#find",
+                                        "args": [
+                                          {
+                                            "Call": {
+                                              "name": "std/query#ancestors",
+                                              "args": [
+                                                {
+                                                  "Capture": "name"
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "Lambda": {
+                                              "parameter": "ancestor@std/references:382",
+                                              "body": {
+                                                "Call": {
+                                                  "name": "std/query#get",
+                                                  "args": [
+                                                    {
+                                                      "Tuple": [
+                                                        {
+                                                          "Local": "ancestor@std/references:382"
+                                                        },
+                                                        {
+                                                          "Symbol": "std/references#scope"
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "Symbol": "std/references#declarations"
+                                    },
+                                    {
+                                      "Call": {
+                                        "name": "std/query#text",
+                                        "args": [
+                                          {
+                                            "Capture": "name"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "then_actions": [
+                      {
+                        "Emit": {
+                          "severity": "error",
+                          "message": [
+                            {
+                              "Text": "Duplicate declaration '"
+                            },
+                            {
+                              "Value": {
+                                "Capture": "name"
+                              }
+                            },
+                            {
+                              "Text": "'"
+                            }
+                          ],
+                          "span": {
+                            "file": "std/references",
+                            "start": 1012,
+                            "end": 1058
+                          },
+                          "target": {
+                            "Capture": "name"
+                          }
+                        }
+                      }
+                    ],
+                    "else_actions": [],
+                    "span": {
+                      "file": "std/references",
+                      "start": 925,
+                      "end": 1068
+                    }
+                  }
+                }
+              ],
+              "else_actions": [
+                {
+                  "Emit": {
+                    "severity": "error",
+                    "message": [
+                      {
+                        "Text": "Declaration has no lexical scope"
+                      }
+                    ],
+                    "span": {
+                      "file": "std/references",
+                      "start": 1094,
+                      "end": 1141
+                    },
+                    "target": {
+                      "Capture": "name"
+                    }
+                  }
+                }
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 880,
+                "end": 1147
+              }
+            }
+          }
+        ],
+        "span": {
+          "file": "definition/function.yl",
+          "start": 267,
+          "end": 280
+        }
+      }
+    ],
+    "definition/language.yl#Program": [
+      {
+        "name": null,
+        "actions": [
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    "SelfValue",
+                    {
+                      "Symbol": "std/references#scope"
+                    }
+                  ]
+                },
+                "SelfValue"
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 283,
+                "end": 314
+              }
+            }
+          }
+        ],
+        "span": {
+          "file": "definition/language.yl",
+          "start": 353,
+          "end": 367
+        }
+      }
+    ],
+    "definition/let.yl#LetDeclaration": [
+      {
+        "name": "Register",
+        "actions": [
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    {
+                      "Call": {
+                        "name": "std/query#find",
+                        "args": [
+                          {
+                            "Call": {
+                              "name": "std/query#ancestors",
+                              "args": [
+                                {
+                                  "Capture": "name"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "Lambda": {
+                              "parameter": "ancestor@std/references:382",
+                              "body": {
+                                "Call": {
+                                  "name": "std/query#get",
+                                  "args": [
+                                    {
+                                      "Tuple": [
+                                        {
+                                          "Local": "ancestor@std/references:382"
+                                        },
+                                        {
+                                          "Symbol": "std/references#scope"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "Symbol": "std/references#declarations"
+                    },
+                    {
+                      "Call": {
+                        "name": "std/query#text",
+                        "args": [
+                          {
+                            "Capture": "name"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "SelfValue"
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 609,
+                "end": 675
+              }
+            }
+          },
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    {
+                      "Capture": "name"
+                    },
+                    {
+                      "Symbol": "std/references#referenceIdentity"
+                    }
+                  ]
+                },
+                "SelfValue"
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 680,
+                "end": 723
+              }
+            }
+          },
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    "SelfValue",
+                    {
+                      "Symbol": "std/references#referenceIdentity"
+                    }
+                  ]
+                },
+                "SelfValue"
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 728,
+                "end": 771
+              }
+            }
+          },
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    "SelfValue",
+                    {
+                      "Symbol": "std/references#nameSymbol"
+                    }
+                  ]
+                },
+                {
+                  "Call": {
+                    "name": "std/query#text",
+                    "args": [
+                      {
+                        "Capture": "name"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 776,
+                "end": 818
+              }
+            }
+          },
+          {
+            "Call": {
+              "name": "std/query#contribute",
+              "args": [
+                {
+                  "Tuple": [
+                    "SelfValue",
+                    {
+                      "Symbol": "std/references#reassignableSymbol"
+                    }
+                  ]
+                },
+                {
+                  "Bool": true
+                }
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 823,
+                "end": 875
+              }
+            }
+          },
+          {
+            "If": {
+              "condition": {
+                "Call": {
+                  "name": "std/query#isPresent",
+                  "args": [
+                    {
+                      "Call": {
+                        "name": "std/query#find",
+                        "args": [
+                          {
+                            "Call": {
+                              "name": "std/query#ancestors",
+                              "args": [
+                                {
+                                  "Capture": "name"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "Lambda": {
+                              "parameter": "ancestor@std/references:382",
+                              "body": {
+                                "Call": {
+                                  "name": "std/query#get",
+                                  "args": [
+                                    {
+                                      "Tuple": [
+                                        {
+                                          "Local": "ancestor@std/references:382"
+                                        },
+                                        {
+                                          "Symbol": "std/references#scope"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "then_actions": [
+                {
+                  "If": {
+                    "condition": {
+                      "Call": {
+                        "name": "std/query#hasMultiple",
+                        "args": [
+                          {
+                            "Call": {
+                              "name": "std/query#getAll",
+                              "args": [
+                                {
+                                  "Tuple": [
+                                    {
+                                      "Call": {
+                                        "name": "std/query#find",
+                                        "args": [
+                                          {
+                                            "Call": {
+                                              "name": "std/query#ancestors",
+                                              "args": [
+                                                {
+                                                  "Capture": "name"
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "Lambda": {
+                                              "parameter": "ancestor@std/references:382",
+                                              "body": {
+                                                "Call": {
+                                                  "name": "std/query#get",
+                                                  "args": [
+                                                    {
+                                                      "Tuple": [
+                                                        {
+                                                          "Local": "ancestor@std/references:382"
+                                                        },
+                                                        {
+                                                          "Symbol": "std/references#scope"
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "Symbol": "std/references#declarations"
+                                    },
+                                    {
+                                      "Call": {
+                                        "name": "std/query#text",
+                                        "args": [
+                                          {
+                                            "Capture": "name"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "then_actions": [
+                      {
+                        "Emit": {
+                          "severity": "error",
+                          "message": [
+                            {
+                              "Text": "Duplicate declaration '"
+                            },
+                            {
+                              "Value": {
+                                "Capture": "name"
+                              }
+                            },
+                            {
+                              "Text": "'"
+                            }
+                          ],
+                          "span": {
+                            "file": "std/references",
+                            "start": 1012,
+                            "end": 1058
+                          },
+                          "target": {
+                            "Capture": "name"
+                          }
+                        }
+                      }
+                    ],
+                    "else_actions": [],
+                    "span": {
+                      "file": "std/references",
+                      "start": 925,
+                      "end": 1068
+                    }
+                  }
+                }
+              ],
+              "else_actions": [
+                {
+                  "Emit": {
+                    "severity": "error",
+                    "message": [
+                      {
+                        "Text": "Declaration has no lexical scope"
+                      }
+                    ],
+                    "span": {
+                      "file": "std/references",
+                      "start": 1094,
+                      "end": 1141
+                    },
+                    "target": {
+                      "Capture": "name"
+                    }
+                  }
+                }
+              ],
+              "span": {
+                "file": "std/references",
+                "start": 880,
+                "end": 1147
+              }
+            }
+          }
+        ],
+        "span": {
+          "file": "definition/let.yl",
+          "start": 291,
+          "end": 343
+        }
+      }
+    ]
   },
   "examples": {
     "definition/function.yl#FunctionContents": {

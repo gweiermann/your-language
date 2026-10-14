@@ -1,2 +1,23 @@
-// Shared sentinel; concrete target-language types belong to language definitions.
+import { alternatives, choose, contributeAll, every, facts, filter, first, hypotheticalChecked, isPresent, contains, equal, values, map, last, tail, hasMultiple } from "std/query"
+
 export symbol unknown
+
+export symbol type
+
+export operation candidates(key) = choose(isPresent(key), facts((key, type)), [])
+
+export operation typeof(key) = choose(isPresent(first(candidates(key))), alternatives(candidates(key)), unknown)
+
+export operation annotate(key, value) {
+    contributeAll((key, type), filter(values(value), item => !equal(item, unknown)))
+}
+
+export operation compatible(actual, expected) = every(values(actual), item => choose(equal(item, unknown), true, choose(contains(values(expected), unknown), true, contains(values(expected), item))))
+
+export operation restrictTo(key, expected, target = key, related = absent) {
+    if !compatible(typeof(key), expected) {
+        error("Type ${typeof(key)} does not match ${expected}", target, related)
+    }
+}
+
+export operation resolveWith(result, assumptions) = choose(isPresent(first(hypotheticalChecked((result, type), map(assumptions, assumption => ((first(assumption), type), first(tail(assumption)), choose(hasMultiple(tail(assumption)), last(assumption), absent)))))), alternatives(hypotheticalChecked((result, type), map(assumptions, assumption => ((first(assumption), type), first(tail(assumption)), choose(hasMultiple(tail(assumption)), last(assumption), absent))))), unknown)

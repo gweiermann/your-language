@@ -8,8 +8,13 @@ pub struct Expr {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
-    Lambda { parameter: String, body: Box<Expr> },
+    Lambda {
+        parameter: String,
+        body: Box<Expr>,
+    },
     Local(String),
+    /// Compiler-only caller capture; never re-resolved inside an authored operation.
+    SemanticCapture(String),
     EnumConstant(String, String),
     Bool(bool),
     Absent,

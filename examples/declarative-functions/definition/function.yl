@@ -22,6 +22,7 @@ node FunctionBody =
     "}"
 {
     meanings {
+        boundary
         contribute((self, returnType), typeOf(result))
     }
 }
@@ -43,11 +44,13 @@ export node FunctionDeclaration =
     contents: FunctionContents
 {
     meanings {
-        declare(name, mutable = false)
-        contribute((referenceOf(name), type), function)
-        contribute((contents, functionIdentity), referenceOf(name))
-        contribute((referenceOf(name), parameterNames), map(contents.parameters.name, name => text(name)))
-        contribute((referenceOf(name), parameterTypes), zip(map(contents.parameters.name, name => text(name)), map(contents.parameters.name, name => unknown)))
-        contribute((referenceOf(name), returnType), get((contents.body, returnType)))
+        group Register {
+            declare(name, reassignable = false)
+            contribute((referenceOf(name), type), function)
+            contribute((contents, functionIdentity), referenceOf(name))
+            contribute((referenceOf(name), parameterNames), map(contents.parameters.name, name => text(name)))
+            contribute((referenceOf(name), parameterTypes), zip(map(contents.parameters.name, name => text(name)), map(contents.parameters.name, name => unknown)))
+            contribute((referenceOf(name), returnType), get((contents.body, returnType)))
+        }
     }
 }

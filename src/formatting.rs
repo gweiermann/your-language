@@ -639,7 +639,7 @@ fn space_between(previous: Option<&Token>, token: &Token) -> bool {
         return false;
     }
     if current == Some("(") {
-        if before == Some(":") {
+        if matches!(before, Some(":" | "=>")) {
             return true;
         }
         return matches!(&previous.kind,TokenKind::Word(word) if word == "when" || word == "match");

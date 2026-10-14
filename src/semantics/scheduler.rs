@@ -12,7 +12,6 @@ struct Task<'a> {
     owner: &'a Occurrence,
     group: &'a MeaningGroup,
     instances: Vec<Instance>,
-    dependencies: std::collections::BTreeSet<usize>,
     done: bool,
 }
 #[derive(Clone, Copy)]
@@ -124,170 +123,107 @@ fn leave(active: &[(usize, usize)], tasks: &mut [Task<'_>], state: &mut Analysis
         }
     }
 }
-pub(super) fn execute(
-    language: &CompiledLanguage,
-    registry: &OperationRegistry,
-    occurrences: &[Occurrence],
-    graph: &mut SemanticGraph,
-    diagnostics: &mut Vec<Diagnostic>,
+
+struct Schedule {
+    sorted: Vec<usize>,
+    dependencies: Vec<std::collections::BTreeSet<usize>>,
+}
+fn deferred_call(call: &MeaningCall) -> bool {
+    call.contract.finalization_only
+        || call.arguments.values().any(|value| {
+            matches!(
+                value,
+                MeaningValue::Call(_) | MeaningValue::Tuple(_) | MeaningValue::List(_)
+            )
+        })
+}
+fn flatten<'a>(
+    occurrence: &'a Occurrence,
+    parent: Option<usize>,
+    all: &mut Vec<&'a Occurrence>,
+    parents: &mut BTreeMap<usize, Option<usize>>,
 ) {
-    fn flatten<'a>(
-        occurrence: &'a Occurrence,
-        parent: Option<usize>,
-        all: &mut Vec<&'a Occurrence>,
-        parents: &mut BTreeMap<usize, Option<usize>>,
-    ) {
-        all.push(occurrence);
-        parents.insert(occurrence.id, parent);
-        for child in &occurrence.children {
-            flatten(child, Some(occurrence.id), all, parents);
-        }
+    all.push(occurrence);
+    parents.insert(occurrence.id, parent);
+    for child in &occurrence.children {
+        flatten(child, Some(occurrence.id), all, parents);
     }
+}
+
+/// Compute query visibility from the same static ordering used by native execution.
+/// Empty query placeholder groups participate; no factories or hooks are invoked.
+pub(super) fn query_group_ranks(
+    language: &CompiledLanguage,
+    occurrences: &[Occurrence],
+) -> Result<BTreeMap<(usize, usize), usize>, Vec<Diagnostic>> {
     let mut all = vec![];
     let mut parents = BTreeMap::new();
-    for occurrence in occurrences {
-        flatten(occurrence, None, &mut all, &mut parents);
+    for owner in occurrences {
+        flatten(owner, None, &mut all, &mut parents);
     }
-    let boundaries: std::collections::BTreeSet<_> = all
-        .iter()
-        .filter(|occurrence| {
-            language
-                .meanings
-                .get(&occurrence.definition)
-                .is_some_and(|definition| definition.boundary)
-        })
-        .map(|occurrence| occurrence.id)
-        .collect();
-    let mut deferred = vec![];
+    let mut slots = vec![];
     let mut tasks = vec![];
     for owner in &all {
-        let Some(definition) = language.meanings.get(&owner.definition) else {
-            continue;
-        };
-        for group in &definition.groups {
-            if let Some(matching) = &group.matching {
-                deferred.push(Deferred {
-                    task: tasks.len(),
+        if let Some(definition) = language.meanings.get(&owner.definition) {
+            for (index, group) in definition.groups.iter().enumerate() {
+                slots.push((owner.id, index));
+                tasks.push(Task {
                     owner,
-                    kind: DeferredKind::Match(matching),
-                    next: 0,
-                    selected: None,
-                    reactive: false,
-                    observed_ready: false,
-                    released: false,
-                    combinations: vec![],
-                    parked: Default::default(),
+                    group,
+                    instances: vec![],
                     done: false,
                 });
             }
-            let mut instances = vec![];
-            for call in &group.calls {
-                if call.contract.finalization_only
-                    || call.arguments.values().any(|value| {
-                        matches!(
-                            value,
-                            MeaningValue::Call(_) | MeaningValue::Tuple(_) | MeaningValue::List(_)
-                        )
-                    })
-                {
-                    deferred.push(Deferred {
-                        task: tasks.len(),
-                        owner,
-                        kind: DeferredKind::Call(call),
-                        next: 0,
-                        selected: None,
-                        reactive: false,
-                        observed_ready: false,
-                        released: false,
-                        combinations: vec![],
-                        parked: Default::default(),
-                        done: false,
-                    });
-                    continue;
-                }
-                let Some((signature, factory)) = registry.operations.get(&call.operation) else {
-                    diagnostics.push(Diagnostic::error(
-                        "semantic.missing_operation",
-                        format!("Native operation {} is not registered", call.operation),
-                        call.span.clone(),
-                    ));
-                    return;
-                };
-                if signature != &call.contract {
-                    diagnostics.push(Diagnostic::error(
-                        "semantic.contract_mismatch",
-                        format!(
-                            "Native operation {} has an incompatible interface",
-                            call.operation
-                        ),
-                        call.span.clone(),
-                    ));
-                    return;
-                }
-                let mut arguments = BTreeMap::new();
-                for (name, value) in &call.arguments {
-                    let value = match value {
-                        MeaningValue::Call(_) | MeaningValue::Tuple(_) | MeaningValue::List(_) => {
-                            unreachable!("nested calls are deferred")
-                        }
-                        MeaningValue::SelfValue => {
-                            SemanticValue::Identity(SemanticIdentity::Occurrence(owner.id))
-                        }
-                        MeaningValue::Absent => SemanticValue::Absent,
-                        MeaningValue::Capture(capture) => {
-                            let Ok(capture) = owner.capture_path(capture) else {
-                                diagnostics.push(Diagnostic::error(
-                                    "semantic.missing_capture",
-                                    format!("Capture {capture} is not present on this occurrence"),
-                                    owner.span.clone(),
-                                ));
-                                return;
-                            };
-                            SemanticValue::Source(capture.clone())
-                        }
-                        MeaningValue::Text(text) => SemanticValue::Text(text.clone()),
-                        MeaningValue::Bool(value) => SemanticValue::Bool(*value),
-                        MeaningValue::Symbol(value) => SemanticValue::Symbol(value.clone()),
-                    };
-                    arguments.insert(name.clone(), value);
-                }
-                instances.push(Instance {
-                    call: call.clone(),
-                    arguments,
-                    native: factory(),
-                    started: false,
-                    ready: false,
-                });
-            }
-            tasks.push(Task {
-                owner,
-                group,
-                instances,
-                dependencies: Default::default(),
-                done: false,
-            });
         }
     }
+    let plan = schedule(language, occurrences, &all, &parents, &tasks)?;
+    Ok(plan
+        .sorted
+        .iter()
+        .enumerate()
+        .map(|(rank, task)| (slots[*task], rank))
+        .collect())
+}
+fn schedule(
+    language: &CompiledLanguage,
+    occurrences: &[Occurrence],
+    all: &[&Occurrence],
+    parents: &BTreeMap<usize, Option<usize>>,
+    tasks: &[Task<'_>],
+) -> Result<Schedule, Vec<Diagnostic>> {
+    let boundaries: std::collections::BTreeSet<_> = all
+        .iter()
+        .filter(|owner| {
+            language
+                .meanings
+                .get(&owner.definition)
+                .is_some_and(|definition| definition.boundary)
+        })
+        .map(|owner| owner.id)
+        .collect();
+    let mut dependencies = vec![std::collections::BTreeSet::new(); tasks.len()];
     // A context provider encloses its owner independently of user scheduling rules.
     for provider in 0..tasks.len() {
         if !tasks[provider]
-            .instances
+            .group
+            .calls
             .iter()
-            .any(|instance| instance.call.contract.provides_context)
+            .any(|call| call.contract.provides_context)
         {
             continue;
         }
         for child in 0..tasks.len() {
             let another_provider = tasks[child].owner.id == tasks[provider].owner.id
                 && tasks[child]
-                    .instances
+                    .group
+                    .calls
                     .iter()
-                    .any(|instance| instance.call.contract.provides_context);
+                    .any(|call| call.contract.provides_context);
             if provider != child
                 && !another_provider
-                && within(tasks[child].owner.id, tasks[provider].owner.id, &parents)
+                && within(tasks[child].owner.id, tasks[provider].owner.id, parents)
             {
-                tasks[child].dependencies.insert(provider);
+                dependencies[child].insert(provider);
             }
         }
     }
@@ -310,7 +246,6 @@ pub(super) fn execute(
     for occurrence in occurrences {
         completed_order(occurrence, &mut order, &mut next);
     }
-    let mut dependencies: Vec<_> = tasks.iter().map(|task| task.dependencies.clone()).collect();
     let mut graph_owners: Vec<_> = tasks.iter().map(|task| task.owner).collect();
     let bare_definitions: std::collections::BTreeSet<_> = language
         .meanings
@@ -321,7 +256,7 @@ pub(super) fn execute(
         .map(|selector| selector.definition.as_str())
         .collect();
     let mut empty_owners = BTreeMap::new();
-    for owner in &all {
+    for owner in all {
         if bare_definitions.contains(owner.definition.as_str())
             && !tasks.iter().any(|task| task.owner.id == owner.id)
         {
@@ -331,10 +266,11 @@ pub(super) fn execute(
                 .iter()
                 .enumerate()
                 .filter(|(_, task)| {
-                    task.instances
+                    task.group
+                        .calls
                         .iter()
-                        .any(|instance| instance.call.contract.provides_context)
-                        && within(owner.id, task.owner.id, &parents)
+                        .any(|call| call.contract.provides_context)
+                        && within(owner.id, task.owner.id, parents)
                 })
                 .map(|(id, _)| id)
                 .collect();
@@ -357,7 +293,7 @@ pub(super) fn execute(
     let mut whole_predecessors: BTreeMap<usize, std::collections::BTreeSet<usize>> =
         BTreeMap::new();
     let mut chain_spans = BTreeMap::new();
-    for owner in &all {
+    for owner in all {
         let Some(definition) = language.meanings.get(&owner.definition) else {
             continue;
         };
@@ -453,7 +389,7 @@ pub(super) fn execute(
     // Explicit dependency chains cannot move finalization effects ahead of
     // ordinary lifecycle hooks. Check transitively through selection barriers.
     for (task_id, task) in tasks.iter().enumerate() {
-        if task.instances.is_empty() {
+        if !task.group.calls.iter().any(|call| !deferred_call(call)) {
             continue;
         }
         let mut visited = std::collections::BTreeSet::new();
@@ -462,24 +398,24 @@ pub(super) fn execute(
             if !visited.insert(required) {
                 continue;
             }
-            if deferred.iter().any(|job| {
-                job.task == required
-                    && match &job.kind {
-                        DeferredKind::Call(call) => !call.contract.finalization_only,
-                        DeferredKind::Match(_) => true,
-                    }
-            }) {
+            if required < tasks.len()
+                && (tasks[required].group.matching.is_some()
+                    || tasks[required]
+                        .group
+                        .calls
+                        .iter()
+                        .any(|call| deferred_call(call) && !call.contract.finalization_only))
+            {
                 let primary = visited
                     .iter()
                     .find_map(|id| chain_spans.get(id))
                     .cloned()
                     .unwrap_or_else(|| task.group.span.clone());
-                diagnostics.push(Diagnostic::error(
+                return Err(vec![Diagnostic::error(
                     "semantic.deferred_order",
                     "A deferred finalization action cannot precede an ordinary lifecycle action",
                     primary,
-                ));
-                return;
+                )]);
             }
             pending.extend(strict[required].iter().copied());
         }
@@ -509,11 +445,11 @@ pub(super) fn execute(
                 .flat_map(|id| whole_predecessors.get(id).into_iter().flatten().copied())
                 .collect();
             for (id, candidate) in graph_owners.iter().enumerate() {
-                if candidate.id == region || !within(candidate.id, region, &parents) {
+                if candidate.id == region || !within(candidate.id, region, parents) {
                     continue;
                 }
                 let explicitly_earlier_subtree = earlier_whole.iter().any(|before| {
-                    within(*before, region, &parents) && within(candidate.id, *before, &parents)
+                    within(*before, region, parents) && within(candidate.id, *before, parents)
                 });
                 if required.contains(&id) || explicitly_earlier_subtree {
                     continue;
@@ -590,9 +526,137 @@ pub(super) fn execute(
             .filter(|(id, _)| remaining[*id] > 0)
             .map(|(_, span)| span)
             .collect();
-        diagnostics.push(diagnostic);
-        return;
+        return Err(vec![diagnostic]);
     }
+    Ok(Schedule {
+        sorted,
+        dependencies,
+    })
+}
+pub(super) fn execute(
+    language: &CompiledLanguage,
+    registry: &OperationRegistry,
+    occurrences: &[Occurrence],
+    graph: &mut SemanticGraph,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut all = vec![];
+    let mut parents = BTreeMap::new();
+    for occurrence in occurrences {
+        flatten(occurrence, None, &mut all, &mut parents);
+    }
+    let mut deferred = vec![];
+    let mut tasks = vec![];
+    for owner in &all {
+        let Some(definition) = language.meanings.get(&owner.definition) else {
+            continue;
+        };
+        for group in &definition.groups {
+            if let Some(matching) = &group.matching {
+                deferred.push(Deferred {
+                    task: tasks.len(),
+                    owner,
+                    kind: DeferredKind::Match(matching),
+                    next: 0,
+                    selected: None,
+                    reactive: false,
+                    observed_ready: false,
+                    released: false,
+                    combinations: vec![],
+                    parked: Default::default(),
+                    done: false,
+                });
+            }
+            let mut instances = vec![];
+            for call in &group.calls {
+                if deferred_call(call) {
+                    deferred.push(Deferred {
+                        task: tasks.len(),
+                        owner,
+                        kind: DeferredKind::Call(call),
+                        next: 0,
+                        selected: None,
+                        reactive: false,
+                        observed_ready: false,
+                        released: false,
+                        combinations: vec![],
+                        parked: Default::default(),
+                        done: false,
+                    });
+                    continue;
+                }
+                let Some((signature, factory)) = registry.operations.get(&call.operation) else {
+                    diagnostics.push(Diagnostic::error(
+                        "semantic.missing_operation",
+                        format!("Native operation {} is not registered", call.operation),
+                        call.span.clone(),
+                    ));
+                    return;
+                };
+                if signature != &call.contract {
+                    diagnostics.push(Diagnostic::error(
+                        "semantic.contract_mismatch",
+                        format!(
+                            "Native operation {} has an incompatible interface",
+                            call.operation
+                        ),
+                        call.span.clone(),
+                    ));
+                    return;
+                }
+                let mut arguments = BTreeMap::new();
+                for (name, value) in &call.arguments {
+                    let value = match value {
+                        MeaningValue::Call(_) | MeaningValue::Tuple(_) | MeaningValue::List(_) => {
+                            unreachable!("nested calls are deferred")
+                        }
+                        MeaningValue::SelfValue => {
+                            SemanticValue::Identity(SemanticIdentity::Occurrence(owner.id))
+                        }
+                        MeaningValue::Absent => SemanticValue::Absent,
+                        MeaningValue::Capture(capture) => {
+                            let Ok(capture) = owner.capture_path(capture) else {
+                                diagnostics.push(Diagnostic::error(
+                                    "semantic.missing_capture",
+                                    format!("Capture {capture} is not present on this occurrence"),
+                                    owner.span.clone(),
+                                ));
+                                return;
+                            };
+                            SemanticValue::Source(capture.clone())
+                        }
+                        MeaningValue::Text(text) => SemanticValue::Text(text.clone()),
+                        MeaningValue::Bool(value) => SemanticValue::Bool(*value),
+                        MeaningValue::Symbol(value) => SemanticValue::Symbol(value.clone()),
+                    };
+                    arguments.insert(name.clone(), value);
+                }
+                instances.push(Instance {
+                    call: call.clone(),
+                    arguments,
+                    native: factory(),
+                    started: false,
+                    ready: false,
+                });
+            }
+            tasks.push(Task {
+                owner,
+                group,
+                instances,
+                done: false,
+            });
+        }
+    }
+    let Schedule {
+        sorted,
+        dependencies,
+    } = match schedule(language, occurrences, &all, &parents, &tasks) {
+        Ok(plan) => plan,
+        Err(errors) => {
+            diagnostics.extend(errors);
+            return;
+        }
+    };
     let positions: BTreeMap<_, _> = sorted
         .iter()
         .enumerate()
@@ -611,10 +675,6 @@ pub(super) fn execute(
         deferred_dependencies.insert(job.task, required);
     }
     let mut state = AnalysisState {
-        match_owners: deferred
-            .iter()
-            .filter_map(|job| matches!(job.kind, DeferredKind::Match(_)).then_some(job.owner.id))
-            .collect(),
         services: registry
             .services
             .iter()
@@ -1535,5 +1595,62 @@ fn alternative_argument(
             }
         }
         _ => Ok(false),
+    }
+}
+
+#[cfg(test)]
+mod planning_tests {
+    use super::*;
+
+    #[test]
+    fn query_planning_preserves_named_group_order_without_creating_native_instances() {
+        let mut registry = OperationRegistry::new();
+        registry
+            .register(
+                "host",
+                "record",
+                OperationSignature {
+                    id: "host#record".into(),
+                    parameters: vec![],
+                    provides_context: false,
+                    contribution: false,
+                    finalization_only: false,
+                },
+                || panic!("Pure scheduling must never instantiate native operations"),
+            )
+            .unwrap();
+        let source = r#"import { record } from "host"
+            node Name = "n" { meanings {
+                group Late { record() }
+                group Register { record() }
+            } }
+            node Use = "u" { meanings { record() } }
+            node Root = Name Use { meanings {
+                precedence { Name::meanings::Register > Use > Name::meanings::Late }
+            } }
+            entry Root"#;
+        let language = crate::compiler::compile_sources_with_registry(
+            "language.yl",
+            &BTreeMap::from([("language.yl".into(), source.into())]),
+            &registry,
+        )
+        .unwrap();
+        let (parsed, occurrences) = crate::runtime::parse_occurrences(&language, "input", "nu");
+        assert!(parsed.diagnostics.is_empty());
+        let name = occurrences[0]
+            .children
+            .iter()
+            .find(|owner| owner.definition.ends_with("#Name"))
+            .unwrap()
+            .id;
+        let usage = occurrences[0]
+            .children
+            .iter()
+            .find(|owner| owner.definition.ends_with("#Use"))
+            .unwrap()
+            .id;
+        let ranks = query_group_ranks(&language, &occurrences).unwrap();
+        assert!(ranks[&(name, 1)] < ranks[&(usage, 0)]);
+        assert!(ranks[&(usage, 0)] < ranks[&(name, 0)]);
     }
 }

@@ -11,6 +11,7 @@ pub fn register(registry: &mut OperationRegistry) -> Result<(), String> {
     impl NativeOperation for Primitive {}
     for (name, parameters) in [
         ("get", vec!["key"]),
+        ("getEarlier", vec!["key"]),
         ("getAll", vec!["key"]),
         ("contribute", vec!["key", "value"]),
         ("contributeAll", vec!["key", "values"]),
@@ -18,6 +19,16 @@ pub fn register(registry: &mut OperationRegistry) -> Result<(), String> {
         ("children", vec!["value"]),
         ("find", vec!["values", "callback"]),
         ("map", vec!["values", "callback"]),
+        ("filter", vec!["values", "callback"]),
+        ("choose", vec!["condition", "then", "else"]),
+        ("values", vec!["value"]),
+        ("alternatives", vec!["values"]),
+        ("flatten", vec!["values"]),
+        ("last", vec!["value"]),
+        ("tail", vec!["value"]),
+        ("isList", vec!["value"]),
+        ("hypotheticalAll", vec!["key", "assumptions"]),
+        ("hypotheticalChecked", vec!["key", "assumptions"]),
         ("every", vec!["values", "callback"]),
         ("text", vec!["value"]),
         ("isPresent", vec!["value"]),
@@ -97,6 +108,16 @@ enum ProducerState {
     Contributions(QueryKey, Vec<SemanticValue>),
     Diagnostic(Diagnostic),
     Conflict(Vec<usize>),
+    Many(Vec<ProducerState>),
+}
+
+impl ProducerState {
+    fn leaves(&self) -> Vec<&Self> {
+        match self {
+            Self::Many(states) => states.iter().collect(),
+            state => vec![state],
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -117,6 +138,7 @@ enum Effect {
         severity: crate::diagnostic::Severity,
         message: Vec<QueryMessagePart>,
         target: Option<QueryExpr>,
+        related: Vec<QueryExpr>,
     },
     Observe(QueryExpr),
 }
@@ -131,6 +153,9 @@ struct Producer<'a> {
     footprint: Pattern,
     reads: BTreeSet<QueryKey>,
     waits: BTreeSet<usize>,
+    diagnostics: Vec<Diagnostic>,
+    order: (usize, usize),
+    approximate: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -171,15 +196,40 @@ impl Pattern {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct Trace {
     reads: BTreeSet<QueryKey>,
     waits: BTreeSet<usize>,
     producers: BTreeSet<usize>,
+    diagnostics: Vec<Diagnostic>,
+    order: Option<(usize, usize)>,
+    branch_values: Vec<(QueryExpr, SemanticValue)>,
+    approximate: bool,
+}
+
+impl Trace {
+    fn absorb(&mut self, other: &Self) {
+        self.reads.extend(other.reads.iter().cloned());
+        self.waits.extend(other.waits.iter().copied());
+        self.producers.extend(other.producers.iter().copied());
+        self.approximate |= other.approximate;
+        for diagnostic in &other.diagnostics {
+            if !self.diagnostics.contains(diagnostic) {
+                self.diagnostics.push(diagnostic.clone());
+            }
+        }
+    }
 }
 
 type Locals = BTreeMap<String, SemanticValue>;
-type HypotheticalMemo = BTreeMap<String, (Outcome, BTreeSet<QueryKey>)>;
+type HypotheticalMemo = BTreeMap<String, (Outcome, BTreeSet<QueryKey>, Vec<Diagnostic>)>;
+
+struct HypotheticalGuard(Rc<RefCell<BTreeSet<String>>>, String);
+impl Drop for HypotheticalGuard {
+    fn drop(&mut self) {
+        self.0.borrow_mut().remove(&self.1);
+    }
+}
 
 struct Engine<'a> {
     producers: Vec<Producer<'a>>,
@@ -187,6 +237,8 @@ struct Engine<'a> {
     parents: BTreeMap<usize, Option<usize>>,
     terminal_parents: BTreeMap<usize, usize>,
     overrides: BTreeMap<QueryKey, SemanticValue>,
+    override_origins: BTreeMap<QueryKey, Span>,
+    hypothetical_active: Rc<RefCell<BTreeSet<String>>>,
     hypothetical_depth: usize,
     source: &'a str,
     hypothetical_cache: Rc<RefCell<HypotheticalMemo>>,
@@ -280,11 +332,115 @@ fn primitive(name: &str) -> &str {
     name.strip_prefix("std/query#").unwrap_or(name)
 }
 
+const VALUE_NODE_LIMIT: usize = 16_384;
+const VALUE_BYTE_LIMIT: usize = 1024 * 1024;
+
+/// Bound owned compound values before another propagation round can clone them.
+fn value_cost(value: &SemanticValue) -> Result<(usize, usize), &'static str> {
+    enum Part<'a> {
+        Value(&'a SemanticValue),
+        Ast(&'a AstValue),
+        Selection(&'a OccurrenceSelection),
+    }
+    let mut pending = vec![(Part::Value(value), 0usize)];
+    let (mut nodes, mut bytes) = (0usize, 0usize);
+    while let Some((part, depth)) = pending.pop() {
+        nodes += 1;
+        if nodes > VALUE_NODE_LIMIT || depth > 128 {
+            return Err("Query value exceeds its node/depth limit");
+        }
+        match part {
+            Part::Value(
+                SemanticValue::Tuple(items)
+                | SemanticValue::List(items)
+                | SemanticValue::Alternatives { values: items, .. },
+            ) => pending.extend(items.iter().map(|item| (Part::Value(item), depth + 1))),
+            Part::Value(SemanticValue::Text(text) | SemanticValue::Symbol(text)) => {
+                bytes = bytes.saturating_add(text.len())
+            }
+            Part::Value(SemanticValue::Deferred { key, .. }) => {
+                pending.push((Part::Value(key), depth + 1))
+            }
+            Part::Value(SemanticValue::Source(source)) => {
+                bytes = bytes.saturating_add(source.text.len());
+                pending.push((Part::Ast(&source.value), depth + 1));
+                if let Some(selection) = &source.selection {
+                    pending.push((Part::Selection(selection), depth + 1));
+                }
+            }
+            Part::Ast(AstValue::Node(node)) => pending.extend(
+                node.fields
+                    .values()
+                    .map(|item| (Part::Ast(item), depth + 1)),
+            ),
+            Part::Ast(AstValue::List(items)) => {
+                pending.extend(items.iter().map(|item| (Part::Ast(item), depth + 1)))
+            }
+            Part::Ast(AstValue::Text(text)) => bytes = bytes.saturating_add(text.len()),
+            Part::Selection(OccurrenceSelection::List(items)) => {
+                pending.extend(items.iter().map(|item| (Part::Selection(item), depth + 1)))
+            }
+            _ => {}
+        }
+        if bytes > VALUE_BYTE_LIMIT {
+            return Err("Query value exceeds its one-MiB content limit");
+        }
+    }
+    Ok((nodes, bytes))
+}
+
+fn add_value_cost(
+    cost: &mut (usize, usize),
+    value: &SemanticValue,
+    span: &Span,
+) -> Result<(), Diagnostic> {
+    let next = value_cost(value)
+        .map_err(|message| Diagnostic::error("query.resource", message, span.clone()))?;
+    cost.0 = cost.0.saturating_add(next.0);
+    cost.1 = cost.1.saturating_add(next.1);
+    if cost.0 > VALUE_NODE_LIMIT || cost.1 > VALUE_BYTE_LIMIT {
+        return Err(Diagnostic::error(
+            "query.resource",
+            "Query collection exceeds its value budget",
+            span.clone(),
+        ));
+    }
+    Ok(())
+}
+
+fn add_key_cost(cost: &mut (usize, usize), key: &QueryKey, span: &Span) -> Result<(), Diagnostic> {
+    let mut pending = vec![(key, 0usize)];
+    while let Some((key, depth)) = pending.pop() {
+        cost.0 += 1;
+        match key {
+            QueryKey::Tuple(items) => pending.extend(items.iter().map(|item| (item, depth + 1))),
+            QueryKey::Text(text) | QueryKey::Symbol(text) => {
+                cost.1 = cost.1.saturating_add(text.len())
+            }
+            _ => {}
+        }
+        if depth > 128 || cost.0 > VALUE_NODE_LIMIT || cost.1 > VALUE_BYTE_LIMIT {
+            return Err(Diagnostic::error(
+                "query.resource",
+                "Branch keys exceed the evaluation limit",
+                span.clone(),
+            ));
+        }
+    }
+    Ok(())
+}
+
 impl<'a> Engine<'a> {
     fn display_value(&self, value: &SemanticValue) -> String {
         match value {
             SemanticValue::Source(source) => source.text.clone(),
-            SemanticValue::Text(text) | SemanticValue::Symbol(text) => text.clone(),
+            SemanticValue::Text(text) => text.clone(),
+            SemanticValue::Symbol(text) => text.rsplit('#').next().unwrap_or(text).into(),
+            SemanticValue::Alternatives { values, .. } => values
+                .iter()
+                .map(|value| self.display_value(value))
+                .collect::<Vec<_>>()
+                .join(" | "),
             SemanticValue::Bool(value) => value.to_string(),
             SemanticValue::Absent => "absent".into(),
             SemanticValue::Identity(SemanticIdentity::Occurrence(id)) => self
@@ -389,7 +545,12 @@ impl<'a> Engine<'a> {
         }
     }
 
-    fn new(language: &CompiledLanguage, occurrences: &'a [Occurrence], source: &'a str) -> Self {
+    fn new(
+        language: &CompiledLanguage,
+        occurrences: &'a [Occurrence],
+        source: &'a str,
+        ranks: &BTreeMap<(usize, usize), usize>,
+    ) -> Self {
         fn visit<'a>(
             owner: &'a Occurrence,
             parent: Option<usize>,
@@ -408,6 +569,8 @@ impl<'a> Engine<'a> {
             parents: BTreeMap::new(),
             terminal_parents: BTreeMap::new(),
             overrides: BTreeMap::new(),
+            override_origins: BTreeMap::new(),
+            hypothetical_active: Rc::default(),
             hypothetical_depth: 0,
             source,
             hypothetical_cache: Rc::default(),
@@ -444,7 +607,15 @@ impl<'a> Engine<'a> {
         for owner in engine.occurrences.values().copied().collect::<Vec<_>>() {
             if let Some(groups) = language.query_meanings.get(&owner.definition) {
                 for group in groups {
-                    engine.discover(owner, &group.actions, &[]);
+                    let original = language.meanings[&owner.definition]
+                        .groups
+                        .iter()
+                        .position(|original| {
+                            original.name == group.name && original.span == group.span
+                        })
+                        .expect("validated query group");
+                    let rank = ranks[&(owner.id, original)];
+                    engine.discover(owner, &group.actions, &[], rank);
                 }
             }
         }
@@ -452,7 +623,13 @@ impl<'a> Engine<'a> {
         engine
     }
 
-    fn discover(&mut self, owner: &'a Occurrence, actions: &[QueryAction], guards: &[Guard]) {
+    fn discover(
+        &mut self,
+        owner: &'a Occurrence,
+        actions: &[QueryAction],
+        guards: &[Guard],
+        rank: usize,
+    ) {
         for action in actions {
             let (effect, span) = match action {
                 QueryAction::Call { name, args, span } if primitive(name) == "contribute" => {
@@ -473,12 +650,14 @@ impl<'a> Engine<'a> {
                     severity,
                     message,
                     target,
+                    related,
                     span,
                 } => (
                     Effect::Diagnostic {
                         severity: severity.clone(),
                         message: message.clone(),
                         target: target.clone(),
+                        related: related.clone(),
                     },
                     span,
                 ),
@@ -490,9 +669,9 @@ impl<'a> Engine<'a> {
                 } => {
                     let mut nested = guards.to_vec();
                     nested.push(Guard::If(condition.clone(), true));
-                    self.discover(owner, then_actions, &nested);
+                    self.discover(owner, then_actions, &nested, rank);
                     *nested.last_mut().expect("new guard") = Guard::If(condition.clone(), false);
-                    self.discover(owner, else_actions, &nested);
+                    self.discover(owner, else_actions, &nested, rank);
                     continue;
                 }
                 QueryAction::Match { inputs, cases, .. } => {
@@ -503,13 +682,15 @@ impl<'a> Engine<'a> {
                             cases: cases.clone(),
                             selected,
                         });
-                        self.discover(owner, &case.actions, &nested);
+                        self.discover(owner, &case.actions, &nested, rank);
                     }
                     continue;
                 }
             };
             self.producers.push(Producer {
                 owner,
+                order: (rank, self.producers.len()),
+                approximate: false,
                 effect,
                 guards: guards.to_vec(),
                 span: span.clone(),
@@ -517,6 +698,7 @@ impl<'a> Engine<'a> {
                 footprint: Pattern::Any,
                 reads: BTreeSet::new(),
                 waits: BTreeSet::new(),
+                diagnostics: vec![],
             });
         }
     }
@@ -553,10 +735,28 @@ impl<'a> Engine<'a> {
     }
 
     fn lookup(&self, key: &QueryKey, all: bool, facts: bool, trace: &mut Trace) -> Outcome {
+        self.lookup_visible(key, all, facts, false, trace)
+    }
+
+    fn lookup_visible(
+        &self,
+        key: &QueryKey,
+        all: bool,
+        facts: bool,
+        earlier: bool,
+        trace: &mut Trace,
+    ) -> Outcome {
+        if earlier && trace.order.is_none() {
+            return Outcome::Pending;
+        }
         trace.reads.insert(key.clone());
+        trace.approximate |= facts;
         if let Some(value) = self.overrides.get(key) {
             return Outcome::Ready(if all || facts {
-                SemanticValue::List(vec![value.clone()])
+                SemanticValue::List(match value {
+                    SemanticValue::Alternatives { values, .. } => values.clone(),
+                    value => vec![value.clone()],
+                })
             } else {
                 value.clone()
             });
@@ -568,29 +768,43 @@ impl<'a> Engine<'a> {
             if !matches!(
                 producer.effect,
                 Effect::Contribution(..) | Effect::Contributions(..)
-            ) || !producer.footprint.matches(key)
+            ) || (earlier && Some(producer.order) >= trace.order)
+                || !producer.footprint.matches(key)
             {
                 continue;
             }
             trace.producers.insert(id);
-            match &producer.state {
-                ProducerState::Pending => {
-                    pending = true;
-                    trace.waits.insert(id);
+            trace.approximate |= producer.approximate;
+            for state in producer.state.leaves() {
+                match state {
+                    ProducerState::Pending => {
+                        pending = true;
+                        trace.waits.insert(id);
+                    }
+                    ProducerState::Contribution(actual, value) if actual == key => {
+                        if !values.iter().zip(&producers).any(|(previous, producer)| {
+                            *producer == id && equal_values(previous, value)
+                        }) {
+                            values.push(value.clone());
+                            producers.push(id);
+                        }
+                    }
+                    ProducerState::Contributions(actual, items) if actual == key => {
+                        for value in items {
+                            if !values.iter().zip(&producers).any(|(previous, producer)| {
+                                *producer == id && equal_values(previous, value)
+                            }) {
+                                values.push(value.clone());
+                                producers.push(id);
+                            }
+                        }
+                    }
+                    ProducerState::Conflict(waiting) => {
+                        pending = true;
+                        trace.waits.extend(waiting);
+                    }
+                    _ => {}
                 }
-                ProducerState::Contribution(actual, value) if actual == key => {
-                    values.push(value.clone());
-                    producers.push(id);
-                }
-                ProducerState::Contributions(actual, items) if actual == key => {
-                    values.extend(items.clone());
-                    producers.extend(std::iter::repeat(id).take(items.len()));
-                }
-                ProducerState::Conflict(waiting) => {
-                    pending = true;
-                    trace.waits.extend(waiting);
-                }
-                _ => {}
             }
         }
         if facts {
@@ -622,6 +836,32 @@ impl<'a> Engine<'a> {
         locals: &Locals,
         trace: &mut Trace,
     ) -> Result<Outcome, Diagnostic> {
+        let result = stacker::maybe_grow(512 * 1024, 2 * 1024 * 1024, || {
+            self.eval_inner(expression, owner, locals, trace)
+        })?;
+        if let Outcome::Ready(value) = &result {
+            value_cost(value).map_err(|message| {
+                Diagnostic::error("query.resource", message, owner.span.clone())
+            })?;
+        }
+        Ok(result)
+    }
+
+    fn eval_inner(
+        &self,
+        expression: &QueryExpr,
+        owner: &Occurrence,
+        locals: &Locals,
+        trace: &mut Trace,
+    ) -> Result<Outcome, Diagnostic> {
+        if let Some((_, value)) = trace
+            .branch_values
+            .iter()
+            .rev()
+            .find(|(input, _)| input == expression)
+        {
+            return Ok(Outcome::Ready(value.clone()));
+        }
         let ready = |value| Ok(Outcome::Ready(value));
         match expression {
             QueryExpr::SelfValue => ready(SemanticValue::Identity(SemanticIdentity::Occurrence(
@@ -647,9 +887,13 @@ impl<'a> Engine<'a> {
             QueryExpr::Symbol(value) => ready(SemanticValue::Symbol(value.clone())),
             QueryExpr::Tuple(items) | QueryExpr::List(items) => {
                 let mut values = vec![];
+                let mut cost = (1, 0);
                 for item in items {
                     match self.eval(item, owner, locals, trace)? {
-                        Outcome::Ready(value) => values.push(value),
+                        Outcome::Ready(value) => {
+                            add_value_cost(&mut cost, &value, &owner.span)?;
+                            values.push(value)
+                        }
                         outcome => return Ok(outcome),
                     }
                 }
@@ -694,7 +938,16 @@ impl<'a> Engine<'a> {
                 owner.span.clone(),
             )
         };
-        if matches!(name, "find" | "map" | "every") {
+        if name == "choose" {
+            return match self.eval(&args[0], owner, locals, trace)? {
+                Outcome::Ready(SemanticValue::Bool(condition)) => {
+                    self.eval(&args[if condition { 1 } else { 2 }], owner, locals, trace)
+                }
+                Outcome::Ready(_) => Err(bad()),
+                value => Ok(value),
+            };
+        }
+        if matches!(name, "find" | "map" | "every" | "filter") {
             let values = match self.eval(&args[0], owner, locals, trace)? {
                 Outcome::Ready(SemanticValue::List(values)) => values,
                 Outcome::Ready(_) => return Err(bad()),
@@ -705,14 +958,20 @@ impl<'a> Engine<'a> {
             };
             let mut locals = locals.clone();
             let mut mapped = vec![];
+            let mut cost = (1, 0);
             let mut pending = false;
             for value in values {
-                locals.insert(parameter.clone(), value);
+                locals.insert(parameter.clone(), value.clone());
                 let result = self.eval(body, owner, &locals, trace)?;
                 match (name, result) {
                     ("find", Outcome::Ready(SemanticValue::Absent)) => {}
                     ("find", result) => return Ok(result),
-                    ("map", Outcome::Ready(value)) => mapped.push(value),
+                    ("map", Outcome::Ready(value)) => {
+                        add_value_cost(&mut cost, &value, &owner.span)?;
+                        mapped.push(value)
+                    }
+                    ("filter", Outcome::Ready(SemanticValue::Bool(true))) => mapped.push(value),
+                    ("filter", Outcome::Ready(SemanticValue::Bool(false))) => {}
                     ("every", Outcome::Ready(SemanticValue::Bool(false))) => {
                         return Ok(Outcome::Ready(SemanticValue::Bool(false)))
                     }
@@ -726,7 +985,7 @@ impl<'a> Engine<'a> {
                 Outcome::Pending
             } else {
                 Outcome::Ready(match name {
-                    "map" => SemanticValue::List(mapped),
+                    "map" | "filter" => SemanticValue::List(mapped),
                     "every" => SemanticValue::Bool(true),
                     _ => SemanticValue::Absent,
                 })
@@ -740,11 +999,17 @@ impl<'a> Engine<'a> {
             }
         }
         let result = match (name, values.as_slice()) {
-            ("get" | "getAll" | "facts", [value]) => {
+            ("get" | "getEarlier" | "getAll" | "facts", [value]) => {
                 let Some(key) = address(value, &owner.span)? else {
                     return Ok(Outcome::Ready(SemanticValue::Absent));
                 };
-                return Ok(self.lookup(&key, name == "getAll", name == "facts", trace));
+                return Ok(self.lookup_visible(
+                    &key,
+                    name == "getAll",
+                    name == "facts",
+                    name == "getEarlier",
+                    trace,
+                ));
             }
             ("ancestors", [value]) => SemanticValue::List(self.ancestors(value, &owner.span)?),
             ("children", [value]) => {
@@ -785,7 +1050,45 @@ impl<'a> Engine<'a> {
             ("isPresent", [value]) => SemanticValue::Bool(!matches!(value, SemanticValue::Absent)),
             ("equal", [left, right]) => SemanticValue::Bool(equal_values(left, right)),
             ("hasMultiple", [SemanticValue::List(values)]) => SemanticValue::Bool(values.len() > 1),
-            ("first", [SemanticValue::List(values)]) => {
+            ("values", [SemanticValue::Alternatives { values, .. }]) => {
+                SemanticValue::List(values.clone())
+            }
+            ("values", [SemanticValue::Absent]) => SemanticValue::List(vec![]),
+            ("values", [value]) => SemanticValue::List(vec![value.clone()]),
+            ("alternatives", [SemanticValue::List(values)]) => {
+                let mut unique = vec![];
+                for value in values {
+                    if !unique.iter().any(|item| equal_values(item, value)) {
+                        unique.push(value.clone());
+                    }
+                }
+                match unique.len() {
+                    0 => SemanticValue::Absent,
+                    1 => unique.remove(0),
+                    _ => SemanticValue::Alternatives {
+                        service: "core/query".into(),
+                        values: unique,
+                    },
+                }
+            }
+            ("flatten", [SemanticValue::List(values)]) => {
+                let mut items = vec![];
+                for value in values {
+                    match value {
+                        SemanticValue::List(values) => items.extend(values.clone()),
+                        _ => return Err(bad()),
+                    }
+                }
+                SemanticValue::List(items)
+            }
+            ("isList", [value]) => SemanticValue::Bool(matches!(value, SemanticValue::List(_))),
+            ("tail", [SemanticValue::List(values) | SemanticValue::Tuple(values)]) => {
+                SemanticValue::List(values.iter().skip(1).cloned().collect())
+            }
+            ("last", [SemanticValue::List(values) | SemanticValue::Tuple(values)]) => {
+                values.last().cloned().unwrap_or(SemanticValue::Absent)
+            }
+            ("first", [SemanticValue::List(values) | SemanticValue::Tuple(values)]) => {
                 values.first().cloned().unwrap_or(SemanticValue::Absent)
             }
             ("concat", [SemanticValue::List(values)]) => {
@@ -861,8 +1164,18 @@ impl<'a> Engine<'a> {
                         .collect(),
                 )
             }
-            ("hypothetical", [key, SemanticValue::List(assumptions)]) => {
-                return self.hypothetical(key, assumptions, trace, &owner.span);
+            (
+                "hypothetical" | "hypotheticalAll" | "hypotheticalChecked",
+                [key, SemanticValue::List(assumptions)],
+            ) => {
+                return self.hypothetical(
+                    key,
+                    assumptions,
+                    trace,
+                    &owner.span,
+                    name != "hypothetical",
+                    name == "hypotheticalChecked",
+                );
             }
             _ => return Err(bad()),
         };
@@ -879,9 +1192,12 @@ impl<'a> Engine<'a> {
         if depth > 24 {
             return Pattern::Any;
         }
-        if let Ok(Outcome::Ready(value)) = self.eval(expr, owner, locals, &mut Trace::default()) {
-            if let Ok(key) = address(&value, &owner.span) {
-                return key.map(Pattern::Exact).unwrap_or(Pattern::Empty);
+        let mut trace = Trace::default();
+        if let Ok(Outcome::Ready(value)) = self.eval(expr, owner, locals, &mut trace) {
+            if !trace.approximate {
+                if let Ok(key) = address(&value, &owner.span) {
+                    return key.map(Pattern::Exact).unwrap_or(Pattern::Empty);
+                }
             }
         }
         match expr {
@@ -933,7 +1249,7 @@ impl<'a> Engine<'a> {
                 let mut candidates = vec![];
                 for value in values {
                     let mut locals = locals.clone();
-                    locals.insert(parameter.clone(), value);
+                    locals.insert(parameter.clone(), value.clone());
                     let candidate = self.abstract_expr(body, owner, &locals, depth + 1);
                     if matches!(candidate, Pattern::Any) {
                         return Pattern::Any;
@@ -973,55 +1289,94 @@ impl<'a> Engine<'a> {
         changed
     }
 
-    fn guard(
+    fn guard_branches(
         &self,
         guard: &Guard,
         owner: &Occurrence,
-        trace: &mut Trace,
-    ) -> Result<Outcome, Diagnostic> {
+        mut trace: Trace,
+    ) -> Result<Vec<(Outcome, Trace)>, Diagnostic> {
         match guard {
             Guard::If(condition, expected) => {
-                match self.eval(condition, owner, &Locals::new(), trace)? {
+                let outcome = match self.eval(condition, owner, &Locals::new(), &mut trace)? {
                     Outcome::Ready(SemanticValue::Bool(value)) => {
-                        Ok(Outcome::Ready(SemanticValue::Bool(value == *expected)))
+                        Outcome::Ready(SemanticValue::Bool(value == *expected))
                     }
-                    Outcome::Ready(_) => Err(Diagnostic::error(
-                        "query.condition",
-                        "An if condition must be boolean",
-                        owner.span.clone(),
-                    )),
-                    value => Ok(value),
-                }
+                    Outcome::Ready(_) => {
+                        return Err(Diagnostic::error(
+                            "query.condition",
+                            "An if condition must be boolean",
+                            owner.span.clone(),
+                        ))
+                    }
+                    value => value,
+                };
+                Ok(vec![(outcome, trace)])
             }
             Guard::Case {
                 inputs,
                 cases,
                 selected,
             } => {
-                let mut values = vec![];
+                let mut rows = vec![(vec![], trace)];
+                let mut blocked = vec![];
                 for input in inputs {
-                    match self.eval(input, owner, &Locals::new(), trace)? {
-                        Outcome::Ready(value) => values.push(value),
-                        pending => return Ok(pending),
+                    let mut next = vec![];
+                    for (prefix, mut context) in rows {
+                        let candidates =
+                            match self.eval(input, owner, &Locals::new(), &mut context)? {
+                                Outcome::Ready(SemanticValue::Alternatives { values, .. }) => {
+                                    values
+                                }
+                                Outcome::Ready(value) => vec![value],
+                                pending => {
+                                    blocked.push((pending, context));
+                                    continue;
+                                }
+                            };
+                        if next.len().saturating_add(candidates.len()) > 4096 {
+                            return Err(Diagnostic::error(
+                                "query.resource",
+                                "Match alternatives exceed the evaluation limit",
+                                owner.span.clone(),
+                            ));
+                        }
+                        for value in candidates {
+                            let mut context = context.clone();
+                            context.branch_values.push((input.clone(), value.clone()));
+                            let mut values = prefix.clone();
+                            values.push(value);
+                            next.push((values, context));
+                        }
                     }
+                    rows = next;
                 }
-                for (index, case) in cases.iter().enumerate() {
-                    for alternative in &case.alternatives {
-                        let mut matches = alternative.len() == values.len();
-                        for (pattern, value) in alternative.iter().zip(&values) {
-                            if let Some(pattern) = pattern {
-                                match self.eval(pattern, owner, &Locals::new(), trace)? {
-                                    Outcome::Ready(pattern) => matches &= pattern == *value,
-                                    pending => return Ok(pending),
+                for (values, mut context) in rows {
+                    let mut outcome = Outcome::Ready(SemanticValue::Bool(false));
+                    'cases: for (index, case) in cases.iter().enumerate() {
+                        for alternative in &case.alternatives {
+                            let mut matches = alternative.len() == values.len();
+                            for (pattern, value) in alternative.iter().zip(&values) {
+                                if let Some(pattern) = pattern {
+                                    match self.eval(pattern, owner, &Locals::new(), &mut context)? {
+                                        Outcome::Ready(pattern) => {
+                                            matches &= equal_values(&pattern, value)
+                                        }
+                                        pending => {
+                                            outcome = pending;
+                                            break 'cases;
+                                        }
+                                    }
                                 }
                             }
-                        }
-                        if matches {
-                            return Ok(Outcome::Ready(SemanticValue::Bool(index == *selected)));
+                            if matches {
+                                outcome = Outcome::Ready(SemanticValue::Bool(index == *selected));
+                                break 'cases;
+                            }
                         }
                     }
+                    blocked.push((outcome, context));
                 }
-                Ok(Outcome::Ready(SemanticValue::Bool(false)))
+                Ok(blocked)
             }
         }
     }
@@ -1031,18 +1386,79 @@ impl<'a> Engine<'a> {
         producer: &Producer<'a>,
         trace: &mut Trace,
     ) -> Result<ProducerState, Diagnostic> {
-        let mut pending = false;
+        trace.order = Some(producer.order);
+        let mut contexts = vec![(Outcome::Ready(SemanticValue::Bool(true)), trace.clone())];
         for guard in &producer.guards {
-            match self.guard(guard, producer.owner, trace)? {
-                Outcome::Ready(SemanticValue::Bool(false)) => return Ok(ProducerState::Absent),
-                Outcome::Pending => pending = true,
-                Outcome::Conflict(ids) => return Ok(ProducerState::Conflict(ids)),
+            let mut next = vec![];
+            for (previous, context) in contexts {
+                for (outcome, context) in self.guard_branches(guard, producer.owner, context)? {
+                    trace.absorb(&context);
+                    match outcome {
+                        Outcome::Ready(SemanticValue::Bool(false)) => {}
+                        Outcome::Ready(_) => next.push((previous.clone(), context)),
+                        blocked => next.push((blocked, context)),
+                    }
+                    if next.len() > 4096 {
+                        return Err(Diagnostic::error(
+                            "query.resource",
+                            "Nested match alternatives exceed the evaluation limit",
+                            producer.owner.span.clone(),
+                        ));
+                    }
+                }
+            }
+            contexts = next;
+        }
+        let mut states = vec![];
+        let mut cost = (0, 0);
+        for (guard, mut context) in contexts {
+            let state = match guard {
+                Outcome::Pending => ProducerState::Pending,
+                Outcome::Conflict(ids) => ProducerState::Conflict(ids),
+                _ => self.evaluate_effect(producer, &mut context)?,
+            };
+            trace.absorb(&context);
+            if states.contains(&state) || matches!(state, ProducerState::Absent) {
+                continue;
+            }
+            match &state {
+                ProducerState::Contribution(key, value) => {
+                    add_key_cost(&mut cost, key, &producer.span)?;
+                    add_value_cost(&mut cost, value, &producer.span)?
+                }
+                ProducerState::Contributions(key, values) => {
+                    add_key_cost(&mut cost, key, &producer.span)?;
+                    for value in values {
+                        add_value_cost(&mut cost, value, &producer.span)?;
+                    }
+                }
+                ProducerState::Diagnostic(diagnostic) => {
+                    cost.0 += 1;
+                    cost.1 = cost.1.saturating_add(diagnostic.message.len());
+                    if cost.0 > VALUE_NODE_LIMIT || cost.1 > VALUE_BYTE_LIMIT {
+                        return Err(Diagnostic::error(
+                            "query.resource",
+                            "Branch diagnostics exceed the evaluation limit",
+                            producer.span.clone(),
+                        ));
+                    }
+                }
                 _ => {}
             }
+            states.push(state);
         }
-        if pending {
-            return Ok(ProducerState::Pending);
-        }
+        Ok(match states.len() {
+            0 => ProducerState::Absent,
+            1 => states.remove(0),
+            _ => ProducerState::Many(states),
+        })
+    }
+
+    fn evaluate_effect(
+        &self,
+        producer: &Producer<'a>,
+        trace: &mut Trace,
+    ) -> Result<ProducerState, Diagnostic> {
         match &producer.effect {
             Effect::Contribution(key, value) | Effect::Contributions(key, value) => {
                 let key = match self.eval(key, producer.owner, &Locals::new(), trace)? {
@@ -1082,6 +1498,7 @@ impl<'a> Engine<'a> {
                 severity,
                 message,
                 target,
+                related,
             } => {
                 let span = if let Some(target) = target {
                     match self.eval(target, producer.owner, &Locals::new(), trace)? {
@@ -1102,20 +1519,52 @@ impl<'a> Engine<'a> {
                 };
                 let mut text = String::new();
                 for part in message {
-                    match part {
-                        QueryMessagePart::Text(value) => text.push_str(value),
+                    let fragment = match part {
+                        QueryMessagePart::Text(value) => value.clone(),
                         QueryMessagePart::Value(value) => {
                             match self.eval(value, producer.owner, &Locals::new(), trace)? {
-                                Outcome::Ready(value) => text.push_str(&self.display_value(&value)),
+                                Outcome::Ready(value) => self.display_value(&value),
                                 Outcome::Pending => return Ok(ProducerState::Pending),
                                 Outcome::Conflict(ids) => return Ok(ProducerState::Conflict(ids)),
                             }
                         }
+                    };
+                    if text.len().saturating_add(fragment.len()) > VALUE_BYTE_LIMIT {
+                        return Err(Diagnostic::error(
+                            "query.resource",
+                            "Diagnostic message exceeds the evaluation limit",
+                            producer.span.clone(),
+                        ));
                     }
+                    text.push_str(&fragment);
                 }
                 let mut diagnostic = Diagnostic::error("query.diagnostic", text, span);
                 diagnostic.severity = severity.clone();
                 diagnostic.secondary.push(producer.span.clone());
+                for related in related {
+                    match self.eval(related, producer.owner, &Locals::new(), trace)? {
+                        Outcome::Ready(SemanticValue::Source(source)) => {
+                            diagnostic.secondary.push(source.span)
+                        }
+                        Outcome::Ready(SemanticValue::Identity(SemanticIdentity::Occurrence(
+                            id,
+                        ))) => {
+                            if let Some(owner) = self.occurrences.get(&id) {
+                                diagnostic.secondary.push(owner.span.clone());
+                            }
+                        }
+                        Outcome::Ready(SemanticValue::Absent) => {}
+                        Outcome::Ready(_) => {
+                            return Err(Diagnostic::error(
+                                "query.diagnostic_target",
+                                "Related diagnostic location must be syntax or absent",
+                                producer.owner.span.clone(),
+                            ))
+                        }
+                        Outcome::Pending => return Ok(ProducerState::Pending),
+                        Outcome::Conflict(ids) => return Ok(ProducerState::Conflict(ids)),
+                    }
+                }
                 Ok(ProducerState::Diagnostic(diagnostic))
             }
             Effect::Observe(expr) => {
@@ -1157,6 +1606,9 @@ impl<'a> Engine<'a> {
                 producer.state = state;
                 producer.reads = trace.reads;
                 producer.waits = trace.waits;
+                producer.diagnostics = trace.diagnostics;
+                changed |= producer.approximate != trace.approximate;
+                producer.approximate = trace.approximate;
             }
             changed |= self.infer_footprints();
             if !changed {
@@ -1183,8 +1635,10 @@ impl<'a> Engine<'a> {
         assumptions: &[SemanticValue],
         trace: &mut Trace,
         span: &Span,
+        all: bool,
+        checked: bool,
     ) -> Result<Outcome, Diagnostic> {
-        if self.hypothetical_depth >= 32 {
+        if self.hypothetical_depth >= 12 {
             return Err(Diagnostic::error(
                 "query.hypothetical_cycle",
                 "Recursive hypothetical query exceeded the evaluation limit",
@@ -1200,10 +1654,13 @@ impl<'a> Engine<'a> {
             parents: self.parents.clone(),
             terminal_parents: self.terminal_parents.clone(),
             overrides: self.overrides.clone(),
+            override_origins: self.override_origins.clone(),
+            hypothetical_active: self.hypothetical_active.clone(),
             hypothetical_depth: self.hypothetical_depth + 1,
             source: self.source,
             hypothetical_cache: self.hypothetical_cache.clone(),
         };
+        let mut explicit = BTreeSet::new();
         for assumption in assumptions {
             let SemanticValue::Tuple(parts) = assumption else {
                 return Err(Diagnostic::error(
@@ -1212,7 +1669,7 @@ impl<'a> Engine<'a> {
                     span.clone(),
                 ));
             };
-            if parts.len() != 2 {
+            if !(2..=3).contains(&parts.len()) {
                 return Err(Diagnostic::error(
                     "query.assumption",
                     "Each assumption is a (key, value) tuple",
@@ -1226,21 +1683,68 @@ impl<'a> Engine<'a> {
                     span.clone(),
                 ));
             };
+            if !explicit.insert(key.clone()) {
+                return Err(Diagnostic::error(
+                    "query.assumption",
+                    "An assumption key appears more than once",
+                    span.clone(),
+                ));
+            }
+            copy.override_origins.remove(&key);
+            if let Some(origin) = parts.get(2) {
+                let origin = match origin {
+                    SemanticValue::Source(source) => Some(source.span.clone()),
+                    SemanticValue::Identity(SemanticIdentity::Occurrence(id)) => {
+                        copy.occurrences.get(id).map(|owner| owner.span.clone())
+                    }
+                    SemanticValue::Absent => None,
+                    _ => {
+                        return Err(Diagnostic::error(
+                            "query.assumption",
+                            "An assumption origin must be syntax or absent",
+                            span.clone(),
+                        ))
+                    }
+                };
+                if let Some(origin) = origin {
+                    copy.override_origins.insert(key.clone(), origin);
+                }
+            }
             copy.overrides.insert(key, parts[1].clone());
         }
-        let memo_key =
-            serde_json::to_string(&(key.clone(), copy.overrides.iter().collect::<Vec<_>>()))
-                .map_err(|error| {
-                    Diagnostic::error("query.assumption", error.to_string(), span.clone())
-                })?;
-        if let Some((result, reads)) = self.hypothetical_cache.borrow().get(&memo_key) {
+        let memo_key = serde_json::to_string(&(
+            key.clone(),
+            all,
+            checked,
+            checked.then_some(span),
+            copy.override_origins.iter().collect::<Vec<_>>(),
+            copy.overrides.iter().collect::<Vec<_>>(),
+        ))
+        .map_err(|error| Diagnostic::error("query.assumption", error.to_string(), span.clone()))?;
+        if let Some((result, reads, diagnostics)) = self.hypothetical_cache.borrow().get(&memo_key)
+        {
             trace.reads.extend(reads.clone());
+            trace.diagnostics.extend(diagnostics.clone());
             return Ok(result.clone());
         }
+        if !self
+            .hypothetical_active
+            .borrow_mut()
+            .insert(memo_key.clone())
+        {
+            return Err(Diagnostic::error(
+                "query.hypothetical_cycle",
+                "A hypothetical query depends on its own result",
+                span.clone(),
+            ));
+        }
+        let _active_guard = HypotheticalGuard(self.hypothetical_active.clone(), memo_key.clone());
         for producer in &mut copy.producers {
             producer.state = ProducerState::Pending;
             producer.reads.clear();
             producer.waits.clear();
+            producer.diagnostics.clear();
+            producer.approximate = false;
         }
         copy.infer_footprints();
         // Demand only producers of the requested answer and the producers read
@@ -1251,9 +1755,25 @@ impl<'a> Engine<'a> {
         let mut failures = BTreeMap::new();
         for _ in 0..(copy.producers.len() + 1).saturating_mul(8).max(32) {
             let mut root_trace = Trace::default();
-            copy.lookup(&key, false, false, &mut root_trace);
+            copy.lookup(&key, all, false, &mut root_trace);
             let old_count = active.len();
             active.extend(root_trace.producers);
+            if checked {
+                let owners: BTreeSet<_> = active
+                    .iter()
+                    .map(|id| copy.producers[*id].owner.id)
+                    .collect();
+                active.extend(
+                    copy.producers
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(id, producer)| {
+                            (owners.contains(&producer.owner.id)
+                                && matches!(producer.effect, Effect::Diagnostic { .. }))
+                            .then_some(id)
+                        }),
+                );
+            }
             let mut changed = old_count != active.len();
             let mut updates = vec![];
             for id in active.iter().copied() {
@@ -1278,6 +1798,9 @@ impl<'a> Engine<'a> {
                 copy.producers[id].state = state;
                 copy.producers[id].reads = reads.reads;
                 copy.producers[id].waits = reads.waits;
+                copy.producers[id].diagnostics = reads.diagnostics;
+                changed |= copy.producers[id].approximate != reads.approximate;
+                copy.producers[id].approximate = reads.approximate;
             }
             changed |= copy.infer_footprints();
             if !changed {
@@ -1295,7 +1818,47 @@ impl<'a> Engine<'a> {
         if let Some(error) = failures.into_values().next() {
             return Err(error);
         }
-        let result = copy.lookup(&key, false, false, trace);
+        let result = copy.lookup(&key, all, false, trace);
+        let mut receipts = vec![];
+        if checked && matches!(result, Outcome::Ready(_)) {
+            for id in &active {
+                for leaf in copy.producers[*id].state.leaves() {
+                    if let ProducerState::Diagnostic(diagnostic) = leaf {
+                        let mut diagnostic = diagnostic.clone();
+                        diagnostic.secondary.push(*diagnostic.primary.clone());
+                        let mut keys = copy.producers[*id].reads.clone();
+                        let mut seen = BTreeSet::new();
+                        let mut origins = vec![];
+                        while let Some(key) = keys.pop_first() {
+                            if !seen.insert(key.clone()) {
+                                continue;
+                            }
+                            if let Some(origin) = copy.override_origins.get(&key) {
+                                if !origins.contains(origin) {
+                                    origins.push(origin.clone());
+                                }
+                            } else {
+                                for producer in &copy.producers {
+                                    if producer.footprint.matches(&key) {
+                                        keys.extend(producer.reads.clone());
+                                    }
+                                }
+                            }
+                        }
+                        *diagnostic.primary = if origins.len() == 1 {
+                            origins.remove(0)
+                        } else {
+                            span.clone()
+                        };
+                        if !receipts.contains(&diagnostic) {
+                            receipts.push(diagnostic);
+                        }
+                    }
+                }
+                receipts.extend(copy.producers[*id].diagnostics.clone());
+            }
+            trace.diagnostics.extend(receipts.clone());
+        }
         // Dependencies on shared reads remain visible to the caller. All writes
         // and diagnostic contributions live only in the isolated calculation.
         let mut shared_reads = BTreeSet::new();
@@ -1318,7 +1881,7 @@ impl<'a> Engine<'a> {
         if matches!(result, Outcome::Ready(_)) {
             self.hypothetical_cache
                 .borrow_mut()
-                .insert(memo_key, (result.clone(), shared_reads));
+                .insert(memo_key, (result.clone(), shared_reads, receipts));
         }
         Ok(result)
     }
@@ -1334,65 +1897,107 @@ pub(super) fn execute(
     if language.query_meanings.is_empty() {
         return;
     }
-    let mut engine = Engine::new(language, occurrences, source);
+    let ranks = match super::scheduler::query_group_ranks(language, occurrences) {
+        Ok(ranks) => ranks,
+        Err(errors) => {
+            diagnostics.extend(errors);
+            return;
+        }
+    };
+    let mut engine = Engine::new(language, occurrences, source, &ranks);
     diagnostics.extend(engine.settle());
     for (id, producer) in engine.producers.iter().enumerate() {
-        let state = match &producer.state {
-            ProducerState::Contribution(key, value) => {
-                graph.query_entries.push(QueryEntry {
-                    key: key.clone(),
-                    value: value.clone(),
-                    producer: id,
-                    span: producer.owner.span.clone(),
-                });
-                "present"
-            }
-            ProducerState::Contributions(key, values) => {
-                for value in values {
-                    graph.query_entries.push(QueryEntry {
-                        key: key.clone(),
-                        value: value.clone(),
-                        producer: id,
-                        span: producer.owner.span.clone(),
-                    });
+        if !matches!(
+            producer.state,
+            ProducerState::Pending | ProducerState::Conflict(_)
+        ) {
+            for diagnostic in &producer.diagnostics {
+                if !diagnostics.contains(diagnostic) {
+                    diagnostics.push(diagnostic.clone());
                 }
-                "present"
             }
-            ProducerState::Diagnostic(diagnostic) => {
-                diagnostics.push(diagnostic.clone());
-                "present"
+        }
+        let mut state = "absent";
+        for leaf in producer.state.leaves() {
+            let leaf_state = match leaf {
+                ProducerState::Contribution(key, value) => {
+                    if !graph.query_entries.iter().any(|entry| {
+                        entry.producer == id
+                            && entry.key == *key
+                            && equal_values(&entry.value, value)
+                    }) {
+                        graph.query_entries.push(QueryEntry {
+                            key: key.clone(),
+                            value: value.clone(),
+                            producer: id,
+                            span: producer.owner.span.clone(),
+                        });
+                    }
+                    "present"
+                }
+                ProducerState::Contributions(key, values) => {
+                    for value in values {
+                        if graph.query_entries.iter().any(|entry| {
+                            entry.producer == id
+                                && entry.key == *key
+                                && equal_values(&entry.value, value)
+                        }) {
+                            continue;
+                        }
+                        graph.query_entries.push(QueryEntry {
+                            key: key.clone(),
+                            value: value.clone(),
+                            producer: id,
+                            span: producer.owner.span.clone(),
+                        });
+                    }
+                    "present"
+                }
+                ProducerState::Diagnostic(diagnostic) => {
+                    if !diagnostics.contains(diagnostic) {
+                        diagnostics.push(diagnostic.clone());
+                    }
+                    "present"
+                }
+                ProducerState::Absent => "absent",
+                ProducerState::Pending => {
+                    let mut diagnostic = Diagnostic::error(
+                        "query.cycle",
+                        "A declarative query cannot settle its dependencies",
+                        producer.owner.span.clone(),
+                    );
+                    diagnostic.secondary = producer
+                        .waits
+                        .iter()
+                        .filter_map(|id| engine.producers.get(*id))
+                        .map(|producer| producer.owner.span.clone())
+                        .collect();
+                    diagnostics.push(diagnostic);
+                    "pending"
+                }
+                ProducerState::Conflict(ids) => {
+                    let mut diagnostic = Diagnostic::error(
+                        "query.conflict",
+                        "A query has multiple contributions and cannot select one value",
+                        producer.owner.span.clone(),
+                    );
+                    diagnostic.secondary = ids
+                        .iter()
+                        .filter_map(|id| engine.producers.get(*id))
+                        .map(|producer| producer.owner.span.clone())
+                        .collect();
+                    diagnostics.push(diagnostic);
+                    "conflict"
+                }
+                ProducerState::Many(_) => unreachable!("producer states are flattened"),
+            };
+            if leaf_state == "pending"
+                || (leaf_state == "conflict" && state != "pending")
+                || (leaf_state == "present" && state == "absent")
+            {
+                state = leaf_state;
             }
-            ProducerState::Absent => "absent",
-            ProducerState::Pending => {
-                let mut diagnostic = Diagnostic::error(
-                    "query.cycle",
-                    "A declarative query cannot settle its dependencies",
-                    producer.owner.span.clone(),
-                );
-                diagnostic.secondary = producer
-                    .waits
-                    .iter()
-                    .filter_map(|id| engine.producers.get(*id))
-                    .map(|producer| producer.owner.span.clone())
-                    .collect();
-                diagnostics.push(diagnostic);
-                "pending"
-            }
-            ProducerState::Conflict(ids) => {
-                let mut diagnostic = Diagnostic::error(
-                    "query.conflict",
-                    "A query has multiple contributions and cannot select one value",
-                    producer.owner.span.clone(),
-                );
-                diagnostic.secondary = ids
-                    .iter()
-                    .filter_map(|id| engine.producers.get(*id))
-                    .map(|producer| producer.owner.span.clone())
-                    .collect();
-                diagnostics.push(diagnostic);
-                "conflict"
-            }
-        };
+        }
         graph.query_dependencies.push(QueryDependency {
             producer: id,
             state: state.into(),
@@ -1405,16 +2010,120 @@ pub(super) fn execute(
 pub(crate) fn validate_groups(
     groups: &[QueryGroup],
     captures: &BTreeSet<String>,
+    version: u32,
 ) -> Result<(), Diagnostic> {
+    if version < 4 {
+        fn new_name(name: &str) -> bool {
+            matches!(
+                primitive(name),
+                "getEarlier"
+                    | "filter"
+                    | "choose"
+                    | "values"
+                    | "alternatives"
+                    | "flatten"
+                    | "last"
+                    | "tail"
+                    | "isList"
+                    | "hypotheticalAll"
+                    | "hypotheticalChecked"
+            )
+        }
+        let mut actions: Vec<_> = groups.iter().flat_map(|group| &group.actions).collect();
+        let mut expressions = vec![];
+        while let Some(action) = actions.pop() {
+            match action {
+                QueryAction::Call { name, args, .. } => {
+                    if new_name(name) {
+                        return Err(Diagnostic::error(
+                            "yl.artifact",
+                            "These query primitives require artifact version 4",
+                            Span::default(),
+                        ));
+                    }
+                    expressions.extend(args);
+                }
+                QueryAction::If {
+                    condition,
+                    then_actions,
+                    else_actions,
+                    ..
+                } => {
+                    expressions.push(condition);
+                    actions.extend(then_actions);
+                    actions.extend(else_actions);
+                }
+                QueryAction::Match { inputs, cases, .. } => {
+                    expressions.extend(inputs);
+                    for case in cases {
+                        expressions.extend(case.alternatives.iter().flatten().flatten());
+                        actions.extend(&case.actions);
+                    }
+                }
+                QueryAction::Emit {
+                    message,
+                    target,
+                    related,
+                    ..
+                } => {
+                    if !related.is_empty() {
+                        return Err(Diagnostic::error(
+                            "yl.artifact",
+                            "Related diagnostic sources require artifact version 4",
+                            Span::default(),
+                        ));
+                    }
+                    expressions.extend(target);
+                    expressions.extend(message.iter().filter_map(|part| match part {
+                        QueryMessagePart::Value(value) => Some(value),
+                        _ => None,
+                    }));
+                }
+            }
+        }
+        while let Some(expression) = expressions.pop() {
+            match expression {
+                QueryExpr::Call { name, args } => {
+                    if new_name(name) {
+                        return Err(Diagnostic::error(
+                            "yl.artifact",
+                            "These query primitives require artifact version 4",
+                            Span::default(),
+                        ));
+                    }
+                    expressions.extend(args);
+                }
+                QueryExpr::Tuple(values) | QueryExpr::List(values) => expressions.extend(values),
+                QueryExpr::Not(value) | QueryExpr::Lambda { body: value, .. } => {
+                    expressions.push(value)
+                }
+                _ => {}
+            }
+        }
+    }
     fn arity(name: &str) -> Option<usize> {
         if !name.starts_with("std/query#") {
             return None;
         }
         match primitive(name) {
-            "get" | "getAll" | "ancestors" | "children" | "text" | "isPresent" | "hasMultiple"
-            | "first" | "facts" | "concat" | "unique" | "keys" => Some(1),
-            "contribute" | "contributeAll" | "find" | "map" | "every" | "equal"
-            | "hypothetical" | "contains" | "isSubset" | "lookup" | "zip" => Some(2),
+            "get" | "getEarlier" | "getAll" | "ancestors" | "children" | "text" | "isPresent"
+            | "hasMultiple" | "first" | "last" | "tail" | "facts" | "concat" | "unique"
+            | "keys" | "values" | "alternatives" | "flatten" | "isList" => Some(1),
+            "contribute"
+            | "contributeAll"
+            | "find"
+            | "map"
+            | "every"
+            | "equal"
+            | "hypothetical"
+            | "hypotheticalAll"
+            | "hypotheticalChecked"
+            | "filter"
+            | "contains"
+            | "isSubset"
+            | "lookup"
+            | "zip" => Some(2),
+            "choose" => Some(3),
             _ => None,
         }
     }
@@ -1445,7 +2154,8 @@ pub(crate) fn validate_groups(
                     return Err(bad("Invalid query primitive or argument count".into()));
                 }
                 for (index, arg) in args.iter().enumerate() {
-                    if matches!(primitive(name), "find" | "map" | "every") && index == 1 {
+                    if matches!(primitive(name), "find" | "map" | "every" | "filter") && index == 1
+                    {
                         let QueryExpr::Lambda { parameter, body } = arg else {
                             return Err(bad("find needs an expression callback".into()));
                         };
@@ -1550,6 +2260,7 @@ pub(crate) fn validate_groups(
                 QueryAction::Emit {
                     message,
                     target,
+                    related,
                     span,
                     ..
                 } => {
@@ -1559,6 +2270,9 @@ pub(crate) fn validate_groups(
                         }
                     }
                     if let Some(target) = target {
+                        expr(target, captures, &BTreeSet::new(), span, 0)?;
+                    }
+                    for target in related {
                         expr(target, captures, &BTreeSet::new(), span, 0)?;
                     }
                 }
@@ -1630,6 +2344,8 @@ pub enum QueryAction {
         message: Vec<QueryMessagePart>,
         span: Span,
         target: Option<QueryExpr>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        related: Vec<QueryExpr>,
     },
 }
 

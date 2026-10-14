@@ -1,4 +1,4 @@
-# Native lexical analysis
+# Authored lexical analysis
 
 The language definition and its input programs are separate:
 
@@ -47,6 +47,6 @@ name their input under `programs/`, matching the files in this example directory
 
 `FunctionContents` establishes a lexical scope without adding an AST wrapper. Function names register in their surrounding scope; parameters and locals use the function context. Reusable `Reference` nodes perform lookup inside ordinary expressions and deferred function bodies.
 
-Program and `FunctionBody` declare explicit `boundary` markers. Program selects declarations and function bodies through all expression wrappers, but does not search inside a body for outer declarations. Once deferred bodies become ready, their contents are analyzed under their own context. Let declarations order initializer analysis before registration and defer lambda bodies until their binding is available. The examples cover forward functions, later outer bindings in closures, self-recursive function values, parameter/local shadowing, and rejected self-initializers.
+Program and `FunctionBody` declare explicit `boundary` markers. Program selects declarations and function bodies through all expression wrappers, but does not search inside a body for outer declarations. Once deferred bodies become ready, their contents are analyzed with their own attached scope identities. Let declarations order initializer analysis before registration and defer lambda bodies until their binding is available. The examples cover forward functions, later outer bindings in closures, self-recursive function values, parameter/local shadowing, and rejected self-initializers.
 
-This is static name analysis; it does not check execution-time initialization, assignment, target-language types, flow, or ownership. See [the native semantic interface](../../docs/api/native-semantics.md) for library registration, lifecycle hooks, and optional artifacts.
+This is static name analysis; it does not check execution-time initialization, assignment, target-language types, flow, or ownership. See [the runtime operation interface](../../docs/api/native-semantics.md) for library registration, lifecycle hooks, and optional artifacts.

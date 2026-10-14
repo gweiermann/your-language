@@ -47,7 +47,7 @@ Importing a private or nonexistent declaration is a definition error. Importing 
 Use `import * as name` to access a module's exports through `::`:
 
 ```yl
-import * as variables from "std/variables"
+import * as references from "std/references"
 
 node Reference = name: Name {
     meanings {

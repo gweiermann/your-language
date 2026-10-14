@@ -29,6 +29,7 @@ Keys can be identities, symbols, text, booleans, or nested tuples containing tho
 | `contribute(key, value)` | Register one tracked contribution. An absent key or value contributes nothing. |
 | `contributeAll(key, values)` | Register each distinct element of a list from one producer. |
 | `get(key)` | Wait for relevant producers, then return the unique value or `absent`. Multiple contributions produce a conflict diagnostic. |
+| `getEarlier(key)` | Read the unique contribution scheduled before the current action, applying the same source order, named groups, precedence and boundaries as host scheduling. |
 | `getAll(key)` | Wait for relevant producers, then return all contributed values in deterministic producer order. |
 | `facts(key)` | Read the currently available distinct values during fixed-point propagation. This is an approximation, not a final lookup. |
 
@@ -59,20 +60,22 @@ operation requireName(name) {
 }
 ```
 
-`if` requires a boolean condition and supports an optional `else`. A pending condition keeps its possible contributions pending. A settled false condition rules its branch out. `match` selects the first matching case and requires a final wildcard case. Branches may contribute values or emit diagnostics.
+`if` requires a boolean condition and supports an optional `else`. A pending condition keeps its possible contributions pending. A settled false condition rules its branch out. `match` selects the first matching case for each Cartesian combination of explicit alternative values and requires a final wildcard case. Branches may contribute values or emit diagnostics. Rereading a matched expression inside its branch yields that combination's selected member, including inside nested matches; unmatched alternatives do not become evidence through a branch reread.
 
-The optional second diagnostic argument selects source syntax to underline. Diagnostic messages can interpolate semantic expressions; pending interpolation values delay emission. Diagnostics belong to the evaluating occurrence and reflect its settled branch, so intermediate diagnostics do not accumulate across propagation rounds.
+The optional second diagnostic argument selects source syntax to underline; a third argument selects a related source location. Diagnostic messages can interpolate semantic expressions; pending interpolation values delay emission. Diagnostics belong to the evaluating occurrence and reflect its settled branch, so intermediate diagnostics do not accumulate across propagation rounds.
 
 ## Data operations
 
 The standard query primitives operate on ordinary immutable values:
 
 - `text(value)`, `isPresent(value)`, and `equal(left, right)`.
-- `first(values)`, `hasMultiple(values)`, `contains(values, value)`, and `unique(values)`.
+- `first(values)`, `last(values)`, `tail(values)`, `isList(value)`, `hasMultiple(values)`, `contains(values, value)`, and `unique(values)`.
 - `isSubset(left, right)` compares list membership.
-- `map(values, item => expression)` preserves positions; `every(values, item => predicate)` evaluates boolean predicates.
+- `map(values, item => expression)` preserves positions; `filter(values, item => predicate)` retains matching values; `every(values, item => predicate)` evaluates boolean predicates.
 - `keys(fields)` and `lookup(fields, key)` work on lists of two-element key/value tuples. Duplicate matching keys are diagnosed by `lookup`.
-- `concat(values)` combines a list of strings.
+- `concat(values)` combines a list of strings; `flatten(values)` combines one list nesting level.
+- `choose(condition, thenValue, elseValue)` evaluates only the selected expression.
+- `alternatives(values)` represents distinct possible values for distributed matches. `values(value)` exposes these candidates, wraps an ordinary compound value as one candidate, and maps `absent` to an empty list.
 - `zip(left, right)` pairs list positions up to the shorter list's length. Languages requiring equal arity should check that policy before zipping.
 
 These functions do not establish target-language type rules. A struct description can be an ordinary value such as `[("x", number), ("y", number)]`; an authored operation decides whether exact equality, required-field membership, or field-type compatibility is appropriate.
@@ -102,7 +105,7 @@ The implementation favors correctness over optimization: reads inspect candidate
 
 Use `SemanticEngine::compile`, optional `.ylc` serialization/reload, and `SemanticEngine::analyze`. Results include syntax occurrences, structured diagnostics, and `SemanticGraph.query_entries`, with normalized keys, values, producer IDs, and original source spans.
 
-Declarative artifacts use format version `3`, preventing older runtimes from silently discarding query definitions. Syntax-only artifacts remain version `1`, and native lifecycle artifacts remain version `2`. Reload validates callback bindings, captures, primitive arities, branch structure, owner references, and resource limits.
+Declarative artifacts use format version `4`, preventing older runtimes from silently discarding query definitions. Syntax-only artifacts remain version `1`, and native lifecycle artifacts remain version `2`. Reload validates callback bindings, captures, primitive arities, branch structure, owner references, and resource limits.
 
 The CLI's `yl language <language.ylc> check <source> [--json]` evaluates declarative meanings and supports both source-underlined diagnostics and machine-readable diagnostics. `parse_named` remains the syntax-only Rust API; use `SemanticEngine` for meanings.
 
@@ -129,4 +132,8 @@ cargo run -- language target/query-functions.ylc check examples/declarative-func
 cargo test --test declarative_functions
 ```
 
-The integration tests verify separate parameter positions, nested hypothetical calls, unchanged original signatures, and authored arity diagnostics. This example illustrates the generic query mechanism; it does not replace the existing Mini TypeScript native type library or claim complete generic type inference.
+The integration tests verify separate parameter positions, nested hypothetical calls, unchanged original signatures, and authored arity diagnostics. This example illustrates the generic query mechanism; the Mini TypeScript example now uses the same authored canonical libraries. Neither example claims complete TypeScript or unrestricted generic inference.
+
+`hypotheticalAll` returns all final contributions without forwarding diagnostics. `hypotheticalChecked` also forwards demanded authored diagnostic contributions. Assumptions can optionally carry a third source-origin value for precise caller underlines. Ordinary `hypothetical` and `hypotheticalAll` leave speculative diagnostics isolated. All modes preserve original contributions and use analysis-local memoization.
+
+Compound query values are bounded to 16,384 retained nodes, 128 nesting levels and one MiB of owned text per collection. Builders enforce limits before another propagation round can clone growing values. Cyclic compound construction reports a structured resource or nonconvergence diagnostic. Match distribution is limited to 4,096 combinations.

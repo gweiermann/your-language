@@ -33,7 +33,7 @@ for (const [directory, entry, inputs] of examples) {
 for (const [mode, success, expected] of [
   ['addition', true, 'numberSum: number'],
   ['higher-order', true, 'result: number'],
-  ['errors', false, 'Error[types.mismatch]'],
+  ['errors', false, 'Error[query.diagnostic]'],
 ]) {
   const result = spawnSync(cargo, ['run', '--quiet', '--locked', '--example', 'mini_typescript', '--', mode], { encoding: 'utf8' })
   if (result.error || result.status === null || (result.status === 0) !== success ||

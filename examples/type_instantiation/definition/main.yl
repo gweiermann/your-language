@@ -1,14 +1,9 @@
 import * as types from "std/types"
-import * as syntax from "std/syntax"
-import * as host from "host"
+import { children, first as firstChild, contribute } from "std/query"
 
 symbol number
 
 symbol string
-
-symbol Function
-
-symbol input
 
 symbol output
 
@@ -18,19 +13,19 @@ node Parameter = "value"
 
 node Number = /[0-9]+/ {
     meanings {
-        types::annotate(syntax::identity(), number)
+        types::annotate(self, number)
     }
 }
 
 node String = /"[^"\n]*"/ {
     meanings {
-        types::annotate(syntax::identity(), string)
+        types::annotate(self, string)
     }
 }
 
 node RequiredNumber = "number" {
     meanings {
-        types::annotate(syntax::identity(), number)
+        types::annotate(self, number)
     }
 }
 
@@ -40,7 +35,7 @@ node Argument {
     node String
 
     meanings {
-        types::annotate(syntax::identity(), types::typeof(syntax::childIdentity()))
+        types::annotate(self, types::typeof(firstChild(children(self))))
     }
 }
 
@@ -51,28 +46,23 @@ node Template =
     ")"
 {
     meanings {
-        host::template(syntax::identityOf(local))
-        types::annotate(syntax::identity(), Function)
-        types::annotate((syntax::identity(), input), types::typeof(syntax::identityOf(local)))
-        types::annotate(syntax::identityOf(local), types::typeof((syntax::identity(), input)))
-        types::annotate((syntax::identity(), output), types::typeof(syntax::identityOf(local)))
+        types::annotate((self, output), types::typeof(local))
     }
 }
 
-operation instance(template, site) = types::instantiate(syntax::identityOf(template), syntax::identityOf(site))
+operation resultWith(template, parameter, argument) = types::resolveWith((template, output), [(parameter, types::typeof(argument))])
 
 node Program =
     template: Template
-    first: Argument
-    second: Argument
+    firstArgument: Argument
+    secondArgument: Argument
     required: RequiredNumber
 {
     meanings {
-        types::annotate((instance(template, first), input), types::typeof(syntax::identityOf(first)))
-        types::annotate((instance(template, second), input), types::typeof(syntax::identityOf(second)))
-        types::restrictTo((instance(template, first), output), types::typeof(syntax::identityOf(required)))
-        host::show("first", instance(template, first))
-        host::show("second", instance(template, second))
+        types::annotate(firstArgument, resultWith(template, template.local, firstArgument))
+        types::restrictTo(firstArgument, types::typeof(required), firstArgument)
+        contribute("first", resultWith(template, template.local, firstArgument))
+        contribute("second", resultWith(template, template.local, secondArgument))
     }
 }
 

@@ -1,9 +1,6 @@
 use std::collections::BTreeMap;
 use your_language::{
-    frontend::parse_yl,
-    load_compiled_language,
-    semantics::{lexical, SemanticEngine},
-    syntax::DeclKind,
+    frontend::parse_yl, load_compiled_language, semantics::SemanticEngine, syntax::DeclKind,
 };
 
 #[path = "../examples/semantics/definition.rs"]
@@ -34,28 +31,27 @@ entry Program
             ..
         }
     )));
-    let engine = SemanticEngine::new(lexical::registry());
+    let engine = SemanticEngine::default();
     let language = engine.compile("language.yl", &sources(source)).unwrap();
     let bytes = language.to_bytes().unwrap();
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["version"],
-        2
+        4
     );
     let language = load_compiled_language(&bytes).unwrap();
     let result = engine.analyze(&language, "program", "letx;x;");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert!(result.ast.is_some());
-    assert!(!result.graph.attachments.is_empty());
+    assert!(!result.graph.query_entries.is_empty());
 }
 
 #[test]
 fn source_meanings_validate_calls_captures_groups_and_selectors() {
-    let engine = SemanticEngine::new(lexical::registry());
+    let engine = SemanticEngine::default();
     let cases = [
-        ("use(missing)", "yl.unknown_capture"),
+        ("use(missing)", "yl.artifact"),
         ("use()", "yl.invalid_argument"),
         ("use(name, name=name)", "yl.invalid_argument"),
-        ("declare(name, reassignable=\"yes\")", "yl.invalid_argument"),
         (
             "group Register {} group Register {}",
             "yl.duplicate_meaning_group",
@@ -77,7 +73,7 @@ fn source_meanings_validate_calls_captures_groups_and_selectors() {
 
 #[test]
 fn source_precedence_uses_resolved_definition_and_named_group_identity() {
-    let engine = SemanticEngine::new(lexical::registry());
+    let engine = SemanticEngine::default();
     let source = r#"
 import { lexicalScope, declare, use } from "std/variables"
 node Declaration = "let" name: /[a-z]+/ ";" { meanings { group Register { declare(name) } } }
@@ -156,7 +152,7 @@ entry Program"#;
 
 #[test]
 fn checked_in_semantic_language_resolves_functions_and_reports_negative_inputs() {
-    let engine = SemanticEngine::new(lexical::registry());
+    let engine = SemanticEngine::default();
     let language = engine
         .compile(definition::ENTRY, &definition::sources())
         .unwrap();
@@ -179,10 +175,7 @@ fn checked_in_semantic_language_resolves_functions_and_reports_negative_inputs()
         "{:?}",
         unresolved.diagnostics
     );
-    assert_eq!(
-        unresolved.diagnostics[0].code,
-        "semantic.unresolved_reference"
-    );
+    assert_eq!(unresolved.diagnostics[0].code, "query.diagnostic");
     assert_eq!(unresolved.diagnostics[0].primary.file, "unresolved.txt");
     let duplicate = engine.analyze(
         &language,
@@ -192,12 +185,12 @@ fn checked_in_semantic_language_resolves_functions_and_reports_negative_inputs()
     assert!(duplicate
         .diagnostics
         .iter()
-        .any(|diagnostic| diagnostic.code == "semantic.duplicate_declaration"));
+        .any(|diagnostic| diagnostic.message.starts_with("Duplicate declaration")));
 }
 
 #[test]
 fn semantic_operation_and_group_aliases_resolve_across_source_modules() {
-    let engine = SemanticEngine::new(lexical::registry());
+    let engine = SemanticEngine::default();
     let sources = BTreeMap::from([
         (
             "main.yl".into(),
@@ -238,7 +231,7 @@ export node Binder = "let" name: /[a-z]+/ ";" {
 
 #[test]
 fn selected_unannotated_patterns_keep_their_occurrence_boundary() {
-    let engine = SemanticEngine::new(lexical::registry());
+    let engine = SemanticEngine::default();
     let source = r#"
 import { lexicalScope, declare, use } from "std/variables"
 node Declaration = "let" name: /[a-z]+/ ";" { meanings { declare(name) } }

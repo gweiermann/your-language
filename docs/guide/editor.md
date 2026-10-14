@@ -2,6 +2,8 @@
 
 Your Language provides highlighting, live diagnostics, formatting and composed example hints for `.yl` definitions. The editor connects to the Rust language server through `yl lsp`; current buffers, including unsaved imports, participate in analysis.
 
+Highlighting includes the `=>` operator in both match cases and expression callbacks, together with `if`, `else`, and `self`. Strings, regexes, and comments retain their own highlighting even when they contain these tokens. Upgrade and reload an older installed VSIX to pick up grammar changes.
+
 ## Install or upgrade
 
 Build the CLI and extension from the same revision:
@@ -49,6 +51,6 @@ Explicit `example "..."` metadata takes priority over bounded generation. The ge
 
 The initial server supports YL definitions, UTF-16 positions, full-document synchronization, diagnostics, formatting, CodeLens, inlay hints and imported-file invalidation. Untitled buffers support syntax diagnostics and formatting; save them for import resolution. Completion, navigation, rename, incremental parsing and target-language servers remain future work.
 
-Definition validation registers `std/syntax`, `std/variables` and `std/types` contracts. Unavailable custom native libraries produce diagnostics. The CLI [`fmt`](/api/cli#format-yl-definitions) and `examples` commands remain independent tools for scripts and agents.
+Definition validation loads authored `std/references` and `std/types` modules over the generic query primitives; `std/variables` is a compatibility import alias. Unavailable custom native libraries produce diagnostics. The CLI [`fmt`](/api/cli#format-yl-definitions) and `examples` commands remain independent tools for scripts and agents.
 
 Selected trivia accepting one space permits readable spacing between grammar fragments. No keyword rules are inferred; parser validation and bounded unspaced fallbacks preserve adjacency requirements.

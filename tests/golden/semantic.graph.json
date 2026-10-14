@@ -1,823 +1,5321 @@
 {
-  "records": [
+  "records": [],
+  "attachments": [],
+  "query_entries": [
     {
-      "id": 0,
-      "entries": [
-        [
+      "key": {
+        "Tuple": [
           {
-            "Symbol": "std/variables#parentSymbol"
-          },
-          "Absent"
-        ],
-        [
-          {
-            "Text": "read"
-          },
-          {
-            "Record": 2
-          }
-        ],
-        [
-          {
-            "Text": "identity"
-          },
-          {
-            "Record": 5
-          }
-        ],
-        [
-          {
-            "Text": "caller"
-          },
-          {
-            "Record": 6
-          }
-        ],
-        [
-          {
-            "Text": "f"
-          },
-          {
-            "Record": 8
-          }
-        ],
-        [
-          {
-            "Text": "local"
-          },
-          {
-            "Record": 10
-          }
-        ],
-        [
-          {
-            "Text": "capture"
-          },
-          {
-            "Record": 12
-          }
-        ],
-        [
-          {
-            "Text": "later"
-          },
-          {
-            "Record": 13
-          }
-        ]
-      ]
-    },
-    {
-      "id": 1,
-      "entries": [
-        [
-          {
-            "Symbol": "std/variables#parentSymbol"
-          },
-          {
-            "Record": 0
-          }
-        ]
-      ]
-    },
-    {
-      "id": 2,
-      "entries": [
-        [
-          {
-            "Symbol": "std/variables#nameSymbol"
-          },
-          {
-            "Text": "read"
-          }
-        ],
-        [
-          {
-            "Symbol": "std/variables#originSymbol"
-          },
-          {
-            "Source": {
-              "value": {
-                "type": "Name",
-                "fields": {
-                  "value": "read"
-                },
-                "span": {
-                  "file": "programs/program.txt",
-                  "start": 29,
-                  "end": 33
-                }
-              },
-              "span": {
-                "file": "programs/program.txt",
-                "start": 29,
-                "end": 33
-              },
-              "text": "read",
-              "occurrences": [
-                8
-              ]
+            "Identity": {
+              "Occurrence": 0
             }
-          }
-        ],
-        [
-          {
-            "Symbol": "std/variables#reassignableSymbol"
           },
           {
-            "Bool": false
+            "Symbol": "std/references#scope"
           }
         ]
-      ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 0
+        }
+      },
+      "producer": 0,
+      "span": {
+        "file": "source",
+        "start": 0,
+        "end": 300
+      }
     },
     {
-      "id": 3,
-      "entries": [
-        [
+      "key": {
+        "Tuple": [
           {
-            "Symbol": "std/variables#parentSymbol"
-          },
-          {
-            "Record": 0
-          }
-        ],
-        [
-          {
-            "Text": "later"
-          },
-          {
-            "Record": 4
-          }
-        ]
-      ]
-    },
-    {
-      "id": 4,
-      "entries": [
-        [
-          {
-            "Symbol": "std/variables#nameSymbol"
-          },
-          {
-            "Text": "later"
-          }
-        ],
-        [
-          {
-            "Symbol": "std/variables#originSymbol"
-          },
-          {
-            "Source": {
-              "value": {
-                "type": "Name",
-                "fields": {
-                  "value": "later"
-                },
-                "span": {
-                  "file": "programs/program.txt",
-                  "start": 77,
-                  "end": 82
-                }
-              },
-              "span": {
-                "file": "programs/program.txt",
-                "start": 77,
-                "end": 82
-              },
-              "text": "later",
-              "occurrences": [
-                18
-              ]
+            "Identity": {
+              "Occurrence": 0
             }
-          }
-        ],
-        [
-          {
-            "Symbol": "std/variables#reassignableSymbol"
           },
           {
-            "Bool": true
-          }
-        ]
-      ]
-    },
-    {
-      "id": 5,
-      "entries": [
-        [
-          {
-            "Symbol": "std/variables#nameSymbol"
-          },
-          {
-            "Text": "identity"
-          }
-        ],
-        [
-          {
-            "Symbol": "std/variables#originSymbol"
-          },
-          {
-            "Source": {
-              "value": {
-                "type": "Name",
-                "fields": {
-                  "value": "identity"
-                },
-                "span": {
-                  "file": "programs/program.txt",
-                  "start": 68,
-                  "end": 76
-                }
-              },
-              "span": {
-                "file": "programs/program.txt",
-                "start": 68,
-                "end": 76
-              },
-              "text": "identity",
-              "occurrences": [
-                15
-              ]
-            }
-          }
-        ],
-        [
-          {
-            "Symbol": "std/variables#reassignableSymbol"
-          },
-          {
-            "Bool": false
-          }
-        ]
-      ]
-    },
-    {
-      "id": 6,
-      "entries": [
-        [
-          {
-            "Symbol": "std/variables#nameSymbol"
+            "Symbol": "std/references#declarations"
           },
           {
             "Text": "caller"
           }
-        ],
-        [
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 1
+        }
+      },
+      "producer": 1,
+      "span": {
+        "file": "source",
+        "start": 0,
+        "end": 18
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
           {
-            "Symbol": "std/variables#originSymbol"
-          },
-          {
-            "Source": {
-              "value": {
-                "type": "Name",
-                "fields": {
-                  "value": "caller"
-                },
-                "span": {
-                  "file": "programs/program.txt",
-                  "start": 4,
-                  "end": 10
-                }
-              },
-              "span": {
-                "file": "programs/program.txt",
-                "start": 4,
-                "end": 10
-              },
-              "text": "caller",
-              "occurrences": [
-                2
-              ]
+            "Identity": {
+              "Occurrence": 2
             }
-          }
-        ],
-        [
-          {
-            "Symbol": "std/variables#reassignableSymbol"
           },
           {
-            "Bool": true
+            "Symbol": "std/references#referenceIdentity"
           }
         ]
-      ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 1
+        }
+      },
+      "producer": 2,
+      "span": {
+        "file": "source",
+        "start": 0,
+        "end": 18
+      }
     },
     {
-      "id": 7,
-      "entries": [
-        [
+      "key": {
+        "Tuple": [
           {
-            "Symbol": "std/variables#parentSymbol"
+            "Identity": {
+              "Occurrence": 1
+            }
           },
           {
-            "Record": 0
+            "Symbol": "std/references#referenceIdentity"
           }
         ]
-      ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 1
+        }
+      },
+      "producer": 3,
+      "span": {
+        "file": "source",
+        "start": 0,
+        "end": 18
+      }
     },
     {
-      "id": 8,
-      "entries": [
-        [
+      "key": {
+        "Tuple": [
           {
-            "Symbol": "std/variables#nameSymbol"
+            "Identity": {
+              "Occurrence": 1
+            }
+          },
+          {
+            "Symbol": "std/references#nameSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Text": "caller"
+      },
+      "producer": 4,
+      "span": {
+        "file": "source",
+        "start": 0,
+        "end": 18
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 1
+            }
+          },
+          {
+            "Symbol": "std/references#reassignableSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Bool": true
+      },
+      "producer": 5,
+      "span": {
+        "file": "source",
+        "start": 0,
+        "end": 18
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 6
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 7
+        }
+      },
+      "producer": 8,
+      "span": {
+        "file": "source",
+        "start": 13,
+        "end": 17
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 5
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 7
+        }
+      },
+      "producer": 9,
+      "span": {
+        "file": "source",
+        "start": 13,
+        "end": 17
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 0
+            }
+          },
+          {
+            "Symbol": "std/references#declarations"
+          },
+          {
+            "Text": "read"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 7
+        }
+      },
+      "producer": 11,
+      "span": {
+        "file": "source",
+        "start": 20,
+        "end": 57
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 8
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 7
+        }
+      },
+      "producer": 12,
+      "span": {
+        "file": "source",
+        "start": 20,
+        "end": 57
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 7
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 7
+        }
+      },
+      "producer": 13,
+      "span": {
+        "file": "source",
+        "start": 20,
+        "end": 57
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 7
+            }
+          },
+          {
+            "Symbol": "std/references#nameSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Text": "read"
+      },
+      "producer": 14,
+      "span": {
+        "file": "source",
+        "start": 20,
+        "end": 57
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 7
+            }
+          },
+          {
+            "Symbol": "std/references#reassignableSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Bool": false
+      },
+      "producer": 15,
+      "span": {
+        "file": "source",
+        "start": 20,
+        "end": 57
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 9
+            }
+          },
+          {
+            "Symbol": "std/references#scope"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 9
+        }
+      },
+      "producer": 18,
+      "span": {
+        "file": "source",
+        "start": 33,
+        "end": 57
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 13
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 64
+        }
+      },
+      "producer": 19,
+      "span": {
+        "file": "source",
+        "start": 49,
+        "end": 54
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 12
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 64
+        }
+      },
+      "producer": 20,
+      "span": {
+        "file": "source",
+        "start": 49,
+        "end": 54
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 0
+            }
+          },
+          {
+            "Symbol": "std/references#declarations"
+          },
+          {
+            "Text": "identity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 14
+        }
+      },
+      "producer": 22,
+      "span": {
+        "file": "source",
+        "start": 59,
+        "end": 105
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 15
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 14
+        }
+      },
+      "producer": 23,
+      "span": {
+        "file": "source",
+        "start": 59,
+        "end": 105
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 14
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 14
+        }
+      },
+      "producer": 24,
+      "span": {
+        "file": "source",
+        "start": 59,
+        "end": 105
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 14
+            }
+          },
+          {
+            "Symbol": "std/references#nameSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Text": "identity"
+      },
+      "producer": 25,
+      "span": {
+        "file": "source",
+        "start": 59,
+        "end": 105
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 14
+            }
+          },
+          {
+            "Symbol": "std/references#reassignableSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Bool": false
+      },
+      "producer": 26,
+      "span": {
+        "file": "source",
+        "start": 59,
+        "end": 105
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 16
+            }
+          },
+          {
+            "Symbol": "std/references#scope"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 16
+        }
+      },
+      "producer": 29,
+      "span": {
+        "file": "source",
+        "start": 76,
+        "end": 105
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 16
+            }
+          },
+          {
+            "Symbol": "std/references#declarations"
+          },
+          {
+            "Text": "later"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 17
+        }
+      },
+      "producer": 30,
+      "span": {
+        "file": "source",
+        "start": 77,
+        "end": 82
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 18
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 17
+        }
+      },
+      "producer": 31,
+      "span": {
+        "file": "source",
+        "start": 77,
+        "end": 82
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 17
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 17
+        }
+      },
+      "producer": 32,
+      "span": {
+        "file": "source",
+        "start": 77,
+        "end": 82
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 17
+            }
+          },
+          {
+            "Symbol": "std/references#nameSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Text": "later"
+      },
+      "producer": 33,
+      "span": {
+        "file": "source",
+        "start": 77,
+        "end": 82
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 17
+            }
+          },
+          {
+            "Symbol": "std/references#reassignableSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Bool": true
+      },
+      "producer": 34,
+      "span": {
+        "file": "source",
+        "start": 77,
+        "end": 82
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 22
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 17
+        }
+      },
+      "producer": 37,
+      "span": {
+        "file": "source",
+        "start": 97,
+        "end": 102
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 21
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 17
+        }
+      },
+      "producer": 38,
+      "span": {
+        "file": "source",
+        "start": 97,
+        "end": 102
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 0
+            }
+          },
+          {
+            "Symbol": "std/references#declarations"
           },
           {
             "Text": "f"
           }
-        ],
-        [
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 23
+        }
+      },
+      "producer": 40,
+      "span": {
+        "file": "source",
+        "start": 107,
+        "end": 144
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
           {
-            "Symbol": "std/variables#originSymbol"
-          },
-          {
-            "Source": {
-              "value": {
-                "type": "Name",
-                "fields": {
-                  "value": "f"
-                },
-                "span": {
-                  "file": "programs/program.txt",
-                  "start": 111,
-                  "end": 112
-                }
-              },
-              "span": {
-                "file": "programs/program.txt",
-                "start": 111,
-                "end": 112
-              },
-              "text": "f",
-              "occurrences": [
-                24
-              ]
+            "Identity": {
+              "Occurrence": 24
             }
-          }
-        ],
-        [
-          {
-            "Symbol": "std/variables#reassignableSymbol"
           },
           {
-            "Bool": true
+            "Symbol": "std/references#referenceIdentity"
           }
         ]
-      ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 23
+        }
+      },
+      "producer": 41,
+      "span": {
+        "file": "source",
+        "start": 107,
+        "end": 144
+      }
     },
     {
-      "id": 9,
-      "entries": [
-        [
+      "key": {
+        "Tuple": [
           {
-            "Symbol": "std/variables#parentSymbol"
+            "Identity": {
+              "Occurrence": 23
+            }
           },
           {
-            "Record": 0
-          }
-        ],
-        [
-          {
-            "Text": "later"
-          },
-          {
-            "Record": 14
+            "Symbol": "std/references#referenceIdentity"
           }
         ]
-      ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 23
+        }
+      },
+      "producer": 42,
+      "span": {
+        "file": "source",
+        "start": 107,
+        "end": 144
+      }
     },
     {
-      "id": 10,
-      "entries": [
-        [
+      "key": {
+        "Tuple": [
           {
-            "Symbol": "std/variables#nameSymbol"
+            "Identity": {
+              "Occurrence": 23
+            }
+          },
+          {
+            "Symbol": "std/references#nameSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Text": "f"
+      },
+      "producer": 43,
+      "span": {
+        "file": "source",
+        "start": 107,
+        "end": 144
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 23
+            }
+          },
+          {
+            "Symbol": "std/references#reassignableSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Bool": true
+      },
+      "producer": 44,
+      "span": {
+        "file": "source",
+        "start": 107,
+        "end": 144
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 28
+            }
+          },
+          {
+            "Symbol": "std/references#scope"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 28
+        }
+      },
+      "producer": 47,
+      "span": {
+        "file": "source",
+        "start": 123,
+        "end": 143
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 32
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 23
+        }
+      },
+      "producer": 48,
+      "span": {
+        "file": "source",
+        "start": 139,
+        "end": 140
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 31
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 23
+        }
+      },
+      "producer": 49,
+      "span": {
+        "file": "source",
+        "start": 139,
+        "end": 140
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 0
+            }
+          },
+          {
+            "Symbol": "std/references#declarations"
           },
           {
             "Text": "local"
           }
-        ],
-        [
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 33
+        }
+      },
+      "producer": 51,
+      "span": {
+        "file": "source",
+        "start": 146,
+        "end": 211
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
           {
-            "Symbol": "std/variables#originSymbol"
-          },
-          {
-            "Source": {
-              "value": {
-                "type": "Name",
-                "fields": {
-                  "value": "local"
-                },
-                "span": {
-                  "file": "programs/program.txt",
-                  "start": 150,
-                  "end": 155
-                }
-              },
-              "span": {
-                "file": "programs/program.txt",
-                "start": 150,
-                "end": 155
-              },
-              "text": "local",
-              "occurrences": [
-                34
-              ]
+            "Identity": {
+              "Occurrence": 34
             }
-          }
-        ],
-        [
-          {
-            "Symbol": "std/variables#reassignableSymbol"
           },
           {
-            "Bool": true
+            "Symbol": "std/references#referenceIdentity"
           }
         ]
-      ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 33
+        }
+      },
+      "producer": 52,
+      "span": {
+        "file": "source",
+        "start": 146,
+        "end": 211
+      }
     },
     {
-      "id": 11,
-      "entries": [
-        [
+      "key": {
+        "Tuple": [
           {
-            "Symbol": "std/variables#parentSymbol"
+            "Identity": {
+              "Occurrence": 33
+            }
           },
           {
-            "Record": 0
-          }
-        ],
-        [
-          {
-            "Text": "inner"
-          },
-          {
-            "Record": 15
+            "Symbol": "std/references#referenceIdentity"
           }
         ]
-      ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 33
+        }
+      },
+      "producer": 53,
+      "span": {
+        "file": "source",
+        "start": 146,
+        "end": 211
+      }
     },
     {
-      "id": 12,
-      "entries": [
-        [
+      "key": {
+        "Tuple": [
           {
-            "Symbol": "std/variables#nameSymbol"
+            "Identity": {
+              "Occurrence": 33
+            }
+          },
+          {
+            "Symbol": "std/references#nameSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Text": "local"
+      },
+      "producer": 54,
+      "span": {
+        "file": "source",
+        "start": 146,
+        "end": 211
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 33
+            }
+          },
+          {
+            "Symbol": "std/references#reassignableSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Bool": true
+      },
+      "producer": 55,
+      "span": {
+        "file": "source",
+        "start": 146,
+        "end": 211
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 38
+            }
+          },
+          {
+            "Symbol": "std/references#scope"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 38
+        }
+      },
+      "producer": 58,
+      "span": {
+        "file": "source",
+        "start": 166,
+        "end": 210
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 38
+            }
+          },
+          {
+            "Symbol": "std/references#declarations"
+          },
+          {
+            "Text": "later"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 40
+        }
+      },
+      "producer": 59,
+      "span": {
+        "file": "source",
+        "start": 175,
+        "end": 189
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 41
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 40
+        }
+      },
+      "producer": 60,
+      "span": {
+        "file": "source",
+        "start": 175,
+        "end": 189
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 40
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 40
+        }
+      },
+      "producer": 61,
+      "span": {
+        "file": "source",
+        "start": 175,
+        "end": 189
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 40
+            }
+          },
+          {
+            "Symbol": "std/references#nameSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Text": "later"
+      },
+      "producer": 62,
+      "span": {
+        "file": "source",
+        "start": 175,
+        "end": 189
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 40
+            }
+          },
+          {
+            "Symbol": "std/references#reassignableSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Bool": true
+      },
+      "producer": 63,
+      "span": {
+        "file": "source",
+        "start": 175,
+        "end": 189
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 47
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 40
+        }
+      },
+      "producer": 66,
+      "span": {
+        "file": "source",
+        "start": 202,
+        "end": 207
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 46
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 40
+        }
+      },
+      "producer": 67,
+      "span": {
+        "file": "source",
+        "start": 202,
+        "end": 207
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 0
+            }
+          },
+          {
+            "Symbol": "std/references#declarations"
           },
           {
             "Text": "capture"
           }
-        ],
-        [
-          {
-            "Symbol": "std/variables#originSymbol"
-          },
-          {
-            "Source": {
-              "value": {
-                "type": "Name",
-                "fields": {
-                  "value": "capture"
-                },
-                "span": {
-                  "file": "programs/program.txt",
-                  "start": 217,
-                  "end": 224
-                }
-              },
-              "span": {
-                "file": "programs/program.txt",
-                "start": 217,
-                "end": 224
-              },
-              "text": "capture",
-              "occurrences": [
-                49
-              ]
-            }
-          }
-        ],
-        [
-          {
-            "Symbol": "std/variables#reassignableSymbol"
-          },
-          {
-            "Bool": true
-          }
         ]
-      ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 48
+        }
+      },
+      "producer": 69,
+      "span": {
+        "file": "source",
+        "start": 213,
+        "end": 284
+      }
     },
     {
-      "id": 13,
-      "entries": [
-        [
+      "key": {
+        "Tuple": [
           {
-            "Symbol": "std/variables#nameSymbol"
-          },
-          {
-            "Text": "later"
-          }
-        ],
-        [
-          {
-            "Symbol": "std/variables#originSymbol"
-          },
-          {
-            "Source": {
-              "value": {
-                "type": "Name",
-                "fields": {
-                  "value": "later"
-                },
-                "span": {
-                  "file": "programs/program.txt",
-                  "start": 290,
-                  "end": 295
-                }
-              },
-              "span": {
-                "file": "programs/program.txt",
-                "start": 290,
-                "end": 295
-              },
-              "text": "later",
-              "occurrences": [
-                65
-              ]
+            "Identity": {
+              "Occurrence": 49
             }
-          }
-        ],
-        [
-          {
-            "Symbol": "std/variables#reassignableSymbol"
           },
           {
-            "Bool": true
+            "Symbol": "std/references#referenceIdentity"
           }
         ]
-      ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 48
+        }
+      },
+      "producer": 70,
+      "span": {
+        "file": "source",
+        "start": 213,
+        "end": 284
+      }
     },
     {
-      "id": 14,
-      "entries": [
-        [
+      "key": {
+        "Tuple": [
           {
-            "Symbol": "std/variables#nameSymbol"
-          },
-          {
-            "Text": "later"
-          }
-        ],
-        [
-          {
-            "Symbol": "std/variables#originSymbol"
-          },
-          {
-            "Source": {
-              "value": {
-                "type": "Name",
-                "fields": {
-                  "value": "later"
-                },
-                "span": {
-                  "file": "programs/program.txt",
-                  "start": 179,
-                  "end": 184
-                }
-              },
-              "span": {
-                "file": "programs/program.txt",
-                "start": 179,
-                "end": 184
-              },
-              "text": "later",
-              "occurrences": [
-                41
-              ]
+            "Identity": {
+              "Occurrence": 48
             }
-          }
-        ],
-        [
-          {
-            "Symbol": "std/variables#reassignableSymbol"
           },
           {
-            "Bool": true
+            "Symbol": "std/references#referenceIdentity"
           }
         ]
-      ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 48
+        }
+      },
+      "producer": 71,
+      "span": {
+        "file": "source",
+        "start": 213,
+        "end": 284
+      }
     },
     {
-      "id": 15,
-      "entries": [
-        [
+      "key": {
+        "Tuple": [
           {
-            "Symbol": "std/variables#nameSymbol"
+            "Identity": {
+              "Occurrence": 48
+            }
+          },
+          {
+            "Symbol": "std/references#nameSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Text": "capture"
+      },
+      "producer": 72,
+      "span": {
+        "file": "source",
+        "start": 213,
+        "end": 284
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 48
+            }
+          },
+          {
+            "Symbol": "std/references#reassignableSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Bool": true
+      },
+      "producer": 73,
+      "span": {
+        "file": "source",
+        "start": 213,
+        "end": 284
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 53
+            }
+          },
+          {
+            "Symbol": "std/references#scope"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 53
+        }
+      },
+      "producer": 76,
+      "span": {
+        "file": "source",
+        "start": 235,
+        "end": 283
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 53
+            }
+          },
+          {
+            "Symbol": "std/references#declarations"
           },
           {
             "Text": "inner"
           }
-        ],
-        [
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 55
+        }
+      },
+      "producer": 77,
+      "span": {
+        "file": "source",
+        "start": 244,
+        "end": 262
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
           {
-            "Symbol": "std/variables#originSymbol"
-          },
-          {
-            "Source": {
-              "value": {
-                "type": "Name",
-                "fields": {
-                  "value": "inner"
-                },
-                "span": {
-                  "file": "programs/program.txt",
-                  "start": 248,
-                  "end": 253
-                }
-              },
-              "span": {
-                "file": "programs/program.txt",
-                "start": 248,
-                "end": 253
-              },
-              "text": "inner",
-              "occurrences": [
-                56
-              ]
+            "Identity": {
+              "Occurrence": 56
             }
-          }
-        ],
-        [
-          {
-            "Symbol": "std/variables#reassignableSymbol"
           },
           {
-            "Bool": true
+            "Symbol": "std/references#referenceIdentity"
           }
         ]
-      ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 55
+        }
+      },
+      "producer": 78,
+      "span": {
+        "file": "source",
+        "start": 244,
+        "end": 262
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 55
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 55
+        }
+      },
+      "producer": 79,
+      "span": {
+        "file": "source",
+        "start": 244,
+        "end": 262
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 55
+            }
+          },
+          {
+            "Symbol": "std/references#nameSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Text": "inner"
+      },
+      "producer": 80,
+      "span": {
+        "file": "source",
+        "start": 244,
+        "end": 262
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 55
+            }
+          },
+          {
+            "Symbol": "std/references#reassignableSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Bool": true
+      },
+      "producer": 81,
+      "span": {
+        "file": "source",
+        "start": 244,
+        "end": 262
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 60
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 64
+        }
+      },
+      "producer": 84,
+      "span": {
+        "file": "source",
+        "start": 256,
+        "end": 261
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 59
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 64
+        }
+      },
+      "producer": 85,
+      "span": {
+        "file": "source",
+        "start": 256,
+        "end": 261
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 63
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 55
+        }
+      },
+      "producer": 87,
+      "span": {
+        "file": "source",
+        "start": 275,
+        "end": 280
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 62
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 55
+        }
+      },
+      "producer": 88,
+      "span": {
+        "file": "source",
+        "start": 275,
+        "end": 280
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 0
+            }
+          },
+          {
+            "Symbol": "std/references#declarations"
+          },
+          {
+            "Text": "later"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 64
+        }
+      },
+      "producer": 90,
+      "span": {
+        "file": "source",
+        "start": 286,
+        "end": 300
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 65
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 64
+        }
+      },
+      "producer": 91,
+      "span": {
+        "file": "source",
+        "start": 286,
+        "end": 300
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 64
+            }
+          },
+          {
+            "Symbol": "std/references#referenceIdentity"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 64
+        }
+      },
+      "producer": 92,
+      "span": {
+        "file": "source",
+        "start": 286,
+        "end": 300
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 64
+            }
+          },
+          {
+            "Symbol": "std/references#nameSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Text": "later"
+      },
+      "producer": 93,
+      "span": {
+        "file": "source",
+        "start": 286,
+        "end": 300
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 64
+            }
+          },
+          {
+            "Symbol": "std/references#reassignableSymbol"
+          }
+        ]
+      },
+      "value": {
+        "Bool": true
+      },
+      "producer": 94,
+      "span": {
+        "file": "source",
+        "start": 286,
+        "end": 300
+      }
     }
   ],
-  "attachments": [
+  "query_dependencies": [
     {
-      "occurrence": 0,
-      "key": "std/variables#scope",
-      "value": {
-        "Record": 0
-      }
+      "producer": 0,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
     },
     {
-      "occurrence": 9,
-      "key": "std/variables#scope",
-      "value": {
-        "Record": 1
-      }
+      "producer": 1,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 1
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
     },
     {
-      "occurrence": 7,
-      "key": "std/variables#declaration",
-      "value": {
-        "Record": 2
-      }
+      "producer": 2,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
     },
     {
-      "occurrence": 16,
-      "key": "std/variables#scope",
-      "value": {
-        "Record": 3
-      }
+      "producer": 3,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
     },
     {
-      "occurrence": 17,
-      "key": "std/variables#declaration",
-      "value": {
-        "Record": 4
-      }
+      "producer": 4,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
     },
     {
-      "occurrence": 14,
-      "key": "std/variables#declaration",
-      "value": {
-        "Record": 5
-      }
+      "producer": 5,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
     },
     {
-      "occurrence": 5,
-      "key": "std/variables#reference",
-      "value": {
-        "Record": 2
-      }
+      "producer": 6,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "caller"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 1
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
     },
     {
-      "occurrence": 1,
-      "key": "std/variables#declaration",
-      "value": {
-        "Record": 6
-      }
+      "producer": 7,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 1
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
     },
     {
-      "occurrence": 28,
-      "key": "std/variables#scope",
-      "value": {
-        "Record": 7
-      }
+      "producer": 8,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "read"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 1
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 3
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 4
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 5
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
     },
     {
-      "occurrence": 23,
-      "key": "std/variables#declaration",
-      "value": {
-        "Record": 8
-      }
+      "producer": 9,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "read"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 1
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 3
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 4
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 5
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
     },
     {
-      "occurrence": 38,
-      "key": "std/variables#scope",
-      "value": {
-        "Record": 9
-      }
+      "producer": 10,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "read"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 1
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 3
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 4
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 5
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
     },
     {
-      "occurrence": 33,
-      "key": "std/variables#declaration",
-      "value": {
-        "Record": 10
-      }
+      "producer": 11,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 7
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
     },
     {
-      "occurrence": 53,
-      "key": "std/variables#scope",
-      "value": {
-        "Record": 11
-      }
+      "producer": 12,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
     },
     {
-      "occurrence": 48,
-      "key": "std/variables#declaration",
-      "value": {
-        "Record": 12
-      }
+      "producer": 13,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
     },
     {
-      "occurrence": 64,
-      "key": "std/variables#declaration",
-      "value": {
-        "Record": 13
-      }
+      "producer": 14,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
     },
     {
-      "occurrence": 12,
-      "key": "std/variables#reference",
-      "value": {
-        "Record": 13
-      }
+      "producer": 15,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
     },
     {
-      "occurrence": 21,
-      "key": "std/variables#reference",
-      "value": {
-        "Record": 4
-      }
+      "producer": 16,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "read"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 7
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
     },
     {
-      "occurrence": 31,
-      "key": "std/variables#reference",
-      "value": {
-        "Record": 8
-      }
+      "producer": 17,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 7
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
     },
     {
-      "occurrence": 40,
-      "key": "std/variables#declaration",
-      "value": {
-        "Record": 14
-      }
+      "producer": 18,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
     },
     {
-      "occurrence": 46,
-      "key": "std/variables#reference",
-      "value": {
-        "Record": 14
-      }
+      "producer": 19,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 7
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 9
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 9
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 10
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 11
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 12
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
     },
     {
-      "occurrence": 59,
-      "key": "std/variables#reference",
-      "value": {
-        "Record": 13
-      }
+      "producer": 20,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 7
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 9
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 9
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 10
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 11
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 12
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
     },
     {
-      "occurrence": 55,
-      "key": "std/variables#declaration",
-      "value": {
-        "Record": 15
-      }
+      "producer": 21,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 7
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 9
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 9
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 10
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 11
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 12
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
     },
     {
-      "occurrence": 62,
-      "key": "std/variables#reference",
-      "value": {
-        "Record": 15
-      }
+      "producer": 22,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 14
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 23,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 24,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 25,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 26,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 27,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "identity"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 14
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 28,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 14
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 29,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 30,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 16
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 17
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 31,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 32,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 33,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 34,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 35,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 16
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 16
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 17
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 36,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 16
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 17
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 37,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 16
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 16
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 19
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 20
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 21
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 38,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 16
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 16
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 19
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 20
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 21
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 39,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 16
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 16
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 19
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 20
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 21
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 40,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 23
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 41,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 42,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 43,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 44,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 45,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "f"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 23
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 46,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 23
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 47,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 48,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "f"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 23
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 25
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 26
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 27
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 28
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "f"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 28
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 29
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 30
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 31
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 49,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "f"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 23
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 25
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 26
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 27
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 28
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "f"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 28
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 29
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 30
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 31
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 50,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "f"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 23
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 25
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 26
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 27
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 28
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "f"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 28
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 29
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 30
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 31
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 51,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 33
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 52,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 53,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 54,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 55,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 56,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "local"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 33
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 57,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 33
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 58,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 59,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 38
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 39
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 40
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 60,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 61,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 62,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 63,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 64,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 38
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 38
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 39
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 40
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 65,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 38
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 39
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 40
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 66,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 38
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 38
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 39
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 45
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 46
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 67,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 38
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 38
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 39
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 45
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 46
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 68,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 38
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 38
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 39
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 45
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 46
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 69,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 48
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 70,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 71,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 72,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 73,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 74,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "capture"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 48
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 75,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 48
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 76,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 77,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 53
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 54
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 55
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 78,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 79,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 80,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 81,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 82,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 53
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "inner"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 53
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 54
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 55
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 83,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 53
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 54
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 55
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 84,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 48
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 50
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 51
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 52
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 53
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 53
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 54
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 55
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 57
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 58
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 59
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 85,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 48
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 50
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 51
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 52
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 53
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 53
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 54
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 55
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 57
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 58
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 59
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 86,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 48
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 50
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 51
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 52
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 53
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 53
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 54
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 55
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 57
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 58
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 59
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 87,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 53
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "inner"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 53
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 54
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 61
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 62
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 88,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 53
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "inner"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 53
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 54
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 61
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 62
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 89,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 53
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "inner"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 53
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 54
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 61
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 62
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 90,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 64
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 91,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 92,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 93,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 94,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 95,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#declarations"
+            },
+            {
+              "Text": "later"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 64
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    },
+    {
+      "producer": 96,
+      "state": "absent",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        },
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 64
+              }
+            },
+            {
+              "Symbol": "std/references#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
     }
   ]
 }

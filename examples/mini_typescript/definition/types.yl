@@ -6,11 +6,17 @@ export symbol string
 
 export symbol boolean
 
-export symbol Function
-
 export symbol parameters
 
+export symbol parameterNames
+
+export symbol parameterAnnotations
+
+export symbol parameterSources
+
 export symbol returnType
+
+export symbol functionIdentity
 
 export node TypeName {
     node NumberType = "number" {
@@ -44,3 +50,5 @@ export node Annotation =
         annotateWithType(typeof(value))
     }
 }
+
+export symbol declaredReturnType
