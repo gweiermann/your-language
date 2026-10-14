@@ -115,6 +115,7 @@ engine.registry_mut().register(
         parameters: vec![],
         provides_context: false,
         finalization_only: false,
+        contribution: false,
     },
     || Box::new(Audit),
 )?;
@@ -164,57 +165,92 @@ The default output reports success briefly, or renders semantic diagnostics to s
 
 Rust consumers can reuse `diagnostic_render::print_diagnostics`, providing a source lookup function for diagnostic spans, or call `render_diagnostics` with an explicit color setting to obtain a string. Rendering does not change structured diagnostic data or source offsets.
 
-## Composable inference
+## Type contributions and restrictions
 
-The Mini TypeScript consumer demonstrates identity-keyed type constraints. The
-native `std/types` module exports `ensure(key, type)`, `typeof(key)` and the
-`unknown` symbol. Primitive identities and named slots belong to the language.
-Authored operation wrappers connect literals, bindings, function signatures and
-calls without target node names in the native library. Follow the [inference tutorial](/tutorials/semantic-inference), consult the [library contracts](/reference/meaning-libraries), or inspect the checked-in
-[Mini TypeScript example](https://github.com/gweiermann/your-language/tree/main/examples/mini_typescript).
+Follow the [inference tutorial](/tutorials/semantic-inference), consult the [library contracts](/reference/meaning-libraries), or inspect the checked-in [Mini TypeScript example](https://github.com/gweiermann/your-language/tree/main/examples/mini_typescript).
 
-## Operation wrappers and namespaces
+The native `std/types` module exports three operations and one reserved type identity:
+
+| Export | Contract |
+| --- | --- |
+| `annotate(key, type)` | Add possible types. Repeated contributions form a union. Deferred inputs establish directed dependencies. |
+| `restrictTo(key, allowed)` | Require every known possibility to be compatible with the allowed possibilities. Preserve facts, including invalid ones. |
+| `typeof(key)` | Return an analysis-local deferred possibility query. |
+| `unknown` | Explicit unresolved possibility, compatible with restrictions without hiding incompatible known members. |
+
+The language declares all other type identities. A key is a generic analysis-local identity or `(identity, authoredSlotSymbol)`. Ordered lists of keys support explicit positional contributions and restrictions. A list value is structural; it is not an alternative set. For example, contributing `[Red, Blue]` and `[Blue, Red]` preserves two correlated alternatives.
+
+A restriction does not remove facts. Contributions of `number` and `string` followed by `restrictTo(key, number)` retain both possibilities and diagnose the string contribution. An explicit `unknown` member remains in the union; a known string still fails the numeric restriction. Unknown permits analysis to continue where information is unavailable; it does not establish that a program is safe.
+
+Queries stay pending while information is unavailable. If a key has no facts but has an allowed contract, `typeof` exposes that contract. Multiple allowed contracts combine by structural intersection, with unknown as a permissive wildcard. Incompatible contracts produce a diagnostic even when no facts were contributed. Remaining unrestricted reads resolve to unknown at settlement. This fallback is not an explicit contribution and can refine when positive facts become available. Contributions and dependencies iterate to a bounded fixed point; recursive growth requiring an infinite type produces a structured diagnostic.
+
+Base facts flow from source to destination without merging their stores. Authored structural slots retain shared value handles through aliases, including late-created slots. Parameter and return relationships remain authored YL; the kernel does not recognize node names, function markers, parameter slot names or primitive type catalogs.
+
+## Syntax identities and binding bridges
+
+`std/syntax` exposes `identity()`, `identityOf(capture)`, `identities(capture)` and `childIdentity()`. These queries select original syntax occurrences independently of the variable library. Scalar queries reject repeated captures; lists preserve their order. Absent captures remain absent, and pipe projections preserve the original occurrence identities.
+
+The lexical adapter separately supplies binding identities. Declarations and resolved references share a binding handle. Source-authored wrappers connect that handle to syntax-local typing:
 
 ```yl
 import * as types from "std/types"
+import * as syntax from "std/syntax"
 import * as variables from "std/variables"
 
 export operation annotateWithType(value) {
-    types::ensure(variables::identity(), value)
+    types::annotate(syntax::identity(), value)
 }
 
-export operation typeof(value) =
-    types::typeof(variables::identityOf(value))
+export operation typeof(value) = types::typeof(syntax::identityOf(value))
+
+export operation restrictTypeTo(value) {
+    types::restrictTo(syntax::identity(), typeof(value))
+}
+
+export operation referenceType() {
+    types::annotate(syntax::identity(), types::typeof(variables::identity()))
+}
 ```
 
-Namespace imports expose exported module members through `::`; private source
-members remain inaccessible. Named imports and aliases retain the same canonical
-identities. Imported action wrappers and query aliases expand hygienically before
-normalization, including named arguments and defaults. Recursive expansion is a
-structured compile error. Unused wrappers are also checked for unresolved names
-and recursive expansion. Wrapper parameters are untyped semantic values; their
-arguments can use positional arguments, named arguments, and defaults. Action bodies
-currently contain operation calls. Query aliases must expand to a native query;
-constant-only query returns and matches inside wrapper bodies are not supported.
-The runtime does not interpret wrapper declarations.
+The independent type library does not inspect lexical scopes, variable-library metadata or declaration names. Native record identities are opaque handles. The Mini TypeScript example keeps its variable/type bridge in `definition/typing.yl`.
 
-Semantic tuple/list values are available in operation arguments. Type keys use
-an identity or `(identity, authoredSlotSymbol)`. Deferred handles can be passed
-through generic native `ParameterKind::Value` parameters. Matches resolve handles
-through `AnalysisService::resolve_value`; pending values defer case selection.
+## Authored operations and namespaces
 
-A native operation can declare `finalization_only` for an analysis collector.
-Such an operation runs after ordinary lifecycle hooks, while relative collector
-ordering is preserved. This cannot be combined with `provides_context`.
+Namespace imports expose exported module members through `::`; private source members remain inaccessible. Named imports and aliases retain the same canonical identities. Action wrappers and query aliases expand hygienically before normalization, including named arguments and defaults. Unused wrappers are checked, and recursive expansion is a structured compile error. The runtime executes native contracts, not wrapper declarations.
 
-`std/variables` supplies identity queries: `identity()` for the current occurrence,
-`identityOf(capture)` for one retained capture root, `identities(capture)` for an
-ordered list, and `childIdentity()` for explicit first-child inheritance.
-Declarations and resolved references return the same binding identity.
+Wrapper parameters are untyped semantic values. Action bodies contain operation calls. Query aliases must expand to a native query; constant-only returns and matches inside wrapper bodies remain unsupported. Matches are available in node and pattern meanings.
 
-The Mini TypeScript wrappers `annotateWithType` and `restrictTypeTo` currently use the same equality kernel. Separate accumulation of possible types and universal compatibility requirements remains future work; the names do not imply union inference in this prototype. `identity()` accepts no arguments. `identityOf(value)` requires an explicit capture or identity and preserves absence rather than selecting the current occurrence.
+## Matches over type possibilities
 
-The declaration API replaces the experimental category-taking `declare`, `declareVariable`, `declareFunction` and `useVariable` helpers. `variable`, `function` and `kindSymbol` are no longer native exports or binding metadata. Recompile artifacts containing the previous native contracts.
+A possibility service explicitly returns tagged `SemanticValue::Alternatives`. The generic engine distributes a match over each distinct Cartesian combination of these values. Ordinary lists remain positional, and ordinary scalar matches retain their existing behavior.
 
+```yl
+match (typeof(left), typeof(right)) {
+    string, string | string, number | number, string => annotateWithType(string),
+    number, number => annotateWithType(number),
+    unknown, _ | _, unknown => annotateWithType(unknown),
+    _ => error("${left} + ${right} is not possible")
+}
+```
 
-`std/types::ensure(key, type, requirement=false)` accepts optional diagnostic-role metadata. Setting `requirement=true` marks the source annotation as a related requirement when an equality conflicts. It does not change which types unify. The Mini TypeScript `restrictTypeTo` wrapper and explicit function return annotation check use this metadata; `annotateWithType` and `inheritType` preserve value provenance. Diagnostics underline the incompatible value first and retain the required annotation as a secondary span with explanatory help. Provenance follows identities, lists, authored slots, aliases and projected syntax through artifact reload.
+Every possible known operand combination is checked. Supported combinations contribute their result types even when another combination produces an error. Newly propagated possibilities activate newly discovered combinations. A combination executes once; diagnostics are emitted once for each distinct input combination and case/action at the source occurrence.
+
+This first slice supports literal, idempotent type contributions and diagnostics in distributed cases. General arbitrary native effects and rereading an alternative query inside a distributed action are **PARKED**. A structured `semantic.distributed_effect` or `semantic.distributed_argument` diagnostic explains the unsupported case before its actions execute. Combination-local query views require a separate contract; the engine does not silently narrow a binding or replay arbitrary effects.
+
+Native `OperationSignature::contribution` advertises idempotent contribution capability. Contributions cannot provide lifecycle contexts. `AnalysisService::offers_alternatives` identifies managed possibility readers, including pending readers, without hardcoded library names. Collectors can run behind reactive readers to supply late facts; ordinary successor effects wait for the reactive fixed point. Existing `finalization_only` contracts remain post-traversal collectors.
+
+## Diagnostics and serialized results
+
+Conflicting restrictions point to the incompatible value as primary and the precise required type expression as related. For `let count: number = "wrong";`, the primary span is `"wrong"` and the related span is `number`, excluding the colon and whitespace. Initializer origins survive aliases and pipes. Contract-derived binding values use their reference's source extent when diagnosing an incompatible use. Human and JSON diagnostics share the same spans.
+
+`std/types#typeValues` records retain identity/slot keys and qualified type identities. Single possibilities are ordinary symbols or lists; unions use tagged alternatives. Display strings remain separate conveniences. Each parse/analysis has independent state, including after artifact reload and concurrent analysis.
+
+The previous experimental `ensure` contract is replaced by `annotate` and `restrictTo`; affected artifacts must be recompiled. The diagnostic-only requirement flag is obsolete because restrictions have an intrinsic role.
+
+## Inference experiment limits
+
+The [Mini TypeScript example](https://github.com/gweiermann/your-language/tree/main/examples/mini_typescript) demonstrates literals, annotations, variable bridges, recursive functions, aliases, higher-order calls and language-authored addition. Unannotated functions currently collect evidence into a shared signature. Mixed calls widen parameter and return unions; they do not receive independently instantiated generic types.
+
+Generic instantiation, scoped control-flow narrowing, directional subtyping, ownership and target execution are separate work. `useAsType` is not implemented. The operation and serialized result contracts remain experimental.
+
+The MiniTS bridge shares accumulated type facts between a binding and its declaration/reference occurrences using two directed contributions. Syntax occurrence identities remain distinct; initializer evidence flows one way and is never retyped by these bridges.

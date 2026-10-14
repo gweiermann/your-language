@@ -16,6 +16,18 @@ fn analyze_with(source: &str, edit: impl FnOnce(&mut String)) -> AnalysisResult 
         .compile_and_analyze(definition::ENTRY, &sources, "input.ts", source)
         .unwrap()
 }
+fn replace_action(grammar: &mut String, pattern: &str, action: &str) {
+    let original = grammar
+        .lines()
+        .find(|line| {
+            line.split_once("=>")
+                .is_some_and(|(head, _)| head.trim() == pattern)
+        })
+        .expect("fixture must contain the policy case")
+        .to_owned();
+    let replacement = format!("{}=> {action}", original.split_once("=>").unwrap().0);
+    *grammar = grammar.replace(&original, &replacement);
+}
 fn binding(result: &AnalysisResult, name: &str) -> String {
     for record in &result.graph.records {
         let get = |key: &str| {
@@ -48,10 +60,7 @@ fn addition_policy_lives_in_local_meanings() {
         assert_eq!(binding(&result, name), ty);
     }
     let changed = analyze_with("let result = 1 + 2;", |grammar| {
-        *grammar = grammar.replace(
-            "number, number => annotateWithType(number)",
-            "number, number => annotateWithType(string)",
-        )
+        replace_action(grammar, "number, number", "annotateWithType(string),")
     });
     assert!(changed.diagnostics.is_empty());
     assert_eq!(binding(&changed, "result"), "string");
@@ -105,10 +114,7 @@ fn annotation_anchors_recursive_addition_constraints() {
 #[test]
 fn no_op_void_branch_does_not_implicitly_publish_a_type() {
     let result = analyze_with("let result = 1 + 2;", |grammar| {
-        *grammar = grammar.replace(
-            "number, number => annotateWithType(number)",
-            "number, number => {}",
-        )
+        replace_action(grammar, "number, number", "{},")
     });
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(binding(&result, "result"), "unknown");
@@ -116,10 +122,7 @@ fn no_op_void_branch_does_not_implicitly_publish_a_type() {
 #[test]
 fn explicit_unknown_is_settled_and_propagates_to_next_match() {
     let result = analyze_with("let first = 1 + 2; let second = first + 3;", |grammar| {
-        *grammar = grammar.replace(
-            "number, number => annotateWithType(number)",
-            "number, number => annotateWithType(unknown)",
-        )
+        replace_action(grammar, "number, number", "annotateWithType(unknown),")
     });
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(binding(&result, "first"), "unknown");
@@ -130,9 +133,10 @@ fn warning_and_type_branch_effects_are_once_only() {
     let result = analyze_with(
         "let first = true + false; let second = first + 3;",
         |grammar| {
-            *grammar = grammar.replace(
-                "_ => error(\"${left} + ${right} is not possible\")",
-                "_ => { warning(\"${left} + ${right} is experimental\") annotateWithType(unknown) }",
+            replace_action(
+                grammar,
+                "_",
+                "{ warning(\"${left} + ${right} is experimental\") annotateWithType(unknown) }",
             )
         },
     );
@@ -250,5 +254,49 @@ fn arbitrary_function_slot_names_preserve_inference_through_reload() {
     assert!(function.entries.contains(&(
         SemanticKey::Symbol("definition/types.yl#output".into()),
         SemanticValue::Text("number".into())
+    )));
+}
+
+#[test]
+fn references_and_declarations_share_type_facts_without_retyping_initializer() {
+    use your_language::semantics::{Occurrence, SemanticIdentity};
+    let result = analyze_with("let original = 1; let copied = original;", |grammar| {
+        assert!(grammar.contains("referenceType()"));
+        *grammar = grammar.replace(
+            "referenceType()",
+            "referenceType()\n        annotateWithType(string)",
+        );
+    });
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(binding(&result, "original"), "number | string");
+    assert_eq!(binding(&result, "copied"), "number | string");
+    fn number_id(occurrences: &[Occurrence]) -> Option<usize> {
+        for occurrence in occurrences {
+            if occurrence.definition.ends_with("#Number") {
+                return Some(occurrence.id);
+            }
+            if let Some(id) = number_id(&occurrence.children) {
+                return Some(id);
+            }
+        }
+        None
+    }
+    let key = SemanticValue::Identity(SemanticIdentity::Occurrence(
+        number_id(&result.occurrences).unwrap(),
+    ));
+    let record = result
+        .graph
+        .records
+        .iter()
+        .find(|record| {
+            record
+                .entries
+                .iter()
+                .any(|(k, v)| *k == SemanticKey::Symbol("std/types#key".into()) && *v == key)
+        })
+        .unwrap();
+    assert!(record.entries.contains(&(
+        SemanticKey::Symbol("std/types#type".into()),
+        SemanticValue::Symbol("definition/types.yl#number".into())
     )));
 }

@@ -27,10 +27,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "program" => include_str!("mini_typescript/programs/program.txt"),
         "errors" => include_str!("mini_typescript/programs/errors.txt"),
         "higher-order" => include_str!("mini_typescript/programs/higher-order.txt"),
+        "union" => include_str!("mini_typescript/programs/union.txt"),
+        "union-errors" => include_str!("mini_typescript/programs/union-errors.txt"),
         "addition" => include_str!("mini_typescript/programs/addition.txt"),
         "addition-errors" => include_str!("mini_typescript/programs/addition-errors.txt"),
         _ => return Err(
-            "Choose program, errors, higher-order, addition or addition-errors, optionally --json"
+            "Choose program, errors, higher-order, union, union-errors, addition or addition-errors, optionally --json"
                 .into(),
         ),
     };

@@ -1,21 +1,22 @@
-//! Identity-keyed, language-independent equality constraints.
-//! Primitive identities and named slots are supplied by the language definition.
+//! Directed possible-type contributions and independent universal restrictions.
+//! Identities and slot symbols are opaque; target-language policy lives in YL.
 use super::*;
 const MODULE: &str = "std/types";
 const UNKNOWN: &str = "std/types#unknown";
+const LIMIT: usize = 4096;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct TypeKey {
+struct Key {
     identity: SemanticIdentity,
     slot: Option<String>,
 }
-fn key(value: &SemanticValue, span: &Span) -> Result<TypeKey, Diagnostic> {
+fn key(value: &SemanticValue, span: &Span) -> Result<Key, Diagnostic> {
     match value {
-        SemanticValue::Identity(identity) => Ok(TypeKey {
+        SemanticValue::Identity(identity) => Ok(Key {
             identity: identity.clone(),
             slot: None,
         }),
         SemanticValue::Tuple(values) if values.len() == 2 => match (&values[0], &values[1]) {
-            (SemanticValue::Identity(identity), SemanticValue::Symbol(slot)) => Ok(TypeKey {
+            (SemanticValue::Identity(identity), SemanticValue::Symbol(slot)) => Ok(Key {
                 identity: identity.clone(),
                 slot: Some(slot.clone()),
             }),
@@ -32,543 +33,953 @@ fn key(value: &SemanticValue, span: &Span) -> Result<TypeKey, Diagnostic> {
         )),
     }
 }
-#[derive(Clone, Debug, PartialEq)]
-enum Type {
-    Variable(usize),
-    Unknown,
-    Atom(String),
-    List(Vec<Type>),
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Destination {
+    One(Key),
+    Positions(Vec<Key>),
 }
-/// Diagnostic provenance does not participate in type compatibility.
-#[derive(Clone, Debug, Default)]
-struct Origin {
-    fact: Option<Span>,
-    requirement: Option<Span>,
-}
-impl Origin {
-    fn merge(&self, other: &Self) -> Self {
-        Self {
-            fact: self.fact.clone().or_else(|| other.fact.clone()),
-            requirement: self
-                .requirement
-                .clone()
-                .or_else(|| other.requirement.clone()),
-        }
-    }
-}
-struct Mismatch {
-    message: String,
-    left: Origin,
-    right: Origin,
-}
-impl Mismatch {
-    fn diagnostic(self, fallback: Span) -> Diagnostic {
-        let (primary, related, requirement) = if self.right.requirement.is_some() {
-            (self.left.fact, self.right.requirement, true)
-        } else if self.left.requirement.is_some() {
-            (self.right.fact, self.left.requirement, true)
-        } else {
-            (self.right.fact, self.left.fact, false)
-        };
-        let mut diagnostic =
-            Diagnostic::error("types.mismatch", self.message, primary.unwrap_or(fallback));
-        if let Some(related) = related.filter(|span| span != diagnostic.primary.as_ref()) {
-            diagnostic.secondary.push(related);
-            diagnostic.help = Some(if requirement {
-                "The related location requires the incompatible type".into()
-            } else {
-                "The related location contributed the conflicting type".into()
-            });
-        }
-        diagnostic
-    }
-}
-#[derive(Clone, Default)]
-struct Constraints {
-    next: usize,
-    parents: Vec<usize>,
-    projections: BTreeMap<(usize, String), usize>,
-    variables: BTreeMap<TypeKey, Type>,
-    substitutions: BTreeMap<usize, Type>,
-    equalities: Vec<(Type, Type, Origin, Span)>,
-    origins: BTreeMap<usize, Origin>,
-    settled: bool,
-}
-impl Constraints {
-    fn fresh(&mut self) -> Type {
-        let id = self.next;
-        self.next += 1;
-        self.parents.push(id);
-        Type::Variable(id)
-    }
-    fn root(&self, mut id: usize) -> usize {
-        while self.parents[id] != id {
-            id = self.parents[id];
-        }
-        id
-    }
-    fn variable(&mut self, key: TypeKey) -> Type {
-        if let Some(value) = self.variables.get(&key) {
-            return value.clone();
-        }
-        let value = if let Some(slot) = &key.slot {
-            let base = self.variable(TypeKey {
-                identity: key.identity.clone(),
-                slot: None,
-            });
-            let Type::Variable(base) = base else {
-                unreachable!()
-            };
-            let root = self.root(base);
-            if let Some(id) = self.projections.get(&(root, slot.clone())) {
-                Type::Variable(*id)
-            } else {
-                let Type::Variable(id) = self.fresh() else {
-                    unreachable!()
-                };
-                self.projections.insert((root, slot.clone()), id);
-                Type::Variable(id)
-            }
-        } else {
-            self.fresh()
-        };
-        self.variables.insert(key, value.clone());
-        value
-    }
-    fn value(&mut self, value: &SemanticValue, span: &Span) -> Result<Type, Diagnostic> {
-        match value {
-            SemanticValue::Symbol(value) if value == UNKNOWN => Ok(Type::Unknown),
-            SemanticValue::Symbol(value) => Ok(Type::Atom(value.clone())),
-            SemanticValue::Deferred {
-                service,
-                key: value,
-                ..
-            } if service == MODULE => self.read(value, span),
-            SemanticValue::List(values) => Ok(Type::List(
-                values
-                    .iter()
-                    .map(|value| self.value(value, span))
-                    .collect::<Result<_, _>>()?,
-            )),
-            SemanticValue::Absent => Ok(Type::Unknown),
-            _ => Err(Diagnostic::error(
-                "types.value",
-                "Expected a type symbol, deferred type, or list of types",
-                span.clone(),
-            )),
-        }
-    }
-    fn read(&mut self, value: &SemanticValue, span: &Span) -> Result<Type, Diagnostic> {
-        match value {
-            SemanticValue::List(values) => Ok(Type::List(
-                values
-                    .iter()
-                    .map(|value| self.read(value, span))
-                    .collect::<Result<_, _>>()?,
-            )),
-            SemanticValue::Absent => Ok(Type::Unknown),
-            _ => {
-                let key = key(value, span)?;
-                Ok(self.variable(key))
-            }
-        }
-    }
-    fn resolved(&self, value: &Type) -> Type {
-        match value {
-            Type::Variable(id) => self
-                .substitutions
-                .get(&self.root(*id))
-                .map(|value| self.resolved(value))
-                .unwrap_or_else(|| value.clone()),
-            Type::List(values) => {
-                Type::List(values.iter().map(|value| self.resolved(value)).collect())
-            }
-            _ => value.clone(),
-        }
-    }
-    fn occurs(id: usize, value: &Type) -> bool {
-        match value {
-            Type::Variable(other) => id == *other,
-            Type::List(values) => values.iter().any(|value| Self::occurs(id, value)),
-            _ => false,
-        }
-    }
-    fn head(&self, value: &Type) -> Type {
-        if let Type::Variable(id) = value {
-            self.substitutions
-                .get(&self.root(*id))
-                .map(|value| self.head(value))
-                .unwrap_or(Type::Variable(self.root(*id)))
-        } else {
-            value.clone()
-        }
-    }
-    fn origin(&self, value: &Type, fallback: &Origin, as_value: bool) -> Origin {
-        if let Type::Variable(id) = value {
-            let inherited = self
-                .origins
-                .get(&self.root(*id))
-                .cloned()
-                .unwrap_or_default();
-            // A check's explicit requirement must describe this use, not an
-            // unrelated fact originally stored in the queried annotation node.
-            if fallback.requirement.is_some() {
-                Origin {
-                    fact: None,
-                    requirement: inherited
-                        .requirement
-                        .or(inherited.fact)
-                        .or_else(|| fallback.requirement.clone()),
-                }
-            } else if as_value && fallback.fact.is_some() && inherited.requirement.is_some() {
-                Origin {
-                    fact: inherited.fact.or_else(|| fallback.fact.clone()),
-                    requirement: None,
-                }
-            } else {
-                inherited.merge(fallback)
-            }
-        } else {
-            fallback.clone()
-        }
-    }
-    fn unify(
-        &mut self,
-        left: Type,
-        right: Type,
-        left_origin: Origin,
-        right_origin: Origin,
-    ) -> Result<(), Box<Mismatch>> {
-        let left_origin = self.origin(&left, &left_origin, false);
-        let right_origin = self.origin(&right, &right_origin, true);
-        let fail = |message: String| {
-            Box::new(Mismatch {
-                message,
-                left: left_origin.clone(),
-                right: right_origin.clone(),
-            })
-        };
-        if let (Type::Variable(left), Type::Variable(right)) = (&left, &right) {
-            let (left, right) = (self.root(*left), self.root(*right));
-            if left == right {
-                return Ok(());
-            }
-            let a = self.substitutions.remove(&left);
-            let b = self.substitutions.remove(&right);
-            let stored_requirement = self
-                .origins
-                .get(&left)
-                .and_then(|origin| origin.requirement.clone())
-                .or_else(|| {
-                    self.origins
-                        .get(&right)
-                        .and_then(|origin| origin.requirement.clone())
-                });
-            self.parents[right] = left;
-            self.origins.remove(&right);
-            let mut merged_origin = left_origin.merge(&right_origin);
-            // When positive information replaces unknown, its source replaces
-            // the unknown contribution's source as well.
-            if matches!(a, Some(Type::Unknown)) && !matches!(b, None | Some(Type::Unknown)) {
-                merged_origin.fact = right_origin.fact.clone();
-            }
-            merged_origin.requirement = merged_origin.requirement.or(stored_requirement);
-            self.origins.insert(left, merged_origin);
-            if let Some(a) = a
-                .clone()
-                .filter(|value| !matches!(value, Type::Unknown) || b.is_none())
-            {
-                self.substitutions.insert(left, a);
-            } else if let Some(b) = b.clone() {
-                self.substitutions.insert(left, b);
-            }
-            let moved: Vec<_> = self
-                .projections
+fn destination(value: &SemanticValue, span: &Span) -> Result<Destination, Diagnostic> {
+    if let SemanticValue::List(values) = value {
+        Ok(Destination::Positions(
+            values
                 .iter()
-                .filter(|((owner, _), _)| *owner == right)
-                .map(|((_, slot), value)| (slot.clone(), *value))
-                .collect();
-            for (slot, value) in moved {
-                self.projections.remove(&(right, slot.clone()));
-                if let Some(existing) = self.projections.get(&(left, slot.clone())).copied() {
-                    self.unify(
-                        Type::Variable(existing),
-                        Type::Variable(value),
-                        left_origin.clone(),
-                        right_origin.clone(),
-                    )?;
-                } else {
-                    self.projections.insert((left, slot), value);
-                }
-            }
-            if let (Some(a), Some(b)) = (a, b) {
-                self.unify(a, b, left_origin.clone(), right_origin.clone())?;
-            }
-            if self.cyclic(left, &mut std::collections::BTreeSet::new()) {
-                return Err(fail(
-                    "Recursive constraint requires an infinite type".into(),
-                ));
-            }
-            return Ok(());
-        }
-        for (variable, requirement) in [(&left, &right), (&right, &left)] {
-            if let Type::Variable(id) = variable {
-                if matches!(self.head(variable), Type::Unknown)
-                    && !matches!(self.head(requirement), Type::Unknown)
-                {
-                    let id = self.root(*id);
-                    let mut origin = left_origin.merge(&right_origin);
-                    origin.fact = if matches!(self.head(&left), Type::Unknown) {
-                        right_origin.fact.clone()
-                    } else {
-                        left_origin.fact.clone()
-                    };
-                    self.substitutions.insert(id, self.head(requirement));
-                    self.origins.insert(id, origin);
-                    if self.cyclic(id, &mut std::collections::BTreeSet::new()) {
-                        return Err(fail(
-                            "Recursive constraint requires an infinite type".into(),
-                        ));
-                    }
-                    return Ok(());
-                }
-            }
-        }
-        let (left, right) = (self.head(&left), self.head(&right));
-        if left == right {
-            return Ok(());
-        }
-        match (left, right) {
-            (Type::Variable(id), value) | (value, Type::Variable(id)) => {
-                let id = self.root(id);
-                if Self::occurs(id, &value) {
-                    return Err(fail(
-                        "Recursive constraint requires an infinite type".into(),
-                    ));
-                }
-                self.substitutions.insert(id, value);
-                self.origins.insert(id, left_origin.merge(&right_origin));
-                if self.cyclic(id, &mut std::collections::BTreeSet::new()) {
-                    return Err(fail(
-                        "Recursive constraint requires an infinite type".into(),
-                    ));
-                }
-                Ok(())
-            }
-            (Type::Unknown, _) | (_, Type::Unknown) => Ok(()),
-            (Type::List(left), Type::List(right)) if left.len() == right.len() => {
-                for (left, right) in left.into_iter().zip(right) {
-                    self.unify(left, right, left_origin.clone(), right_origin.clone())?;
-                }
-                Ok(())
-            }
-            (left, right) => Err(fail(format!(
-                "Type {} does not match {}",
-                Self::display(&left),
-                Self::display(&right)
-            ))),
+                .map(|v| key(v, span))
+                .collect::<Result<_, _>>()?,
+        ))
+    } else {
+        Ok(Destination::One(key(value, span)?))
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Member {
+    Atom(String),
+    Unknown,
+    List(Vec<Member>),
+}
+impl Member {
+    fn value(&self) -> SemanticValue {
+        match self {
+            Self::Atom(s) => SemanticValue::Symbol(s.clone()),
+            Self::Unknown => SemanticValue::Symbol(UNKNOWN.into()),
+            Self::List(xs) => SemanticValue::List(xs.iter().map(Self::value).collect()),
         }
     }
-    fn cyclic(&self, id: usize, path: &mut std::collections::BTreeSet<usize>) -> bool {
-        let id = self.root(id);
-        if !path.insert(id) {
-            return true;
-        }
-        fn children(value: &Type, output: &mut Vec<usize>) {
-            match value {
-                Type::Variable(id) => output.push(*id),
-                Type::List(values) => {
-                    for value in values {
-                        children(value, output)
-                    }
-                }
-                _ => {}
-            }
-        }
-        let mut descendants: Vec<_> = self
-            .projections
-            .iter()
-            .filter(|((owner, _), _)| self.root(*owner) == id)
-            .map(|(_, value)| *value)
-            .collect();
-        if let Some(value) = self.substitutions.get(&id) {
-            children(value, &mut descendants);
-        }
-        let found = descendants
-            .into_iter()
-            .any(|child| self.cyclic(child, path));
-        path.remove(&id);
-        found
-    }
-    fn display(value: &Type) -> String {
-        match value {
-            Type::Variable(_) | Type::Unknown => "unknown".into(),
-            Type::Atom(name) => name.rsplit('#').next().unwrap_or(name).into(),
-            Type::List(values) => format!(
+    fn display(&self) -> String {
+        match self {
+            Self::Atom(s) => s.rsplit('#').next().unwrap_or(s).into(),
+            Self::Unknown => "unknown".into(),
+            Self::List(xs) => format!(
                 "[{}]",
-                values
-                    .iter()
-                    .map(Self::display)
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                xs.iter().map(Self::display).collect::<Vec<_>>().join(", ")
             ),
         }
     }
-    fn evaluation(&self, value: &Type) -> Evaluation {
-        match self.resolved(value) {
-            Type::Variable(_) if !self.settled => Evaluation::Pending,
-            Type::Variable(_) | Type::Unknown => {
-                Evaluation::Ready(SemanticValue::Symbol(UNKNOWN.into()))
+    fn compatible(&self, allowed: &Self) -> bool {
+        match (self, allowed) {
+            (Self::Unknown, _) | (_, Self::Unknown) => true,
+            (Self::List(a), Self::List(b)) if a.len() == b.len() => {
+                a.iter().zip(b).all(|(a, b)| a.compatible(b))
             }
-            Type::Atom(value) => Evaluation::Ready(SemanticValue::Symbol(value)),
-            Type::List(values) => {
-                let mut result = Vec::new();
-                for value in values {
-                    let Evaluation::Ready(value) = self.evaluation(&value) else {
-                        return Evaluation::Pending;
-                    };
-                    result.push(value);
-                }
-                Evaluation::Ready(SemanticValue::List(result))
-            }
+            _ => self == allowed,
         }
     }
 }
-impl AnalysisService for Constraints {
+#[derive(Clone, Debug)]
+struct Fact {
+    member: Member,
+    origin: Span,
+    anchors: Vec<Key>,
+    children: Vec<Fact>,
+}
+impl Fact {
+    fn scalar(member: Member, origin: Span) -> Self {
+        Self {
+            member,
+            origin,
+            anchors: vec![],
+            children: vec![],
+        }
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Expr {
+    Constant(Member, Span),
+    Read(Key, Span),
+    List(Vec<Expr>, Span),
+    Empty,
+}
+impl Expr {
+    fn parse(value: &SemanticValue, origin: &Span) -> Result<Self, Diagnostic> {
+        match value {
+            SemanticValue::Symbol(s) => Ok(Self::Constant(
+                if s == UNKNOWN {
+                    Member::Unknown
+                } else {
+                    Member::Atom(s.clone())
+                },
+                origin.clone(),
+            )),
+            SemanticValue::Absent => Ok(Self::Empty),
+            SemanticValue::Deferred {
+                service,
+                key: value,
+                span,
+            } if service == MODULE => Self::read(value, span),
+            SemanticValue::List(xs) => Ok(Self::List(
+                xs.iter()
+                    .map(|v| Self::parse(v, origin))
+                    .collect::<Result<_, _>>()?,
+                origin.clone(),
+            )),
+            _ => Err(Diagnostic::error(
+                "types.value",
+                "Expected a type symbol, deferred type, or list of types",
+                origin.clone(),
+            )),
+        }
+    }
+    fn read(value: &SemanticValue, span: &Span) -> Result<Self, Diagnostic> {
+        match value {
+            SemanticValue::Absent => Ok(Self::Empty),
+            SemanticValue::List(xs) => Ok(Self::List(
+                xs.iter()
+                    .map(|v| Self::read(v, span))
+                    .collect::<Result<_, _>>()?,
+                span.clone(),
+            )),
+            _ => Ok(Self::Read(key(value, span)?, span.clone())),
+        }
+    }
+    fn dependencies(&self, depth: i32, output: &mut Vec<(Key, i32)>) {
+        match self {
+            Self::Read(k, _) => output.push((k.clone(), depth)),
+            Self::List(xs, _) => {
+                for x in xs {
+                    x.dependencies(depth + 1, output)
+                }
+            }
+            _ => {}
+        }
+    }
+}
+#[derive(Clone, PartialEq, Eq)]
+struct Transfer {
+    destination: Destination,
+    value: Expr,
+    span: Span,
+    rule: Span,
+}
+#[derive(Clone, PartialEq, Eq)]
+struct Restriction {
+    destination: Destination,
+    value: Expr,
+    span: Span,
+    target_span: Span,
+    rule: Span,
+}
+#[derive(Default)]
+struct Possibilities {
+    facts: BTreeMap<Key, BTreeMap<Member, Fact>>,
+    transfers: Vec<Transfer>,
+    restrictions: Vec<Restriction>,
+    forwarding: std::collections::BTreeSet<(Key, Key)>,
+    reported: std::collections::BTreeSet<(usize, Key, Member)>,
+    edges: std::collections::BTreeSet<(Key, Key, i32)>,
+    settled: bool,
+}
+impl Possibilities {
+    fn connect(
+        &mut self,
+        target: &Destination,
+        expr: &Expr,
+        span: &Span,
+    ) -> Result<(), Diagnostic> {
+        let mut dependencies = vec![];
+        expr.dependencies(0, &mut dependencies);
+        let destinations = match target {
+            Destination::One(key) => vec![(key.clone(), 0)],
+            Destination::Positions(keys) => keys.iter().map(|key| (key.clone(), -1)).collect(),
+        };
+        for (source, depth) in dependencies {
+            for (destination, projection) in &destinations {
+                self.add_edge(&source, destination, depth + projection, span)?;
+            }
+        }
+        Ok(())
+    }
+    fn add_edge(
+        &mut self,
+        source: &Key,
+        destination: &Key,
+        weight: i32,
+        span: &Span,
+    ) -> Result<(), Diagnostic> {
+        if self
+            .edges
+            .contains(&(source.clone(), destination.clone(), weight))
+        {
+            return Ok(());
+        }
+        let mut distances = BTreeMap::from([(destination.clone(), 0)]);
+        let keys = self
+            .edges
+            .len()
+            .saturating_mul(2)
+            .saturating_add(self.facts.len())
+            .saturating_add(1);
+        for _ in 0..keys {
+            if distances
+                .get(source)
+                .is_some_and(|distance| distance + weight > 0)
+            {
+                return Err(Diagnostic::error(
+                    "types.mismatch",
+                    "Recursive contribution requires an infinite type",
+                    span.clone(),
+                ));
+            }
+            let mut changed = false;
+            for (from, to, step) in &self.edges {
+                if let Some(distance) = distances.get(from).copied() {
+                    let candidate = distance + step;
+                    if distances.get(to).is_none_or(|old| candidate > *old) {
+                        distances.insert(to.clone(), candidate);
+                        changed = true;
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        self.edges
+            .insert((source.clone(), destination.clone(), weight));
+        Ok(())
+    }
+    // Combine allowed alternatives by structural intersection, with unknown
+    // serving as the permissive wildcard rather than an extra union member.
+    fn meet_fact(left: &Fact, right: &Fact) -> Option<Fact> {
+        match (&left.member, &right.member) {
+            (Member::Unknown, _) => Some(right.clone()),
+            (_, Member::Unknown) => Some(left.clone()),
+            (Member::List(a), Member::List(b)) if a.len() == b.len() => {
+                let children: Option<Vec<_>> = left
+                    .children
+                    .iter()
+                    .zip(&right.children)
+                    .map(|(a, b)| Self::meet_fact(a, b))
+                    .collect();
+                let children = children?;
+                Some(Fact {
+                    member: Member::List(children.iter().map(|c| c.member.clone()).collect()),
+                    origin: right.origin.clone(),
+                    anchors: vec![],
+                    children,
+                })
+            }
+            _ if left.member == right.member => Some(left.clone()),
+            _ => None,
+        }
+    }
+    fn destination_keys(destination: &Destination) -> Vec<Key> {
+        match destination {
+            Destination::One(key) => vec![key.clone()],
+            Destination::Positions(keys) => keys.clone(),
+        }
+    }
+    // Join connected restrictions on canonical keys. Keeping whole rows retains
+    // correlations even when positional key lists overlap or change order.
+    fn contract_rows(
+        &self,
+        keys: &[Key],
+        seen: &std::collections::BTreeSet<Key>,
+    ) -> Result<Option<Vec<BTreeMap<Key, Fact>>>, Diagnostic> {
+        let mut component: std::collections::BTreeSet<_> = keys.iter().cloned().collect();
+        let mut selected = vec![];
+        loop {
+            let mut added = false;
+            for (index, restriction) in self.restrictions.iter().enumerate() {
+                if selected.contains(&index) {
+                    continue;
+                }
+                let targets = Self::destination_keys(&restriction.destination);
+                if targets.iter().any(|key| component.contains(key)) {
+                    component.extend(targets);
+                    selected.push(index);
+                    added = true;
+                }
+            }
+            if !added {
+                break;
+            }
+        }
+        if selected.is_empty() {
+            return Ok(None);
+        }
+        let mut nested = seen.clone();
+        nested.extend(component);
+        let mut rows = vec![BTreeMap::<Key, Fact>::new()];
+        let mut has_contract = false;
+        for index in selected {
+            let bound = &self.restrictions[index];
+            let values = self.eval(&bound.value, &mut nested)?;
+            if values.is_empty() {
+                continue;
+            }
+            has_contract = true;
+            let mut choices = vec![];
+            for fact in values {
+                let assignments = match &bound.destination {
+                    Destination::One(key) => vec![(key.clone(), fact)],
+                    Destination::Positions(keys) if fact.member == Member::Unknown => {
+                        keys.iter().map(|key| (key.clone(), fact.clone())).collect()
+                    }
+                    Destination::Positions(keys) if keys.len() == fact.children.len() => {
+                        keys.iter().cloned().zip(fact.children).collect()
+                    }
+                    _ => continue,
+                };
+                let mut row = BTreeMap::<Key, Fact>::new();
+                let mut valid = true;
+                for (key, fact) in assignments {
+                    if let Some(old) = row.get(&key) {
+                        if let Some(meet) = Self::meet_fact(old, &fact) {
+                            row.insert(key, meet);
+                        } else {
+                            valid = false;
+                            break;
+                        }
+                    } else {
+                        row.insert(key, fact);
+                    }
+                }
+                if valid {
+                    choices.push(row);
+                }
+            }
+            let mut joined = BTreeMap::new();
+            for row in &rows {
+                for choice in &choices {
+                    let mut next = row.clone();
+                    let mut valid = true;
+                    for (key, fact) in choice {
+                        if let Some(old) = next.get(key) {
+                            if let Some(meet) = Self::meet_fact(old, fact) {
+                                next.insert(key.clone(), meet);
+                            } else {
+                                valid = false;
+                                break;
+                            }
+                        } else {
+                            next.insert(key.clone(), fact.clone());
+                        }
+                    }
+                    if valid {
+                        let identity: Vec<_> = next
+                            .iter()
+                            .map(|(key, fact)| (key.clone(), fact.member.clone()))
+                            .collect();
+                        joined.entry(identity).or_insert(next);
+                        if joined.len() > LIMIT {
+                            return Err(Diagnostic::error(
+                                "types.complexity",
+                                "Restriction combinations exceeded the analysis limit",
+                                bound.span.clone(),
+                            ));
+                        }
+                    }
+                }
+            }
+            rows = joined.into_values().collect();
+            if rows.is_empty() {
+                break;
+            }
+        }
+        Ok(has_contract.then_some(rows))
+    }
+    fn register_expr(&mut self, value: &Expr) {
+        let mut deps = vec![];
+        value.dependencies(0, &mut deps);
+        for (key, _) in deps {
+            self.facts.entry(key).or_default();
+        }
+    }
+    fn register_destination(&mut self, target: &Destination) {
+        match target {
+            Destination::One(k) => {
+                self.facts.entry(k.clone()).or_default();
+            }
+            Destination::Positions(ks) => {
+                for k in ks {
+                    self.facts.entry(k.clone()).or_default();
+                }
+            }
+        }
+    }
+    fn eval(
+        &self,
+        expr: &Expr,
+        seen: &mut std::collections::BTreeSet<Key>,
+    ) -> Result<Vec<Fact>, Diagnostic> {
+        match expr {
+            Expr::Empty => Ok(vec![]),
+            Expr::Constant(m, s) => Ok(vec![Fact::scalar(m.clone(), s.clone())]),
+            Expr::Read(k, s) => {
+                if !seen.insert(k.clone()) {
+                    // A recursive bound may read finite contributed evidence;
+                    // only an unobserved fallback would reenter the contracts.
+                    return Ok(self
+                        .facts
+                        .get(k)
+                        .map(|facts| facts.values().cloned().collect())
+                        .unwrap_or_default());
+                }
+                let mut result = self
+                    .facts
+                    .get(k)
+                    .map(|fs| fs.values().cloned().collect::<Vec<_>>())
+                    .unwrap_or_default();
+                if result.is_empty() {
+                    if let Some(rows) = self.contract_rows(std::slice::from_ref(k), seen)? {
+                        result = rows
+                            .into_iter()
+                            .filter_map(|mut row| row.remove(k))
+                            .collect();
+                    }
+                }
+                if result.is_empty() && self.settled {
+                    result.push(Fact::scalar(Member::Unknown, s.clone()));
+                }
+                // An annotation supplies a contract-derived value, not the
+                // token that used that value. Rebase only such binding reads
+                // onto their use; actual initializer origins remain intact.
+                if matches!(k.identity, SemanticIdentity::Binding(_)) {
+                    let mut contracts = vec![];
+                    for bound in &self.restrictions {
+                        if matches!(&bound.destination, Destination::One(target) if target == k) {
+                            contracts.extend(self.eval(&bound.value, seen)?);
+                        }
+                    }
+                    for fact in &mut result {
+                        if contracts.iter().any(|contract| {
+                            contract.member == fact.member && contract.origin == fact.origin
+                        }) {
+                            fact.origin = s.clone();
+                        }
+                    }
+                }
+                for fact in &mut result {
+                    if !fact.anchors.contains(k) {
+                        fact.anchors.push(k.clone());
+                    }
+                }
+                seen.remove(k);
+                Ok(result)
+            }
+            Expr::List(xs, s) => {
+                let keys: Option<Vec<_>> = xs
+                    .iter()
+                    .map(|expr| match expr {
+                        Expr::Read(key, _) => Some(key.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                if let Some(keys) = keys.filter(|keys| {
+                    keys.iter().all(|key| !seen.contains(key))
+                        && keys
+                            .iter()
+                            .any(|key| self.facts.get(key).is_none_or(BTreeMap::is_empty))
+                }) {
+                    if let Some(rows) = self.contract_rows(&keys, seen)? {
+                        let mut contracts = vec![];
+                        for row in rows {
+                            let mut product = vec![vec![]];
+                            for key in &keys {
+                                let choices =
+                                    if self.facts.get(key).is_some_and(|facts| !facts.is_empty()) {
+                                        self.eval(&Expr::Read(key.clone(), s.clone()), seen)?
+                                            .into_iter()
+                                            .filter(|fact| {
+                                                row.get(key).is_none_or(|bound| {
+                                                    fact.member.compatible(&bound.member)
+                                                })
+                                            })
+                                            .collect()
+                                    } else {
+                                        match row.get(key) {
+                                            Some(fact) => vec![fact.clone()],
+                                            None => self
+                                                .eval(&Expr::Read(key.clone(), s.clone()), seen)?,
+                                        }
+                                    };
+                                let mut next = vec![];
+                                for prefix in &product {
+                                    for choice in &choices {
+                                        if contracts.len() + next.len() >= LIMIT {
+                                            return Err(Diagnostic::error("types.complexity", "Restriction combinations exceeded the analysis limit", s.clone()));
+                                        }
+                                        let mut children = prefix.clone();
+                                        children.push(choice.clone());
+                                        next.push(children);
+                                    }
+                                }
+                                product = next;
+                            }
+                            contracts.extend(product.into_iter().map(|children: Vec<Fact>| Fact {
+                                member: Member::List(
+                                    children.iter().map(|c| c.member.clone()).collect(),
+                                ),
+                                origin: s.clone(),
+                                anchors: vec![],
+                                children,
+                            }));
+                        }
+                        return Ok(contracts);
+                    }
+                }
+                let mut product: Vec<Vec<Fact>> = vec![vec![]];
+                for x in xs {
+                    let choices = self.eval(x, seen)?;
+                    let mut next = vec![];
+                    for prefix in product {
+                        for choice in &choices {
+                            if next.len() >= LIMIT {
+                                return Err(Diagnostic::error(
+                                    "types.complexity",
+                                    "Type combinations exceeded the analysis limit",
+                                    s.clone(),
+                                ));
+                            }
+                            let mut row = prefix.clone();
+                            row.push(choice.clone());
+                            next.push(row);
+                        }
+                    }
+                    product = next;
+                }
+                Ok(product
+                    .into_iter()
+                    .map(|children| Fact {
+                        member: Member::List(children.iter().map(|c| c.member.clone()).collect()),
+                        origin: s.clone(),
+                        anchors: vec![],
+                        children,
+                    })
+                    .collect())
+            }
+        }
+    }
+    fn insert(&mut self, k: &Key, mut fact: Fact) -> Result<bool, Diagnostic> {
+        if let Some(slot) = &k.slot {
+            if fact.children.iter().any(|child| {
+                child
+                    .anchors
+                    .iter()
+                    .any(|a| a.identity == k.identity && a.slot.is_none())
+            }) {
+                return Err(Diagnostic::error(
+                    "types.mismatch",
+                    format!("Recursive slot {slot} requires an infinite type"),
+                    fact.origin.clone(),
+                ));
+            }
+        }
+        let mut changed = false;
+        for source in &fact.anchors {
+            if source.slot.is_none() && k.slot.is_none() && source != k {
+                changed |= self.forwarding.insert((source.clone(), k.clone()));
+            }
+        }
+        let set = self.facts.entry(k.clone()).or_default();
+        if let Some(existing) = set.get_mut(&fact.member) {
+            for anchor in fact.anchors.drain(..) {
+                if !existing.anchors.contains(&anchor) {
+                    existing.anchors.push(anchor);
+                    changed = true;
+                }
+            }
+            for (left, right) in existing.children.iter_mut().zip(fact.children) {
+                for anchor in right.anchors {
+                    if !left.anchors.contains(&anchor) {
+                        left.anchors.push(anchor);
+                        changed = true;
+                    }
+                }
+            }
+        } else {
+            if set.len() >= LIMIT {
+                return Err(Diagnostic::error(
+                    "types.complexity",
+                    "Type possibilities exceeded the analysis limit",
+                    fact.origin,
+                ));
+            }
+            set.insert(fact.member.clone(), fact);
+            changed = true;
+        }
+        Ok(changed)
+    }
+    fn contribute(&mut self, target: &Destination, fact: Fact) -> Result<bool, Diagnostic> {
+        match target {
+            Destination::One(k) => self.insert(k, fact),
+            Destination::Positions(ks) => {
+                if fact.member == Member::Unknown {
+                    return Ok(false);
+                }
+                if fact.children.len() != ks.len() || !matches!(fact.member, Member::List(_)) {
+                    return Err(Diagnostic::error(
+                        "types.mismatch",
+                        "Type list does not match the target key list's arity",
+                        fact.origin,
+                    ));
+                }
+                let mut changed = false;
+                for (k, child) in ks.iter().zip(fact.children) {
+                    changed |= self.insert(k, child)?;
+                }
+                Ok(changed)
+            }
+        }
+    }
+    fn report_restriction(
+        &mut self,
+        index: usize,
+        k: &Key,
+        fact: &Fact,
+        allowed: &[Fact],
+        context: &mut OperationContext<'_>,
+    ) {
+        if fact.member == Member::Unknown
+            || allowed.is_empty()
+            || allowed.iter().any(|a| fact.member.compatible(&a.member))
+        {
+            return;
+        }
+        if !self
+            .reported
+            .insert((index, k.clone(), fact.member.clone()))
+        {
+            return;
+        }
+        let expected = allowed
+            .iter()
+            .map(|a| a.member.display())
+            .collect::<Vec<_>>()
+            .join(" | ");
+        let origin = fact
+            .children
+            .iter()
+            .enumerate()
+            .find(|(index, child)| {
+                !allowed.iter().any(|bound| {
+                    bound.member == Member::Unknown
+                        || bound.children.get(*index).is_some_and(|allowed_child| {
+                            child.member.compatible(&allowed_child.member)
+                        })
+                })
+            })
+            .map(|(_, child)| child.origin.clone())
+            .unwrap_or_else(|| fact.origin.clone());
+        let mut diagnostic = Diagnostic::error(
+            "types.mismatch",
+            format!("Type {} does not match {expected}", fact.member.display()),
+            origin.clone(),
+        );
+        if let Some(bound) = allowed.first() {
+            if bound.origin != origin {
+                diagnostic.secondary.push(bound.origin.clone());
+                diagnostic.help =
+                    Some("The related location requires the incompatible type".into());
+            }
+        }
+        context.emit(diagnostic);
+    }
+    fn snapshot(&self, k: &Key) -> Result<Vec<Fact>, Diagnostic> {
+        self.eval(
+            &Expr::Read(k.clone(), Span::default()),
+            &mut Default::default(),
+        )
+    }
+    fn value(facts: &[Fact]) -> SemanticValue {
+        let values: std::collections::BTreeSet<_> =
+            facts.iter().map(|f| f.member.clone()).collect();
+        if values.len() == 1 {
+            return values.iter().next().unwrap().value();
+        }
+        SemanticValue::Alternatives {
+            service: MODULE.into(),
+            values: values.iter().map(Member::value).collect(),
+        }
+    }
+    fn display(facts: &[Fact]) -> String {
+        let values: std::collections::BTreeSet<_> =
+            facts.iter().map(|f| f.member.display()).collect();
+        values.into_iter().collect::<Vec<_>>().join(" | ")
+    }
+}
+impl AnalysisService for Possibilities {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+    fn offers_alternatives(&self) -> bool {
+        true
     }
     fn resolve_value(
         &mut self,
         value: &SemanticValue,
         context: &mut OperationContext<'_>,
     ) -> Result<Evaluation, Diagnostic> {
-        let value = self.read(value, context.operation_span)?;
-        Ok(self.evaluation(&value))
+        let expr = Expr::read(value, context.operation_span)?;
+        self.register_expr(&expr);
+        let facts = self.eval(&expr, &mut Default::default())?;
+        if facts.is_empty() {
+            return Ok(Evaluation::Pending);
+        }
+        let values: std::collections::BTreeSet<_> =
+            facts.iter().map(|f| f.member.clone()).collect();
+        Ok(Evaluation::Ready(SemanticValue::Alternatives {
+            service: MODULE.into(),
+            values: values.iter().map(Member::value).collect(),
+        }))
     }
     fn progress(&mut self, context: &mut OperationContext<'_>) -> Result<bool, Diagnostic> {
-        let equations = std::mem::take(&mut self.equalities);
-        let changed = !equations.is_empty();
-        for (left, right, origin, span) in equations {
-            let snapshot = self.clone();
-            if let Err(mismatch) = self.unify(left, right, Origin::default(), origin) {
-                *self = snapshot;
-                context.emit(mismatch.diagnostic(span));
+        let mut changed = false;
+        for transfer in self.transfers.clone() {
+            for fact in self
+                .eval(&transfer.value, &mut Default::default())
+                .map_err(|mut diagnostic| {
+                    if diagnostic.primary.file.is_empty() {
+                        diagnostic.primary = Box::new(transfer.span.clone());
+                    }
+                    diagnostic
+                })?
+            {
+                changed |= self.contribute(&transfer.destination, fact)?;
             }
         }
+        for (source, target) in self.forwarding.clone() {
+            // A copied value retains its authored structural slot handles. Base
+            // possibilities flow one way; slot contributions address the same
+            // structure through either reference, without merging base facts.
+            let slots: std::collections::BTreeSet<_> = self
+                .facts
+                .keys()
+                .filter(|key| key.identity == source.identity || key.identity == target.identity)
+                .filter_map(|key| key.slot.clone())
+                .collect();
+            for slot in slots {
+                let source_slot = Key {
+                    identity: source.identity.clone(),
+                    slot: Some(slot.clone()),
+                };
+                let target_slot = Key {
+                    identity: target.identity.clone(),
+                    slot: Some(slot),
+                };
+                self.facts.entry(source_slot.clone()).or_default();
+                self.facts.entry(target_slot.clone()).or_default();
+                let origin = self
+                    .facts
+                    .get(&source_slot)
+                    .and_then(|facts| facts.values().next())
+                    .or_else(|| {
+                        self.facts
+                            .get(&target_slot)
+                            .and_then(|facts| facts.values().next())
+                    })
+                    .map(|fact| fact.origin.clone())
+                    .unwrap_or_else(|| context.operation_span.clone());
+                self.add_edge(&source_slot, &target_slot, 0, &origin)?;
+                self.add_edge(&target_slot, &source_slot, 0, &origin)?;
+                for fact in self.snapshot(&source_slot)? {
+                    changed |= self.insert(&target_slot, fact)?;
+                }
+                for fact in self.snapshot(&target_slot)? {
+                    changed |= self.insert(&source_slot, fact)?;
+                }
+            }
+        }
+        // Restrictions are checked only at finalization: future alternatives can
+        // legitimately enlarge an allowed set. Facts are never deleted.
+        let _ = context;
         Ok(changed)
     }
     fn settle(&mut self, _context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
         self.settled = true;
-        for id in 0..self.next {
-            if matches!(self.resolved(&Type::Variable(id)), Type::Variable(_)) {
-                self.substitutions.insert(self.root(id), Type::Unknown);
-            }
-        }
         Ok(())
     }
     fn finish(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
-        if self.variables.is_empty() {
-            return Ok(());
-        }
-        // Cleanup also runs after a failed native action, without normal settle.
-        if !self.settled {
-            self.settle(context)?;
-        }
-        let report = context.record();
-        let typed_report = context.record();
-        let mut reported = self.variables.clone();
-        for (key, value) in &self.variables {
-            if key.slot.is_none() {
-                if let Type::Variable(id) = value {
-                    for ((owner, slot), projected) in &self.projections {
-                        if self.root(*owner) == self.root(*id) {
-                            reported.insert(
-                                TypeKey {
-                                    identity: key.identity.clone(),
-                                    slot: Some(slot.clone()),
-                                },
-                                Type::Variable(*projected),
-                            );
+        self.settled = true;
+        let mut checked_domains = std::collections::BTreeSet::new();
+        for (index, bound) in self.restrictions.clone().into_iter().enumerate() {
+            let mut allowed = self.eval(&bound.value, &mut Default::default())?;
+            for fact in &mut allowed {
+                if fact.origin.file.is_empty() {
+                    fact.origin = bound.span.clone();
+                }
+            }
+            let keys = Self::destination_keys(&bound.destination);
+            if keys.iter().any(|key| !checked_domains.contains(key))
+                && self
+                    .contract_rows(&keys, &Default::default())?
+                    .is_some_and(|rows| rows.is_empty())
+            {
+                checked_domains.extend(keys.clone());
+                let primary = allowed
+                    .first()
+                    .map(|fact| fact.origin.clone())
+                    .unwrap_or_else(|| bound.span.clone());
+                let mut diagnostic = Diagnostic::error(
+                    "types.mismatch",
+                    "Type restrictions have no compatible possibility",
+                    primary.clone(),
+                );
+                for other in &self.restrictions {
+                    if other != &bound
+                        && Self::destination_keys(&other.destination)
+                            .iter()
+                            .any(|key| keys.contains(key))
+                    {
+                        if let Some(fact) =
+                            self.eval(&other.value, &mut Default::default())?.first()
+                        {
+                            if fact.origin != primary
+                                && !diagnostic.secondary.contains(&fact.origin)
+                            {
+                                diagnostic.secondary.push(fact.origin.clone());
+                            }
                         }
+                    }
+                }
+                diagnostic.help =
+                    Some("The related restrictions require incompatible types".into());
+                context.emit(diagnostic);
+            }
+            match bound.destination {
+                Destination::One(k) => {
+                    for fact in self.facts.get(&k).cloned().unwrap_or_default().values() {
+                        self.report_restriction(index, &k, fact, &allowed, context)
+                    }
+                }
+                Destination::Positions(keys) => {
+                    let value = Expr::List(
+                        keys.iter()
+                            .map(|key| {
+                                if self.facts.get(key).is_some_and(|facts| !facts.is_empty()) {
+                                    Expr::Read(key.clone(), bound.target_span.clone())
+                                } else {
+                                    Expr::Constant(Member::Unknown, bound.target_span.clone())
+                                }
+                            })
+                            .collect(),
+                        bound.target_span.clone(),
+                    );
+                    let identity = keys.first().cloned().unwrap_or(Key {
+                        identity: SemanticIdentity::Occurrence(context.occurrence.id),
+                        slot: None,
+                    });
+                    let mut observed_only = keys.iter().cloned().collect();
+                    for fact in self.eval(&value, &mut observed_only)? {
+                        self.report_restriction(index, &identity, &fact, &allowed, context);
                     }
                 }
             }
         }
-        for (key, value) in &reported {
-            let typed = context.record();
-            let identity = SemanticValue::Identity(key.identity.clone());
-            let identity = if let Some(slot) = &key.slot {
+        if self.facts.is_empty() {
+            return Ok(());
+        }
+        let typed_report = context.record();
+        let report = context.record();
+        for k in self.facts.keys() {
+            let facts = self.snapshot(k)?;
+            let row = context.record();
+            let identity = SemanticValue::Identity(k.identity.clone());
+            let identity = if let Some(slot) = &k.slot {
                 SemanticValue::Tuple(vec![identity, SemanticValue::Symbol(slot.clone())])
             } else {
                 identity
             };
-            context.set(typed, SemanticKey::Symbol("std/types#key".into()), identity)?;
-            let Evaluation::Ready(ready) = self.evaluation(value) else {
-                return Err(Diagnostic::error(
-                    "types.unsettled",
-                    "A type remained pending after finalization",
-                    context.occurrence.span.clone(),
-                ));
-            };
-            context.set(typed, SemanticKey::Symbol("std/types#type".into()), ready)?;
+            context.set(row, SemanticKey::Symbol("std/types#key".into()), identity)?;
+            context.set(
+                row,
+                SemanticKey::Symbol("std/types#type".into()),
+                Self::value(&facts),
+            )?;
+            let label = format!("{:?}/{:?}", k.identity, k.slot);
             context.set(
                 typed_report,
-                SemanticKey::Text(format!("{:?}/{:?}", key.identity, key.slot)),
-                SemanticValue::Record(typed),
+                SemanticKey::Text(label.clone()),
+                SemanticValue::Record(row),
             )?;
-            let value = SemanticValue::Text(Self::display(&self.resolved(value)));
-            if let SemanticIdentity::Binding(binding) = key.identity {
-                let field = key
-                    .slot
-                    .clone()
-                    .unwrap_or_else(|| "std/types#inferredType".into());
-                context.set(binding, SemanticKey::Symbol(field), value.clone())?;
+            let display = SemanticValue::Text(Self::display(&facts));
+            context.set(report, SemanticKey::Text(label), display.clone())?;
+            // Record identities are generic handles; no variable-library fields,
+            // declaration names or lookup policy are consulted by this module.
+            if let SemanticIdentity::Binding(record) = k.identity {
+                context.set(
+                    record,
+                    SemanticKey::Symbol(
+                        k.slot
+                            .clone()
+                            .unwrap_or_else(|| "std/types#inferredType".into()),
+                    ),
+                    display,
+                )?;
             }
-            context.set(
-                report,
-                SemanticKey::Text(format!("{:?}/{:?}", key.identity, key.slot)),
-                value,
-            )?;
         }
-        context.attach("std/types#inferredTypes", SemanticValue::Record(report));
         context.attach("std/types#typeValues", SemanticValue::Record(typed_report));
+        context.attach("std/types#inferredTypes", SemanticValue::Record(report));
         Ok(())
     }
 }
-struct Ensure;
-impl NativeOperation for Ensure {
+struct Collect {
+    restriction: bool,
+}
+impl NativeOperation for Collect {
     fn before(&mut self, context: &mut OperationContext<'_>) -> Result<(), Diagnostic> {
         let target = context
             .argument("key")
             .cloned()
             .unwrap_or(SemanticValue::Absent);
-        let requirement = context
+        let value = context
             .argument("type")
             .cloned()
             .unwrap_or(SemanticValue::Absent);
-        key(&target, context.operation_span)?;
-        if matches!(requirement, SemanticValue::Absent) {
+        let destination = destination(&target, context.operation_span)?;
+        if matches!(value, SemanticValue::Absent) {
             return Ok(());
         }
-        let span = context.identity_span(&requirement);
-        let is_requirement = context.argument("requirement") == Some(&SemanticValue::Bool(true));
-        let origin = if is_requirement {
-            Origin {
-                fact: None,
-                requirement: Some(span.clone()),
-            }
-        } else {
-            Origin {
-                fact: Some(span.clone()),
-                requirement: None,
-            }
-        };
+        let rule = context.operation_span.clone();
+        let target_span = context.identity_span(&target);
+        let span = context.identity_span(&value);
+        let value = Expr::parse(&value, &span)?;
         context
-            .with_service::<Constraints, _>(MODULE, |state, context| {
-                let target = state.read(&target, context.operation_span)?;
-                let requirement = state.value(&requirement, context.operation_span)?;
-                state.equalities.push((target, requirement, origin, span));
+            .with_service::<Possibilities, _>(MODULE, |state, _| {
+                state.register_destination(&destination);
+                state.register_expr(&value);
+                if self.restriction {
+                    let bound = Restriction {
+                        destination,
+                        value,
+                        span,
+                        target_span,
+                        rule,
+                    };
+                    if !state.restrictions.contains(&bound) {
+                        state.restrictions.push(bound);
+                    }
+                } else {
+                    state.connect(&destination, &value, &span)?;
+                    let transfer = Transfer {
+                        destination,
+                        value,
+                        span,
+                        rule,
+                    };
+                    if !state.transfers.contains(&transfer) {
+                        state.transfers.push(transfer);
+                    }
+                }
                 Ok(())
             })
             .unwrap_or_else(|| {
@@ -587,71 +998,59 @@ impl NativeOperation for TypeOf {
             .argument("key")
             .cloned()
             .unwrap_or(SemanticValue::Absent);
-        if matches!(key, SemanticValue::Absent) {
+        if key == SemanticValue::Absent {
             return Ok(Evaluation::Ready(SemanticValue::Absent));
         }
-        // Validate and reserve the variables now. The opaque handle lets ensure
-        // link pending variables immediately; a match resolves it observationally.
+        let span = context.identity_span(&key);
+        let expr = Expr::read(&key, &span)?;
         context
-            .with_service::<Constraints, _>(MODULE, |state, context| {
-                state.read(&key, context.operation_span)
-            })
+            .with_service::<Possibilities, _>(MODULE, |state, _| state.register_expr(&expr))
             .ok_or_else(|| {
                 Diagnostic::error(
                     "types.service",
                     "Type service is unavailable",
                     context.occurrence.span.clone(),
                 )
-            })??;
+            })?;
         Ok(Evaluation::Ready(SemanticValue::Deferred {
             service: MODULE.into(),
-            span: context.identity_span(&key),
             key: Box::new(key),
+            span,
         }))
     }
 }
 pub fn register(registry: &mut OperationRegistry) -> Result<(), String> {
     registry.export_symbol(MODULE, "unknown")?;
-    registry.register_service(MODULE, || Box::<Constraints>::default())?;
-    for (name, parameters, factory) in [
-        (
-            "ensure",
-            vec!["key", "type"],
-            Arc::new(|| Box::new(Ensure) as Box<dyn NativeOperation>) as Factory,
-        ),
-        (
-            "typeof",
-            vec!["key"],
-            Arc::new(|| Box::new(TypeOf) as Box<dyn NativeOperation>) as Factory,
-        ),
-    ] {
+    registry.register_service(MODULE, || Box::<Possibilities>::default())?;
+    for name in ["annotate", "restrictTo", "typeof"] {
+        let parameters = if name == "typeof" {
+            vec!["key"]
+        } else {
+            vec!["key", "type"]
+        };
         registry.register(
             MODULE,
             name,
             OperationSignature {
                 id: format!("{MODULE}#{name}"),
-                finalization_only: true,
                 provides_context: false,
-                parameters: {
-                    let mut parameters: Vec<_> = parameters
-                        .into_iter()
-                        .map(|name| OperationParameter {
-                            name: name.into(),
-                            kind: ParameterKind::Value,
-                            default: None,
-                        })
-                        .collect();
-                    if name == "ensure" {
-                        parameters.push(OperationParameter {
-                            name: "requirement".into(),
-                            kind: ParameterKind::Bool,
-                            default: Some(MeaningValue::Bool(false)),
-                        });
-                    }
-                    parameters
-                },
+                finalization_only: true,
+                contribution: name != "typeof",
+                parameters: parameters
+                    .into_iter()
+                    .map(|name| OperationParameter {
+                        name: name.into(),
+                        kind: ParameterKind::Value,
+                        default: None,
+                    })
+                    .collect(),
             },
-            move || factory(),
+            move || match name {
+                "typeof" => Box::new(TypeOf) as Box<dyn NativeOperation>,
+                name => Box::new(Collect {
+                    restriction: name == "restrictTo",
+                }),
+            },
         )?;
     }
     Ok(())

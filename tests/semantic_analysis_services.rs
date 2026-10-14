@@ -61,6 +61,7 @@ fn engine() -> SemanticEngine {
                 id: "test/service#collect".into(),
                 parameters: vec![],
                 finalization_only: false,
+                contribution: false,
                 provides_context: false,
             },
             || Box::new(Collect),

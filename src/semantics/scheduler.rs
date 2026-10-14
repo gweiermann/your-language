@@ -172,23 +172,33 @@ pub(super) fn execute(
                     kind: DeferredKind::Match(matching),
                     next: 0,
                     selected: None,
+                    reactive: false,
+                    released: false,
+                    combinations: vec![],
+                    parked: Default::default(),
                     done: false,
                 });
             }
             let mut instances = vec![];
             for call in &group.calls {
-                if call.arguments.values().any(|value| {
-                    matches!(
-                        value,
-                        MeaningValue::Call(_) | MeaningValue::Tuple(_) | MeaningValue::List(_)
-                    )
-                }) {
+                if call.contract.finalization_only
+                    || call.arguments.values().any(|value| {
+                        matches!(
+                            value,
+                            MeaningValue::Call(_) | MeaningValue::Tuple(_) | MeaningValue::List(_)
+                        )
+                    })
+                {
                     deferred.push(Deferred {
                         task: tasks.len(),
                         owner,
                         kind: DeferredKind::Call(call),
                         next: 0,
                         selected: None,
+                        reactive: false,
+                        released: false,
+                        combinations: vec![],
+                        parked: Default::default(),
                         done: false,
                     });
                     continue;
@@ -697,31 +707,69 @@ pub(super) fn execute(
     if !failed {
         if let Some(root) = occurrences.first() {
             for phase in [ServicePhase::Progress, ServicePhase::Settle] {
-                if matches!(phase, ServicePhase::Settle) {
+                let settling = matches!(phase, ServicePhase::Settle);
+                if settling {
                     run_services(root, &mut state, phase);
                 }
                 let mut exhausted = true;
                 for _ in 0..10000 {
                     let mut progress = run_services(root, &mut state, ServicePhase::Progress);
                     for index in 0..deferred.len() {
+                        if !deferred[index].done && !deferred[index].reactive {
+                            match probe_reactive(&deferred[index], registry, &mut state) {
+                                Ok(true) => {
+                                    deferred[index].reactive = true;
+                                    deferred[index].released = true;
+                                    progress = true;
+                                }
+                                Ok(false) => {}
+                                Err(error) => {
+                                    state.diagnostics.push(error);
+                                    deferred[index].done = true;
+                                }
+                            }
+                        }
+                        let collector = deferred[index].reactive
+                            || matches!(deferred[index].kind, DeferredKind::Call(call) if call.contract.finalization_only || call.contract.contribution);
                         let blocked = deferred.iter().enumerate().any(|(other, candidate)| {
-                            !candidate.done
+                            !(candidate.done || candidate.released && collector)
                                 && (deferred_dependencies[&deferred[index].task]
                                     .contains(&candidate.task)
                                     || (candidate.task == deferred[index].task && other < index))
                         });
                         let job = &mut deferred[index];
-                        if !job.done && !blocked {
+                        if (!job.done || job.reactive) && !blocked {
                             match advance(job, registry, &mut state) {
                                 Ok(changed) => progress |= changed,
                                 Err(error) => {
                                     state.diagnostics.push(error);
                                     job.done = true;
+                                    job.reactive = false;
                                 }
                             }
                         }
                     }
                     if !progress {
+                        // Only collectors may pass a live reactive reader.
+                        // At the settled fixed point close its ordering barrier
+                        // and drain ordinary successors once. The reader remains
+                        // observationally active if that drain produces new facts.
+                        if settling {
+                            let mut closed = false;
+                            for job in &mut deferred {
+                                if job.reactive
+                                    && !job.done
+                                    && !job.combinations.is_empty()
+                                    && job.combinations.iter().all(|value| value.done)
+                                {
+                                    job.done = true;
+                                    closed = true;
+                                }
+                            }
+                            if closed {
+                                continue;
+                            }
+                        }
                         exhausted = false;
                         break;
                     }
@@ -736,7 +784,11 @@ pub(super) fn execute(
                 }
             }
             for job in &deferred {
-                if !job.done {
+                if (!job.done && !job.reactive)
+                    || (job.reactive
+                        && (job.combinations.is_empty()
+                            || job.combinations.iter().any(|combination| !combination.done)))
+                {
                     state.diagnostics.push(Diagnostic::error(
                         "semantic.pending",
                         "Semantic inputs remain pending after finalization",
@@ -834,8 +886,44 @@ struct Deferred<'a> {
     owner: &'a Occurrence,
     kind: DeferredKind<'a>,
     selected: Option<usize>,
+    reactive: bool,
+    released: bool,
+    combinations: Vec<Combination>,
+    parked: std::collections::BTreeSet<(usize, usize)>,
     next: usize,
     done: bool,
+}
+struct Combination {
+    values: Vec<SemanticValue>,
+    case: usize,
+    next: usize,
+    done: bool,
+}
+fn probe_reactive(
+    job: &Deferred<'_>,
+    registry: &OperationRegistry,
+    state: &mut AnalysisState,
+) -> Result<bool, Diagnostic> {
+    let DeferredKind::Match(matching) = job.kind else {
+        return Ok(false);
+    };
+    for input in &matching.inputs {
+        if let Evaluation::Ready(value) = evaluate(input, job.owner, registry, state, 0)? {
+            match value {
+                SemanticValue::Alternatives { .. } => return Ok(true),
+                SemanticValue::Deferred { service, .. }
+                    if state
+                        .services
+                        .get(&service)
+                        .is_some_and(|service| service.offers_alternatives()) =>
+                {
+                    return Ok(true);
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(false)
 }
 fn evaluate(
     value: &MeaningValue,
@@ -983,6 +1071,14 @@ fn perform(
     let Some((arguments, native)) = prepare(call, owner, registry, state, 0)? else {
         return Ok(false);
     };
+    perform_prepared(call, owner, state, (arguments, native))
+}
+fn perform_prepared(
+    call: &MeaningCall,
+    owner: &Occurrence,
+    state: &mut AnalysisState,
+    (arguments, native): PreparedCall,
+) -> Result<bool, Diagnostic> {
     let mut instance = Instance {
         call: call.clone(),
         arguments,
@@ -1025,8 +1121,21 @@ fn advance(
                 for input in &matching.inputs {
                     let Evaluation::Ready(value) = evaluate(input, job.owner, registry, state, 0)?
                     else {
-                        return Ok(false);
+                        return Ok(changed);
                     };
+                    if let SemanticValue::Deferred { service, .. } = &value {
+                        if state
+                            .services
+                            .get(service)
+                            .is_some_and(|service| service.offers_alternatives())
+                        {
+                            job.reactive = true;
+                            if !job.released {
+                                job.released = true;
+                                changed = true;
+                            }
+                        }
+                    }
                     let arguments = BTreeMap::new();
                     let mut context = OperationContext {
                         occurrence: job.owner,
@@ -1035,9 +1144,17 @@ fn advance(
                         state,
                     };
                     let Evaluation::Ready(value) = context.resolve(&value)? else {
-                        return Ok(false);
+                        return Ok(changed);
                     };
                     values.push(value);
+                }
+                if job.reactive
+                    || values
+                        .iter()
+                        .any(|value| matches!(value, SemanticValue::Alternatives { .. }))
+                {
+                    job.reactive = true;
+                    return advance_combinations(job, matching, values, registry, state);
                 }
                 for (index, case) in matching.cases.iter().enumerate() {
                     let mut found = false;
@@ -1086,36 +1203,7 @@ fn advance(
                         message,
                         span,
                     } => {
-                        let mut text = String::new();
-                        let mut spans = vec![];
-                        for part in message {
-                            match part {
-                                MeaningMessagePart::Text(value) => text.push_str(value),
-                                MeaningMessagePart::Capture(name) => {
-                                    let capture =
-                                        job.owner.captures.get(name).ok_or_else(|| {
-                                            Diagnostic::error(
-                                                "semantic.missing_capture",
-                                                "Diagnostic capture is unavailable",
-                                                job.owner.span.clone(),
-                                            )
-                                        })?;
-                                    text.push_str(&capture.text);
-                                    spans.push(capture.span.clone());
-                                }
-                            }
-                        }
-                        let mut diagnostic = Diagnostic::error(
-                            "semantic.meaning_case",
-                            text,
-                            spans
-                                .first()
-                                .cloned()
-                                .unwrap_or_else(|| job.owner.span.clone()),
-                        );
-                        diagnostic.severity = severity.clone();
-                        diagnostic.secondary.extend(spans.into_iter().skip(1));
-                        diagnostic.secondary.push(span.clone());
+                        let diagnostic = case_diagnostic(job.owner, severity, message, span)?;
                         let abort = severity == &crate::diagnostic::Severity::Error;
                         state.diagnostics.push(diagnostic);
                         if abort {
@@ -1130,5 +1218,248 @@ fn advance(
             job.done = true;
             Ok(changed)
         }
+    }
+}
+
+fn case_diagnostic(
+    owner: &Occurrence,
+    severity: &crate::diagnostic::Severity,
+    message: &[MeaningMessagePart],
+    span: &Span,
+) -> Result<Diagnostic, Diagnostic> {
+    let mut text = String::new();
+    let mut spans = vec![];
+    for part in message {
+        match part {
+            MeaningMessagePart::Text(value) => text.push_str(value),
+            MeaningMessagePart::Capture(name) => {
+                let capture = owner.captures.get(name).ok_or_else(|| {
+                    Diagnostic::error(
+                        "semantic.missing_capture",
+                        "Diagnostic capture is unavailable",
+                        owner.span.clone(),
+                    )
+                })?;
+                text.push_str(&capture.text);
+                spans.push(capture.span.clone());
+            }
+        }
+    }
+    let mut diagnostic = Diagnostic::error(
+        "semantic.meaning_case",
+        text,
+        spans.first().cloned().unwrap_or_else(|| owner.span.clone()),
+    );
+    diagnostic.severity = severity.clone();
+    diagnostic.secondary.extend(spans.into_iter().skip(1));
+    diagnostic.secondary.push(span.clone());
+    Ok(diagnostic)
+}
+
+/// Tagged query alternatives are monotonic, not a positional list. Each tuple
+/// registers facts once, and new tuples can appear after other jobs contribute.
+fn advance_combinations(
+    job: &mut Deferred<'_>,
+    matching: &MeaningMatch,
+    values: Vec<SemanticValue>,
+    registry: &OperationRegistry,
+    state: &mut AnalysisState,
+) -> Result<bool, Diagnostic> {
+    let mut tuples = vec![vec![]];
+    for value in values {
+        let alternatives = match value {
+            SemanticValue::Alternatives { values, .. } => values,
+            value => vec![value],
+        };
+        let mut distinct = vec![];
+        for value in alternatives {
+            if !distinct.contains(&value) {
+                distinct.push(value);
+            }
+        }
+        if distinct.is_empty() {
+            return Ok(false);
+        }
+        if tuples.len().saturating_mul(distinct.len()) > 10000 {
+            return Err(Diagnostic::error(
+                "semantic.progress_limit",
+                "Distributed match exceeds its combination limit",
+                matching.span.clone(),
+            ));
+        }
+        tuples = tuples
+            .into_iter()
+            .flat_map(|tuple| {
+                distinct.iter().map(move |value| {
+                    let mut tuple = tuple.clone();
+                    tuple.push(value.clone());
+                    tuple
+                })
+            })
+            .collect();
+    }
+    let mut changed = false;
+    // Being ready releases ordering barriers; this reactive reader continues to
+    // observe new facts until the global fixed point rather than holding writers.
+    if !job.released {
+        job.released = true;
+        changed = true;
+    }
+    for tuple in tuples {
+        if job.combinations.iter().any(|value| value.values == tuple) {
+            continue;
+        }
+        if job.combinations.len() >= 10000 {
+            return Err(Diagnostic::error(
+                "semantic.progress_limit",
+                "Distributed match exceeds its retained combination limit",
+                matching.span.clone(),
+            ));
+        }
+        let mut selected = None;
+        for (index, case) in matching.cases.iter().enumerate() {
+            for alternative in &case.alternatives {
+                let mut found = alternative.len() == tuple.len();
+                for (pattern, value) in alternative.iter().zip(&tuple) {
+                    if let Some(pattern) = pattern {
+                        let Evaluation::Ready(expected) =
+                            evaluate(pattern, job.owner, registry, state, 0)?
+                        else {
+                            return Err(Diagnostic::error(
+                                "semantic.invalid_match",
+                                "Match patterns must be ready constants",
+                                case.span.clone(),
+                            ));
+                        };
+                        found &= &expected == value;
+                    }
+                }
+                if found {
+                    selected = Some(index);
+                    break;
+                }
+            }
+            if selected.is_some() {
+                break;
+            }
+        }
+        let case = selected.ok_or_else(|| {
+            Diagnostic::error(
+                "semantic.invalid_match",
+                "No matching case",
+                matching.span.clone(),
+            )
+        })?;
+        job.combinations.push(Combination {
+            values: tuple,
+            case,
+            next: 0,
+            done: false,
+        });
+        changed = true;
+    }
+    for combination in &mut job.combinations {
+        if combination.done {
+            continue;
+        }
+        let case = &matching.cases[combination.case];
+        while combination.next < case.actions.len() {
+            let action_id = (combination.case, combination.next);
+            match &case.actions[combination.next] {
+                MeaningAction::Call(call) => {
+                    if !call.contract.contribution {
+                        if job.parked.insert(action_id) {
+                            state.diagnostics.push(Diagnostic::error(
+                                "semantic.distributed_effect",
+                                "PARKED: Distributed matches support only idempotent contributions and diagnostics",
+                                call.span.clone(),
+                            ));
+                        }
+                        combination.done = true;
+                        changed = true;
+                        break;
+                    }
+                    let Some(prepared) = prepare(call, job.owner, registry, state, 0)? else {
+                        break;
+                    };
+                    let mut forbidden = false;
+                    for value in prepared.0.values() {
+                        forbidden |= alternative_argument(value, job.owner, state)?;
+                    }
+                    if forbidden {
+                        if job.parked.insert(action_id) {
+                            state.diagnostics.push(Diagnostic::error(
+                                "semantic.distributed_argument",
+                                "PARKED: A distributed contribution cannot reread alternative query values",
+                                call.span.clone(),
+                            ));
+                        }
+                        combination.done = true;
+                        changed = true;
+                        break;
+                    }
+                    if let Err(error) = perform_prepared(call, job.owner, state, prepared) {
+                        state.diagnostics.push(error);
+                        combination.done = true;
+                        changed = true;
+                        break;
+                    }
+                }
+                MeaningAction::Emit {
+                    severity,
+                    message,
+                    span,
+                } => {
+                    // The combination's cursor suppresses propagation retries,
+                    // while each distinct offending tuple emits independently.
+                    state
+                        .diagnostics
+                        .push(case_diagnostic(job.owner, severity, message, span)?);
+                    if severity == &crate::diagnostic::Severity::Error {
+                        combination.done = true;
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+            combination.next += 1;
+            changed = true;
+        }
+        combination.done |= combination.next == case.actions.len();
+    }
+    Ok(changed)
+}
+
+fn alternative_argument(
+    value: &SemanticValue,
+    owner: &Occurrence,
+    state: &mut AnalysisState,
+) -> Result<bool, Diagnostic> {
+    match value {
+        SemanticValue::Alternatives { .. } => Ok(true),
+        SemanticValue::Tuple(values) | SemanticValue::List(values) => {
+            for value in values {
+                if alternative_argument(value, owner, state)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+        SemanticValue::Deferred { .. } => {
+            let arguments = BTreeMap::new();
+            let mut context = OperationContext {
+                occurrence: owner,
+                arguments: &arguments,
+                operation_span: &owner.span,
+                state,
+            };
+            // Opaque handles are not literal contributions even while pending:
+            // allowing them now would silently choose a future tuple-local view.
+            match context.resolve(value)? {
+                Evaluation::Ready(value) => alternative_argument(&value, owner, state),
+                Evaluation::Pending => Ok(true),
+            }
+        }
+        _ => Ok(false),
     }
 }

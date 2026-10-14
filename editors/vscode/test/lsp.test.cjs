@@ -118,24 +118,50 @@ test('CodeLens labels normalize and truncate text while copy retains complete ex
 
 });
 
-test('identity typing namespaces and authored wrappers validate and format without executing effects',async t=> {
+test('type contributions, syntax identities and authored wrappers validate without executing effects',async t=> {
     const s=await session(t);
     const dir=await mkdtemp(join(tmpdir(),'yl-lsp-types-')); t.after(()=>rm(dir,{recursive:true,force:true}));
     const uri=pathToFileURL(join(dir,'lang.yl')).href;
     const text=`import * as types from "std/types"
-import * as variables from "std/variables"
+import * as syntax from "std/syntax"
 symbol number
-operation annotateWithType(value) { types::ensure(variables::identity(),value) }
-node Root="x" { meanings { annotateWithType(number) types::ensure("invalid-key",number) } }
+operation annotateWithType(value) { types::annotate(syntax::identity(),value) }
+operation restrictTypeTo(value) { types::restrictTo(syntax::identity(),value) }
+operation typeof(value) = types::typeof(syntax::identityOf(value))
+node Value="x" { meanings { annotateWithType(number) } }
+node Root=value: Value { meanings {
+    annotateWithType(typeof(value))
+    restrictTypeTo(number)
+    types::annotate(syntax::identities(value),[number])
+    types::annotate(syntax::childIdentity(),number)
+    types::annotate("invalid-key",number)
+    match (types::typeof(syntax::identity())) {
+        number => types::annotate(syntax::identity(),number),
+        _ => error("This runtime effect must not execute while checking the definition"),
+    }
+} }
 entry Root`;
     s.open(uri,text);
+    // The deliberately invalid runtime key proves definition checks do not run
+    // native contribution effects, even while examples are being synthesized.
     assert.deepEqual((await s.diagnostic(uri,1)).diagnostics,[]);
     assert.match(JSON.stringify(await s.hints(uri)),/example/);
     const edits=await s.connection.sendRequest('textDocument/formatting',{textDocument:{uri},options:{tabSize:4,insertSpaces:true}});
     assert.match(edits[0].newText,/import \* as types/);
+    assert.match(edits[0].newText,/import \* as syntax/);
     assert.match(edits[0].newText,/operation annotateWithType\(value\)/);
-    s.change(uri,text.replace('types::ensure(variables::identity(),value)','types::ensure(variables::identity())'),2);
+    assert.match(edits[0].newText,/types::restrictTo/);
+    assert.match(edits[0].newText,/types::typeof/);
+    s.change(uri,text.replace('types::annotate(syntax::identity(),value)','types::annotate(syntax::identity())'),2);
     assert.ok((await s.diagnostic(uri,2)).diagnostics.some(d=>d.severity===1));
+    s.change(uri,text.replace('types::restrictTo(syntax::identity(),value)','types::restrictTo(syntax::identity())'),3);
+    assert.ok((await s.diagnostic(uri,3)).diagnostics.some(d=>d.severity===1));
+    s.change(uri,text.replace('syntax::identityOf(value)','syntax::identityOf()'),4);
+    assert.ok((await s.diagnostic(uri,4)).diagnostics.some(d=>d.severity===1));
+    s.change(uri,text.replaceAll('types::annotate','types::ensure'),5);
+    assert.ok((await s.diagnostic(uri,5)).diagnostics.some(d=>d.severity===1));
+    s.change(uri,text,6);
+    assert.deepEqual((await s.diagnostic(uri,6)).diagnostics,[]);
 });
 
 test('imported child CodeLens uses entry trivia and buffer changes preserve spaces',async t=> {

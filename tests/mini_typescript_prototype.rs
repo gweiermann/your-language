@@ -50,16 +50,27 @@ fn multiple_parameters_nested_calls_and_zero_arguments() {
 fn annotation_and_call_errors_have_original_spans() {
     let source = include_str!("../examples/mini_typescript/programs/errors.txt");
     let result = analyze(source);
-    assert_eq!(result.diagnostics.len(), 4, "{:?}", result.diagnostics);
-    assert!(result.diagnostics.iter().all(|d| d.code == "types.mismatch"
-        && d.primary.file == "test.ts"
-        && d.primary.end <= source.len()));
+    // Retained facts are each checked; invalid call evidence also reaches the
+    // declared return requirement instead of being erased after its first error.
+    assert_eq!(result.diagnostics.len(), 6, "{:?}", result.diagnostics);
+    assert!(result
+        .diagnostics
+        .iter()
+        .all(|diagnostic| diagnostic.code == "types.mismatch"
+            && diagnostic.primary.file == "test.ts"
+            && diagnostic.primary.end <= source.len()));
+    let initializer = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.message == "Type string does not match number")
+        .unwrap();
     assert_eq!(
-        &source[result.diagnostics[0].primary.start..result.diagnostics[0].primary.end],
+        &source[initializer.primary.start..initializer.primary.end],
         "\"wrong\""
     );
-    assert_annotation_related(source, &result.diagnostics[0], "number");
+    assert_annotation_related(source, initializer, "number");
 }
+
 #[test]
 fn declarations_references_keep_identity_across_shadowing() {
     let result =
@@ -108,11 +119,18 @@ fn arity_mismatch_is_diagnosed() {
     assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
 }
 #[test]
-fn inference_is_monomorphic() {
+fn shared_unannotated_signature_collects_mixed_call_evidence() {
     let result = analyze(
         "function echo(value) { return value; } let one = echo(1); let two = echo(\"two\");",
     );
-    assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(types(&result, "value"), ["number | string"]);
+    assert_eq!(
+        types(&result, "echo"),
+        ["(number | string) => number | string"]
+    );
+    assert_eq!(types(&result, "one"), ["number | string"]);
+    assert_eq!(types(&result, "two"), ["number | string"]);
 }
 #[test]
 fn lexical_errors_and_syntax_errors_remain_distinct() {
@@ -182,6 +200,7 @@ fn attachment_reader_supports_another_native_library() {
                 id: "test/audit#audit".into(),
                 parameters: vec![],
                 finalization_only: false,
+                contribution: false,
                 provides_context: false,
             },
             || Box::new(Audit),

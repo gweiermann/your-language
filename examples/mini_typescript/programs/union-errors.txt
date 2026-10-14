@@ -1,0 +1,9 @@
+function echo(value) {
+    return value;
+}
+
+let first = echo(true);
+
+let second = echo("hello");
+
+let combined = first + 1;
