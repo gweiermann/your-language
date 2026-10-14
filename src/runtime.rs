@@ -1,9 +1,11 @@
 //! Backtracking grammar interpreter with Pratt execution for recursive abstract families.
 //! Every attempt owns its captures; failed alternatives cannot leak AST fields/diagnostics.
 use crate::{
-    compiler::edge_term,
     diagnostic::{Diagnostic, Severity, Span},
-    ir::*,
+    image::parser::{
+        CheckExpression, ImageBody, ImageOperator, ImageRule, Instruction, ParserImage,
+    },
+    ir::CompiledLanguage,
     syntax::{Associativity, Quantifier},
 };
 use serde::{Deserialize, Serialize};
@@ -72,9 +74,9 @@ struct MarkedValue {
     occurrences: Vec<crate::semantics::Occurrence>,
 }
 struct OperatorContext<'a> {
-    left: Option<(&'a Term, &'a Match)>,
-    right: Option<&'a Term>,
-    family: &'a str,
+    left: Option<(u32, &'a Match)>,
+    right: Option<u32>,
+    family: u32,
     min_power: usize,
 }
 impl Match {
@@ -104,11 +106,29 @@ pub(crate) fn parse_occurrences(
     file: &str,
     source: &str,
 ) -> (ParseResult, Vec<crate::semantics::Occurrence>) {
+    let transient;
+    let image = if let Some(image) = &language.image {
+        &image.parser
+    } else {
+        transient = match ParserImage::compile(language) {
+            Ok(image) => image,
+            Err(diagnostic) => {
+                return (
+                    ParseResult {
+                        ast: None,
+                        diagnostics: vec![diagnostic],
+                    },
+                    vec![],
+                )
+            }
+        };
+        &transient
+    };
     let mut parser = Runtime {
-        language,
+        image,
         source,
         file,
-        regexes: BTreeMap::new(),
+        regexes: image.regexes.clone(),
         active: BTreeSet::new(),
         farthest: 0,
         expected: BTreeSet::new(),
@@ -119,7 +139,7 @@ pub(crate) fn parse_occurrences(
         trace: !language.meanings.is_empty(),
         next_occurrence: 0,
     };
-    let attempt = parser.rule(&language.entry, 0, false, 0);
+    let attempt = parser.rule(image.entry, 0, false, 0);
     if let Some(mut matched) = attempt {
         let end = parser.skip(matched.end);
         if end == source.len() && !parser.resource_limit {
@@ -310,13 +330,13 @@ pub(crate) fn parse_occurrences(
     )
 }
 struct Runtime<'a> {
-    language: &'a CompiledLanguage,
+    image: &'a ParserImage,
     trace: bool,
     next_occurrence: usize,
     source: &'a str,
     file: &'a str,
     regexes: BTreeMap<String, regex::Regex>,
-    active: BTreeSet<(String, usize, bool, usize, usize)>,
+    active: BTreeSet<(u32, usize, bool, usize, usize)>,
     farthest: usize,
     expected: BTreeSet<String>,
     depth: usize,
@@ -409,8 +429,8 @@ impl Runtime<'_> {
         let expected = self.expected.clone();
         loop {
             let mut end = position;
-            for id in &self.language.trivia {
-                if let Some(m) = self.rule(id, position, true, 0) {
+            for id in &self.image.trivia {
+                if let Some(m) = self.rule(*id, position, true, 0) {
                     end = end.max(m.end);
                 }
             }
@@ -422,29 +442,30 @@ impl Runtime<'_> {
             position = end;
         }
     }
-    fn rule(&mut self, id: &str, position: usize, raw: bool, min_power: usize) -> Option<Match> {
+    fn rule(&mut self, id: u32, position: usize, raw: bool, min_power: usize) -> Option<Match> {
         self.steps += 1;
         if self.depth >= 256 || self.steps > 1_000_000 {
             self.resource_limit = true;
             return None;
         }
-        let rule = self.language.rules.get(id)?.clone();
+        let image = self.image;
+        let rule = image.rules.get(id as usize)?;
         let raw = raw || rule.trivia;
         let start = if raw { position } else { self.skip(position) };
-        let key = (id.to_owned(), start, raw, min_power, self.limit);
-        if !self.active.insert(key.clone()) {
+        let key = (id, start, raw, min_power, self.limit);
+        if !self.active.insert(key) {
             return None;
         }
         self.depth += 1;
         let result = match &rule.body {
-            RuleBody::Concrete(term) => self
-                .term(term, start, raw)
-                .and_then(|m| self.construct(id, &rule, start, m)),
-            RuleBody::Abstract { bases, operators } => self
+            ImageBody::Concrete(term) => self
+                .term(*term, start, raw)
+                .and_then(|m| self.construct(&rule.definition, rule, start, m)),
+            ImageBody::Abstract { bases, operators } => self
                 .abstract_rule(id, bases, operators, start, raw, min_power)
                 .map(|m| {
-                    let mut m = self.checks(&rule, start, m);
-                    self.trace_occurrence(id, start, &mut m);
+                    let mut m = self.checks(rule, start, m);
+                    self.trace_occurrence(&rule.definition, start, &mut m);
                     m
                 }),
         };
@@ -452,9 +473,9 @@ impl Runtime<'_> {
         self.active.remove(&key);
         result
     }
-    fn checks(&mut self, rule: &Rule, start: usize, mut matched: Match) -> Match {
+    fn checks(&mut self, rule: &ImageRule, start: usize, mut matched: Match) -> Match {
         for check in &rule.constraints {
-            let satisfied = self.evaluate_condition(&check.condition, &matched.fields)
+            let satisfied = self.evaluate_condition(check.condition, &matched.fields)
                 == ConditionValue::Bool(true);
             if satisfied {
                 for emission in &check.emissions {
@@ -473,18 +494,21 @@ impl Runtime<'_> {
     }
     fn evaluate_condition(
         &mut self,
-        condition: &Condition,
+        condition: u32,
         fields: &BTreeMap<String, Captured>,
     ) -> ConditionValue {
-        match condition {
-            Condition::Always | Condition::CaptureType { .. } => ConditionValue::Bool(true),
-            Condition::Bool(value) => ConditionValue::Bool(*value),
-            Condition::Text(value) => ConditionValue::Text(value.clone()),
-            Condition::Absent => ConditionValue::Absent,
-            Condition::EnumValue { ty, variant } => {
+        let image = self.image;
+        match &image.checks[condition as usize] {
+            CheckExpression::Always | CheckExpression::CaptureType { .. } => {
+                ConditionValue::Bool(true)
+            }
+            CheckExpression::Bool(value) => ConditionValue::Bool(*value),
+            CheckExpression::Text(value) => ConditionValue::Text(value.clone()),
+            CheckExpression::Absent => ConditionValue::Absent,
+            CheckExpression::EnumValue { ty, variant } => {
                 ConditionValue::Enum(ty.clone(), variant.clone())
             }
-            Condition::CaptureValue(name) => {
+            CheckExpression::CaptureValue(name) => {
                 fields
                     .get(name)
                     .map_or(ConditionValue::Absent, |f| match &f.value {
@@ -493,11 +517,11 @@ impl Runtime<'_> {
                         _ => ConditionValue::PresentCapture,
                     })
             }
-            Condition::Present(name) => {
+            CheckExpression::Present(name) => {
                 ConditionValue::Bool(fields.get(name).is_some_and(|f| f.value != AstValue::None))
             }
-            Condition::Matches { capture, regex }
-            | Condition::OptionalMatches { capture, regex } => {
+            CheckExpression::Matches { capture, regex }
+            | CheckExpression::OptionalMatches { capture, regex } => {
                 let Some(field) = fields.get(capture).filter(|f| f.value != AstValue::None) else {
                     return ConditionValue::Absent;
                 };
@@ -511,32 +535,32 @@ impl Runtime<'_> {
                 };
                 ConditionValue::Bool(self.regex(regex).is_some_and(|r| r.is_match(&text)))
             }
-            Condition::Not(inner) => match self.evaluate_condition(inner, fields) {
+            CheckExpression::Not(inner) => match self.evaluate_condition(*inner, fields) {
                 ConditionValue::Bool(v) => ConditionValue::Bool(!v),
                 _ => ConditionValue::Absent,
             },
-            Condition::And(a, b) => {
-                let left = self.evaluate_condition(a, fields);
+            CheckExpression::And(a, b) => {
+                let left = self.evaluate_condition(*a, fields);
                 if left == ConditionValue::Bool(true) {
-                    self.evaluate_condition(b, fields)
+                    self.evaluate_condition(*b, fields)
                 } else {
                     left
                 }
             }
-            Condition::Or(a, b) => {
-                let left = self.evaluate_condition(a, fields);
+            CheckExpression::Or(a, b) => {
+                let left = self.evaluate_condition(*a, fields);
                 if left == ConditionValue::Bool(true) {
                     left
                 } else {
-                    self.evaluate_condition(b, fields)
+                    self.evaluate_condition(*b, fields)
                 }
             }
-            Condition::Equal(a, b) => {
-                let a = self.evaluate_condition(a, fields);
-                let b = self.evaluate_condition(b, fields);
+            CheckExpression::Equal(a, b) => {
+                let a = self.evaluate_condition(*a, fields);
+                let b = self.evaluate_condition(*b, fields);
                 ConditionValue::Bool(a == b)
             }
-            Condition::Between {
+            CheckExpression::Between {
                 trivia,
                 left,
                 right,
@@ -551,7 +575,7 @@ impl Runtime<'_> {
                     (start..end)
                         .filter(|p| self.source.is_char_boundary(*p))
                         .any(|offset| {
-                            self.rule(id, offset, true, 0)
+                            self.rule(*id, offset, true, 0)
                                 .is_some_and(|m| m.end <= end && m.end > offset)
                         })
                 } else {
@@ -607,7 +631,13 @@ impl Runtime<'_> {
         self.next_occurrence += 1;
         matched.occurrences.push(occurrence);
     }
-    fn construct(&mut self, id: &str, rule: &Rule, start: usize, matched: Match) -> Option<Match> {
+    fn construct(
+        &mut self,
+        id: &str,
+        rule: &ImageRule,
+        start: usize,
+        matched: Match,
+    ) -> Option<Match> {
         let mut matched = self.checks(rule, start, matched);
         matched.value_depth = self.check_value_depth(
             matched.fields.values().map(|f| f.depth).max().unwrap_or(0) + 1,
@@ -630,9 +660,9 @@ impl Runtime<'_> {
     }
     fn abstract_rule(
         &mut self,
-        id: &str,
-        bases: &[String],
-        operators: &[Operator],
+        id: u32,
+        bases: &[u32],
+        operators: &[ImageOperator],
         position: usize,
         raw: bool,
         min_power: usize,
@@ -650,7 +680,7 @@ impl Runtime<'_> {
         }
         if left.is_none() {
             for base in bases {
-                if let Some(m) = self.rule(base, position, raw, 0) {
+                if let Some(m) = self.rule(*base, position, raw, 0) {
                     left = Some(m);
                     break;
                 }
@@ -688,14 +718,15 @@ impl Runtime<'_> {
     }
     fn operator(
         &mut self,
-        family: &str,
-        operator: &Operator,
+        family: u32,
+        operator: &ImageOperator,
         start: usize,
         raw: bool,
         left: Option<&Match>,
     ) -> Option<Match> {
-        let rule = self.language.rules.get(&operator.rule)?.clone();
-        let RuleBody::Concrete(term) = &rule.body else {
+        let image = self.image;
+        let rule = image.rules.get(operator.rule as usize)?;
+        let ImageBody::Concrete(term) = &rule.body else {
             return None;
         };
         let min_power = if operator.associativity == Associativity::Nonassoc
@@ -707,30 +738,30 @@ impl Runtime<'_> {
         };
         let context = OperatorContext {
             left: if operator.left {
-                Some((edge_term(term, false)?, left?))
+                Some((operator.left_edge?, left?))
             } else {
                 None
             },
             right: if operator.right {
-                Some(edge_term(term, true)?)
+                Some(operator.right_edge?)
             } else {
                 None
             },
             family,
             min_power,
         };
-        let mut result = self.term_with(term, start, raw, Some(&context))?;
+        let mut result = self.term_with(*term, start, raw, Some(&context))?;
         if let Some(left) = left {
             result.diagnostics.splice(0..0, left.diagnostics.clone());
         }
-        self.construct(&operator.rule, &rule, start, result)
+        self.construct(&rule.definition, rule, start, result)
     }
-    fn term(&mut self, term: &Term, position: usize, raw: bool) -> Option<Match> {
+    fn term(&mut self, term: u32, position: usize, raw: bool) -> Option<Match> {
         self.term_with(term, position, raw, None)
     }
     fn term_with(
         &mut self,
-        term: &Term,
+        term_id: u32,
         position: usize,
         raw: bool,
         context: Option<&OperatorContext<'_>>,
@@ -740,22 +771,24 @@ impl Runtime<'_> {
             self.resource_limit = true;
             return None;
         }
+        let image = self.image;
+        let term = image.instructions.get(term_id as usize)?;
         // Lookaround is zero-width and must inspect the actual boundary, before trivia skipping.
-        let start = if raw || matches!(term, Term::NotAhead(_) | Term::NotBehind(_)) {
+        let start = if raw || matches!(term, Instruction::NotAhead(_) | Instruction::NotBehind(_)) {
             position
         } else {
             self.skip(position)
         };
         if let Some(context) = context {
             if let Some((leaf, left)) = context.left {
-                if std::ptr::eq(term, leaf) {
+                if term_id == leaf {
                     let mut matched = left.clone();
                     matched.fields.clear();
                     matched.diagnostics.clear();
                     return Some(matched);
                 }
             }
-            if context.right.is_some_and(|leaf| std::ptr::eq(term, leaf)) {
+            if context.right.is_some_and(|leaf| term_id == leaf) {
                 return self
                     .rule(context.family, start, raw, context.min_power)
                     .map(|mut matched| {
@@ -765,13 +798,13 @@ impl Runtime<'_> {
             }
         }
         match term {
-            Term::Example { term, .. } => self.term_with(term, start, raw, context),
-            Term::Meaning { definition, term } => {
-                let mut matched = self.term_with(term, start, raw, context)?;
+            Instruction::Example { term, .. } => self.term_with(*term, start, raw, context),
+            Instruction::Meaning { definition, term } => {
+                let mut matched = self.term_with(*term, start, raw, context)?;
                 self.trace_occurrence(definition, start, &mut matched);
                 Some(matched)
             }
-            Term::Literal(text) => {
+            Instruction::Literal(text) => {
                 if self.source.get(start..self.limit)?.starts_with(text) {
                     let mut matched = Match::empty(start + text.len());
                     matched.value = Some(AstValue::Text(text.clone()));
@@ -782,7 +815,7 @@ impl Runtime<'_> {
                     None
                 }
             }
-            Term::Regex(pattern) => {
+            Instruction::Regex(pattern) => {
                 if let Some((end, value)) = self.regex_match(pattern, start) {
                     let mut result = Match::empty(end);
                     result.value = Some(AstValue::Text(value));
@@ -793,17 +826,17 @@ impl Runtime<'_> {
                     None
                 }
             }
-            Term::Ref(id) => self.rule(id, start, raw, 0).map(|mut m| {
+            Instruction::Ref(id) => self.rule(*id, start, raw, 0).map(|mut m| {
                 m.fields.clear();
                 m
             }),
-            Term::Sequence(terms) => {
+            Instruction::Sequence(terms) => {
                 let mut result = Match::empty(start);
                 let mut values = vec![];
                 let mut origins = vec![];
                 let mut depth = 0;
                 for term in terms {
-                    let m = self.term_with(term, result.end, raw, context)?;
+                    let m = self.term_with(*term, result.end, raw, context)?;
                     result.end = m.end;
                     if let Some(value) = m.value {
                         depth = depth.max(m.value_depth);
@@ -825,15 +858,15 @@ impl Runtime<'_> {
                 result.value = collapse(values);
                 Some(result)
             }
-            Term::Choice(terms) => {
+            Instruction::Choice(terms) => {
                 for term in terms {
-                    if let Some(m) = self.term_with(term, start, raw, context) {
+                    if let Some(m) = self.term_with(*term, start, raw, context) {
                         return Some(m);
                     }
                 }
                 None
             }
-            Term::Repeat(term, q) => {
+            Instruction::Repeat(term, q) => {
                 let mut result = Match::empty(start);
                 let mut values = vec![];
                 let mut origins = vec![];
@@ -841,10 +874,10 @@ impl Runtime<'_> {
                 let mut count = 0;
                 loop {
                     let attempt = if *q == Quantifier::Plus && count == 0 {
-                        self.term_with(term, result.end, raw, context)
+                        self.term_with(*term, result.end, raw, context)
                     } else {
                         self.continuation(result.end, raw, |parser| {
-                            parser.term_with(term, result.end, raw, context)
+                            parser.term_with(*term, result.end, raw, context)
                         })
                     };
                     let Some(m) = attempt else { break };
@@ -889,15 +922,15 @@ impl Runtime<'_> {
                 });
                 Some(result)
             }
-            Term::Capture(name, term) => {
-                let mut result = self.term_with(term, start, raw, context)?;
+            Instruction::Capture(name, term) => {
+                let mut result = self.term_with(*term, start, raw, context)?;
                 let value = result.value.clone().unwrap_or(AstValue::None);
                 result.fields.insert(
                     name.clone(),
                     Captured {
                         element_occurrences: result.element_occurrences.clone(),
                         element_spans: result.element_spans.clone(),
-                        repeated: capture_repeats(term),
+                        repeated: image.capture_repeats(*term),
                         occurrences: result
                             .occurrences
                             .iter()
@@ -914,12 +947,12 @@ impl Runtime<'_> {
                 );
                 Some(result)
             }
-            Term::NotAhead(term) => {
+            Instruction::NotAhead(term) => {
                 let farthest = self.farthest;
                 let expected = self.expected.clone();
                 let limit = self.limit;
                 self.limit = self.source.len();
-                let matches = self.term(term, start, true).is_some();
+                let matches = self.term(*term, start, true).is_some();
                 self.limit = limit;
                 self.farthest = farthest;
                 self.expected = expected;
@@ -933,13 +966,13 @@ impl Runtime<'_> {
                     Some(Match::empty(start))
                 }
             }
-            Term::NotBehind(term) => {
+            Instruction::NotBehind(term) => {
                 let farthest = self.farthest;
                 let expected = self.expected.clone();
                 let mut matches = false;
                 let limit = self.limit;
                 self.limit = start;
-                if let Term::Regex(pattern) = term.as_ref() {
+                if let Instruction::Regex(pattern) = &image.instructions[*term as usize] {
                     // End-constrained regex matching also explores alternatives and
                     // lazy matches that a forward prefix search would stop too early.
                     matches = self
@@ -948,7 +981,7 @@ impl Runtime<'_> {
                 } else {
                     for offset in (0..=start).filter(|p| self.source.is_char_boundary(*p)) {
                         if self
-                            .term(term, offset, true)
+                            .term(*term, offset, true)
                             .is_some_and(|m| m.end == start)
                         {
                             matches = true;
@@ -969,8 +1002,8 @@ impl Runtime<'_> {
                     Some(Match::empty(start))
                 }
             }
-            Term::Mark { id, term } => {
-                let mut matched = self.term_with(term, start, raw, context)?;
+            Instruction::Mark { id, term } => {
+                let mut matched = self.term_with(*term, start, raw, context)?;
                 matched.marked.entry(*id).or_default().push(MarkedValue {
                     element_occurrences: matched.element_occurrences.clone(),
                     element_spans: matched.element_spans.clone(),
@@ -987,13 +1020,13 @@ impl Runtime<'_> {
                 });
                 Some(matched)
             }
-            Term::Project {
+            Instruction::Project {
                 id,
                 term,
                 quantifier,
                 collect_lists,
             } => {
-                let mut matched = self.term_with(term, start, raw, context)?;
+                let mut matched = self.term_with(*term, start, raw, context)?;
                 let originals = matched.marked.remove(id).unwrap_or_default();
                 matched.fields.clear();
                 matched.occurrences.clear();
@@ -1079,22 +1112,5 @@ impl ParseResult {
         self.diagnostics
             .iter()
             .any(|d| d.severity == Severity::Error)
-    }
-}
-
-/// Capture cardinality comes from normalized grammar, not the returned value.
-fn capture_repeats(term: &Term) -> bool {
-    match term {
-        Term::Repeat(_, Quantifier::Star | Quantifier::Plus) => true,
-        Term::Capture(_, term) | Term::Mark { term, .. } | Term::Example { term, .. } => {
-            capture_repeats(term)
-        }
-        // A single named pattern may return a list without being repeated.
-        Term::Meaning { .. } => false,
-        Term::Project {
-            quantifier: Some(Quantifier::Star | Quantifier::Plus),
-            ..
-        } => true,
-        _ => false,
     }
 }
