@@ -3,7 +3,7 @@ use super::*;
 use std::collections::BTreeSet;
 use std::{cell::RefCell, rc::Rc};
 
-const MODULE: &str = "std/query";
+const MODULE: &str = "core/query";
 
 /// Register only generic query primitives. Reference/type policy remains authored YL.
 pub fn register(registry: &mut OperationRegistry) -> Result<(), String> {
@@ -61,6 +61,28 @@ pub fn register(registry: &mut OperationRegistry) -> Result<(), String> {
                 provides_context: false,
                 finalization_only: false,
                 contribution: matches!(name, "contribute" | "contributeAll"),
+            },
+            || Box::new(Primitive),
+        )?;
+    }
+    for name in ["error", "warn", "hint"] {
+        registry.register(
+            "core/diagnostics",
+            name,
+            OperationSignature {
+                id: format!("core/diagnostics#{name}"),
+                parameters: ["message", "target", "related"]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, name)| OperationParameter {
+                        name: name.into(),
+                        kind: ParameterKind::Value,
+                        default: (index != 0).then_some(MeaningValue::Absent),
+                    })
+                    .collect(),
+                provides_context: false,
+                finalization_only: false,
+                contribution: false,
             },
             || Box::new(Primitive),
         )?;
@@ -233,6 +255,7 @@ impl Drop for HypotheticalGuard {
 
 struct Engine<'a> {
     producers: Vec<Producer<'a>>,
+    discovered_blocks: BTreeSet<(usize, String)>,
     occurrences: BTreeMap<usize, &'a Occurrence>,
     parents: BTreeMap<usize, Option<usize>>,
     terminal_parents: BTreeMap<usize, usize>,
@@ -329,7 +352,9 @@ fn address(value: &SemanticValue, span: &Span) -> Result<Option<QueryKey>, Diagn
 }
 
 fn primitive(name: &str) -> &str {
-    name.strip_prefix("std/query#").unwrap_or(name)
+    name.strip_prefix("core/query#")
+        .or_else(|| name.strip_prefix("std/query#"))
+        .unwrap_or(name)
 }
 
 const VALUE_NODE_LIMIT: usize = 16_384;
@@ -565,6 +590,7 @@ impl<'a> Engine<'a> {
         }
         let mut engine = Self {
             producers: vec![],
+            discovered_blocks: BTreeSet::new(),
             occurrences: BTreeMap::new(),
             parents: BTreeMap::new(),
             terminal_parents: BTreeMap::new(),
@@ -623,6 +649,51 @@ impl<'a> Engine<'a> {
         engine
     }
 
+    /// Discover invocation effects separately from evaluating their result. A binding
+    /// may occur in many expressions, but its invocation contributes only once.
+    fn discover_expression(
+        &mut self,
+        owner: &'a Occurrence,
+        expression: &QueryExpr,
+        guards: &[Guard],
+        rank: usize,
+    ) {
+        match expression {
+            QueryExpr::Block {
+                invocation,
+                actions,
+                result,
+            } => {
+                if self
+                    .discovered_blocks
+                    .insert((owner.id, invocation.clone()))
+                {
+                    self.discover(owner, actions, guards, rank);
+                    self.discover_expression(owner, result, guards, rank);
+                }
+            }
+            QueryExpr::Call { name, args } if primitive(name) == "choose" => {
+                self.discover_expression(owner, &args[0], guards, rank);
+                for (value, expected) in [(&args[1], true), (&args[2], false)] {
+                    let mut nested = guards.to_vec();
+                    nested.push(Guard::If(args[0].clone(), expected));
+                    self.discover_expression(owner, value, &nested, rank);
+                }
+            }
+            QueryExpr::Call { args: values, .. }
+            | QueryExpr::Tuple(values)
+            | QueryExpr::List(values) => {
+                for value in values {
+                    self.discover_expression(owner, value, guards, rank);
+                }
+            }
+            QueryExpr::Not(value) => self.discover_expression(owner, value, guards, rank),
+            // Effectful callback bodies are rejected during compilation and artifact validation.
+            QueryExpr::Lambda { .. } => {}
+            _ => {}
+        }
+    }
+
     fn discover(
         &mut self,
         owner: &'a Occurrence,
@@ -631,6 +702,41 @@ impl<'a> Engine<'a> {
         rank: usize,
     ) {
         for action in actions {
+            match action {
+                QueryAction::Call { args, .. } => {
+                    for arg in args {
+                        self.discover_expression(owner, arg, guards, rank);
+                    }
+                }
+                QueryAction::If { condition, .. } => {
+                    self.discover_expression(owner, condition, guards, rank)
+                }
+                QueryAction::Match { inputs, cases, .. } => {
+                    for input in inputs {
+                        self.discover_expression(owner, input, guards, rank);
+                    }
+                    for case in cases {
+                        for pattern in case.alternatives.iter().flatten().flatten() {
+                            self.discover_expression(owner, pattern, guards, rank);
+                        }
+                    }
+                }
+                QueryAction::Emit {
+                    message,
+                    target,
+                    related,
+                    ..
+                } => {
+                    for part in message {
+                        if let QueryMessagePart::Value(value) = part {
+                            self.discover_expression(owner, value, guards, rank);
+                        }
+                    }
+                    for value in target.iter().chain(related) {
+                        self.discover_expression(owner, value, guards, rank);
+                    }
+                }
+            }
             let (effect, span) = match action {
                 QueryAction::Call { name, args, span } if primitive(name) == "contribute" => {
                     (Effect::Contribution(args[0].clone(), args[1].clone()), span)
@@ -864,6 +970,7 @@ impl<'a> Engine<'a> {
         }
         let ready = |value| Ok(Outcome::Ready(value));
         match expression {
+            QueryExpr::Block { result, .. } => self.eval(result, owner, locals, trace),
             QueryExpr::SelfValue => ready(SemanticValue::Identity(SemanticIdentity::Occurrence(
                 owner.id,
             ))),
@@ -1254,6 +1361,7 @@ impl<'a> Engine<'a> {
             }
         }
         match expr {
+            QueryExpr::Block { result, .. } => self.abstract_expr(result, owner, locals, depth + 1),
             QueryExpr::Tuple(values) => Pattern::Tuple(
                 values
                     .iter()
@@ -1722,6 +1830,7 @@ impl<'a> Engine<'a> {
         };
         let mut copy = Self {
             producers: self.producers.clone(),
+            discovered_blocks: self.discovered_blocks.clone(),
             occurrences: self.occurrences.clone(),
             parents: self.parents.clone(),
             terminal_parents: self.terminal_parents.clone(),
@@ -2084,97 +2193,13 @@ pub(crate) fn validate_groups(
     captures: &BTreeSet<String>,
     version: u32,
 ) -> Result<(), Diagnostic> {
-    if version < 4 {
-        fn new_name(name: &str) -> bool {
-            matches!(
-                primitive(name),
-                "getEarlier"
-                    | "filter"
-                    | "choose"
-                    | "values"
-                    | "alternatives"
-                    | "flatten"
-                    | "last"
-                    | "tail"
-                    | "isList"
-                    | "hypotheticalAll"
-                    | "hypotheticalChecked"
-            )
-        }
-        let mut actions: Vec<_> = groups.iter().flat_map(|group| &group.actions).collect();
-        let mut expressions = vec![];
-        while let Some(action) = actions.pop() {
-            match action {
-                QueryAction::Call { name, args, .. } => {
-                    if new_name(name) {
-                        return Err(Diagnostic::error(
-                            "yl.artifact",
-                            "These query primitives require artifact version 4",
-                            Span::default(),
-                        ));
-                    }
-                    expressions.extend(args);
-                }
-                QueryAction::If {
-                    condition,
-                    then_actions,
-                    else_actions,
-                    ..
-                } => {
-                    expressions.push(condition);
-                    actions.extend(then_actions);
-                    actions.extend(else_actions);
-                }
-                QueryAction::Match { inputs, cases, .. } => {
-                    expressions.extend(inputs);
-                    for case in cases {
-                        expressions.extend(case.alternatives.iter().flatten().flatten());
-                        actions.extend(&case.actions);
-                    }
-                }
-                QueryAction::Emit {
-                    message,
-                    target,
-                    related,
-                    ..
-                } => {
-                    if !related.is_empty() {
-                        return Err(Diagnostic::error(
-                            "yl.artifact",
-                            "Related diagnostic sources require artifact version 4",
-                            Span::default(),
-                        ));
-                    }
-                    expressions.extend(target);
-                    expressions.extend(message.iter().filter_map(|part| match part {
-                        QueryMessagePart::Value(value) => Some(value),
-                        _ => None,
-                    }));
-                }
-            }
-        }
-        while let Some(expression) = expressions.pop() {
-            match expression {
-                QueryExpr::Call { name, args } => {
-                    if new_name(name) {
-                        return Err(Diagnostic::error(
-                            "yl.artifact",
-                            "These query primitives require artifact version 4",
-                            Span::default(),
-                        ));
-                    }
-                    expressions.extend(args);
-                }
-                QueryExpr::Tuple(values) | QueryExpr::List(values) => expressions.extend(values),
-                QueryExpr::Not(value) | QueryExpr::Lambda { body: value, .. } => {
-                    expressions.push(value)
-                }
-                _ => {}
-            }
-        }
+    struct Validator<'a> {
+        captures: &'a BTreeSet<String>,
+        version: u32,
+        blocks: BTreeMap<String, (Vec<QueryAction>, QueryExpr)>,
     }
     fn arity(name: &str) -> Option<usize> {
-        if !name.starts_with("std/query#") {
+        if !name.starts_with("std/query#") && !name.starts_with("core/query#") {
             return None;
         }
         match primitive(name) {
@@ -2199,161 +2224,243 @@ pub(crate) fn validate_groups(
             _ => None,
         }
     }
-    fn expr(
-        value: &QueryExpr,
-        captures: &BTreeSet<String>,
-        locals: &BTreeSet<String>,
-        span: &Span,
-        depth: usize,
-    ) -> Result<(), Diagnostic> {
-        let bad = |message: String| Diagnostic::error("yl.artifact", message, span.clone());
-        if depth > 128 {
-            return Err(bad("Query nesting exceeds the resource limit".into()));
+    impl Validator<'_> {
+        fn bad(span: &Span, message: impl Into<String>) -> Diagnostic {
+            Diagnostic::error("yl.artifact", message, span.clone())
         }
-        match value {
-            QueryExpr::Capture(name)
-                if !captures.contains(name.split('.').next().unwrap_or(name)) =>
+        fn primitive(&self, name: &str, count: usize, span: &Span) -> Result<(), Diagnostic> {
+            if name.starts_with("core/query#") && self.version < 5 {
+                return Err(Self::bad(
+                    span,
+                    "Core query primitives require artifact version 5",
+                ));
+            }
+            if self.version < 4
+                && matches!(
+                    primitive(name),
+                    "getEarlier"
+                        | "filter"
+                        | "choose"
+                        | "values"
+                        | "alternatives"
+                        | "flatten"
+                        | "last"
+                        | "tail"
+                        | "isList"
+                        | "hypotheticalAll"
+                        | "hypotheticalChecked"
+                )
             {
-                Err(bad(format!("Query references unavailable capture {name}")))
+                return Err(Self::bad(
+                    span,
+                    "These query primitives require artifact version 4",
+                ));
             }
-            QueryExpr::Local(name) if !locals.contains(name) => {
-                Err(bad(format!("Unbound query callback parameter {name}")))
+            if arity(name) != Some(count) {
+                return Err(Self::bad(span, "Invalid query primitive or argument count"));
             }
-            QueryExpr::Call { name, args } => {
-                if arity(name) != Some(args.len())
-                    || matches!(primitive(name), "contribute" | "contributeAll")
-                {
-                    return Err(bad("Invalid query primitive or argument count".into()));
-                }
-                for (index, arg) in args.iter().enumerate() {
-                    if matches!(primitive(name), "find" | "map" | "every" | "filter") && index == 1
-                    {
-                        let QueryExpr::Lambda { parameter, body } = arg else {
-                            return Err(bad("find needs an expression callback".into()));
-                        };
-                        let mut locals = locals.clone();
-                        locals.insert(parameter.clone());
-                        expr(body, captures, &locals, span, depth + 1)?;
+            Ok(())
+        }
+        fn expr(
+            &mut self,
+            value: &QueryExpr,
+            locals: &BTreeSet<String>,
+            span: &Span,
+            depth: usize,
+        ) -> Result<(), Diagnostic> {
+            if depth > 128 {
+                return Err(Self::bad(span, "Query nesting exceeds the resource limit"));
+            }
+            match value {
+                QueryExpr::Block {
+                    invocation,
+                    actions,
+                    result,
+                } => {
+                    if self.version < 5 {
+                        return Err(Self::bad(
+                            span,
+                            "Operation result blocks require artifact version 5",
+                        ));
+                    }
+                    if invocation.is_empty() {
+                        return Err(Self::bad(
+                            span,
+                            "An operation result needs an invocation identity",
+                        ));
+                    }
+                    if !locals.is_empty() {
+                        return Err(Self::bad(
+                            span,
+                            "Effectful operations are not supported inside query callbacks",
+                        ));
+                    }
+                    if let Some((previous_actions, previous_result)) = self.blocks.get(invocation) {
+                        if previous_actions != actions || previous_result != result.as_ref() {
+                            return Err(Self::bad(
+                                span,
+                                "An invocation identity has conflicting definitions",
+                            ));
+                        }
                     } else {
-                        expr(arg, captures, locals, span, depth + 1)?;
+                        self.blocks.insert(
+                            invocation.clone(),
+                            (actions.clone(), result.as_ref().clone()),
+                        );
                     }
+                    self.actions(actions, depth + 1)?;
+                    self.expr(result, locals, span, depth + 1)
                 }
-                Ok(())
-            }
-            QueryExpr::Lambda { .. } => Err(bad(
-                "A callback is only valid as find's second argument".into(),
-            )),
-            QueryExpr::Tuple(values) | QueryExpr::List(values) => {
-                for value in values {
-                    expr(value, captures, locals, span, depth + 1)?;
+                QueryExpr::Capture(name)
+                    if !self
+                        .captures
+                        .contains(name.split('.').next().unwrap_or(name)) =>
+                {
+                    Err(Self::bad(
+                        span,
+                        format!("Query references unavailable capture {name}"),
+                    ))
                 }
-                Ok(())
-            }
-            QueryExpr::Not(value) => expr(value, captures, locals, span, depth + 1),
-            _ => Ok(()),
-        }
-    }
-    fn actions(
-        values: &[QueryAction],
-        captures: &BTreeSet<String>,
-        depth: usize,
-    ) -> Result<(), Diagnostic> {
-        if depth > 128 {
-            return Err(Diagnostic::error(
-                "yl.artifact",
-                "Query action nesting exceeds the resource limit",
-                Span::default(),
-            ));
-        }
-        for action in values {
-            match action {
-                QueryAction::Call { name, args, span } => {
-                    if arity(name) != Some(args.len()) {
-                        return Err(Diagnostic::error(
-                            "yl.artifact",
-                            "Invalid query primitive or argument count",
-                            span.clone(),
-                        ));
-                    }
-                    for arg in args {
-                        expr(arg, captures, &BTreeSet::new(), span, 0)?;
-                    }
-                }
-                QueryAction::If {
-                    condition,
-                    then_actions,
-                    else_actions,
+                QueryExpr::Local(name) if !locals.contains(name) => Err(Self::bad(
                     span,
-                } => {
-                    expr(condition, captures, &BTreeSet::new(), span, 0)?;
-                    actions(then_actions, captures, depth + 1)?;
-                    actions(else_actions, captures, depth + 1)?;
-                }
-                QueryAction::Match {
-                    inputs,
-                    cases,
-                    span,
-                } => {
-                    for input in inputs {
-                        expr(input, captures, &BTreeSet::new(), span, 0)?;
+                    format!("Unbound query callback parameter {name}"),
+                )),
+                QueryExpr::Call { name, args } => {
+                    self.primitive(name, args.len(), span)?;
+                    if matches!(primitive(name), "contribute" | "contributeAll") {
+                        return Err(Self::bad(span, "Contributions must be query actions"));
                     }
-                    if inputs.is_empty()
-                        || !cases.last().is_some_and(|case| {
-                            case.alternatives
-                                .iter()
-                                .any(|alternative| alternative.iter().all(Option::is_none))
-                        })
-                    {
-                        return Err(Diagnostic::error(
-                            "yl.artifact",
-                            "A query match needs a final wildcard case",
-                            span.clone(),
-                        ));
-                    }
-                    for (index, case) in cases.iter().enumerate() {
-                        for alternative in &case.alternatives {
-                            if alternative.len() != inputs.len()
-                                || (index + 1 != cases.len()
-                                    && alternative.iter().all(Option::is_none))
-                            {
-                                return Err(Diagnostic::error(
-                                    "yl.artifact",
-                                    "Invalid query match pattern arity or wildcard order",
-                                    span.clone(),
+                    for (index, arg) in args.iter().enumerate() {
+                        if matches!(primitive(name), "find" | "map" | "every" | "filter")
+                            && index == 1
+                        {
+                            let QueryExpr::Lambda { parameter, body } = arg else {
+                                return Err(Self::bad(
+                                    span,
+                                    "Query iteration needs an expression callback",
                                 ));
-                            }
-                            for pattern in alternative.iter().flatten() {
-                                expr(pattern, captures, &BTreeSet::new(), span, 0)?;
-                            }
+                            };
+                            let mut locals = locals.clone();
+                            locals.insert(parameter.clone());
+                            self.expr(body, &locals, span, depth + 1)?;
+                        } else {
+                            self.expr(arg, locals, span, depth + 1)?;
                         }
-                        actions(&case.actions, captures, depth + 1)?;
                     }
+                    Ok(())
                 }
-                QueryAction::Emit {
-                    message,
-                    target,
-                    related,
+                QueryExpr::Lambda { .. } => Err(Self::bad(
                     span,
-                    ..
-                } => {
-                    for part in message {
-                        if let QueryMessagePart::Value(value) = part {
-                            expr(value, captures, &BTreeSet::new(), span, 0)?;
+                    "A callback is only valid as an iteration argument",
+                )),
+                QueryExpr::Tuple(values) | QueryExpr::List(values) => {
+                    for value in values {
+                        self.expr(value, locals, span, depth + 1)?;
+                    }
+                    Ok(())
+                }
+                QueryExpr::Not(value) => self.expr(value, locals, span, depth + 1),
+                _ => Ok(()),
+            }
+        }
+        fn actions(&mut self, values: &[QueryAction], depth: usize) -> Result<(), Diagnostic> {
+            if depth > 128 {
+                return Err(Self::bad(
+                    &Span::default(),
+                    "Query action nesting exceeds the resource limit",
+                ));
+            }
+            let locals = BTreeSet::new();
+            for action in values {
+                match action {
+                    QueryAction::Call { name, args, span } => {
+                        self.primitive(name, args.len(), span)?;
+                        for arg in args {
+                            self.expr(arg, &locals, span, depth + 1)?;
                         }
                     }
-                    if let Some(target) = target {
-                        expr(target, captures, &BTreeSet::new(), span, 0)?;
+                    QueryAction::If {
+                        condition,
+                        then_actions,
+                        else_actions,
+                        span,
+                    } => {
+                        self.expr(condition, &locals, span, depth + 1)?;
+                        self.actions(then_actions, depth + 1)?;
+                        self.actions(else_actions, depth + 1)?;
                     }
-                    for target in related {
-                        expr(target, captures, &BTreeSet::new(), span, 0)?;
+                    QueryAction::Match {
+                        inputs,
+                        cases,
+                        span,
+                    } => {
+                        for input in inputs {
+                            self.expr(input, &locals, span, depth + 1)?;
+                        }
+                        if inputs.is_empty()
+                            || !cases.last().is_some_and(|case| {
+                                case.alternatives
+                                    .iter()
+                                    .any(|alternative| alternative.iter().all(Option::is_none))
+                            })
+                        {
+                            return Err(Self::bad(
+                                span,
+                                "A query match needs a final wildcard case",
+                            ));
+                        }
+                        for (index, case) in cases.iter().enumerate() {
+                            for alternative in &case.alternatives {
+                                if alternative.len() != inputs.len()
+                                    || (index + 1 != cases.len()
+                                        && alternative.iter().all(Option::is_none))
+                                {
+                                    return Err(Self::bad(
+                                        span,
+                                        "Invalid query match pattern arity or wildcard order",
+                                    ));
+                                }
+                                for pattern in alternative.iter().flatten() {
+                                    self.expr(pattern, &locals, span, depth + 1)?;
+                                }
+                            }
+                            self.actions(&case.actions, depth + 1)?;
+                        }
+                    }
+                    QueryAction::Emit {
+                        message,
+                        target,
+                        related,
+                        span,
+                        ..
+                    } => {
+                        if self.version < 4 && !related.is_empty() {
+                            return Err(Self::bad(
+                                span,
+                                "Related diagnostic sources require artifact version 4",
+                            ));
+                        }
+                        for part in message {
+                            if let QueryMessagePart::Value(value) = part {
+                                self.expr(value, &locals, span, depth + 1)?;
+                            }
+                        }
+                        for value in target.iter().chain(related) {
+                            self.expr(value, &locals, span, depth + 1)?;
+                        }
                     }
                 }
             }
+            Ok(())
         }
-        Ok(())
     }
+    let mut validator = Validator {
+        captures,
+        version,
+        blocks: BTreeMap::new(),
+    };
     for group in groups {
-        actions(&group.actions, captures, 0)?;
+        validator.actions(&group.actions, 0)?;
     }
     Ok(())
 }
@@ -2365,6 +2472,11 @@ pub enum QueryExpr {
     Local(String),
     Tuple(Vec<QueryExpr>),
     List(Vec<QueryExpr>),
+    Block {
+        invocation: String,
+        actions: Vec<QueryAction>,
+        result: Box<QueryExpr>,
+    },
     Call {
         name: String,
         args: Vec<QueryExpr>,
@@ -2426,4 +2538,95 @@ pub struct QueryCase {
     pub alternatives: Vec<Vec<Option<QueryExpr>>>,
     pub actions: Vec<QueryAction>,
     pub span: Span,
+}
+
+#[cfg(test)]
+mod validation_tests {
+    use super::*;
+
+    fn block(invocation: &str, result: QueryExpr) -> QueryExpr {
+        QueryExpr::Block {
+            invocation: invocation.into(),
+            actions: vec![],
+            result: Box::new(result),
+        }
+    }
+
+    fn validate(expression: QueryExpr, version: u32) -> Result<(), Diagnostic> {
+        validate_groups(
+            &[QueryGroup {
+                name: None,
+                actions: vec![QueryAction::Call {
+                    name: if version < 5 {
+                        "std/query#first"
+                    } else {
+                        "core/query#first"
+                    }
+                    .into(),
+                    args: vec![QueryExpr::List(vec![expression])],
+                    span: Span::default(),
+                }],
+                span: Span::default(),
+            }],
+            &BTreeSet::new(),
+            version,
+        )
+    }
+
+    #[test]
+    fn result_blocks_require_version_five() {
+        assert!(validate(block("call", QueryExpr::Absent), 4).is_err());
+        assert!(validate(block("call", QueryExpr::Absent), 5).is_ok());
+    }
+
+    #[test]
+    fn repeated_bindings_must_describe_the_same_invocation() {
+        let first = block("call", QueryExpr::Bool(true));
+        assert!(validate(QueryExpr::Tuple(vec![first.clone(), first.clone()]), 5).is_ok());
+        assert!(validate(
+            QueryExpr::Tuple(vec![first, block("call", QueryExpr::Bool(false))]),
+            5
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn result_block_actions_are_validated() {
+        let expression = QueryExpr::Block {
+            invocation: "call".into(),
+            actions: vec![QueryAction::Call {
+                name: "core/query#contribute".into(),
+                args: vec![
+                    QueryExpr::Capture("unavailable".into()),
+                    QueryExpr::Bool(true),
+                ],
+                span: Span::default(),
+            }],
+            result: Box::new(QueryExpr::Absent),
+        };
+        assert!(validate(expression, 5).is_err());
+    }
+
+    #[test]
+    fn callbacks_cannot_hide_operation_effects() {
+        let expression = QueryExpr::Call {
+            name: "core/query#map".into(),
+            args: vec![
+                QueryExpr::List(vec![]),
+                QueryExpr::Lambda {
+                    parameter: "item".into(),
+                    body: Box::new(block("call", QueryExpr::Local("item".into()))),
+                },
+            ],
+        };
+        assert!(validate(expression, 5).is_err());
+    }
+
+    #[test]
+    fn nested_blocks_cannot_reset_the_depth_budget() {
+        let expression = (0..130).fold(QueryExpr::Absent, |result, index| {
+            block(&index.to_string(), result)
+        });
+        assert!(validate(expression, 5).is_err());
+    }
 }
