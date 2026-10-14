@@ -1,0 +1,20 @@
+import { ancestors, contribute, find, get, isPresent } from "std/query"
+
+symbol scope
+
+symbol result
+
+node Name = value: /[a-z]+/
+
+node Program = name: Name
+{
+    meanings {
+        contribute((self, scope), self)
+
+        if isPresent(find(ancestors(name), ancestor => get((ancestor, scope)))) {
+            contribute((name, result), find(ancestors(name), ancestor => get((ancestor, scope))))
+        }
+    }
+}
+
+entry Program

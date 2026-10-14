@@ -1,0 +1,22 @@
+import { lexicalScope } from "../../../stdlib/references"
+import { Whitespace } from "./lexical"
+import { FunctionDeclaration } from "./function"
+import { Expression } from "./expression"
+
+node Statement {
+    node FunctionDeclaration
+
+    node ExpressionStatement =
+        value: Expression
+        ";"
+}
+
+node Program = statements: Statement* {
+    meanings {
+        lexicalScope()
+    }
+}
+
+entry Program {
+    trivia Whitespace
+}

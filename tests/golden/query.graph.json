@@ -1,0 +1,83 @@
+{
+  "records": [],
+  "attachments": [],
+  "query_entries": [
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 0
+            }
+          },
+          {
+            "Symbol": "golden.yl#scope"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 0
+        }
+      },
+      "producer": 0,
+      "span": {
+        "file": "program",
+        "start": 0,
+        "end": 4
+      }
+    },
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 1
+            }
+          },
+          {
+            "Symbol": "golden.yl#result"
+          }
+        ]
+      },
+      "value": {
+        "Identity": {
+          "Occurrence": 0
+        }
+      },
+      "producer": 1,
+      "span": {
+        "file": "program",
+        "start": 0,
+        "end": 4
+      }
+    }
+  ],
+  "query_dependencies": [
+    {
+      "producer": 0,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    },
+    {
+      "producer": 1,
+      "state": "present",
+      "reads": [
+        {
+          "Tuple": [
+            {
+              "Identity": {
+                "Occurrence": 0
+              }
+            },
+            {
+              "Symbol": "golden.yl#scope"
+            }
+          ]
+        }
+      ],
+      "waits_for": []
+    }
+  ]
+}

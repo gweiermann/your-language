@@ -1,0 +1,53 @@
+import { contribute, get, map, text, zip } from "std/query"
+import { separatedBy } from "std/parser"
+import { declare, lexicalScope, referenceOf } from "../../../stdlib/references"
+import { function, type, parameterNames, parameterTypes, returnType, functionIdentity } from "./types"
+import { unknown } from "../../../stdlib/types"
+import { typeOf, parameterType } from "./typing"
+import { Expression } from "./expression"
+import { Name } from "./lexical"
+
+node Parameter = name: Name {
+    meanings {
+        declare(name)
+        parameterType(name)
+    }
+}
+
+node FunctionBody =
+    "{"
+    "return"
+    result: Expression
+    ";"
+    "}"
+{
+    meanings {
+        contribute((self, returnType), typeOf(result))
+    }
+}
+
+pattern FunctionContents =
+    "("
+    parameters: Parameter* |> separatedBy(",")
+    ")"
+    body: FunctionBody
+{
+    meanings {
+        lexicalScope()
+    }
+}
+
+export node FunctionDeclaration =
+    "function"
+    name: Name
+    contents: FunctionContents
+{
+    meanings {
+        declare(name, mutable = false)
+        contribute((referenceOf(name), type), function)
+        contribute((contents, functionIdentity), referenceOf(name))
+        contribute((referenceOf(name), parameterNames), map(contents.parameters.name, name => text(name)))
+        contribute((referenceOf(name), parameterTypes), zip(map(contents.parameters.name, name => text(name)), map(contents.parameters.name, name => unknown)))
+        contribute((referenceOf(name), returnType), get((contents.body, returnType)))
+    }
+}

@@ -1,0 +1,39 @@
+import { ancestors, contribute, find, get, getAll, hasMultiple, isPresent, text } from "std/query"
+
+export symbol scope
+
+export symbol declarations
+
+export symbol referenceIdentity
+
+export symbol reassignable
+
+export operation lexicalScope() {
+    contribute((self, scope), self)
+}
+
+export operation enclosingScope(value) = find(ancestors(value), ancestor => get((ancestor, scope)))
+
+export operation resolve(name) = find(ancestors(self), ancestor => get((get((ancestor, scope)), declarations, text(name))))
+
+export operation declare(name, mutable = true) {
+    contribute((enclosingScope(self), declarations, text(name)), self)
+    contribute((name, referenceIdentity), self)
+    contribute((self, referenceIdentity), self)
+    contribute((self, reassignable), mutable)
+    if hasMultiple(getAll((enclosingScope(self), declarations, text(name)))) {
+        error("Duplicate declaration '${name}'", name)
+    }
+}
+
+export operation use(name) {
+    contribute((name, referenceIdentity), resolve(name))
+    contribute((self, referenceIdentity), resolve(name))
+    if !isPresent(resolve(name)) {
+        error("Unknown name '${name}'", name)
+    }
+}
+
+export operation reference() = get((self, referenceIdentity))
+
+export operation referenceOf(value) = get((value, referenceIdentity))

@@ -15,6 +15,8 @@ pub struct CompiledLanguage {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub(crate) meanings: BTreeMap<String, crate::semantics::MeaningDefinition>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub(crate) query_meanings: BTreeMap<String, Vec<crate::semantics::queries::QueryGroup>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub(crate) examples: BTreeMap<String, crate::examples::ExampleDefinition>,
     #[serde(skip)]
     pub(crate) diagnostics: Vec<crate::diagnostic::Diagnostic>,

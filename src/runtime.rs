@@ -39,6 +39,8 @@ struct TerminalAddress {
 }
 #[derive(Clone)]
 struct Captured {
+    element_occurrences: Vec<Vec<usize>>,
+    element_spans: Vec<Span>,
     repeated: bool,
     occurrences: Vec<usize>,
     value: AstValue,
@@ -48,6 +50,8 @@ struct Captured {
 }
 #[derive(Clone)]
 struct Match {
+    element_occurrences: Vec<Vec<usize>>,
+    element_spans: Vec<Span>,
     end: usize,
     value: Option<AstValue>,
     origin: Option<Span>,
@@ -59,6 +63,8 @@ struct Match {
 }
 #[derive(Clone)]
 struct MarkedValue {
+    element_occurrences: Vec<Vec<usize>>,
+    element_spans: Vec<Span>,
     value: Option<AstValue>,
     origin: Option<Span>,
     fields: BTreeMap<String, Captured>,
@@ -74,6 +80,8 @@ struct OperatorContext<'a> {
 impl Match {
     fn empty(end: usize) -> Self {
         Self {
+            element_occurrences: vec![],
+            element_spans: vec![],
             end,
             value: None,
             origin: None,
@@ -138,6 +146,12 @@ pub(crate) fn parse_occurrences(
                     identities: &BTreeMap<usize, usize>,
                 ) {
                     for capture in occurrence.captures.values_mut() {
+                        for roots in &mut capture.element_occurrences {
+                            *roots = roots
+                                .iter()
+                                .filter_map(|id| identities.get(id).copied())
+                                .collect();
+                        }
                         capture.occurrences = capture
                             .occurrences
                             .iter()
@@ -185,7 +199,9 @@ pub(crate) fn parse_occurrences(
                         }
                     }
                     for (name, capture) in &mut occurrence.captures {
-                        if capture.occurrences.is_empty() && capture.selection.is_none() {
+                        if capture.selection.is_none()
+                            && (capture.occurrences.is_empty() || capture.repeated)
+                        {
                             capture.selection = Some(if capture.repeated {
                                 match &capture.value {
                                     AstValue::List(items) => OccurrenceSelection::List(
@@ -193,12 +209,30 @@ pub(crate) fn parse_occurrences(
                                             .iter()
                                             .enumerate()
                                             .map(|(index, value)| {
-                                                terminal(
-                                                    value,
-                                                    next,
-                                                    (capture.span.clone(), name.clone(), index),
-                                                    addresses,
-                                                )
+                                                if let Some(roots) = capture
+                                                    .element_occurrences
+                                                    .get(index)
+                                                    .filter(|roots| roots.len() == 1)
+                                                {
+                                                    OccurrenceSelection::One(roots[0])
+                                                } else {
+                                                    terminal(
+                                                        value,
+                                                        next,
+                                                        (
+                                                            capture
+                                                                .element_spans
+                                                                .get(index)
+                                                                .cloned()
+                                                                .unwrap_or_else(|| {
+                                                                    capture.span.clone()
+                                                                }),
+                                                            name.clone(),
+                                                            index,
+                                                        ),
+                                                        addresses,
+                                                    )
+                                                }
                                             })
                                             .collect(),
                                     ),
@@ -218,6 +252,9 @@ pub(crate) fn parse_occurrences(
                                 )
                             });
                         }
+                    }
+                    for capture in occurrence.captures.values_mut() {
+                        capture.element_occurrences.clear();
                     }
                     for child in &mut occurrence.children {
                         identify_terminals(child, next, addresses);
@@ -544,6 +581,8 @@ impl Runtime<'_> {
                 (
                     name.clone(),
                     crate::semantics::SourceCapture {
+                        element_occurrences: capture.element_occurrences.clone(),
+                        element_spans: capture.element_spans.clone(),
                         selection: None,
                         repeated: capture.repeated,
                         value: capture.value.clone(),
@@ -817,6 +856,9 @@ impl Runtime<'_> {
                     if let Some(value) = m.value {
                         depth = depth.max(m.value_depth);
                         values.push(value);
+                        result
+                            .element_occurrences
+                            .push(m.occurrences.iter().map(|o| o.id).collect());
                         origins.push(m.origin.clone());
                     }
                     result.fields.extend(m.fields);
@@ -834,6 +876,7 @@ impl Runtime<'_> {
                     depth + usize::from(*q != Quantifier::Optional),
                     result.end,
                 )?;
+                result.element_spans = origins.iter().flatten().cloned().collect();
                 result.origin = if *q == Quantifier::Optional {
                     origins.into_iter().next().flatten()
                 } else {
@@ -852,6 +895,8 @@ impl Runtime<'_> {
                 result.fields.insert(
                     name.clone(),
                     Captured {
+                        element_occurrences: result.element_occurrences.clone(),
+                        element_spans: result.element_spans.clone(),
                         repeated: capture_repeats(term),
                         occurrences: result
                             .occurrences
@@ -927,6 +972,8 @@ impl Runtime<'_> {
             Term::Mark { id, term } => {
                 let mut matched = self.term_with(term, start, raw, context)?;
                 matched.marked.entry(*id).or_default().push(MarkedValue {
+                    element_occurrences: matched.element_occurrences.clone(),
+                    element_spans: matched.element_spans.clone(),
                     value: matched.value.clone(),
                     origin: matched.origin.clone().or_else(|| {
                         matched
@@ -952,6 +999,8 @@ impl Runtime<'_> {
                 matched.occurrences.clear();
                 let mut values = vec![];
                 let mut origins = vec![];
+                let mut element_spans = vec![];
+                let mut element_occurrences = vec![];
                 let mut depth = 0;
                 for original in originals {
                     if let Some(value) = original.value {
@@ -960,11 +1009,19 @@ impl Runtime<'_> {
                         if *collect_lists {
                             if let AstValue::List(items) = value {
                                 values.extend(items);
+                                element_spans.extend(original.element_spans.clone());
+                                element_occurrences.extend(original.element_occurrences.clone());
                             } else {
                                 values.push(value);
+                                element_spans.extend(original.origin.clone());
+                                element_occurrences
+                                    .push(original.occurrences.iter().map(|o| o.id).collect());
                             }
                         } else if value != AstValue::None {
                             values.push(value);
+                            element_spans.extend(original.origin.clone());
+                            element_occurrences
+                                .push(original.occurrences.iter().map(|o| o.id).collect());
                         }
                     }
                     matched.fields.extend(original.fields);
@@ -972,6 +1029,8 @@ impl Runtime<'_> {
                 }
                 matched.value_depth =
                     self.check_value_depth(depth + usize::from(quantifier.is_some()), matched.end)?;
+                matched.element_spans = element_spans;
+                matched.element_occurrences = element_occurrences;
                 matched.origin = if matches!(quantifier, Some(Quantifier::Star | Quantifier::Plus))
                 {
                     let spans: Vec<_> = origins.into_iter().flatten().collect();

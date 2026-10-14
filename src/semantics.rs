@@ -6,6 +6,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::{any::Any, collections::BTreeMap, sync::Arc};
 pub mod lexical;
+pub mod queries;
 mod scheduler;
 pub mod syntax;
 pub mod types;
@@ -126,6 +127,12 @@ pub struct MeaningSelector {
 /// Preserved semantic value and its original source extent. Pipe wrappers do not
 /// widen this extent; syntax-local captures separately retain grammar match spans.
 pub struct SourceCapture {
+    /// Parser provenance before committed identities are assigned.
+    #[serde(skip)]
+    pub(crate) element_occurrences: Vec<Vec<usize>>,
+    /// Exact grammar-match spans of repeated values, without reconstructing text.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub element_spans: Vec<Span>,
     /// Nested occurrence selection for projections through repeated parents.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selection: Option<OccurrenceSelection>,
@@ -279,6 +286,17 @@ impl Occurrence {
                 .map(|(a, b)| Span::new(&a.span.file, a.span.start, b.span.end))
                 .unwrap_or_else(|| capture.span.clone());
             capture = SourceCapture {
+                element_occurrences: vec![],
+                element_spans: selected
+                    .iter()
+                    .flat_map(|item| {
+                        if item.element_spans.is_empty() && !item.repeated {
+                            vec![item.span.clone()]
+                        } else {
+                            item.element_spans.clone()
+                        }
+                    })
+                    .collect(),
                 selection,
                 repeated: true,
                 value,
@@ -351,6 +369,10 @@ pub struct Attachment {
 pub struct SemanticGraph {
     pub records: Vec<SemanticRecord>,
     pub attachments: Vec<Attachment>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub query_entries: Vec<queries::QueryEntry>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub query_dependencies: Vec<queries::QueryDependency>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AnalysisResult {
@@ -798,6 +820,7 @@ impl Default for SemanticEngine {
         let mut registry = lexical::registry();
         types::register(&mut registry).expect("standard modules have disjoint exports");
         syntax::register(&mut registry).expect("standard modules have disjoint exports");
+        queries::register(&mut registry).expect("standard modules have disjoint exports");
         Self::new(registry)
     }
 }
@@ -844,6 +867,16 @@ fn analyze(
     source: &str,
     registry: &OperationRegistry,
 ) -> AnalysisResult {
+    if !language.query_meanings.is_empty() {
+        if let Err(error) = crate::compiler::validate_language(language) {
+            return AnalysisResult {
+                ast: None,
+                occurrences: vec![],
+                graph: SemanticGraph::default(),
+                diagnostics: vec![error],
+            };
+        }
+    }
     if let Err(diagnostics) = validate_registry(language, registry) {
         return AnalysisResult {
             ast: None,
@@ -865,13 +898,30 @@ fn analyze(
             .iter()
             .any(|diagnostic| diagnostic.severity == crate::diagnostic::Severity::Error)
     {
-        execute(
+        queries::execute(
             language,
-            registry,
             &result.occurrences,
             &mut result.graph,
             &mut result.diagnostics,
+            source,
         );
+        if !result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity == crate::diagnostic::Severity::Error)
+        {
+            let entries = std::mem::take(&mut result.graph.query_entries);
+            let dependencies = std::mem::take(&mut result.graph.query_dependencies);
+            execute(
+                language,
+                registry,
+                &result.occurrences,
+                &mut result.graph,
+                &mut result.diagnostics,
+            );
+            result.graph.query_entries = entries;
+            result.graph.query_dependencies = dependencies;
+        }
     }
     result
 }
@@ -920,6 +970,8 @@ mod tests {
             captures: BTreeMap::from([(
                 "name".into(),
                 SourceCapture {
+                    element_occurrences: vec![],
+                    element_spans: vec![],
                     selection: None,
                     repeated: false,
                     occurrences: vec![],

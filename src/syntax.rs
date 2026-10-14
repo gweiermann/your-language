@@ -8,6 +8,8 @@ pub struct Expr {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
+    Lambda { parameter: String, body: Box<Expr> },
+    Local(String),
     EnumConstant(String, String),
     Bool(bool),
     Absent,
@@ -129,6 +131,8 @@ pub struct Meanings {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MeaningSyntaxGroup {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub actions: Vec<MeaningSyntaxAction>,
     pub name: Option<String>,
     pub calls: Vec<MeaningSyntaxCall>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -201,6 +205,8 @@ pub struct MeaningSyntaxMatch {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MeaningSyntaxCase {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub nested_actions: Vec<MeaningSyntaxAction>,
     pub alternatives: Vec<Vec<Option<Expr>>>,
     pub actions: Vec<MeaningSyntaxCall>,
     pub span: Span,
@@ -214,6 +220,19 @@ pub struct Example {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum OperationBody {
+    Conditional(Vec<MeaningSyntaxAction>),
     Actions(Vec<MeaningSyntaxCall>),
     Query(Expr),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum MeaningSyntaxAction {
+    Call(MeaningSyntaxCall),
+    If {
+        condition: Expr,
+        actions: Vec<MeaningSyntaxAction>,
+        otherwise: Vec<MeaningSyntaxAction>,
+        span: Span,
+    },
+    Match(MeaningSyntaxMatch),
 }

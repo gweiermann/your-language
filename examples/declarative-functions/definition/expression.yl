@@ -1,0 +1,41 @@
+import { separatedBy } from "std/parser"
+import { contribute, children, first } from "std/query"
+import { use, referenceOf } from "../../../stdlib/references"
+import { number, string, type } from "./types"
+import { annotateWithType, typeOf, callType } from "./typing"
+import { Name } from "./lexical"
+
+export node Expression {
+    meanings {
+        contribute((self, type), typeOf(first(children(self))))
+    }
+    node Number = /[0-9]+/ {
+        meanings {
+            annotateWithType(number)
+        }
+    }
+
+    node String = /"[^"\n]*"/ {
+        meanings {
+            annotateWithType(string)
+        }
+    }
+
+    node Call =
+        callee: Reference
+        "("
+        arguments: Expression* |> separatedBy(",")
+        ")"
+    {
+        meanings {
+            callType(callee, arguments)
+        }
+    }
+
+    node Reference = name: Name {
+        meanings {
+            use(name)
+            annotateWithType(typeOf(referenceOf(name)))
+        }
+    }
+}

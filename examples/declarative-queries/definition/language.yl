@@ -1,0 +1,13 @@
+import { lexicalScope } from "../../../stdlib/references"
+import { Whitespace } from "./lexical"
+import { Statement } from "./statements"
+
+node Program = statements: Statement* {
+    meanings {
+        lexicalScope()
+    }
+}
+
+entry Program {
+    trivia Whitespace
+}

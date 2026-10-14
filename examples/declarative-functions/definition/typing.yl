@@ -1,0 +1,36 @@
+import { get, contribute, equal, hypothetical, isPresent, lookup, map, text, zip } from "std/query"
+import { enclosingScope, referenceOf } from "../../../stdlib/references"
+import { type, parameterNames, parameterTypes, returnType, functionIdentity } from "./types"
+
+export operation typeOf(value) = get((value, type))
+
+operation functionOf(scope) = get((scope, functionIdentity))
+
+operation parameterTypesOf(function) = get((function, parameterTypes))
+
+operation parameterNamesOf(function) = get((function, parameterNames))
+
+operation argumentTypes(arguments) = map(arguments, argument => typeOf(argument))
+
+operation sameLength(left, right) = equal(map(left, value => true), map(right, value => true))
+
+operation callAssumptions(function, arguments) = [((function, parameterTypes), zip(parameterNamesOf(function), argumentTypes(arguments)))]
+
+export operation annotateWithType(value) {
+    contribute((self, type), value)
+}
+
+export operation parameterType(name) {
+    contribute((referenceOf(name), type), lookup(parameterTypesOf(functionOf(enclosingScope(self))), text(name)))
+}
+
+export operation callType(callee, arguments) {
+    if isPresent(referenceOf(callee)) {
+        if !sameLength(parameterNamesOf(referenceOf(callee)), arguments) {
+            error("Wrong number of arguments", callee)
+        }
+        else {
+            contribute((self, type), hypothetical((referenceOf(callee), returnType), callAssumptions(referenceOf(callee), arguments)))
+        }
+    }
+}

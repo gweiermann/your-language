@@ -1,0 +1,9 @@
+let greeting;
+
+{
+    greeting;
+
+    let greeting;
+}
+
+greeting;

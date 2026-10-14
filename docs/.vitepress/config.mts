@@ -42,6 +42,7 @@ export default defineConfig({
         { text: 'Syntax diagnostics', link: '/tutorials/diagnostics' },
         { text: 'MiniJS walkthrough', link: '/tutorials/mini-js' },
         { text: 'Embed in Rust', link: '/tutorials/embedding' },
+        { text: 'Authored lexical scopes', link: '/tutorials/declarative-scopes' },
         { text: 'Scopes and type inference', link: '/tutorials/semantic-inference' },
       ] },
       { text: 'Language reference', items: reference },
@@ -49,6 +50,7 @@ export default defineConfig({
         { text: 'CLI commands', link: '/api/cli' },
         { text: 'Rust API', link: '/api/rust' },
         { text: 'Native semantic operations', link: '/api/native-semantics' },
+        { text: 'Declarative attachment queries', link: '/api/declarative-queries' },
         { text: 'AST representation', link: '/api/ast' },
         { text: 'Diagnostics and spans', link: '/api/diagnostics' },
         { text: 'Compiled artifacts', link: '/api/artifacts' },
@@ -65,6 +67,6 @@ export default defineConfig({
       text: 'Edit this page on GitHub',
     },
     outline: [2, 3],
-    footer: { message: 'Your Language · Declarative syntax, structured trees, precise diagnostics.' },
+    footer: { message: 'Your Language Â· Declarative syntax, structured trees, precise diagnostics.' },
   },
 })
