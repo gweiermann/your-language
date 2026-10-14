@@ -1,0 +1,21 @@
+{
+  "type": "Program",
+  "fields": {
+    "name": {
+      "type": "Name",
+      "fields": {
+        "value": "demo"
+      },
+      "span": {
+        "file": "program",
+        "start": 0,
+        "end": 4
+      }
+    }
+  },
+  "span": {
+    "file": "program",
+    "start": 0,
+    "end": 4
+  }
+}

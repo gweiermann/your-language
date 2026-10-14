@@ -1,0 +1,617 @@
+{
+  "declarations": [
+    {
+      "export": false,
+      "kind": {
+        "Import": {
+          "names": [
+            [
+              "ancestors",
+              "ancestors"
+            ],
+            [
+              "contribute",
+              "contribute"
+            ],
+            [
+              "find",
+              "find"
+            ],
+            [
+              "get",
+              "get"
+            ],
+            [
+              "isPresent",
+              "isPresent"
+            ]
+          ],
+          "path": "std/query"
+        }
+      },
+      "span": {
+        "file": "golden.yl",
+        "start": 0,
+        "end": 71
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Symbol": {
+          "name": "scope"
+        }
+      },
+      "span": {
+        "file": "golden.yl",
+        "start": 73,
+        "end": 85
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Symbol": {
+          "name": "result"
+        }
+      },
+      "span": {
+        "file": "golden.yl",
+        "start": 87,
+        "end": 100
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Node": {
+          "name": "Name",
+          "trivia": false,
+          "grammar": {
+            "kind": {
+              "Capture": [
+                "value",
+                {
+                  "kind": {
+                    "Regex": "[a-z]+"
+                  },
+                  "span": {
+                    "file": "golden.yl",
+                    "start": 121,
+                    "end": 129
+                  }
+                }
+              ]
+            },
+            "span": {
+              "file": "golden.yl",
+              "start": 114,
+              "end": 129
+            }
+          },
+          "members": [],
+          "precedence": [],
+          "constraints": []
+        }
+      },
+      "span": {
+        "file": "golden.yl",
+        "start": 102,
+        "end": 129
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Node": {
+          "name": "Program",
+          "trivia": false,
+          "grammar": {
+            "kind": {
+              "Capture": [
+                "name",
+                {
+                  "kind": {
+                    "Ref": "Name"
+                  },
+                  "span": {
+                    "file": "golden.yl",
+                    "start": 152,
+                    "end": 156
+                  }
+                }
+              ]
+            },
+            "span": {
+              "file": "golden.yl",
+              "start": 146,
+              "end": 156
+            }
+          },
+          "members": [],
+          "precedence": [],
+          "constraints": [],
+          "meanings": {
+            "boundary": false,
+            "groups": [
+              {
+                "name": null,
+                "calls": [
+                  {
+                    "name": "contribute",
+                    "arguments": [
+                      {
+                        "name": null,
+                        "value": {
+                          "kind": {
+                            "Tuple": [
+                              {
+                                "kind": {
+                                  "Ref": "self"
+                                },
+                                "span": {
+                                  "file": "golden.yl",
+                                  "start": 194,
+                                  "end": 198
+                                }
+                              },
+                              {
+                                "kind": {
+                                  "Ref": "scope"
+                                },
+                                "span": {
+                                  "file": "golden.yl",
+                                  "start": 200,
+                                  "end": 205
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "golden.yl",
+                            "start": 193,
+                            "end": 206
+                          }
+                        },
+                        "span": {
+                          "file": "golden.yl",
+                          "start": 193,
+                          "end": 206
+                        }
+                      },
+                      {
+                        "name": null,
+                        "value": {
+                          "kind": {
+                            "Ref": "self"
+                          },
+                          "span": {
+                            "file": "golden.yl",
+                            "start": 208,
+                            "end": 212
+                          }
+                        },
+                        "span": {
+                          "file": "golden.yl",
+                          "start": 208,
+                          "end": 212
+                        }
+                      }
+                    ],
+                    "span": {
+                      "file": "golden.yl",
+                      "start": 182,
+                      "end": 213
+                    }
+                  }
+                ],
+                "span": {
+                  "file": "golden.yl",
+                  "start": 182,
+                  "end": 213
+                }
+              },
+              {
+                "actions": [
+                  {
+                    "If": {
+                      "condition": {
+                        "kind": {
+                          "Call": [
+                            "isPresent",
+                            [
+                              {
+                                "name": null,
+                                "value": {
+                                  "kind": {
+                                    "Call": [
+                                      "find",
+                                      [
+                                        {
+                                          "name": null,
+                                          "value": {
+                                            "kind": {
+                                              "Call": [
+                                                "ancestors",
+                                                [
+                                                  {
+                                                    "name": null,
+                                                    "value": {
+                                                      "kind": {
+                                                        "Ref": "name"
+                                                      },
+                                                      "span": {
+                                                        "file": "golden.yl",
+                                                        "start": 251,
+                                                        "end": 255
+                                                      }
+                                                    },
+                                                    "span": {
+                                                      "file": "golden.yl",
+                                                      "start": 251,
+                                                      "end": 255
+                                                    }
+                                                  }
+                                                ]
+                                              ]
+                                            },
+                                            "span": {
+                                              "file": "golden.yl",
+                                              "start": 241,
+                                              "end": 256
+                                            }
+                                          },
+                                          "span": {
+                                            "file": "golden.yl",
+                                            "start": 241,
+                                            "end": 256
+                                          }
+                                        },
+                                        {
+                                          "name": null,
+                                          "value": {
+                                            "kind": {
+                                              "Lambda": {
+                                                "parameter": "ancestor",
+                                                "body": {
+                                                  "kind": {
+                                                    "Call": [
+                                                      "get",
+                                                      [
+                                                        {
+                                                          "name": null,
+                                                          "value": {
+                                                            "kind": {
+                                                              "Tuple": [
+                                                                {
+                                                                  "kind": {
+                                                                    "Ref": "ancestor"
+                                                                  },
+                                                                  "span": {
+                                                                    "file": "golden.yl",
+                                                                    "start": 275,
+                                                                    "end": 283
+                                                                  }
+                                                                },
+                                                                {
+                                                                  "kind": {
+                                                                    "Ref": "scope"
+                                                                  },
+                                                                  "span": {
+                                                                    "file": "golden.yl",
+                                                                    "start": 285,
+                                                                    "end": 290
+                                                                  }
+                                                                }
+                                                              ]
+                                                            },
+                                                            "span": {
+                                                              "file": "golden.yl",
+                                                              "start": 274,
+                                                              "end": 291
+                                                            }
+                                                          },
+                                                          "span": {
+                                                            "file": "golden.yl",
+                                                            "start": 274,
+                                                            "end": 291
+                                                          }
+                                                        }
+                                                      ]
+                                                    ]
+                                                  },
+                                                  "span": {
+                                                    "file": "golden.yl",
+                                                    "start": 270,
+                                                    "end": 292
+                                                  }
+                                                }
+                                              }
+                                            },
+                                            "span": {
+                                              "file": "golden.yl",
+                                              "start": 258,
+                                              "end": 292
+                                            }
+                                          },
+                                          "span": {
+                                            "file": "golden.yl",
+                                            "start": 258,
+                                            "end": 292
+                                          }
+                                        }
+                                      ]
+                                    ]
+                                  },
+                                  "span": {
+                                    "file": "golden.yl",
+                                    "start": 236,
+                                    "end": 293
+                                  }
+                                },
+                                "span": {
+                                  "file": "golden.yl",
+                                  "start": 236,
+                                  "end": 293
+                                }
+                              }
+                            ]
+                          ]
+                        },
+                        "span": {
+                          "file": "golden.yl",
+                          "start": 226,
+                          "end": 294
+                        }
+                      },
+                      "actions": [
+                        {
+                          "Call": {
+                            "name": "contribute",
+                            "arguments": [
+                              {
+                                "name": null,
+                                "value": {
+                                  "kind": {
+                                    "Tuple": [
+                                      {
+                                        "kind": {
+                                          "Ref": "name"
+                                        },
+                                        "span": {
+                                          "file": "golden.yl",
+                                          "start": 321,
+                                          "end": 325
+                                        }
+                                      },
+                                      {
+                                        "kind": {
+                                          "Ref": "result"
+                                        },
+                                        "span": {
+                                          "file": "golden.yl",
+                                          "start": 327,
+                                          "end": 333
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "span": {
+                                    "file": "golden.yl",
+                                    "start": 320,
+                                    "end": 334
+                                  }
+                                },
+                                "span": {
+                                  "file": "golden.yl",
+                                  "start": 320,
+                                  "end": 334
+                                }
+                              },
+                              {
+                                "name": null,
+                                "value": {
+                                  "kind": {
+                                    "Call": [
+                                      "find",
+                                      [
+                                        {
+                                          "name": null,
+                                          "value": {
+                                            "kind": {
+                                              "Call": [
+                                                "ancestors",
+                                                [
+                                                  {
+                                                    "name": null,
+                                                    "value": {
+                                                      "kind": {
+                                                        "Ref": "name"
+                                                      },
+                                                      "span": {
+                                                        "file": "golden.yl",
+                                                        "start": 351,
+                                                        "end": 355
+                                                      }
+                                                    },
+                                                    "span": {
+                                                      "file": "golden.yl",
+                                                      "start": 351,
+                                                      "end": 355
+                                                    }
+                                                  }
+                                                ]
+                                              ]
+                                            },
+                                            "span": {
+                                              "file": "golden.yl",
+                                              "start": 341,
+                                              "end": 356
+                                            }
+                                          },
+                                          "span": {
+                                            "file": "golden.yl",
+                                            "start": 341,
+                                            "end": 356
+                                          }
+                                        },
+                                        {
+                                          "name": null,
+                                          "value": {
+                                            "kind": {
+                                              "Lambda": {
+                                                "parameter": "ancestor",
+                                                "body": {
+                                                  "kind": {
+                                                    "Call": [
+                                                      "get",
+                                                      [
+                                                        {
+                                                          "name": null,
+                                                          "value": {
+                                                            "kind": {
+                                                              "Tuple": [
+                                                                {
+                                                                  "kind": {
+                                                                    "Ref": "ancestor"
+                                                                  },
+                                                                  "span": {
+                                                                    "file": "golden.yl",
+                                                                    "start": 375,
+                                                                    "end": 383
+                                                                  }
+                                                                },
+                                                                {
+                                                                  "kind": {
+                                                                    "Ref": "scope"
+                                                                  },
+                                                                  "span": {
+                                                                    "file": "golden.yl",
+                                                                    "start": 385,
+                                                                    "end": 390
+                                                                  }
+                                                                }
+                                                              ]
+                                                            },
+                                                            "span": {
+                                                              "file": "golden.yl",
+                                                              "start": 374,
+                                                              "end": 391
+                                                            }
+                                                          },
+                                                          "span": {
+                                                            "file": "golden.yl",
+                                                            "start": 374,
+                                                            "end": 391
+                                                          }
+                                                        }
+                                                      ]
+                                                    ]
+                                                  },
+                                                  "span": {
+                                                    "file": "golden.yl",
+                                                    "start": 370,
+                                                    "end": 392
+                                                  }
+                                                }
+                                              }
+                                            },
+                                            "span": {
+                                              "file": "golden.yl",
+                                              "start": 358,
+                                              "end": 392
+                                            }
+                                          },
+                                          "span": {
+                                            "file": "golden.yl",
+                                            "start": 358,
+                                            "end": 392
+                                          }
+                                        }
+                                      ]
+                                    ]
+                                  },
+                                  "span": {
+                                    "file": "golden.yl",
+                                    "start": 336,
+                                    "end": 393
+                                  }
+                                },
+                                "span": {
+                                  "file": "golden.yl",
+                                  "start": 336,
+                                  "end": 393
+                                }
+                              }
+                            ],
+                            "span": {
+                              "file": "golden.yl",
+                              "start": 309,
+                              "end": 394
+                            }
+                          }
+                        }
+                      ],
+                      "otherwise": [],
+                      "span": {
+                        "file": "golden.yl",
+                        "start": 223,
+                        "end": 404
+                      }
+                    }
+                  }
+                ],
+                "name": null,
+                "calls": [],
+                "span": {
+                  "file": "golden.yl",
+                  "start": 223,
+                  "end": 404
+                }
+              }
+            ],
+            "precedence": [],
+            "span": {
+              "file": "golden.yl",
+              "start": 172,
+              "end": 410
+            }
+          }
+        }
+      },
+      "span": {
+        "file": "golden.yl",
+        "start": 131,
+        "end": 412
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Entry": {
+          "node": {
+            "kind": {
+              "Ref": "Program"
+            },
+            "span": {
+              "file": "golden.yl",
+              "start": 420,
+              "end": 427
+            }
+          },
+          "trivia": []
+        }
+      },
+      "span": {
+        "file": "golden.yl",
+        "start": 414,
+        "end": 427
+      }
+    }
+  ],
+  "span": {
+    "file": "golden.yl",
+    "start": 0,
+    "end": 428
+  }
+}

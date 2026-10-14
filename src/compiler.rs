@@ -56,6 +56,13 @@ pub fn compile_language(entry_file: impl AsRef<Path>) -> CompileResult<CompiledL
     })?;
     let root = absolute.parent().unwrap_or(Path::new(".")).to_path_buf();
     let mut compiler = Compiler::default();
+    crate::semantics::queries::register(&mut compiler.registry).map_err(|error| {
+        vec![Diagnostic::error(
+            "yl.query_registry",
+            error,
+            Span::default(),
+        )]
+    })?;
     compiler
         .read_module(&absolute, &root)
         .map_err(|e| vec![e])?;
@@ -75,8 +82,18 @@ pub fn compile_sources_with_registry(
     sources: &BTreeMap<String, String>,
     registry: &OperationRegistry,
 ) -> CompileResult<CompiledLanguage> {
+    let mut registry = registry.clone();
+    if !registry.contains_module("std/query") {
+        crate::semantics::queries::register(&mut registry).map_err(|error| {
+            vec![Diagnostic::error(
+                "yl.query_registry",
+                error,
+                Span::default(),
+            )]
+        })?;
+    }
     let mut compiler = Compiler {
-        registry: registry.clone(),
+        registry,
         ..Compiler::default()
     };
     compiler.read_sources(entry, sources).map_err(|e| vec![e])?;
@@ -1185,7 +1202,13 @@ impl Compiler {
                 })?;
             }
         }
-        language.version = if language.meanings.is_empty() { 1 } else { 2 };
+        language.version = if !language.query_meanings.is_empty() {
+            3
+        } else if language.meanings.is_empty() {
+            1
+        } else {
+            2
+        };
         validate_language(&language)?;
         Ok(language)
     }
@@ -2544,7 +2567,12 @@ impl Compiler {
                 _ => false,
             }
         }
-        fn action(compiler: &Compiler, symbol: &Symbol, call: &MeaningSyntaxCall) -> Result<bool> {
+        fn action(
+            compiler: &Compiler,
+            symbol: &Symbol,
+            call: &MeaningSyntaxCall,
+            visiting: &mut BTreeSet<String>,
+        ) -> Result<bool> {
             if matches!(call.name.as_str(), "error" | "warn" | "warning") {
                 return Ok(false);
             }
@@ -2553,6 +2581,13 @@ impl Compiler {
                 return Ok(true);
             }
             if let Some(wrapper) = compiler.symbols.get(&id) {
+                if visiting.len() >= 128 || !visiting.insert(id.clone()) {
+                    return Err(Diagnostic::error(
+                        "yl.operation_cycle",
+                        "Recursive semantic operation expansion",
+                        call.span.clone(),
+                    ));
+                }
                 if let DeclKind::Operation {
                     body: OperationBody::Conditional(_),
                     ..
@@ -2560,9 +2595,36 @@ impl Compiler {
                 {
                     return Ok(true);
                 }
+                if let DeclKind::Operation {
+                    body: OperationBody::Actions(calls),
+                    ..
+                } = &wrapper.declaration.kind
+                {
+                    for nested in calls {
+                        if action(compiler, wrapper, nested, visiting)? {
+                            return Ok(true);
+                        }
+                    }
+                }
+                visiting.remove(&id);
             }
+            let bindings = match &symbol.declaration.kind {
+                DeclKind::Operation { parameters, .. } => parameters
+                    .iter()
+                    .map(|parameter| {
+                        (
+                            parameter.name.clone(),
+                            Expr {
+                                kind: ExprKind::Absent,
+                                span: parameter.span.clone(),
+                            },
+                        )
+                    })
+                    .collect(),
+                _ => BTreeMap::new(),
+            };
             let expanded =
-                compiler.expand_semantic_actions(symbol, call, &BTreeMap::new(), &mut vec![])?;
+                compiler.expand_semantic_actions(symbol, call, &bindings, &mut vec![])?;
             Ok(expanded.iter().any(|call| {
                 call.name.starts_with("std/query#")
                     || call.arguments.iter().any(|arg| query(&arg.value))
@@ -2572,7 +2634,7 @@ impl Compiler {
             if matches!(call.name.as_str(), "error" | "warn" | "warning") {
                 return Ok(true);
             }
-            if action(self, symbol, call)? {
+            if action(self, symbol, call, &mut BTreeSet::new())? {
                 return Ok(true);
             }
         }
@@ -2593,7 +2655,7 @@ impl Compiler {
             }
             for case in &matching.cases {
                 for call in &case.actions {
-                    if action(self, symbol, call)? {
+                    if action(self, symbol, call, &mut BTreeSet::new())? {
                         return Ok(true);
                     }
                 }
@@ -2802,7 +2864,7 @@ impl Compiler {
         bindings: &BTreeMap<String, Expr>,
         stack: &mut Vec<String>,
     ) -> Result<Vec<crate::semantics::queries::QueryAction>> {
-        use crate::semantics::queries::{QueryAction as A, QueryCase};
+        use crate::semantics::queries::{QueryAction as A, QueryCase, QueryMessagePart};
         let mut result = vec![];
         for action in actions {
             match action {
@@ -2917,22 +2979,53 @@ impl Compiler {
                         let mut message = vec![];
                         let mut rest = text.as_str();
                         while let Some((before, after)) = rest.split_once("${") {
-                            message.push(MeaningMessagePart::Text(before.into()));
-                            let Some((capture, tail)) = after.split_once('}') else {
-                                return Err(Diagnostic::error(
-                                    "yl.invalid_diagnostic",
-                                    "Unterminated diagnostic interpolation",
-                                    call.span.clone(),
-                                ));
-                            };
-                            let capture = match bindings.get(capture).map(|expr| &expr.kind) {
-                                Some(ExprKind::Ref(value)) => value.as_str(),
-                                _ => capture,
-                            };
-                            message.push(MeaningMessagePart::Capture(capture.into()));
+                            message.push(QueryMessagePart::Text(before.into()));
+                            let mut quoted = false;
+                            let mut escaped = false;
+                            let close = after
+                                .char_indices()
+                                .find_map(|(offset, ch)| {
+                                    if escaped {
+                                        escaped = false;
+                                        return None;
+                                    }
+                                    if quoted && ch == '\\' {
+                                        escaped = true;
+                                        return None;
+                                    }
+                                    if ch == '"' {
+                                        quoted = !quoted;
+                                        return None;
+                                    }
+                                    (ch == '}' && !quoted).then_some(offset)
+                                })
+                                .ok_or_else(|| {
+                                    Diagnostic::error(
+                                        "yl.invalid_diagnostic",
+                                        "Unterminated diagnostic interpolation",
+                                        arg.span.clone(),
+                                    )
+                                })?;
+                            let capture = &after[..close];
+                            let tail = &after[close + 1..];
+                            let expression =
+                                crate::frontend::parse_semantic_expr(&arg.span.file, capture)
+                                    .map_err(|errors| {
+                                        Diagnostic::error(
+                                            "yl.invalid_diagnostic",
+                                            format!(
+                                                "Invalid diagnostic interpolation: {}",
+                                                errors[0].message
+                                            ),
+                                            arg.span.clone(),
+                                        )
+                                    })?;
+                            let value =
+                                self.lower_query_expr(symbol, &expression, bindings, stack)?;
+                            message.push(QueryMessagePart::Value(value));
                             rest = tail;
                         }
-                        message.push(MeaningMessagePart::Text(rest.into()));
+                        message.push(QueryMessagePart::Text(rest.into()));
                         result.push(A::Emit {
                             severity: if call.name == "error" {
                                 Severity::Error
@@ -3802,8 +3895,10 @@ fn edge_ref(term: &Term, right: bool) -> Option<&str> {
 }
 
 pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
-    if !matches!(language.version, 1 | 2)
-        || (language.version == 1 && !language.meanings.is_empty())
+    if !matches!(language.version, 1..=3)
+        || (language.version < 3 && !language.query_meanings.is_empty())
+        || (language.version == 1
+            && (!language.meanings.is_empty() || !language.query_meanings.is_empty()))
         || !language.rules.contains_key(&language.entry)
     {
         return Err(Diagnostic::error(
@@ -3846,6 +3941,9 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                     )
                 })?;
                 validate_meaning_captures(meanings, &capture_sets(inner).0)?;
+                if let Some(groups) = language.query_meanings.get(definition) {
+                    crate::semantics::queries::validate_groups(groups, &capture_sets(inner).0)?;
+                }
                 term(inner, language, span, depth + 1)
             }
             Term::Ref(id) if !language.rules.contains_key(id) => Err(Diagnostic::error(
@@ -3928,6 +4026,9 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
         if let Some(meanings) = language.meanings.get(family) {
             validate_meaning_captures(meanings, &captures)?;
         }
+        if let Some(groups) = language.query_meanings.get(family) {
+            crate::semantics::queries::validate_groups(groups, &captures)?;
+        }
         for check in &rule.constraints {
             let ty = validate_condition(
                 &check.condition,
@@ -3944,6 +4045,15 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                     rule.span.clone(),
                 ));
             }
+        }
+    }
+    for owner in language.query_meanings.keys() {
+        if !language.meanings.contains_key(owner) {
+            return Err(Diagnostic::error(
+                "yl.artifact",
+                "Query meanings have an unknown occurrence owner",
+                Span::default(),
+            ));
         }
     }
     for id in &language.trivia {
@@ -5080,6 +5190,48 @@ entry Program"#).unwrap();
                 QueryExpr::Capture("name".into())
             ])
         );
+    }
+    #[test]
+    fn diagnostics_interpolate_bound_values_and_nested_queries() {
+        use crate::semantics::queries::QueryMessagePart as P;
+        let language = compile(r#"import { get } from "std/query"
+operation require(actual) { if !actual { error("Bad ${actual}; attachment ${get((self, \"}tag\"))}") } }
+node Program = "x" { meanings { require(false) } }
+entry Program"#).unwrap();
+        let QueryAction::If { then_actions, .. } =
+            &language.query_meanings["query.yl#Program"][0].actions[0]
+        else {
+            panic!("expected if");
+        };
+        let QueryAction::Emit { message, .. } = &then_actions[0] else {
+            panic!("expected diagnostic");
+        };
+        assert_eq!(message[1], P::Value(QueryExpr::Bool(false)));
+        assert_eq!(
+            message[3],
+            P::Value(QueryExpr::Call {
+                name: "std/query#get".into(),
+                args: vec![QueryExpr::Tuple(vec![
+                    QueryExpr::SelfValue,
+                    QueryExpr::Text("}tag".into())
+                ])]
+            })
+        );
+    }
+    #[test]
+    fn malformed_diagnostic_expressions_are_structured_errors() {
+        for message in ["${get(}", "${}", "${self self}"] {
+            let source = format!(
+                r#"node Program = "x" {{ meanings {{ if true {{ error("{message}") }} }} }} entry Program"#
+            );
+            let errors = compile(&source).unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.code == "yl.invalid_diagnostic"),
+                "{errors:?}"
+            );
+        }
     }
     #[test]
     fn named_query_arguments_preserve_contract_order() {

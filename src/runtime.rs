@@ -39,6 +39,7 @@ struct TerminalAddress {
 }
 #[derive(Clone)]
 struct Captured {
+    element_spans: Vec<Span>,
     repeated: bool,
     occurrences: Vec<usize>,
     value: AstValue,
@@ -48,6 +49,7 @@ struct Captured {
 }
 #[derive(Clone)]
 struct Match {
+    element_spans: Vec<Span>,
     end: usize,
     value: Option<AstValue>,
     origin: Option<Span>,
@@ -59,6 +61,7 @@ struct Match {
 }
 #[derive(Clone)]
 struct MarkedValue {
+    element_spans: Vec<Span>,
     value: Option<AstValue>,
     origin: Option<Span>,
     fields: BTreeMap<String, Captured>,
@@ -74,6 +77,7 @@ struct OperatorContext<'a> {
 impl Match {
     fn empty(end: usize) -> Self {
         Self {
+            element_spans: vec![],
             end,
             value: None,
             origin: None,
@@ -544,6 +548,7 @@ impl Runtime<'_> {
                 (
                     name.clone(),
                     crate::semantics::SourceCapture {
+                        element_spans: capture.element_spans.clone(),
                         selection: None,
                         repeated: capture.repeated,
                         value: capture.value.clone(),
@@ -834,6 +839,7 @@ impl Runtime<'_> {
                     depth + usize::from(*q != Quantifier::Optional),
                     result.end,
                 )?;
+                result.element_spans = origins.iter().flatten().cloned().collect();
                 result.origin = if *q == Quantifier::Optional {
                     origins.into_iter().next().flatten()
                 } else {
@@ -852,6 +858,7 @@ impl Runtime<'_> {
                 result.fields.insert(
                     name.clone(),
                     Captured {
+                        element_spans: result.element_spans.clone(),
                         repeated: capture_repeats(term),
                         occurrences: result
                             .occurrences
@@ -927,6 +934,7 @@ impl Runtime<'_> {
             Term::Mark { id, term } => {
                 let mut matched = self.term_with(term, start, raw, context)?;
                 matched.marked.entry(*id).or_default().push(MarkedValue {
+                    element_spans: matched.element_spans.clone(),
                     value: matched.value.clone(),
                     origin: matched.origin.clone().or_else(|| {
                         matched
@@ -952,6 +960,7 @@ impl Runtime<'_> {
                 matched.occurrences.clear();
                 let mut values = vec![];
                 let mut origins = vec![];
+                let mut element_spans = vec![];
                 let mut depth = 0;
                 for original in originals {
                     if let Some(value) = original.value {
@@ -960,11 +969,14 @@ impl Runtime<'_> {
                         if *collect_lists {
                             if let AstValue::List(items) = value {
                                 values.extend(items);
+                                element_spans.extend(original.element_spans.clone());
                             } else {
                                 values.push(value);
+                                element_spans.extend(original.origin.clone());
                             }
                         } else if value != AstValue::None {
                             values.push(value);
+                            element_spans.extend(original.origin.clone());
                         }
                     }
                     matched.fields.extend(original.fields);
@@ -972,6 +984,7 @@ impl Runtime<'_> {
                 }
                 matched.value_depth =
                     self.check_value_depth(depth + usize::from(quantifier.is_some()), matched.end)?;
+                matched.element_spans = element_spans;
                 matched.origin = if matches!(quantifier, Some(Quantifier::Star | Quantifier::Plus))
                 {
                     let spans: Vec<_> = origins.into_iter().flatten().collect();

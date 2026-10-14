@@ -1,6 +1,7 @@
 //! Declarative contribution discovery and dependency evaluation over syntax identities.
 use super::*;
 use std::collections::BTreeSet;
+use std::{cell::RefCell, rc::Rc};
 
 const MODULE: &str = "std/query";
 
@@ -14,7 +15,10 @@ pub fn register(registry: &mut OperationRegistry) -> Result<(), String> {
         ("contribute", vec!["key", "value"]),
         ("contributeAll", vec!["key", "values"]),
         ("ancestors", vec!["value"]),
+        ("children", vec!["value"]),
         ("find", vec!["values", "callback"]),
+        ("map", vec!["values", "callback"]),
+        ("every", vec!["values", "callback"]),
         ("text", vec!["value"]),
         ("isPresent", vec!["value"]),
         ("equal", vec!["left", "right"]),
@@ -23,6 +27,12 @@ pub fn register(registry: &mut OperationRegistry) -> Result<(), String> {
         ("hypothetical", vec!["key", "assumptions"]),
         ("facts", vec!["key"]),
         ("concat", vec!["values"]),
+        ("contains", vec!["values", "value"]),
+        ("unique", vec!["values"]),
+        ("isSubset", vec!["left", "right"]),
+        ("lookup", vec!["fields", "key"]),
+        ("keys", vec!["fields"]),
+        ("zip", vec!["left", "right"]),
     ] {
         registry.register(
             MODULE,
@@ -105,7 +115,7 @@ enum Effect {
     Contributions(QueryExpr, QueryExpr),
     Diagnostic {
         severity: crate::diagnostic::Severity,
-        message: Vec<MeaningMessagePart>,
+        message: Vec<QueryMessagePart>,
         target: Option<QueryExpr>,
     },
     Observe(QueryExpr),
@@ -165,41 +175,84 @@ impl Pattern {
 struct Trace {
     reads: BTreeSet<QueryKey>,
     waits: BTreeSet<usize>,
+    producers: BTreeSet<usize>,
 }
 
 type Locals = BTreeMap<String, SemanticValue>;
+type HypotheticalMemo = BTreeMap<String, (Outcome, BTreeSet<QueryKey>)>;
 
 struct Engine<'a> {
     producers: Vec<Producer<'a>>,
     occurrences: BTreeMap<usize, &'a Occurrence>,
     parents: BTreeMap<usize, Option<usize>>,
+    terminal_parents: BTreeMap<usize, usize>,
     overrides: BTreeMap<QueryKey, SemanticValue>,
     hypothetical_depth: usize,
+    source: &'a str,
+    hypothetical_cache: Rc<RefCell<HypotheticalMemo>>,
 }
 
 fn source_identity(source: &SourceCapture) -> Option<SemanticIdentity> {
     match source.occurrence_selection()? {
         OccurrenceSelection::One(id) => Some(SemanticIdentity::Occurrence(id)),
+        OccurrenceSelection::Terminal(id) => Some(SemanticIdentity::Service {
+            service: "core/syntax".into(),
+            id,
+        }),
         _ => None,
     }
+}
+
+fn equal_values(left: &SemanticValue, right: &SemanticValue) -> bool {
+    fn normalize(value: &SemanticValue) -> SemanticValue {
+        fn selection(value: OccurrenceSelection) -> SemanticValue {
+            match value {
+                OccurrenceSelection::One(id) => {
+                    SemanticValue::Identity(SemanticIdentity::Occurrence(id))
+                }
+                OccurrenceSelection::Terminal(id) => {
+                    SemanticValue::Identity(SemanticIdentity::Service {
+                        service: "core/syntax".into(),
+                        id,
+                    })
+                }
+                OccurrenceSelection::List(items) => {
+                    SemanticValue::List(items.into_iter().map(selection).collect())
+                }
+                OccurrenceSelection::Absent => SemanticValue::Absent,
+            }
+        }
+        match value {
+            SemanticValue::Source(source) => source
+                .occurrence_selection()
+                .map(selection)
+                .unwrap_or_else(|| value.clone()),
+            SemanticValue::Tuple(items) => {
+                SemanticValue::Tuple(items.iter().map(normalize).collect())
+            }
+            SemanticValue::List(items) => {
+                SemanticValue::List(items.iter().map(normalize).collect())
+            }
+            value => value.clone(),
+        }
+    }
+    normalize(left) == normalize(right)
 }
 
 fn address(value: &SemanticValue, span: &Span) -> Result<Option<QueryKey>, Diagnostic> {
     Ok(match value {
         SemanticValue::Absent => None,
         SemanticValue::Identity(id) => Some(QueryKey::Identity(id.clone())),
-        SemanticValue::Source(source) => {
-            source_identity(source).map(QueryKey::Identity).or_else(|| {
-                // Terminal-only captures retain their source address until the core
-                // terminal-identity seam supplies an explicit selection.
-                Some(QueryKey::Tuple(vec![
-                    QueryKey::Symbol("core/syntax#terminal".into()),
-                    QueryKey::Text(source.span.file.clone()),
-                    QueryKey::Text(source.span.start.to_string()),
-                    QueryKey::Text(source.span.end.to_string()),
-                ]))
-            })
-        }
+        SemanticValue::Source(source) if source.value == AstValue::None => None,
+        SemanticValue::Source(source) => Some(QueryKey::Identity(
+            source_identity(source).ok_or_else(|| {
+                Diagnostic::error(
+                    "query.key",
+                    "A key requires one syntax identity, not a repeated capture",
+                    source.span.clone(),
+                )
+            })?,
+        )),
         SemanticValue::Text(value) => Some(QueryKey::Text(value.clone())),
         SemanticValue::Symbol(value) => Some(QueryKey::Symbol(value.clone())),
         SemanticValue::Bool(value) => Some(QueryKey::Bool(*value)),
@@ -228,7 +281,114 @@ fn primitive(name: &str) -> &str {
 }
 
 impl<'a> Engine<'a> {
-    fn new(language: &CompiledLanguage, occurrences: &'a [Occurrence]) -> Self {
+    fn display_value(&self, value: &SemanticValue) -> String {
+        match value {
+            SemanticValue::Source(source) => source.text.clone(),
+            SemanticValue::Text(text) | SemanticValue::Symbol(text) => text.clone(),
+            SemanticValue::Bool(value) => value.to_string(),
+            SemanticValue::Absent => "absent".into(),
+            SemanticValue::Identity(SemanticIdentity::Occurrence(id)) => self
+                .occurrences
+                .get(id)
+                .and_then(|owner| self.source.get(owner.span.start..owner.span.end))
+                .unwrap_or("")
+                .into(),
+            SemanticValue::Tuple(items) => format!(
+                "({})",
+                items
+                    .iter()
+                    .map(|value| self.display_value(value))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            SemanticValue::List(items) => format!(
+                "[{}]",
+                items
+                    .iter()
+                    .map(|value| self.display_value(value))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            value => serde_json::to_string(value).unwrap_or_else(|_| "<value>".into()),
+        }
+    }
+
+    fn capture_value(&self, capture: SourceCapture) -> SemanticValue {
+        fn materialize(
+            engine: &Engine<'_>,
+            selected: OccurrenceSelection,
+            value: AstValue,
+            outer: &SourceCapture,
+            position: &mut usize,
+        ) -> SemanticValue {
+            if let OccurrenceSelection::List(items) = selected {
+                let values = match value {
+                    AstValue::List(items) => items,
+                    _ => vec![],
+                };
+                return SemanticValue::List(
+                    items
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, selected)| {
+                            materialize(
+                                engine,
+                                selected,
+                                values.get(index).cloned().unwrap_or(AstValue::None),
+                                outer,
+                                position,
+                            )
+                        })
+                        .collect(),
+                );
+            }
+            if matches!(selected, OccurrenceSelection::Absent) {
+                return SemanticValue::Absent;
+            }
+            let span = match &selected {
+                OccurrenceSelection::One(id) => engine
+                    .occurrences
+                    .get(id)
+                    .map(|owner| owner.span.clone())
+                    .unwrap_or_else(|| outer.span.clone()),
+                OccurrenceSelection::Terminal(_) => {
+                    let span = outer
+                        .element_spans
+                        .get(*position)
+                        .cloned()
+                        .unwrap_or_else(|| outer.span.clone());
+                    *position += 1;
+                    span
+                }
+                _ => outer.span.clone(),
+            };
+            let occurrences = match selected {
+                OccurrenceSelection::One(id) => vec![id],
+                _ => vec![],
+            };
+            SemanticValue::Source(SourceCapture {
+                element_spans: vec![],
+                selection: Some(selected),
+                repeated: false,
+                value,
+                span: span.clone(),
+                text: engine.source.get(span.start..span.end).unwrap_or("").into(),
+                occurrences,
+            })
+        }
+        if capture.repeated {
+            if let Some(selection) = capture.occurrence_selection() {
+                return materialize(self, selection, capture.value.clone(), &capture, &mut 0);
+            }
+        }
+        if capture.value == AstValue::None {
+            SemanticValue::Absent
+        } else {
+            SemanticValue::Source(capture)
+        }
+    }
+
+    fn new(language: &CompiledLanguage, occurrences: &'a [Occurrence], source: &'a str) -> Self {
         fn visit<'a>(
             owner: &'a Occurrence,
             parent: Option<usize>,
@@ -245,11 +405,38 @@ impl<'a> Engine<'a> {
             producers: vec![],
             occurrences: BTreeMap::new(),
             parents: BTreeMap::new(),
+            terminal_parents: BTreeMap::new(),
             overrides: BTreeMap::new(),
             hypothetical_depth: 0,
+            source,
+            hypothetical_cache: Rc::default(),
         };
         for owner in occurrences {
             visit(owner, None, &mut engine.occurrences, &mut engine.parents);
+        }
+        fn terminals(
+            selection: &OccurrenceSelection,
+            owner: usize,
+            parents: &mut BTreeMap<usize, usize>,
+        ) {
+            match selection {
+                OccurrenceSelection::Terminal(id) => {
+                    parents.insert(*id, owner);
+                }
+                OccurrenceSelection::List(items) => {
+                    for item in items {
+                        terminals(item, owner, parents);
+                    }
+                }
+                _ => {}
+            }
+        }
+        for owner in engine.occurrences.values() {
+            for capture in owner.captures.values() {
+                if let Some(selection) = capture.occurrence_selection() {
+                    terminals(&selection, owner.id, &mut engine.terminal_parents);
+                }
+            }
         }
         // Discovery completes for the entire committed occurrence forest before
         // any get can observe absence. Conditional branches are included too.
@@ -343,14 +530,19 @@ impl<'a> Engine<'a> {
             SemanticValue::Source(source) => source_identity(source),
             _ => None,
         };
-        let Some(SemanticIdentity::Occurrence(id)) = identity else {
-            return Err(Diagnostic::error(
-                "query.ancestors",
-                "Expected a syntax occurrence",
-                span.clone(),
-            ));
+        let mut current = match identity {
+            Some(SemanticIdentity::Occurrence(id)) => self.parents.get(&id).copied().flatten(),
+            Some(SemanticIdentity::Service { service, id }) if service == "core/syntax" => {
+                self.terminal_parents.get(&id).copied()
+            }
+            _ => {
+                return Err(Diagnostic::error(
+                    "query.ancestors",
+                    "Expected a syntax occurrence",
+                    span.clone(),
+                ))
+            }
         };
-        let mut current = self.parents.get(&id).copied().flatten();
         let mut values = vec![];
         while let Some(id) = current {
             values.push(SemanticValue::Identity(SemanticIdentity::Occurrence(id)));
@@ -379,6 +571,7 @@ impl<'a> Engine<'a> {
             {
                 continue;
             }
+            trace.producers.insert(id);
             match &producer.state {
                 ProducerState::Pending => {
                     pending = true;
@@ -433,7 +626,7 @@ impl<'a> Engine<'a> {
             QueryExpr::SelfValue => ready(SemanticValue::Identity(SemanticIdentity::Occurrence(
                 owner.id,
             ))),
-            QueryExpr::Capture(name) => ready(SemanticValue::Source(owner.capture_path(name)?)),
+            QueryExpr::Capture(name) => ready(self.capture_value(owner.capture_path(name)?)),
             QueryExpr::Local(name) => {
                 locals
                     .get(name)
@@ -500,7 +693,7 @@ impl<'a> Engine<'a> {
                 owner.span.clone(),
             )
         };
-        if name == "find" {
+        if matches!(name, "find" | "map" | "every") {
             let values = match self.eval(&args[0], owner, locals, trace)? {
                 Outcome::Ready(SemanticValue::List(values)) => values,
                 Outcome::Ready(_) => return Err(bad()),
@@ -510,14 +703,33 @@ impl<'a> Engine<'a> {
                 return Err(bad());
             };
             let mut locals = locals.clone();
+            let mut mapped = vec![];
+            let mut pending = false;
             for value in values {
                 locals.insert(parameter.clone(), value);
-                match self.eval(body, owner, &locals, trace)? {
-                    Outcome::Ready(SemanticValue::Absent) => {}
-                    result => return Ok(result),
+                let result = self.eval(body, owner, &locals, trace)?;
+                match (name, result) {
+                    ("find", Outcome::Ready(SemanticValue::Absent)) => {}
+                    ("find", result) => return Ok(result),
+                    ("map", Outcome::Ready(value)) => mapped.push(value),
+                    ("every", Outcome::Ready(SemanticValue::Bool(false))) => {
+                        return Ok(Outcome::Ready(SemanticValue::Bool(false)))
+                    }
+                    ("every", Outcome::Ready(SemanticValue::Bool(true))) => {}
+                    (_, Outcome::Pending) => pending = true,
+                    (_, Outcome::Conflict(ids)) => return Ok(Outcome::Conflict(ids)),
+                    _ => return Err(bad()),
                 }
             }
-            return Ok(Outcome::Ready(SemanticValue::Absent));
+            return Ok(if pending {
+                Outcome::Pending
+            } else {
+                Outcome::Ready(match name {
+                    "map" => SemanticValue::List(mapped),
+                    "every" => SemanticValue::Bool(true),
+                    _ => SemanticValue::Absent,
+                })
+            });
         }
         let mut values = vec![];
         for arg in args {
@@ -534,10 +746,43 @@ impl<'a> Engine<'a> {
                 return Ok(self.lookup(&key, name == "getAll", name == "facts", trace));
             }
             ("ancestors", [value]) => SemanticValue::List(self.ancestors(value, &owner.span)?),
+            ("children", [value]) => {
+                let identity = match value {
+                    SemanticValue::Identity(identity) => Some(identity.clone()),
+                    SemanticValue::Source(source) => source_identity(source),
+                    _ => None,
+                };
+                let children = match identity {
+                    Some(SemanticIdentity::Occurrence(id)) => self
+                        .occurrences
+                        .get(&id)
+                        .ok_or_else(bad)?
+                        .children
+                        .iter()
+                        .map(|owner| {
+                            SemanticValue::Identity(SemanticIdentity::Occurrence(owner.id))
+                        })
+                        .collect(),
+                    Some(SemanticIdentity::Service { service, .. }) if service == "core/syntax" => {
+                        vec![]
+                    }
+                    _ => return Err(bad()),
+                };
+                SemanticValue::List(children)
+            }
             ("text", [SemanticValue::Source(source)]) => SemanticValue::Text(source.text.clone()),
             ("text", [SemanticValue::Text(text)]) => SemanticValue::Text(text.clone()),
+            ("text", [SemanticValue::Identity(SemanticIdentity::Occurrence(id))]) => {
+                let owner = self.occurrences.get(id).ok_or_else(bad)?;
+                SemanticValue::Text(
+                    self.source
+                        .get(owner.span.start..owner.span.end)
+                        .unwrap_or("")
+                        .into(),
+                )
+            }
             ("isPresent", [value]) => SemanticValue::Bool(!matches!(value, SemanticValue::Absent)),
-            ("equal", [left, right]) => SemanticValue::Bool(left == right),
+            ("equal", [left, right]) => SemanticValue::Bool(equal_values(left, right)),
             ("hasMultiple", [SemanticValue::List(values)]) => SemanticValue::Bool(values.len() > 1),
             ("first", [SemanticValue::List(values)]) => {
                 values.first().cloned().unwrap_or(SemanticValue::Absent)
@@ -551,6 +796,69 @@ impl<'a> Engine<'a> {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 SemanticValue::Text(texts.concat())
+            }
+            ("contains", [SemanticValue::List(values), value]) => {
+                SemanticValue::Bool(values.iter().any(|item| equal_values(item, value)))
+            }
+            ("unique", [SemanticValue::List(values)]) => {
+                let mut unique = vec![];
+                for value in values {
+                    if !unique.iter().any(|item| equal_values(item, value)) {
+                        unique.push(value.clone());
+                    }
+                }
+                SemanticValue::List(unique)
+            }
+            ("isSubset", [SemanticValue::List(left), SemanticValue::List(right)]) => {
+                SemanticValue::Bool(
+                    left.iter()
+                        .all(|value| right.iter().any(|item| equal_values(value, item))),
+                )
+            }
+            ("lookup", [SemanticValue::List(fields), key]) => {
+                let mut result = None;
+                for field in fields {
+                    let SemanticValue::Tuple(pair) = field else {
+                        return Err(bad());
+                    };
+                    if pair.len() != 2 {
+                        return Err(bad());
+                    }
+                    if equal_values(&pair[0], key) {
+                        if result.is_some() {
+                            return Err(Diagnostic::error(
+                                "query.map_duplicate",
+                                "Map lookup has multiple entries for the same key",
+                                owner.span.clone(),
+                            ));
+                        }
+                        result = Some(pair[1].clone());
+                    }
+                }
+                result.unwrap_or(SemanticValue::Absent)
+            }
+            ("keys", [SemanticValue::List(fields)]) => {
+                let mut keys = vec![];
+                for field in fields {
+                    let SemanticValue::Tuple(pair) = field else {
+                        return Err(bad());
+                    };
+                    if pair.len() != 2 {
+                        return Err(bad());
+                    }
+                    keys.push(pair[0].clone());
+                }
+                SemanticValue::List(keys)
+            }
+            ("zip", [SemanticValue::List(left), SemanticValue::List(right)]) => {
+                SemanticValue::List(
+                    left.iter()
+                        .zip(right)
+                        .map(|(left, right)| {
+                            SemanticValue::Tuple(vec![left.clone(), right.clone()])
+                        })
+                        .collect(),
+                )
             }
             ("hypothetical", [key, SemanticValue::List(assumptions)]) => {
                 return self.hypothetical(key, assumptions, trace, &owner.span);
@@ -794,9 +1102,13 @@ impl<'a> Engine<'a> {
                 let mut text = String::new();
                 for part in message {
                     match part {
-                        MeaningMessagePart::Text(value) => text.push_str(value),
-                        MeaningMessagePart::Capture(name) => {
-                            text.push_str(&producer.owner.capture_path(name)?.text)
+                        QueryMessagePart::Text(value) => text.push_str(value),
+                        QueryMessagePart::Value(value) => {
+                            match self.eval(value, producer.owner, &Locals::new(), trace)? {
+                                Outcome::Ready(value) => text.push_str(&self.display_value(&value)),
+                                Outcome::Pending => return Ok(ProducerState::Pending),
+                                Outcome::Conflict(ids) => return Ok(ProducerState::Conflict(ids)),
+                            }
                         }
                     }
                 }
@@ -826,7 +1138,10 @@ impl<'a> Engine<'a> {
                 .map(|(id, producer)| {
                     let mut trace = Trace::default();
                     let state = match self.evaluate_producer(producer, &mut trace) {
-                        Ok(state) => state,
+                        Ok(state) => {
+                            failures.remove(&id);
+                            state
+                        }
                         Err(error) => {
                             failures.insert(id, error);
                             ProducerState::Absent
@@ -882,8 +1197,11 @@ impl<'a> Engine<'a> {
             producers: self.producers.clone(),
             occurrences: self.occurrences.clone(),
             parents: self.parents.clone(),
+            terminal_parents: self.terminal_parents.clone(),
             overrides: self.overrides.clone(),
             hypothetical_depth: self.hypothetical_depth + 1,
+            source: self.source,
+            hypothetical_cache: self.hypothetical_cache.clone(),
         };
         for assumption in assumptions {
             let SemanticValue::Tuple(parts) = assumption else {
@@ -909,19 +1227,85 @@ impl<'a> Engine<'a> {
             };
             copy.overrides.insert(key, parts[1].clone());
         }
+        let memo_key =
+            serde_json::to_string(&(key.clone(), copy.overrides.iter().collect::<Vec<_>>()))
+                .map_err(|error| {
+                    Diagnostic::error("query.assumption", error.to_string(), span.clone())
+                })?;
+        if let Some((result, reads)) = self.hypothetical_cache.borrow().get(&memo_key) {
+            trace.reads.extend(reads.clone());
+            return Ok(result.clone());
+        }
         for producer in &mut copy.producers {
             producer.state = ProducerState::Pending;
             producer.reads.clear();
             producer.waits.clear();
         }
-        let failures = copy.settle();
-        if let Some(failure) = failures.into_iter().next() {
-            return Err(failure);
+        copy.infer_footprints();
+        // Demand only producers of the requested answer and the producers read
+        // while evaluating them. Replaying unrelated hypothetical callers would
+        // recursively invoke the same query despite no dependency on its result.
+        let mut active = BTreeSet::new();
+        let mut converged = false;
+        let mut failures = BTreeMap::new();
+        for _ in 0..(copy.producers.len() + 1).saturating_mul(8).max(32) {
+            let mut root_trace = Trace::default();
+            copy.lookup(&key, false, false, &mut root_trace);
+            let old_count = active.len();
+            active.extend(root_trace.producers);
+            let mut changed = old_count != active.len();
+            let mut updates = vec![];
+            for id in active.iter().copied() {
+                let mut reads = Trace::default();
+                let state = match copy.evaluate_producer(&copy.producers[id], &mut reads) {
+                    Ok(state) => {
+                        failures.remove(&id);
+                        state
+                    }
+                    Err(error) => {
+                        failures.insert(id, error);
+                        ProducerState::Absent
+                    }
+                };
+                updates.push((id, state, reads));
+            }
+            for (id, state, reads) in updates {
+                changed |= copy.producers[id].state != state;
+                let old_count = active.len();
+                active.extend(reads.producers);
+                changed |= old_count != active.len();
+                copy.producers[id].state = state;
+                copy.producers[id].reads = reads.reads;
+                copy.producers[id].waits = reads.waits;
+            }
+            changed |= copy.infer_footprints();
+            if !changed {
+                converged = true;
+                break;
+            }
+        }
+        if !converged {
+            return Err(Diagnostic::error(
+                "query.nonconvergent",
+                "Hypothetical query propagation did not converge",
+                span.clone(),
+            ));
+        }
+        if let Some(error) = failures.into_values().next() {
+            return Err(error);
         }
         let result = copy.lookup(&key, false, false, trace);
         // Dependencies on shared reads remain visible to the caller. All writes
         // and diagnostic contributions live only in the isolated calculation.
+        let mut shared_reads = BTreeSet::new();
         for producer in &copy.producers {
+            shared_reads.extend(
+                producer
+                    .reads
+                    .iter()
+                    .filter(|key| !copy.overrides.contains_key(*key))
+                    .cloned(),
+            );
             trace.reads.extend(
                 producer
                     .reads
@@ -929,6 +1313,11 @@ impl<'a> Engine<'a> {
                     .filter(|key| !copy.overrides.contains_key(*key))
                     .cloned(),
             );
+        }
+        if matches!(result, Outcome::Ready(_)) {
+            self.hypothetical_cache
+                .borrow_mut()
+                .insert(memo_key, (result.clone(), shared_reads));
         }
         Ok(result)
     }
@@ -939,11 +1328,12 @@ pub(super) fn execute(
     occurrences: &[Occurrence],
     graph: &mut SemanticGraph,
     diagnostics: &mut Vec<Diagnostic>,
+    source: &str,
 ) {
     if language.query_meanings.is_empty() {
         return;
     }
-    let mut engine = Engine::new(language, occurrences);
+    let mut engine = Engine::new(language, occurrences, source);
     diagnostics.extend(engine.settle());
     for (id, producer) in engine.producers.iter().enumerate() {
         let state = match &producer.state {
@@ -987,7 +1377,20 @@ pub(super) fn execute(
                 diagnostics.push(diagnostic);
                 "pending"
             }
-            ProducerState::Conflict(_) => "conflict",
+            ProducerState::Conflict(ids) => {
+                let mut diagnostic = Diagnostic::error(
+                    "query.conflict",
+                    "A query has multiple contributions and cannot select one value",
+                    producer.owner.span.clone(),
+                );
+                diagnostic.secondary = ids
+                    .iter()
+                    .filter_map(|id| engine.producers.get(*id))
+                    .map(|producer| producer.owner.span.clone())
+                    .collect();
+                diagnostics.push(diagnostic);
+                "conflict"
+            }
         };
         graph.query_dependencies.push(QueryDependency {
             producer: id,
@@ -996,6 +1399,176 @@ pub(super) fn execute(
             waits_for: producer.waits.iter().copied().collect(),
         });
     }
+}
+
+pub(crate) fn validate_groups(
+    groups: &[QueryGroup],
+    captures: &BTreeSet<String>,
+) -> Result<(), Diagnostic> {
+    fn arity(name: &str) -> Option<usize> {
+        if !name.starts_with("std/query#") {
+            return None;
+        }
+        match primitive(name) {
+            "get" | "getAll" | "ancestors" | "children" | "text" | "isPresent" | "hasMultiple"
+            | "first" | "facts" | "concat" | "unique" | "keys" => Some(1),
+            "contribute" | "contributeAll" | "find" | "map" | "every" | "equal"
+            | "hypothetical" | "contains" | "isSubset" | "lookup" | "zip" => Some(2),
+            _ => None,
+        }
+    }
+    fn expr(
+        value: &QueryExpr,
+        captures: &BTreeSet<String>,
+        locals: &BTreeSet<String>,
+        span: &Span,
+        depth: usize,
+    ) -> Result<(), Diagnostic> {
+        let bad = |message: String| Diagnostic::error("yl.artifact", message, span.clone());
+        if depth > 128 {
+            return Err(bad("Query nesting exceeds the resource limit".into()));
+        }
+        match value {
+            QueryExpr::Capture(name)
+                if !captures.contains(name.split('.').next().unwrap_or(name)) =>
+            {
+                Err(bad(format!("Query references unavailable capture {name}")))
+            }
+            QueryExpr::Local(name) if !locals.contains(name) => {
+                Err(bad(format!("Unbound query callback parameter {name}")))
+            }
+            QueryExpr::Call { name, args } => {
+                if arity(name) != Some(args.len())
+                    || matches!(primitive(name), "contribute" | "contributeAll")
+                {
+                    return Err(bad("Invalid query primitive or argument count".into()));
+                }
+                for (index, arg) in args.iter().enumerate() {
+                    if matches!(primitive(name), "find" | "map" | "every") && index == 1 {
+                        let QueryExpr::Lambda { parameter, body } = arg else {
+                            return Err(bad("find needs an expression callback".into()));
+                        };
+                        let mut locals = locals.clone();
+                        locals.insert(parameter.clone());
+                        expr(body, captures, &locals, span, depth + 1)?;
+                    } else {
+                        expr(arg, captures, locals, span, depth + 1)?;
+                    }
+                }
+                Ok(())
+            }
+            QueryExpr::Lambda { .. } => Err(bad(
+                "A callback is only valid as find's second argument".into(),
+            )),
+            QueryExpr::Tuple(values) | QueryExpr::List(values) => {
+                for value in values {
+                    expr(value, captures, locals, span, depth + 1)?;
+                }
+                Ok(())
+            }
+            QueryExpr::Not(value) => expr(value, captures, locals, span, depth + 1),
+            _ => Ok(()),
+        }
+    }
+    fn actions(
+        values: &[QueryAction],
+        captures: &BTreeSet<String>,
+        depth: usize,
+    ) -> Result<(), Diagnostic> {
+        if depth > 128 {
+            return Err(Diagnostic::error(
+                "yl.artifact",
+                "Query action nesting exceeds the resource limit",
+                Span::default(),
+            ));
+        }
+        for action in values {
+            match action {
+                QueryAction::Call { name, args, span } => {
+                    if arity(name) != Some(args.len()) {
+                        return Err(Diagnostic::error(
+                            "yl.artifact",
+                            "Invalid query primitive or argument count",
+                            span.clone(),
+                        ));
+                    }
+                    for arg in args {
+                        expr(arg, captures, &BTreeSet::new(), span, 0)?;
+                    }
+                }
+                QueryAction::If {
+                    condition,
+                    then_actions,
+                    else_actions,
+                    span,
+                } => {
+                    expr(condition, captures, &BTreeSet::new(), span, 0)?;
+                    actions(then_actions, captures, depth + 1)?;
+                    actions(else_actions, captures, depth + 1)?;
+                }
+                QueryAction::Match {
+                    inputs,
+                    cases,
+                    span,
+                } => {
+                    for input in inputs {
+                        expr(input, captures, &BTreeSet::new(), span, 0)?;
+                    }
+                    if inputs.is_empty()
+                        || !cases.last().is_some_and(|case| {
+                            case.alternatives
+                                .iter()
+                                .any(|alternative| alternative.iter().all(Option::is_none))
+                        })
+                    {
+                        return Err(Diagnostic::error(
+                            "yl.artifact",
+                            "A query match needs a final wildcard case",
+                            span.clone(),
+                        ));
+                    }
+                    for (index, case) in cases.iter().enumerate() {
+                        for alternative in &case.alternatives {
+                            if alternative.len() != inputs.len()
+                                || (index + 1 != cases.len()
+                                    && alternative.iter().all(Option::is_none))
+                            {
+                                return Err(Diagnostic::error(
+                                    "yl.artifact",
+                                    "Invalid query match pattern arity or wildcard order",
+                                    span.clone(),
+                                ));
+                            }
+                            for pattern in alternative.iter().flatten() {
+                                expr(pattern, captures, &BTreeSet::new(), span, 0)?;
+                            }
+                        }
+                        actions(&case.actions, captures, depth + 1)?;
+                    }
+                }
+                QueryAction::Emit {
+                    message,
+                    target,
+                    span,
+                    ..
+                } => {
+                    for part in message {
+                        if let QueryMessagePart::Value(value) = part {
+                            expr(value, captures, &BTreeSet::new(), span, 0)?;
+                        }
+                    }
+                    if let Some(target) = target {
+                        expr(target, captures, &BTreeSet::new(), span, 0)?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+    for group in groups {
+        actions(&group.actions, captures, 0)?;
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1028,6 +1601,12 @@ pub struct QueryGroup {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum QueryMessagePart {
+    Text(String),
+    Value(QueryExpr),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum QueryAction {
     Call {
         name: String,
@@ -1047,7 +1626,7 @@ pub enum QueryAction {
     },
     Emit {
         severity: crate::diagnostic::Severity,
-        message: Vec<MeaningMessagePart>,
+        message: Vec<QueryMessagePart>,
         span: Span,
         target: Option<QueryExpr>,
     },

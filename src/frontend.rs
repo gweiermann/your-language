@@ -19,6 +19,24 @@ pub fn parse_yl(file: &str, source: &str) -> CompileResult<Module> {
         span: Span::new(file, 0, source.len()),
     })
 }
+/// Parse an embedded semantic expression with the same grammar as operation arguments.
+pub(crate) fn parse_semantic_expr(file: &str, source: &str) -> CompileResult<Expr> {
+    let tokens = lex(file, source).map_err(|error| vec![error])?;
+    let mut parser = Parser {
+        tokens,
+        position: 0,
+        depth: 0,
+    };
+    let expr = parser.semantic_value().map_err(|error| vec![error])?;
+    if !matches!(parser.token().kind, TokenKind::End) {
+        return Err(vec![parser.error(
+            "yl.unexpected_token",
+            "Unexpected token after semantic expression",
+        )]);
+    }
+    Ok(expr)
+}
+
 type Result<T> = std::result::Result<T, Diagnostic>;
 struct Parser {
     tokens: Vec<Token>,

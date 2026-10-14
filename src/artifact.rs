@@ -5,6 +5,10 @@ use crate::{
 };
 
 impl CompiledLanguage {
+    /// Whether this artifact contains declarative attachment queries.
+    pub fn has_declarative_meanings(&self) -> bool {
+        !self.query_meanings.is_empty()
+    }
     /// Non-fatal definition diagnostics produced while compiling this language.
     pub fn diagnostics(&self) -> &[Diagnostic] {
         &self.diagnostics
