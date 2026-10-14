@@ -123,40 +123,40 @@ test('type contributions, syntax identities and authored wrappers validate witho
     const dir=await mkdtemp(join(tmpdir(),'yl-lsp-types-')); t.after(()=>rm(dir,{recursive:true,force:true}));
     const uri=pathToFileURL(join(dir,'lang.yl')).href;
     const text=`import * as types from "std/types"
-import * as syntax from "std/syntax"
+import { children, first } from "std/query"
 symbol number
-operation annotateWithType(value) { types::annotate(syntax::identity(),value) }
-operation restrictTypeTo(value) { types::restrictTo(syntax::identity(),value) }
-operation typeof(value) = types::typeof(syntax::identityOf(value))
+operation annotateWithType(value) { types::annotate(self,value) }
+operation restrictTypeTo(value) { types::restrictTo(self,value) }
+operation typeof(value) = types::typeof(value)
 node Value="x" { meanings { annotateWithType(number) } }
 node Root=value: Value { meanings {
     annotateWithType(typeof(value))
     restrictTypeTo(number)
-    types::annotate(syntax::identities(value),[number])
-    types::annotate(syntax::childIdentity(),number)
+    types::annotate(value,[number])
+    types::annotate(first(children(self)),number)
     types::annotate("invalid-key",number)
-    match (types::typeof(syntax::identity())) {
-        number => types::annotate(syntax::identity(),number),
+    match (types::typeof(self)) {
+        number => types::annotate(self,number),
         _ => error("This runtime effect must not execute while checking the definition"),
     }
 } }
 entry Root`;
     s.open(uri,text);
-    // The deliberately invalid runtime key proves definition checks do not run
-    // native contribution effects, even while examples are being synthesized.
+    // Authored diagnostic branches must not execute during definition checks,
+    // even while examples are being synthesized.
     assert.deepEqual((await s.diagnostic(uri,1)).diagnostics,[]);
     assert.match(JSON.stringify(await s.hints(uri)),/example/);
     const edits=await s.connection.sendRequest('textDocument/formatting',{textDocument:{uri},options:{tabSize:4,insertSpaces:true}});
     assert.match(edits[0].newText,/import \* as types/);
-    assert.match(edits[0].newText,/import \* as syntax/);
+    assert.match(edits[0].newText,/from "std\/query"/);
     assert.match(edits[0].newText,/operation annotateWithType\(value\)/);
     assert.match(edits[0].newText,/types::restrictTo/);
     assert.match(edits[0].newText,/types::typeof/);
-    s.change(uri,text.replace('types::annotate(syntax::identity(),value)','types::annotate(syntax::identity())'),2);
+    s.change(uri,text.replace('types::annotate(self,value)','types::annotate(self)'),2);
     assert.ok((await s.diagnostic(uri,2)).diagnostics.some(d=>d.severity===1));
-    s.change(uri,text.replace('types::restrictTo(syntax::identity(),value)','types::restrictTo(syntax::identity())'),3);
+    s.change(uri,text.replace('types::restrictTo(self,value)','types::restrictTo(self)'),3);
     assert.ok((await s.diagnostic(uri,3)).diagnostics.some(d=>d.severity===1));
-    s.change(uri,text.replace('syntax::identityOf(value)','syntax::identityOf()'),4);
+    s.change(uri,text.replace('first(children(self))','first()'),4);
     assert.ok((await s.diagnostic(uri,4)).diagnostics.some(d=>d.severity===1));
     s.change(uri,text.replaceAll('types::annotate','types::ensure'),5);
     assert.ok((await s.diagnostic(uri,5)).diagnostics.some(d=>d.severity===1));
