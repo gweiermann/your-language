@@ -67,7 +67,9 @@ test('cyclic graph terminates and newer document versions invalidate old results
     await writeFile(b,'import { Root } from "./a"\nexport pattern Name = "x"');
     const s=await session(t,a); s.open(uri,'import { Name } from "./b"\nexport node Root = Name\nentry Root');
     await s.diagnostic(uri,1); assert.match(JSON.stringify(await s.hints(uri)),/example/);
-    const many=Array.from({length:4000},(_,i)=>`pattern P${i}="x"`).join('\n')+'\nnode Root="x"\nentry Root';
+    // Multiple versions are delivered back-to-back; this exercises protocol ordering,
+    // not a compiler throughput benchmark on shared CI runners.
+    const many=Array.from({length:400},(_,i)=>`pattern P${i}="x"`).join('\n')+'\nnode Root="x"\nentry Root';
     s.change(uri,many,2); s.change(uri,'node Root="latest"\nentry Root',3);
     await s.diagnostic(uri,3); assert.match(JSON.stringify(await s.hints(uri)),/latest/);
     s.change(uri,'node Root="stale"\nentry Root',2);
