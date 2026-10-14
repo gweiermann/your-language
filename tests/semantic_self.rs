@@ -347,3 +347,33 @@ entry Root
         result.diagnostics
     );
 }
+
+#[test]
+fn projections_through_repeated_parents_preserve_nested_list_groups() {
+    let result = analyze(
+        r#"
+import * as types from "std/types"
+import { separatedBy } from "std/parser"
+symbol number
+symbol groups
+pattern Item = "x" { meanings { types::annotate(self,number) } }
+pattern Contents = "(" parameters: Item* |> separatedBy(",") ")"
+node Root = contents: Contents* {
+    meanings { types::annotate((self,groups),types::typeof(contents.parameters)) }
+}
+entry Root
+"#,
+        "(x,x)(x)",
+    );
+    let root = &result.occurrences[0];
+    assert_eq!(
+        type_at(
+            &result,
+            SemanticValue::Tuple(vec![occurrence(root.id), atom("groups")])
+        ),
+        SemanticValue::List(vec![
+            SemanticValue::List(vec![atom("number"), atom("number")]),
+            SemanticValue::List(vec![atom("number")])
+        ])
+    );
+}

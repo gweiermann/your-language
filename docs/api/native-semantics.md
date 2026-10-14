@@ -167,13 +167,14 @@ Rust consumers can reuse `diagnostic_render::print_diagnostics`, providing a sou
 
 ## Type contributions and restrictions
 
-The native `std/types` module exports four operations and one reserved type identity:
+The native `std/types` module exports five operations and one reserved type identity:
 
 | Export | Contract |
 | --- | --- |
 | `annotate(key, type)` | Add possible types. Repeated contributions form a union. Deferred inputs establish directed dependencies. |
 | `restrictTo(key, allowed)` | Require every known possibility to be compatible with the allowed possibilities. Preserve facts, including invalid ones. |
 | `typeof(key)` | Return an analysis-local deferred possibility query. |
+| `resolveWith(result, assumptions)` | Query dependent types under temporary explicit assignments without changing original facts. |
 | `instantiate(template, use)` | Freshen an explicitly host-owned template once per identity pair. Automatic ownership remains experimental and parked. |
 | `unknown` | Explicit unresolved possibility, compatible with restrictions without hiding incompatible known members. |
 
@@ -297,7 +298,7 @@ operation annotateWithType(value) {
 operation typeof(value) = types::typeof(value)
 ```
 
-Dotted capture projections such as `contents.parameters` and `contents.body` follow retained original occurrences, including transparent patterns. They preserve captured source extents. Legacy `std/syntax` identity helpers remain available; the MiniTS bridge uses only `childIdentity()` for transparent abstract-node inheritance.
+Dotted capture projections such as `contents.parameters` and `contents.body` follow retained original occurrences, including transparent patterns. They preserve captured source extents and nested repetition groups. Terminal-only literal/regex captures retain their text and spans but have no standalone occurrence identity; wrap them in a node or pattern to address their type. Legacy `std/syntax` identity helpers remain available; the MiniTS bridge uses only `childIdentity()` for transparent abstract-node inheritance.
 
 `std/references` exposes `declare`, `use`, `lexicalScope`, `reference()` and `referenceOf(value)`. A declaration and a use record the binding associated with the exact name capture. `referenceOf(name)` retrieves that association; it never performs another text lookup. Given a captured reference node, it retrieves that node's recorded binding. An unassociated syntax occurrence returns `absent`, not its syntax identity. Scopes and same-scope duplicate rules retain their existing lifecycle implementation in this change. The earlier `std/variables` imports and graph metadata IDs remain compatible aliases; reference queries are the preferred new interface.
 

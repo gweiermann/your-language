@@ -110,7 +110,7 @@ pub fn registry() -> OperationRegistry {
     // Preserve legacy contracts while exposing the scope/binding library by its
     // responsibility. New identity queries never fall back to syntax identities.
     for ((module, name), id) in registry.exports.clone() {
-        if module == MODULE {
+        if module == MODULE && matches!(name.as_str(), "lexicalScope" | "declare" | "use") {
             registry.exports.insert(("std/references".into(), name), id);
         }
     }

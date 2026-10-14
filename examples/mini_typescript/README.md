@@ -29,7 +29,7 @@ A key is an identity or `(identity, slotSymbol)`. Ordered key lists provide expl
 
 ## Syntax-local facts and binding handles
 
-`self` is the current original occurrence and needs no import. Captures can be passed directly to type operations; repeated captures preserve positional order and optional captures preserve absence. Dotted projections such as `contents.parameters` follow original pattern occurrences. The legacy `std/syntax` helper `childIdentity()` supports transparent abstract-node inheritance. Pipes retain original occurrence identities.
+`self` is the current original occurrence and needs no import. Captures can be passed directly to type operations; repeated captures preserve positional order and optional captures preserve absence. Dotted projections such as `contents.parameters` follow original pattern occurrences and preserve nested repetition groups. Terminal-only captures retain source values/spans; use a node or pattern when a standalone type identity is required. The legacy `std/syntax` helper `childIdentity()` supports transparent abstract-node inheritance. Pipes retain original occurrence identities.
 
 ```yl
 import * as types from "std/types"

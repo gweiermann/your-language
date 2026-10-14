@@ -459,6 +459,7 @@ impl Runtime<'_> {
                 (
                     name.clone(),
                     crate::semantics::SourceCapture {
+                        selection: None,
                         repeated: capture.repeated,
                         value: capture.value.clone(),
                         occurrences: capture.occurrences.clone(),

@@ -126,6 +126,9 @@ pub struct MeaningSelector {
 /// Preserved semantic value and its original source extent. Pipe wrappers do not
 /// widen this extent; syntax-local captures separately retain grammar match spans.
 pub struct SourceCapture {
+    /// Nested occurrence selection for projections through repeated parents.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selection: Option<OccurrenceSelection>,
     /// Repetition of syntax occurrences, independent of a pattern's value shape.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub repeated: bool,
@@ -136,6 +139,34 @@ pub struct SourceCapture {
     /// Empty for terminals and absent optional captures; survives projections.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub occurrences: Vec<usize>,
+}
+/// Shape of an occurrence-valued capture projection, independent of its AST.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum OccurrenceSelection {
+    One(usize),
+    List(Vec<OccurrenceSelection>),
+    Absent,
+}
+impl SourceCapture {
+    pub fn occurrence_selection(&self) -> Option<OccurrenceSelection> {
+        if let Some(selection) = &self.selection {
+            return Some(selection.clone());
+        }
+        if self.value == AstValue::None {
+            Some(OccurrenceSelection::Absent)
+        } else if self.repeated {
+            Some(OccurrenceSelection::List(
+                self.occurrences
+                    .iter()
+                    .map(|id| OccurrenceSelection::One(*id))
+                    .collect(),
+            ))
+        } else if self.occurrences.len() == 1 {
+            Some(OccurrenceSelection::One(self.occurrences[0]))
+        } else {
+            None
+        }
+    }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Occurrence {
@@ -151,6 +182,44 @@ impl Occurrence {
             Some(self)
         } else {
             self.children.iter().find_map(|child| child.find(id))
+        }
+    }
+    fn project_selection(
+        &self,
+        selection: &OccurrenceSelection,
+        field: &str,
+        span: &Span,
+    ) -> Result<(AstValue, Option<OccurrenceSelection>), Diagnostic> {
+        match selection {
+            OccurrenceSelection::One(id) => {
+                let capture = self
+                    .find(*id)
+                    .and_then(|owner| owner.captures.get(field))
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "semantic.missing_capture",
+                            format!("Capture projection .{field} is unavailable"),
+                            span.clone(),
+                        )
+                    })?;
+                Ok((capture.value.clone(), capture.occurrence_selection()))
+            }
+            OccurrenceSelection::List(items) => {
+                let projected = items
+                    .iter()
+                    .map(|item| self.project_selection(item, field, span))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let selection = projected
+                    .iter()
+                    .map(|(_, selection)| selection.clone())
+                    .collect::<Option<Vec<_>>>()
+                    .map(OccurrenceSelection::List);
+                Ok((
+                    AstValue::List(projected.into_iter().map(|(value, _)| value).collect()),
+                    selection,
+                ))
+            }
+            OccurrenceSelection::Absent => Ok((AstValue::None, Some(OccurrenceSelection::Absent))),
         }
     }
     /// Follow captured occurrence roots rather than reconstructed AST wrappers.
@@ -189,14 +258,23 @@ impl Occurrence {
                 capture = selected[0].clone();
                 continue;
             }
+            let selection = capture.occurrence_selection().ok_or_else(|| {
+                Diagnostic::error(
+                    "semantic.missing_capture",
+                    format!("Capture projection {path} has no occurrence to select"),
+                    capture.span.clone(),
+                )
+            })?;
+            let (value, selection) = self.project_selection(&selection, field, &capture.span)?;
             let span = selected
                 .first()
                 .zip(selected.last())
                 .map(|(a, b)| Span::new(&a.span.file, a.span.start, b.span.end))
                 .unwrap_or_else(|| capture.span.clone());
             capture = SourceCapture {
+                selection,
                 repeated: true,
-                value: AstValue::List(selected.iter().map(|item| item.value.clone()).collect()),
+                value,
                 span,
                 text: selected
                     .iter()
@@ -835,6 +913,7 @@ mod tests {
             captures: BTreeMap::from([(
                 "name".into(),
                 SourceCapture {
+                    selection: None,
                     repeated: false,
                     occurrences: vec![],
                     value: AstValue::Text(text.into()),

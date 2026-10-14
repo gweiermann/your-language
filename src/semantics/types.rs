@@ -15,16 +15,23 @@ struct Key {
 /// Convert original syntax values to opaque type addresses at the library seam.
 fn syntax_key(value: &SemanticValue) -> SemanticValue {
     match value {
-        SemanticValue::Source(source) if source.value == AstValue::None => SemanticValue::Absent,
-        SemanticValue::Source(source) if source.repeated => SemanticValue::List(
+        SemanticValue::Source(source) => {
+            fn address(selection: &OccurrenceSelection) -> SemanticValue {
+                match selection {
+                    OccurrenceSelection::One(id) => {
+                        SemanticValue::Identity(SemanticIdentity::Occurrence(*id))
+                    }
+                    OccurrenceSelection::List(items) => {
+                        SemanticValue::List(items.iter().map(address).collect())
+                    }
+                    OccurrenceSelection::Absent => SemanticValue::Absent,
+                }
+            }
             source
-                .occurrences
-                .iter()
-                .map(|id| SemanticValue::Identity(SemanticIdentity::Occurrence(*id)))
-                .collect(),
-        ),
-        SemanticValue::Source(source) if source.occurrences.len() == 1 => {
-            SemanticValue::Identity(SemanticIdentity::Occurrence(source.occurrences[0]))
+                .occurrence_selection()
+                .as_ref()
+                .map(address)
+                .unwrap_or_else(|| value.clone())
         }
         SemanticValue::Tuple(values) => {
             SemanticValue::Tuple(values.iter().map(syntax_key).collect())
