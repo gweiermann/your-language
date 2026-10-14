@@ -31,8 +31,8 @@ for (const [directory, entry, inputs] of examples) {
 }
 // Semantic consumers are separate from the syntax-only language CLI.
 for (const [mode, success, expected] of [
-  ['addition', true, 'numberSum: number'],
-  ['higher-order', true, 'result: number'],
+  ['addition', true, 'numberSum: Type::number'],
+  ['higher-order', true, 'result: Type::number'],
   ['errors', false, 'Error[query.diagnostic]'],
 ]) {
   const result = spawnSync(cargo, ['run', '--quiet', '--locked', '--example', 'mini_typescript', '--', mode], { encoding: 'utf8' })

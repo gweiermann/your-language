@@ -2,10 +2,13 @@
 use crate::diagnostic::{CompileResult, Diagnostic, Span};
 use crate::lexer::{lex, Token, TokenKind};
 use crate::syntax::*;
+use std::collections::BTreeSet;
 
 pub fn parse_yl(file: &str, source: &str) -> CompileResult<Module> {
     let tokens = lex(file, source).map_err(|e| vec![e])?;
+    let diagnostic_paths = imported_diagnostic_paths(&tokens);
     let mut parser = Parser {
+        diagnostic_paths,
         tokens,
         position: 0,
         depth: 0,
@@ -22,7 +25,9 @@ pub fn parse_yl(file: &str, source: &str) -> CompileResult<Module> {
 /// Parse an embedded semantic expression with the same grammar as operation arguments.
 pub(crate) fn parse_semantic_expr(file: &str, source: &str) -> CompileResult<Expr> {
     let tokens = lex(file, source).map_err(|error| vec![error])?;
+    let diagnostic_paths = imported_diagnostic_paths(&tokens);
     let mut parser = Parser {
+        diagnostic_paths,
         tokens,
         position: 0,
         depth: 0,
@@ -39,10 +44,66 @@ pub(crate) fn parse_semantic_expr(file: &str, source: &str) -> CompileResult<Exp
 
 type Result<T> = std::result::Result<T, Diagnostic>;
 struct Parser {
+    diagnostic_paths: BTreeSet<String>,
     tokens: Vec<Token>,
     position: usize,
     depth: usize,
 }
+// Discover diagnostic imports independently of declaration order. Only explicitly
+// imported core diagnostics receive the rewrite-case diagnostic prelude syntax.
+fn imported_diagnostic_paths(tokens: &[Token]) -> BTreeSet<String> {
+    fn word(token: Option<&Token>, value: &str) -> bool {
+        matches!(token.map(|token| &token.kind), Some(TokenKind::Word(name)) if name == value)
+    }
+    let mut paths = BTreeSet::new();
+    for index in 0..tokens.len() {
+        if !word(tokens.get(index), "import") {
+            continue;
+        }
+        let Some(from) = (index + 1..tokens.len())
+            .find(|&next| word(tokens.get(next), "from") || word(tokens.get(next), "import"))
+        else {
+            continue;
+        };
+        if !word(tokens.get(from), "from")
+            || !matches!(tokens.get(from + 1).map(|token| &token.kind), Some(TokenKind::String(path)) if path == "core/diagnostics")
+        {
+            continue;
+        }
+        if matches!(tokens.get(index + 1).map(|token| &token.kind), Some(TokenKind::Symbol(symbol)) if symbol == "*")
+        {
+            if let Some(Token {
+                kind: TokenKind::Word(namespace),
+                ..
+            }) = tokens.get(index + 3)
+            {
+                for name in ["error", "warn", "hint"] {
+                    paths.insert(format!("{namespace}::{name}"));
+                }
+            }
+        } else {
+            let mut item = index + 2;
+            while item < from {
+                if let TokenKind::Word(name) = &tokens[item].kind {
+                    if matches!(name.as_str(), "error" | "warn" | "hint") {
+                        let alias = if word(tokens.get(item + 1), "as") {
+                            match tokens.get(item + 2).map(|token| &token.kind) {
+                                Some(TokenKind::Word(alias)) => alias,
+                                _ => name,
+                            }
+                        } else {
+                            name
+                        };
+                        paths.insert(alias.clone());
+                    }
+                }
+                item += 1;
+            }
+        }
+    }
+    paths
+}
+
 impl Parser {
     fn token(&self) -> &Token {
         &self.tokens[self.position.min(self.tokens.len() - 1)]
@@ -224,8 +285,8 @@ impl Parser {
             self.expect("{")?;
             let mut constraints = vec![];
             while !self.is("}") {
-                if !self.take("constraints") {
-                    return Err(self.error("yl.extension_conflict","An extension may only add constraints in syntax-v0; metadata is deferred beyond syntax-v0"));
+                if !self.take("checks") {
+                    return Err(self.error("yl.extension_conflict","An extension may only add checks in syntax-v0; metadata is deferred beyond syntax-v0"));
                 }
                 constraints.extend(self.constraint_block()?);
             }
@@ -255,14 +316,14 @@ impl Parser {
                             );
                         }
                         example = Some(self.example()?);
-                    } else if self.take("meanings") {
+                    } else if self.take("semantics") {
                         if meanings.is_some() {
                             return Err(
-                                self.error("yl.duplicate_member", "Duplicate meanings section")
+                                self.error("yl.duplicate_member", "Duplicate semantics section")
                             );
                         }
                         meanings = Some(self.meanings()?);
-                    } else if self.take("constraints") {
+                    } else if self.take("checks") {
                         constraints.extend(self.constraint_block()?);
                     } else if self.take("precedence") {
                         if !precedence.is_empty() {
@@ -327,10 +388,10 @@ impl Parser {
                         }
                         example = Some(self.example()?);
                     } else {
-                        self.expect("meanings")?;
+                        self.expect("semantics")?;
                         if meanings.is_some() {
                             return Err(
-                                self.error("yl.duplicate_member", "Duplicate meanings section")
+                                self.error("yl.duplicate_member", "Duplicate semantics section")
                             );
                         }
                         meanings = Some(self.meanings()?);
@@ -447,7 +508,7 @@ impl Parser {
         } else {
             return Err(self.error(
                 "yl.incomplete_declaration",
-                "Expected declaration (when is only valid inside constraints)",
+                "Expected declaration (when belongs inside checks, semantics, or an operation)",
             ));
         };
         self.depth -= 1;
@@ -608,10 +669,28 @@ impl Parser {
         if self.depth > 128 {
             return Err(self.error(
                 "yl.depth_limit",
-                "Meaning action nesting exceeds resource limit",
+                "Semantic action nesting exceeds resource limit",
             ));
         }
-        let action = if self.take("if") {
+        let action = if self.take("return") {
+            MeaningSyntaxAction::Return {
+                value: self.semantic_value()?,
+                span: self.span_from(&start),
+            }
+        } else if matches!(self.peek(0), TokenKind::Word(_))
+            && matches!(self.peek(1), TokenKind::Symbol(value) if value == ":=")
+        {
+            let name = self.word()?;
+            if matches!(name.as_str(), "self" | "absent" | "true" | "false") {
+                return Err(self.error("yl.invalid_binding", "Binding cannot shadow a core value"));
+            }
+            self.expect(":=")?;
+            MeaningSyntaxAction::Binding {
+                name,
+                value: self.semantic_value()?,
+                span: self.span_from(&start),
+            }
+        } else if self.take("when") {
             let condition = self.semantic_value()?;
             self.expect("{")?;
             let actions = self.meaning_block()?;
@@ -762,7 +841,11 @@ impl Parser {
                     matching: Some(matching),
                     span: self.span_from(&start),
                 });
-            } else if self.is("if") {
+            } else if self.is("when")
+                || self.is("return")
+                || (matches!(self.peek(0), TokenKind::Word(_))
+                    && matches!(self.peek(1), TokenKind::Symbol(value) if value == ":="))
+            {
                 let action = self.meaning_action()?;
                 groups.push(MeaningSyntaxGroup {
                     name: None,
@@ -830,9 +913,9 @@ impl Parser {
             self.expect("=>")?;
             let mut diagnostics = vec![];
             let replacement = if self.take("{") {
-                while self.is("error") || self.is("warning") || self.is("help") {
+                while self.is_diagnostic_call() {
                     let span = self.token().span.clone();
-                    let name = self.word()?;
+                    let name = self.path()?;
                     let arguments = self.condition_arguments()?;
                     diagnostics.push(Constraint {
                         kind: ConstraintKind::Call(name, arguments),
@@ -859,6 +942,33 @@ impl Parser {
         }
         self.expect("}")?;
         Ok(cases)
+    }
+    fn is_diagnostic_call(&self) -> bool {
+        let mut position = self.position;
+        let Some(Token {
+            kind: TokenKind::Word(first),
+            ..
+        }) = self.tokens.get(position)
+        else {
+            return false;
+        };
+        let mut name = first.clone();
+        position += 1;
+        while matches!(self.tokens.get(position).map(|token| &token.kind), Some(TokenKind::Symbol(symbol)) if symbol == "::")
+        {
+            let Some(Token {
+                kind: TokenKind::Word(part),
+                ..
+            }) = self.tokens.get(position + 1)
+            else {
+                return false;
+            };
+            name.push_str("::");
+            name.push_str(part);
+            position += 2;
+        }
+        self.diagnostic_paths.contains(&name)
+            && matches!(self.tokens.get(position).map(|token| &token.kind), Some(TokenKind::Symbol(symbol)) if symbol == "(")
     }
     fn case_label(&self) -> bool {
         let mut position = self.position;
@@ -977,8 +1087,7 @@ impl Parser {
         }
     }
     fn starts_expression(&self) -> bool {
-        if self.boundary() || self.is("rewrite") || self.is("precedence") || self.is("constraints")
-        {
+        if self.boundary() || self.is("rewrite") || self.is("precedence") || self.is("checks") {
             return false;
         }
         if self.case_label() {
@@ -1200,7 +1309,7 @@ impl Parser {
         if self.depth > 128 {
             return Err(self.error(
                 "yl.depth_limit",
-                "Constraint nesting exceeds resource limit",
+                "Syntax check nesting exceeds resource limit",
             ));
         }
         self.expect("{")?;
@@ -1232,18 +1341,18 @@ mod query_syntax_tests {
     use super::*;
     #[test]
     fn expression_callbacks_and_nested_conditional_actions_roundtrip() {
-        let source = r#"import { get, find, ancestors, contribute, isPresent } from "std/query"
+        let source = r#"import { get, find, ancestors, contribute, isPresent } from "core/query"
 export symbol scope
 operation resolve(target, name) = find(ancestors(target), ancestor => get((get((ancestor, scope)), name)))
 operation declare(target, name) {
-    if isPresent(name) {
+    when isPresent(name) {
         match (name) {
-            true => { if true { contribute((target, scope), name) } },
+            true => { when true { contribute((target, scope), name) } },
             _ => warn("Missing ${name}")
         }
     } else { error("No name") }
 }
-node Program = name: /[a-z]+/ { meanings { if !isPresent(resolve(self, name)) { declare(self, name) } } }
+node Program = name: /[a-z]+/ { semantics { when !isPresent(resolve(self, name)) { declare(self, name) } } }
 entry Program
 "#;
         let parsed = parse_yl("query.yl", source).unwrap();
@@ -1264,10 +1373,153 @@ entry Program
     fn malformed_callbacks_and_conditionals_are_diagnostics() {
         for source in [
             "operation q() = find([], item =>)",
-            "operation q() { if true missing() }",
-            "operation q() { if true { q() } else q() }",
+            "operation q() { when true missing() }",
+            "operation q() { when true { q() } else q() }",
         ] {
             assert!(parse_yl("bad.yl", source).is_err(), "{source}");
         }
+    }
+}
+
+#[cfg(test)]
+mod semantic_refresh_tests {
+    use super::*;
+
+    #[test]
+    fn bindings_returns_and_reactive_guards_preserve_source_spans() {
+        let source = r#"operation connect(target, name) {
+    ref := lookup(name)
+    when isPresent(ref) { attach(target, ref) }
+    return ref
+}
+node Reference = name: /[a-z]+/ {
+    semantics {
+        ref := connect(self, name)
+        annotateWithType(self, typeOf(ref))
+    }
+    checks { when name.matches(/x/) { error("Invalid name") } }
+}
+entry Reference"#;
+        let module = parse_yl("refresh.yl", source).unwrap();
+        let DeclKind::Operation {
+            body: OperationBody::Conditional(actions),
+            ..
+        } = &module.declarations[0].kind
+        else {
+            panic!("Expected an operation with declarative actions");
+        };
+        let MeaningSyntaxAction::Binding { name, span, .. } = &actions[0] else {
+            panic!("Expected an immutable binding");
+        };
+        assert_eq!(name, "ref");
+        assert_eq!(&source[span.start..span.end], "ref := lookup(name)");
+        assert!(matches!(actions[1], MeaningSyntaxAction::If { .. }));
+        assert!(matches!(actions[2], MeaningSyntaxAction::Return { .. }));
+        let DeclKind::Node {
+            meanings: Some(semantics),
+            constraints,
+            ..
+        } = &module.declarations[1].kind
+        else {
+            panic!("Expected semantics and syntax checks");
+        };
+        assert!(matches!(
+            semantics.groups[0].actions[0],
+            MeaningSyntaxAction::Binding { .. }
+        ));
+        assert_eq!(constraints.len(), 1);
+    }
+
+    #[test]
+    fn obsolete_block_and_condition_spellings_are_rejected() {
+        for source in [
+            "node A = \"a\" { meanings { action() } }",
+            "node A = \"a\" { constraints { error(\"bad\") } }",
+            "operation action() { if true { action() } }",
+            "operation action() { self := lookup() }",
+            "operation action() { value := }",
+        ] {
+            assert!(parse_yl("bad.yl", source).is_err(), "{source}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod nested_check_refresh_tests {
+    use super::*;
+
+    #[test]
+    fn nested_when_checks_accept_imported_diagnostic_namespaces() {
+        let source = r#"import * as diagnostics from "core/diagnostics"
+node Name = value: /[a-z]+/ {
+    checks {
+        when value.isPresent {
+            when value.matches(/bad/) {
+                diagnostics::error("Invalid name")
+            }
+        }
+    }
+}
+entry Name"#;
+        let module = parse_yl("checks.yl", source).unwrap();
+        let DeclKind::Node { constraints, .. } = &module.declarations[1].kind else {
+            panic!("Expected checked node");
+        };
+        let ConstraintKind::When(_, outer) = &constraints[0].kind else {
+            panic!("Expected outer when");
+        };
+        let ConstraintKind::When(_, inner) = &outer[0].kind else {
+            panic!("Expected nested when");
+        };
+        let ConstraintKind::Call(name, _) = &inner[0].kind else {
+            panic!("Expected diagnostic call");
+        };
+        assert_eq!(name, "diagnostics::error");
+    }
+}
+
+#[cfg(test)]
+mod rewrite_diagnostic_import_tests {
+    use super::*;
+
+    #[test]
+    fn rewrite_diagnostics_accept_namespace_alias_and_forward_imports() {
+        for (call, import) in [
+            (
+                "diagnostics::warn",
+                "import * as diagnostics from \"core/diagnostics\"",
+            ),
+            ("note", "import { hint as note } from \"core/diagnostics\""),
+        ] {
+            let source = format!("enum Mode {{ a }} pipe wrap(mode: Mode) {{ rewrite value match mode {{ .a => {{ {call}(\"Notice\") value }} }} }} {import}");
+            let module = parse_yl("rewrite.yl", &source).unwrap();
+            let DeclKind::Pipe { arms, .. } = &module.declarations[1].kind else {
+                panic!("Expected pipe");
+            };
+            let RewriteBody::Match { cases, .. } = &arms[0].body else {
+                panic!("Expected rewrite match");
+            };
+            assert_eq!(cases[0].diagnostics.len(), 1);
+            assert!(cases[0].replacement.is_some());
+            assert!(
+                matches!(&cases[0].diagnostics[0].kind, ConstraintKind::Call(name, _) if name == call)
+            );
+        }
+    }
+
+    #[test]
+    fn user_authored_error_callable_is_not_implicitly_a_diagnostic() {
+        let source = r#"pattern error(value) = value
+        enum Mode { a }
+        pipe wrap(mode: Mode) { rewrite value match mode { .a => { error(value) } } }"#;
+        let module = parse_yl("rewrite.yl", source).unwrap();
+        let DeclKind::Pipe { arms, .. } = &module.declarations[2].kind else {
+            panic!("Expected pipe");
+        };
+        let RewriteBody::Match { cases, .. } = &arms[0].body else {
+            panic!("Expected rewrite match");
+        };
+        assert!(cases[0].diagnostics.is_empty());
+        assert!(cases[0].replacement.is_some());
     }
 }

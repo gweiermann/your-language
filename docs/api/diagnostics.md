@@ -29,7 +29,7 @@ pub struct Diagnostic {
 }
 ```
 
-`Severity` has `Error`, `Warning`, and `Help` variants, serialized as `error`, `warning`, and `help`. The primary span identifies the principal location; secondary spans provide related locations. `help` is optional supporting guidance. `Diagnostic::error(code, message, primary)` constructs an error with no secondary spans or help.
+`Severity` has `Error`, `Warning`, and `Help` variants, serialized as `error`, `warn`, and `hint`. The primary span identifies the principal location; secondary spans provide related locations. `hint` is optional supporting guidance. `Diagnostic::error(code, message, primary)` constructs an error with no secondary spans or help.
 
 ```json
 {

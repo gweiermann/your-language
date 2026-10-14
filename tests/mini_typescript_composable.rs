@@ -43,18 +43,22 @@ fn addition_policy_lives_in_authored_meanings() {
     ));
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     for (name, expected) in [
-        ("numberSum", "number"),
-        ("stringSum", "string"),
-        ("mixedLeft", "string"),
-        ("mixedRight", "string"),
+        ("numberSum", "Type::number"),
+        ("stringSum", "Type::string"),
+        ("mixedLeft", "Type::string"),
+        ("mixedRight", "Type::string"),
     ] {
         assert_eq!(binding(&result, name), expected);
     }
     let changed = analyze_with("let result = 1 + 2;", |grammar| {
-        replace_action(grammar, "number, number", "annotateWithType(self, string),")
+        replace_action(
+            grammar,
+            "Type::number, Type::number",
+            "annotateWithType(self, Type::string),",
+        )
     });
     assert!(changed.diagnostics.is_empty(), "{:?}", changed.diagnostics);
-    assert_eq!(binding(&changed, "result"), "string");
+    assert_eq!(binding(&changed, "result"), "Type::string");
 }
 
 #[test]
@@ -74,13 +78,13 @@ fn pending_call_operands_recompute_under_hypothetical_parameters() {
     let result = analyze("function add(value) { return value + 1; } let result: number = add(41);");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(binding(&result, "add"), "(unknown) => unknown");
-    assert_eq!(binding(&result, "result"), "number");
+    assert_eq!(binding(&result, "result"), "Type::number");
 }
 
 #[test]
 fn void_branch_produces_no_type_facts() {
     let result = analyze_with("let result = 1 + 2;", |grammar| {
-        replace_action(grammar, "number, number", "{},")
+        replace_action(grammar, "Type::number, Type::number", "{},")
     });
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(binding(&result, "result"), "unknown");
@@ -91,7 +95,7 @@ fn explicit_unknown_propagates_to_the_next_match() {
     let result = analyze_with("let first = 1 + 2; let second = first + 3;", |grammar| {
         replace_action(
             grammar,
-            "number, number",
+            "Type::number, Type::number",
             "annotateWithType(self, unknown),",
         )
     });
@@ -105,10 +109,11 @@ fn warning_and_annotation_actions_can_share_a_branch() {
     let result = analyze_with(
         "let first = true + false; let second = first + 3;",
         |grammar| {
+            grammar.insert_str(0, "import { warn } from \"core/diagnostics\"\n");
             replace_action(
                 grammar,
                 "_",
-                "{ warning(\"${left} + ${right} is experimental\") annotateWithType(self, unknown) }",
+                "{ warn(\"${left} + ${right} is experimental\") annotateWithType(self, unknown) }",
             )
         },
     );
@@ -131,7 +136,7 @@ fn target_type_symbols_can_be_renamed_without_rust_changes() {
     let loaded = engine.load(&compiled.to_bytes().unwrap()).unwrap();
     let result = engine.analyze(&loaded, "input.ts", "let result: decimal = 1;");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(binding(&result, "result"), "decimal");
+    assert_eq!(binding(&result, "result"), "Type::decimal");
 }
 
 #[test]
@@ -153,18 +158,18 @@ fn function_slot_names_can_be_changed_in_the_language() {
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     // The renderer knows only the demonstration's original slot names. A plain
     // result type needs no slot knowledge, and the solver uses the renamed keys.
-    assert_eq!(binding(&result, "result"), "number");
+    assert_eq!(binding(&result, "result"), "Type::number");
 }
 
 #[test]
 fn union_candidates_keep_each_valid_addition_result() {
     let result = analyze_with("let value = 1; let result = value + 1;", |grammar| {
         *grammar = grammar.replacen(
-            "annotateWithType(self, number)",
-            "annotateWithType(self, number)\n        annotateWithType(self, string)",
+            "annotateWithType(self, Type::number)",
+            "annotateWithType(self, Type::number)\n        annotateWithType(self, Type::string)",
             1,
         );
     });
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(binding(&result, "result"), "number | string");
+    assert_eq!(binding(&result, "result"), "Type::number | Type::string");
 }

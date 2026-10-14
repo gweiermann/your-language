@@ -1,6 +1,6 @@
-import { contribute, get, map, text, zip } from "std/query"
+import { contribute, get, map, text, zip } from "core/query"
 import { separatedBy } from "std/parser"
-import { declare, lexicalScope, referenceOf } from "../../../stdlib/references"
+import { declareName, createLexicalScope, referenceOf } from "../../../stdlib/references"
 import { function, type, parameterNames, parameterTypes, returnType, functionIdentity } from "./types"
 import { unknown } from "../../../stdlib/types"
 import { typeOf, parameterType } from "./typing"
@@ -8,8 +8,8 @@ import { Expression } from "./expression"
 import { Name } from "./lexical"
 
 node Parameter = name: Name {
-    meanings {
-        declare(self, name)
+    semantics {
+        declareName(self, name)
         parameterType(self, name)
     }
 }
@@ -21,7 +21,7 @@ node FunctionBody =
     ";"
     "}"
 {
-    meanings {
+    semantics {
         boundary
         contribute((self, returnType), typeOf(result))
     }
@@ -33,8 +33,8 @@ pattern FunctionContents =
     ")"
     body: FunctionBody
 {
-    meanings {
-        lexicalScope(self)
+    semantics {
+        createLexicalScope(self)
     }
 }
 
@@ -43,9 +43,9 @@ export node FunctionDeclaration =
     name: Name
     contents: FunctionContents
 {
-    meanings {
+    semantics {
         group Register {
-            declare(self, name, reassignable = false)
+            declareName(self, name, reassignable = false)
             contribute((referenceOf(name), type), function)
             contribute((contents, functionIdentity), referenceOf(name))
             contribute((referenceOf(name), parameterNames), map(contents.parameters.name, name => text(name)))

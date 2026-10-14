@@ -1620,13 +1620,13 @@ mod planning_tests {
             )
             .unwrap();
         let source = r#"import { record } from "host"
-            node Name = "n" { meanings {
+            node Name = "n" { semantics {
                 group Late { record() }
                 group Register { record() }
             } }
-            node Use = "u" { meanings { record() } }
-            node Root = Name Use { meanings {
-                precedence { Name::meanings::Register > Use > Name::meanings::Late }
+            node Use = "u" { semantics { record() } }
+            node Root = Name Use { semantics {
+                precedence { Name::semantics::Register > Use > Name::semantics::Late }
             } }
             entry Root"#;
         let language = crate::compiler::compile_sources_with_registry(

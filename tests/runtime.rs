@@ -107,14 +107,14 @@ fn nested_abstract_family_executes_its_own_precedence() {
 }
 #[test]
 fn abstract_constraints_do_not_add_wrappers() {
-    let language=compile("node E { node N = value: /x/ constraints { when value.matches(/x/) { warning(\"x\") } } } entry E");
+    let language=compile("import { error, warn, hint } from \"core/diagnostics\"\nnode E { node N = value: /x/ checks { when value.matches(/x/) { warn(\"x\") } } } entry E");
     let result = parse(&language, "x");
     assert_eq!(result.ast.unwrap().kind, "E::N");
     assert_eq!(result.diagnostics.len(), 1);
 }
 #[test]
 fn transitive_abstract_constraints_see_leaf_captures() {
-    let language=compile("node Inner { node N = value: /x/ } node Outer { node Inner constraints { when value.matches(/x/) { warning(\"x\") } } } entry Outer");
+    let language=compile("import { error, warn, hint } from \"core/diagnostics\"\nnode Inner { node N = value: /x/ } node Outer { node Inner checks { when value.matches(/x/) { warn(\"x\") } } } entry Outer");
     let result = parse(&language, "x");
     assert_eq!(result.ast.unwrap().kind, "Inner::N");
     assert_eq!(result.diagnostics.len(), 1);
@@ -196,7 +196,8 @@ fn lookbehind_checks_the_left_boundary_with_greedy_and_empty_patterns() {
 #[test]
 fn constraints_and_extensions_emit_after_success_only() {
     let language = compile(
-        r#"trivia W = /\s+/ constraint tight(left,right) { when trivia.between(left,right) { error("not tight") help("remove whitespace") } } node P = left: "a" right: "b" { constraints { tight(left,right) } } extend node P { constraints { when left.matches(/a/) { warning("a seen") } } } entry P { trivia W }"#,
+        r#"import { error, warn, hint } from "core/diagnostics"
+trivia W = /\s+/ constraint tight(left,right) { when trivia.between(left,right) { error("not tight") hint("remove whitespace") } } node P = left: "a" right: "b" { checks { tight(left,right) } } extend node P { checks { when left.matches(/a/) { warn("a seen") } } } entry P { trivia W }"#,
     );
     let tight = parse(&language, "ab");
     assert_eq!(tight.diagnostics.len(), 1);

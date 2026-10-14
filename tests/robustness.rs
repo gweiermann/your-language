@@ -31,7 +31,7 @@ fn malformed_frontend_input_never_panics() {
         "yl.depth_limit"
     );
     let source = format!(
-        "node P = /x/ {{ constraints {{ {} error(\"x\") {} }} }} entry P",
+        "import {{ error, warn, hint }} from \"core/diagnostics\"\nnode P = /x/ {{ checks {{ {} error(\"x\") {} }} }} entry P",
         "when true { ".repeat(150),
         "} ".repeat(150)
     );

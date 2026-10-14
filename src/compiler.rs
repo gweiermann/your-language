@@ -43,6 +43,8 @@ struct Compiler {
     extensions: Vec<(String, Declaration)>,
     expanding: Vec<String>,
     next_marker: u32,
+    invocation_path: std::cell::RefCell<Vec<Span>>,
+    expansion_nodes: std::cell::Cell<usize>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -92,7 +94,7 @@ pub fn compile_sources_with_registry(
         }
     }
     let mut registry = registry.clone();
-    if !registry.contains_module("std/query") {
+    if !registry.contains_module("core/query") {
         crate::semantics::queries::register(&mut registry).map_err(|error| {
             vec![Diagnostic::error(
                 "yl.query_registry",
@@ -622,6 +624,9 @@ impl Compiler {
         }
         Ok(Some(id))
     }
+    fn is_enum_variant(&self, name: &str) -> bool {
+        name.rsplit_once("::").is_some_and(|(parent, variant)| self.symbols.get(parent).is_some_and(|symbol| matches!(&symbol.declaration.kind, DeclKind::Enum { variants, .. } if variants.iter().any(|value| value == variant))))
+    }
     fn resolve(&self, module: &str, scope: &str, name: &str, span: &Span) -> Result<String> {
         self.resolve_depth(module, scope, name, span, 0)
     }
@@ -642,6 +647,7 @@ impl Compiler {
         }
         // Canonical names are generated only by hygienic wrapper expansion.
         if self.symbols.contains_key(name)
+            || self.is_enum_variant(name)
             || self.registry.signature(name).is_some()
             || self.registry.symbols.values().any(|id| id == name)
         {
@@ -727,6 +733,10 @@ impl Compiler {
             .split_once("::")
             .map(|(a, b)| (a, Some(b)))
             .unwrap_or((tail, None));
+        if self.symbols.get(parent).is_some_and(|symbol| matches!(&symbol.declaration.kind, DeclKind::Enum { variants, .. } if variants.iter().any(|variant| variant == head))) {
+            if rest.is_some() { return Err(Diagnostic::error("yl.unknown_reference", "Enum variants have no members", span.clone())); }
+            return Ok(format!("{parent}::{head}"));
+        }
         let child = if let Some(child) = self.members.get(&(parent.into(), head.into())) {
             child.clone()
         } else {
@@ -1238,7 +1248,7 @@ impl Compiler {
             }
         }
         language.version = if !language.query_meanings.is_empty() {
-            4
+            5
         } else if language.meanings.is_empty() {
             1
         } else {
@@ -1577,6 +1587,8 @@ impl Compiler {
             | ExprKind::Absent
             | ExprKind::Not(_)
             | ExprKind::Binary(_, _, _)
+            | ExprKind::SemanticBlock { .. }
+            | ExprKind::SemanticBinding { .. }
             | ExprKind::Variant(_) => {
                 return Err(Diagnostic::error(
                     "yl.ambiguous_enum_variant",
@@ -1692,6 +1704,18 @@ impl Compiler {
             }
             for emission in &case.diagnostics {
                 validate_case_emission(emission)?;
+                if let ConstraintKind::Call(name, _) = &emission.kind {
+                    if self
+                        .diagnostic_severity(&symbol.module, &symbol.name, name, &emission.span)?
+                        .is_none()
+                    {
+                        return Err(Diagnostic::error(
+                            "yl.invalid_constraint",
+                            "Expected imported diagnostic operation",
+                            emission.span.clone(),
+                        ));
+                    }
+                }
             }
             normalized.push(pattern);
         }
@@ -1784,18 +1808,15 @@ impl Compiler {
                     argument.span.clone(),
                 ));
             };
-            let severity = match name.as_str() {
-                "error" => Severity::Error,
-                "warning" => Severity::Warning,
-                "help" => Severity::Help,
-                _ => {
-                    return Err(Diagnostic::error(
+            let severity = self
+                .diagnostic_severity(&symbol.module, &symbol.name, name, &emission.span)?
+                .ok_or_else(|| {
+                    Diagnostic::error(
                         "yl.invalid_constraint",
-                        "Expected diagnostic emission",
+                        "Expected imported diagnostic operation",
                         emission.span.clone(),
-                    ))
-                }
-            };
+                    )
+                })?;
             let mut diagnostic = Diagnostic::error(
                 "yl.pipe_case",
                 message,
@@ -1935,6 +1956,44 @@ impl Compiler {
             else {
                 continue;
             };
+            fn results(actions: &[MeaningSyntaxAction], nested: bool) -> Result<usize> {
+                let mut count = 0;
+                for action in actions {
+                    match action {
+                        MeaningSyntaxAction::Return { span, .. } => {
+                            if nested {
+                                return Err(Diagnostic::error(
+                                    "yl.operation_result",
+                                    "return must define one unconditional operation result",
+                                    span.clone(),
+                                ));
+                            }
+                            count += 1;
+                            if count > 1 {
+                                return Err(Diagnostic::error(
+                                    "yl.operation_result",
+                                    "An operation has only one return definition",
+                                    span.clone(),
+                                ));
+                            }
+                        }
+                        MeaningSyntaxAction::If {
+                            actions, otherwise, ..
+                        } => {
+                            results(actions, true)?;
+                            results(otherwise, true)?;
+                        }
+                        MeaningSyntaxAction::Match(matching) => {
+                            for case in &matching.cases {
+                                results(&case.nested_actions, true)?;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(count)
+            }
+            results(&self.operation_actions(body), false)?;
             let mut bindings = BTreeMap::new();
             for parameter in parameters {
                 if let Some(default) = &parameter.default {
@@ -1984,6 +2043,114 @@ impl Compiler {
         }
         Ok(())
     }
+    fn charge_semantic_copy(&self, expr: &Expr) -> Result<()> {
+        const LIMIT: usize = 1_000_000;
+        let mut nodes = vec![expr];
+        let mut count = self.expansion_nodes.get();
+        while let Some(value) = nodes.pop() {
+            count = count.saturating_add(1);
+            if count > LIMIT {
+                return Err(Diagnostic::error(
+                    "yl.expansion_limit",
+                    "Semantic definition expansion exceeds the resource limit",
+                    expr.span.clone(),
+                ));
+            }
+            match &value.kind {
+                ExprKind::SemanticBinding { result, .. } => nodes.push(result),
+                ExprKind::SemanticBlock {
+                    actions, result, ..
+                } => {
+                    count = count.saturating_add(
+                        crate::semantics::queries::action_node_count(
+                            actions,
+                            LIMIT.saturating_sub(count),
+                        )
+                        .ok_or_else(|| {
+                            Diagnostic::error(
+                                "yl.expansion_limit",
+                                "Semantic definition expansion exceeds the resource limit",
+                                expr.span.clone(),
+                            )
+                        })?,
+                    );
+                    nodes.push(result);
+                }
+                ExprKind::Call(_, args) => nodes.extend(args.iter().map(|arg| &arg.value)),
+                ExprKind::Tuple(values) | ExprKind::List(values) => nodes.extend(values),
+                ExprKind::Group(value) | ExprKind::Not(value) => nodes.push(value),
+                ExprKind::Lambda { body, .. } => nodes.push(body),
+                _ => {}
+            }
+        }
+        self.expansion_nodes.set(count);
+        Ok(())
+    }
+    fn result_only(value: &Expr) -> Expr {
+        let kind = match &value.kind {
+            ExprKind::SemanticBlock {
+                invocation, result, ..
+            } => ExprKind::SemanticBinding {
+                invocation: invocation.clone(),
+                result: Box::new(Self::result_only(result)),
+            },
+            ExprKind::SemanticBinding { invocation, result } => ExprKind::SemanticBinding {
+                invocation: invocation.clone(),
+                result: Box::new(Self::result_only(result)),
+            },
+            ExprKind::Call(name, args) => ExprKind::Call(
+                name.clone(),
+                args.iter()
+                    .map(|arg| Argument {
+                        value: Self::result_only(&arg.value),
+                        ..arg.clone()
+                    })
+                    .collect(),
+            ),
+            ExprKind::Tuple(values) => {
+                ExprKind::Tuple(values.iter().map(Self::result_only).collect())
+            }
+            ExprKind::List(values) => {
+                ExprKind::List(values.iter().map(Self::result_only).collect())
+            }
+            ExprKind::Group(value) => ExprKind::Group(Box::new(Self::result_only(value))),
+            ExprKind::Not(value) => ExprKind::Not(Box::new(Self::result_only(value))),
+            // A callback owns its body; it is not evaluated by reading its value.
+            _ => value.kind.clone(),
+        };
+        Expr {
+            kind,
+            span: value.span.clone(),
+        }
+    }
+    fn argument_actions(
+        &self,
+        symbol: &Symbol,
+        bindings: &BTreeMap<String, Expr>,
+    ) -> Result<Vec<crate::semantics::queries::QueryAction>> {
+        fn has_block(value: &Expr) -> bool {
+            match &value.kind {
+                ExprKind::SemanticBlock { .. } => true,
+                ExprKind::Call(_, args) => args.iter().any(|arg| has_block(&arg.value)),
+                ExprKind::Tuple(values) | ExprKind::List(values) => values.iter().any(has_block),
+                ExprKind::Group(value) | ExprKind::Not(value) => has_block(value),
+                _ => false,
+            }
+        }
+        bindings
+            .values()
+            .filter(|value| has_block(value))
+            .map(|value| {
+                Ok(crate::semantics::queries::QueryAction::Call {
+                    name: "core/query#first".into(),
+                    args: vec![crate::semantics::queries::QueryExpr::List(vec![
+                        self.query_expr_normalized(symbol, value)?
+                    ])],
+                    span: value.span.clone(),
+                })
+            })
+            .collect()
+    }
     fn expand_semantic_expr(
         &self,
         context: &Symbol,
@@ -2013,27 +2180,41 @@ impl Compiler {
             )),
             ExprKind::Ref(name) => {
                 if let Some(value) = bindings.get(name) {
-                    return Ok(value.clone());
+                    self.charge_semantic_copy(value)?;
+                    return Ok(Self::result_only(value));
                 }
                 if let Some((root, suffix)) = name.split_once('.') {
                     if let Some(value) = bindings.get(root) {
-                        let projected = match &value.kind {
-                            ExprKind::Ref(actual) => {
-                                Some(ExprKind::Ref(format!("{actual}.{suffix}")))
-                            }
-                            ExprKind::SemanticCapture(actual) => {
-                                Some(ExprKind::SemanticCapture(format!("{actual}.{suffix}")))
-                            }
-                            _ => None,
-                        };
-                        if let Some(kind) = projected {
-                            return Ok(Expr {
+                        fn project(value: &Expr, suffix: &str) -> Option<Expr> {
+                            let kind = match &value.kind {
+                                ExprKind::SemanticBinding { invocation, result } => {
+                                    ExprKind::SemanticBinding {
+                                        invocation: invocation.clone(),
+                                        result: Box::new(project(result, suffix)?),
+                                    }
+                                }
+                                ExprKind::SemanticBlock {
+                                    invocation, result, ..
+                                } => ExprKind::SemanticBinding {
+                                    invocation: invocation.clone(),
+                                    result: Box::new(project(result, suffix)?),
+                                },
+                                ExprKind::Ref(actual) => {
+                                    ExprKind::Ref(format!("{actual}.{suffix}"))
+                                }
+                                ExprKind::SemanticCapture(actual) => {
+                                    ExprKind::SemanticCapture(format!("{actual}.{suffix}"))
+                                }
+                                ExprKind::Absent => ExprKind::Absent,
+                                _ => return None,
+                            };
+                            Some(Expr {
                                 kind,
                                 span: value.span.clone(),
-                            });
+                            })
                         }
-                        if matches!(value.kind, ExprKind::Absent) {
-                            return Ok(value.clone());
+                        if let Some(value) = project(value, suffix) {
+                            return Ok(value);
                         }
                     }
                 }
@@ -2086,17 +2267,78 @@ impl Compiler {
                         parameters, body, ..
                     } = &wrapper.declaration.kind
                     {
-                        let OperationBody::Query(body) = body else {
-                            return Err(Diagnostic::error(
-                                "yl.invalid_operation_query",
-                                "Action operation cannot be used as a value",
-                                expr.span.clone(),
-                            ));
-                        };
+                        self.invocation_path.borrow_mut().push(expr.span.clone());
                         let env = self.bind_semantic_wrapper(
                             wrapper, parameters, &arguments, &expr.span, stack,
                         )?;
-                        let expanded = self.expand_semantic_expr(wrapper, body, &env, stack);
+                        let mut argument_actions = self.argument_actions(wrapper, &env)?;
+                        let expanded = match body {
+                            OperationBody::Query(body) => {
+                                let value =
+                                    self.expand_semantic_expr(wrapper, body, &env, stack)?;
+                                if argument_actions.is_empty() {
+                                    Ok(value)
+                                } else {
+                                    let invocation = self
+                                        .invocation_path
+                                        .borrow()
+                                        .iter()
+                                        .map(|span| {
+                                            format!("{}:{}:{}", span.file, span.start, span.end)
+                                        })
+                                        .collect::<Vec<_>>()
+                                        .join("/");
+                                    Ok(Expr {
+                                        kind: ExprKind::SemanticBlock {
+                                            invocation,
+                                            actions: argument_actions,
+                                            result: Box::new(value),
+                                        },
+                                        span: expr.span.clone(),
+                                    })
+                                }
+                            }
+                            _ => {
+                                let actions = self.operation_actions(body);
+                                let returns: Vec<_> = actions
+                                    .iter()
+                                    .filter_map(|action| match action {
+                                        MeaningSyntaxAction::Return { value, .. } => Some(value),
+                                        _ => None,
+                                    })
+                                    .collect();
+                                if returns.len() != 1 {
+                                    Err(Diagnostic::error("yl.operation_result", "An operation used as a value requires exactly one root return definition", expr.span.clone()))
+                                } else {
+                                    let env =
+                                        self.local_bindings(wrapper, &actions, &env, stack)?;
+                                    let result = self
+                                        .expand_semantic_expr(wrapper, returns[0], &env, stack)?;
+                                    argument_actions.extend(
+                                        self.lower_query_actions(wrapper, &actions, &env, stack)?,
+                                    );
+                                    let actions = argument_actions;
+                                    let invocation = self
+                                        .invocation_path
+                                        .borrow()
+                                        .iter()
+                                        .map(|span| {
+                                            format!("{}:{}:{}", span.file, span.start, span.end)
+                                        })
+                                        .collect::<Vec<_>>()
+                                        .join("/");
+                                    Ok(Expr {
+                                        kind: ExprKind::SemanticBlock {
+                                            invocation,
+                                            actions,
+                                            result: Box::new(result),
+                                        },
+                                        span: expr.span.clone(),
+                                    })
+                                }
+                            }
+                        };
+                        self.invocation_path.borrow_mut().pop();
                         stack.pop();
                         return expanded.map(|mut value| {
                             value.span = expr.span.clone();
@@ -2224,12 +2466,14 @@ impl Compiler {
                         call.span.clone(),
                     ));
                 };
+                self.invocation_path.borrow_mut().push(call.span.clone());
                 let env =
                     self.bind_semantic_wrapper(wrapper, parameters, &arguments, &call.span, stack)?;
                 let mut expanded = vec![];
                 for nested in calls {
                     expanded.extend(self.expand_semantic_actions(wrapper, nested, &env, stack)?);
                 }
+                self.invocation_path.borrow_mut().pop();
                 stack.pop();
                 for nested in &mut expanded {
                     nested.span = call.span.clone();
@@ -2532,7 +2776,10 @@ impl Compiler {
             }
             let mut actions = vec![];
             for call in &case.actions {
-                if matches!(call.name.as_str(), "error" | "warn" | "warning") {
+                if self
+                    .diagnostic_severity(&symbol.module, &symbol.name, &call.name, &call.span)?
+                    .is_some()
+                {
                     let [argument] = call.arguments.as_slice() else {
                         return Err(Diagnostic::error(
                             "yl.invalid_meaning_match",
@@ -2563,11 +2810,14 @@ impl Compiler {
                     }
                     message.push(MeaningMessagePart::Text(remaining.into()));
                     actions.push(MeaningAction::Emit {
-                        severity: if call.name == "error" {
-                            Severity::Error
-                        } else {
-                            Severity::Warning
-                        },
+                        severity: self
+                            .diagnostic_severity(
+                                &symbol.module,
+                                &symbol.name,
+                                &call.name,
+                                &call.span,
+                            )?
+                            .expect("diagnostic resolved"),
                         message,
                         span: call.span.clone(),
                     });
@@ -2615,7 +2865,7 @@ impl Compiler {
             match &expr.kind {
                 ExprKind::Lambda { .. } | ExprKind::Local(_) => true,
                 ExprKind::Call(name, args) => {
-                    name.starts_with("std/query#") || args.iter().any(|arg| query(&arg.value))
+                    name.starts_with("core/query#") || args.iter().any(|arg| query(&arg.value))
                 }
                 ExprKind::Tuple(values) | ExprKind::List(values) => values.iter().any(query),
                 ExprKind::Group(value) | ExprKind::Not(value) => query(value),
@@ -2628,11 +2878,14 @@ impl Compiler {
             call: &MeaningSyntaxCall,
             visiting: &mut BTreeSet<String>,
         ) -> Result<bool> {
-            if matches!(call.name.as_str(), "error" | "warn" | "warning") {
+            if compiler
+                .diagnostic_severity(&symbol.module, &symbol.name, &call.name, &call.span)?
+                .is_some()
+            {
                 return Ok(false);
             }
             let id = compiler.resolve(&symbol.module, &symbol.name, &call.name, &call.span)?;
-            if id.starts_with("std/query#") {
+            if id.starts_with("core/query#") {
                 return Ok(true);
             }
             if let Some(wrapper) = compiler.symbols.get(&id) {
@@ -2681,12 +2934,15 @@ impl Compiler {
             let expanded =
                 compiler.expand_semantic_actions(symbol, call, &bindings, &mut vec![])?;
             Ok(expanded.iter().any(|call| {
-                call.name.starts_with("std/query#")
+                call.name.starts_with("core/query#")
                     || call.arguments.iter().any(|arg| query(&arg.value))
             }))
         }
         for call in &group.calls {
-            if matches!(call.name.as_str(), "error" | "warn" | "warning") {
+            if self
+                .diagnostic_severity(&symbol.module, &symbol.name, &call.name, &call.span)?
+                .is_some()
+            {
                 return Ok(true);
             }
             if action(self, symbol, call, &mut BTreeSet::new())? {
@@ -2725,6 +2981,15 @@ impl Compiler {
     ) -> Result<Vec<crate::semantics::queries::QueryGroup>> {
         let mut groups = vec![];
         let mut names = BTreeSet::new();
+        let ungrouped: Vec<_> = meanings
+            .groups
+            .iter()
+            .filter(|group| group.name.is_none())
+            .flat_map(|group| group.actions.clone())
+            .collect();
+        let common_bindings =
+            self.local_bindings(symbol, &ungrouped, &BTreeMap::new(), &mut vec![])?;
+        let mut common_discovered = false;
         for group in &meanings.groups {
             if group
                 .name
@@ -2750,8 +3015,20 @@ impl Compiler {
             if let Some(matching) = &group.matching {
                 syntax.push(MeaningSyntaxAction::Match(matching.clone()));
             }
-            let actions =
-                self.lower_query_actions(symbol, &syntax, &BTreeMap::new(), &mut vec![])?;
+            let mut actions =
+                self.lower_query_actions(symbol, &syntax, &common_bindings, &mut vec![])?;
+            if group.name.is_none() && !common_discovered {
+                common_discovered = true;
+                let definitions: Vec<_> = ungrouped
+                    .iter()
+                    .filter(|action| matches!(action, MeaningSyntaxAction::Binding { .. }))
+                    .cloned()
+                    .collect();
+                let mut observers =
+                    self.lower_query_actions(symbol, &definitions, &common_bindings, &mut vec![])?;
+                observers.append(&mut actions);
+                actions = observers;
+            }
             groups.push(crate::semantics::queries::QueryGroup {
                 name: group.name.clone(),
                 actions,
@@ -2777,12 +3054,41 @@ impl Compiler {
     ) -> Result<crate::semantics::queries::QueryExpr> {
         use crate::semantics::queries::QueryExpr as Q;
         Ok(match &expr.kind {
+            ExprKind::SemanticBinding { invocation, result } => Q::BindingValue {
+                invocation: invocation.clone(),
+                result: Box::new(self.query_expr_normalized(symbol, &Self::result_only(result))?),
+            },
+            ExprKind::SemanticBlock {
+                invocation,
+                actions,
+                result,
+            } => Q::Block {
+                invocation: invocation.clone(),
+                actions: actions.clone(),
+                result: Box::new(self.query_expr_normalized(symbol, result)?),
+            },
             ExprKind::Local(name) => Q::Local(name.clone()),
             ExprKind::SemanticCapture(name) => Q::Capture(name.clone()),
-            ExprKind::Lambda { parameter, body } => Q::Lambda {
-                parameter: parameter.clone(),
-                body: Box::new(self.query_expr_normalized(symbol, body)?),
-            },
+            ExprKind::Lambda { parameter, body } => {
+                fn has_effect(value: &Expr) -> bool {
+                    match &value.kind {
+                        ExprKind::SemanticBlock { .. } => true,
+                        ExprKind::Call(_, args) => args.iter().any(|arg| has_effect(&arg.value)),
+                        ExprKind::List(values) | ExprKind::Tuple(values) => {
+                            values.iter().any(has_effect)
+                        }
+                        ExprKind::Group(value) | ExprKind::Not(value) => has_effect(value),
+                        _ => false,
+                    }
+                }
+                if has_effect(body) {
+                    return Err(Diagnostic::error("yl.callback_effect", "Expression callbacks must be pure; invoke action-result operations outside the callback", expr.span.clone()));
+                }
+                Q::Lambda {
+                    parameter: parameter.clone(),
+                    body: Box::new(self.query_expr_normalized(symbol, body)?),
+                }
+            }
             ExprKind::Ref(name) if name == "self" => Q::SelfValue,
             ExprKind::Ref(name) if name == "true" || name == "false" => Q::Bool(name == "true"),
             ExprKind::Ref(name) if name == "absent" => Q::Absent,
@@ -2791,7 +3097,8 @@ impl Compiler {
                     Ok(id)
                         if self.symbols.get(&id).is_some_and(|s| {
                             matches!(s.declaration.kind, DeclKind::Symbol { .. })
-                        }) || self.registry.symbols.values().any(|value| value == &id) =>
+                        }) || self.is_enum_variant(&id)
+                            || self.registry.symbols.values().any(|value| value == &id) =>
                     {
                         Q::Symbol(id)
                     }
@@ -2804,6 +3111,18 @@ impl Compiler {
                     }
                     Err(_) => Q::Capture(name.clone()),
                 }
+            }
+            ExprKind::EnumConstant(ty, variant) => {
+                let parent = self.resolve(&symbol.module, &symbol.name, ty, &expr.span)?;
+                let id = format!("{parent}::{variant}");
+                if !self.is_enum_variant(&id) {
+                    return Err(Diagnostic::error(
+                        "yl.invalid_enum",
+                        "Unknown enum variant",
+                        expr.span.clone(),
+                    ));
+                }
+                Q::Symbol(id)
             }
             ExprKind::Absent => Q::Absent,
             ExprKind::Bool(value) => Q::Bool(*value),
@@ -2849,7 +3168,7 @@ impl Compiler {
                 span.clone(),
             )
         })?;
-        if !id.starts_with("std/query#") {
+        if !id.starts_with("core/query#") {
             return Err(Diagnostic::error(
                 "yl.query_native_effect",
                 "Declarative queries cannot call native lifecycle operations",
@@ -2913,6 +3232,158 @@ impl Compiler {
             })
             .collect()
     }
+    fn diagnostic_severity(
+        &self,
+        module: &str,
+        scope: &str,
+        name: &str,
+        span: &Span,
+    ) -> Result<Option<Severity>> {
+        let id = self.resolve(module, scope, name, span)?;
+        Ok(match id.as_str() {
+            "core/diagnostics#error" => Some(Severity::Error),
+            "core/diagnostics#warn" => Some(Severity::Warning),
+            "core/diagnostics#hint" => Some(Severity::Help),
+            _ => None,
+        })
+    }
+    fn operation_actions(&self, body: &OperationBody) -> Vec<MeaningSyntaxAction> {
+        match body {
+            OperationBody::Actions(calls) => calls
+                .iter()
+                .cloned()
+                .map(MeaningSyntaxAction::Call)
+                .collect(),
+            OperationBody::Conditional(actions) => actions.clone(),
+            OperationBody::Query(_) => vec![],
+        }
+    }
+    fn local_bindings(
+        &self,
+        symbol: &Symbol,
+        actions: &[MeaningSyntaxAction],
+        outer: &BTreeMap<String, Expr>,
+        stack: &mut Vec<String>,
+    ) -> Result<BTreeMap<String, Expr>> {
+        let mut definitions = BTreeMap::new();
+        for action in actions {
+            if let MeaningSyntaxAction::Binding { name, value, span } = action {
+                if definitions.insert(name.clone(), value.clone()).is_some() {
+                    return Err(Diagnostic::error(
+                        "yl.duplicate_binding",
+                        format!("Duplicate immutable definition {name}"),
+                        span.clone(),
+                    ));
+                }
+            }
+        }
+        struct Definitions<'a> {
+            compiler: &'a Compiler,
+            symbol: &'a Symbol,
+            values: &'a BTreeMap<String, Expr>,
+            env: BTreeMap<String, Expr>,
+            visiting: BTreeSet<String>,
+            completed: BTreeSet<String>,
+        }
+        impl Definitions<'_> {
+            fn expand(&mut self, name: &str, stack: &mut Vec<String>) -> Result<()> {
+                if self.completed.contains(name) {
+                    return Ok(());
+                }
+                if self.visiting.len() >= 128 {
+                    return Err(Diagnostic::error(
+                        "yl.binding_limit",
+                        "Immutable definition dependencies exceed the nesting limit",
+                        self.values[name].span.clone(),
+                    ));
+                }
+                if !self.visiting.insert(name.into()) {
+                    return Err(Diagnostic::error(
+                        "yl.binding_cycle",
+                        "Cyclic immutable definitions",
+                        self.values[name].span.clone(),
+                    ));
+                }
+                fn refs(expr: &Expr, names: &mut BTreeSet<String>, bound: &BTreeSet<String>) {
+                    match &expr.kind {
+                        ExprKind::Ref(name) => {
+                            let root = name.split('.').next().unwrap_or(name);
+                            if !bound.contains(root) {
+                                names.insert(root.into());
+                            }
+                        }
+                        ExprKind::Call(_, args) => {
+                            for arg in args {
+                                refs(&arg.value, names, bound);
+                            }
+                        }
+                        ExprKind::List(values) | ExprKind::Tuple(values) => {
+                            for value in values {
+                                refs(value, names, bound);
+                            }
+                        }
+                        ExprKind::Group(value) | ExprKind::Not(value) => refs(value, names, bound),
+                        ExprKind::Lambda { parameter, body } => {
+                            let mut nested = bound.clone();
+                            nested.insert(parameter.clone());
+                            refs(body, names, &nested);
+                        }
+                        _ => {}
+                    }
+                }
+                let mut names = BTreeSet::new();
+                refs(&self.values[name], &mut names, &BTreeSet::new());
+                for dependency in names {
+                    if self.values.contains_key(&dependency) {
+                        self.expand(&dependency, stack)?;
+                    }
+                }
+                let value = self.compiler.expand_semantic_expr(
+                    self.symbol,
+                    &self.values[name],
+                    &self.env,
+                    stack,
+                )?;
+                let span = self.values[name].span.clone();
+                let outer = self
+                    .compiler
+                    .invocation_path
+                    .borrow()
+                    .iter()
+                    .map(|span| format!("{}:{}:{}", span.file, span.start, span.end))
+                    .collect::<Vec<_>>()
+                    .join("/");
+                let invocation =
+                    format!("binding:{outer}/{}:{}:{}", span.file, span.start, span.end);
+                self.env.insert(
+                    name.into(),
+                    Expr {
+                        kind: ExprKind::SemanticBinding {
+                            invocation,
+                            result: Box::new(value),
+                        },
+                        span,
+                    },
+                );
+                self.visiting.remove(name);
+                self.completed.insert(name.into());
+                Ok(())
+            }
+        }
+        let mut definitions = Definitions {
+            compiler: self,
+            symbol,
+            values: &definitions,
+            env: outer.clone(),
+            visiting: BTreeSet::new(),
+            completed: BTreeSet::new(),
+        };
+        for name in definitions.values.keys() {
+            definitions.expand(name, stack)?;
+        }
+        let env = definitions.env;
+        Ok(env)
+    }
     fn lower_query_actions(
         &self,
         symbol: &Symbol,
@@ -2920,10 +3391,52 @@ impl Compiler {
         bindings: &BTreeMap<String, Expr>,
         stack: &mut Vec<String>,
     ) -> Result<Vec<crate::semantics::queries::QueryAction>> {
-        use crate::semantics::queries::{QueryAction as A, QueryCase, QueryMessagePart};
+        use crate::semantics::queries::{
+            QueryAction as A, QueryCase, QueryExpr as Q, QueryMessagePart,
+        };
+        let local_env = self.local_bindings(symbol, actions, bindings, stack)?;
+        let bindings = &local_env;
         let mut result = vec![];
         for action in actions {
+            if let MeaningSyntaxAction::Binding { name, span, .. } = action {
+                let ExprKind::SemanticBinding {
+                    invocation,
+                    result: binding_result,
+                } = &bindings[name].kind
+                else {
+                    unreachable!("local definitions carry their context")
+                };
+                let value = Q::Block {
+                    invocation: invocation.clone(),
+                    actions: vec![],
+                    result: Box::new(self.query_expr_normalized(symbol, binding_result)?),
+                };
+                result.push(A::Call {
+                    name: "core/query#first".into(),
+                    args: vec![Q::List(vec![value])],
+                    span: span.clone(),
+                });
+            }
+        }
+        for action in actions {
             match action {
+                MeaningSyntaxAction::Binding { .. } => {}
+                MeaningSyntaxAction::Return { value, span } => {
+                    if !matches!(symbol.declaration.kind, DeclKind::Operation { .. }) {
+                        return Err(Diagnostic::error(
+                            "yl.operation_result",
+                            "return is only valid in an operation",
+                            span.clone(),
+                        ));
+                    }
+                    // A result is declarative: later actions are still discovered.
+                    let result_value = self.lower_query_expr(symbol, value, bindings, stack)?;
+                    result.push(A::Call {
+                        name: "core/query#first".into(),
+                        args: vec![Q::List(vec![result_value])],
+                        span: span.clone(),
+                    });
+                }
                 MeaningSyntaxAction::If {
                     condition,
                     actions,
@@ -3003,7 +3516,10 @@ impl Compiler {
                     });
                 }
                 MeaningSyntaxAction::Call(call) => {
-                    if matches!(call.name.as_str(), "error" | "warn" | "warning") {
+                    if self
+                        .diagnostic_severity(&symbol.module, &symbol.name, &call.name, &call.span)?
+                        .is_some()
+                    {
                         let (arg, target, related) = match call.arguments.as_slice() {
                             [arg] => (arg, None, vec![]),
                             [arg, target] => (
@@ -3105,11 +3621,14 @@ impl Compiler {
                         }
                         message.push(QueryMessagePart::Text(rest.into()));
                         result.push(A::Emit {
-                            severity: if call.name == "error" {
-                                Severity::Error
-                            } else {
-                                Severity::Warning
-                            },
+                            severity: self
+                                .diagnostic_severity(
+                                    &symbol.module,
+                                    &symbol.name,
+                                    &call.name,
+                                    &call.span,
+                                )?
+                                .expect("diagnostic resolved"),
                             message,
                             span: call.span.clone(),
                             target,
@@ -3134,6 +3653,7 @@ impl Compiler {
                             parameters, body, ..
                         } = &wrapper.declaration.kind
                         {
+                            self.invocation_path.borrow_mut().push(call.span.clone());
                             let env = self.bind_semantic_wrapper(
                                 wrapper, parameters, &args, &call.span, stack,
                             )?;
@@ -3152,7 +3672,9 @@ impl Compiler {
                                     ))
                                 }
                             };
+                            result.extend(self.argument_actions(wrapper, &env)?);
                             result.extend(self.lower_query_actions(wrapper, &nested, &env, stack)?);
+                            self.invocation_path.borrow_mut().pop();
                             stack.pop();
                             continue;
                         }
@@ -3230,7 +3752,7 @@ impl Compiler {
                     ));
                 }
                 let (definition, group) = name
-                    .split_once("::meanings::")
+                    .split_once("::semantics::")
                     .map_or((name.as_str(), None), |(definition, group)| {
                         (definition, Some(group.to_owned()))
                     });
@@ -3649,18 +4171,15 @@ impl Compiler {
                             }
                             continue;
                         };
-                        let severity = match name.as_str() {
-                            "error" => Severity::Error,
-                            "warning" => Severity::Warning,
-                            "help" => Severity::Help,
-                            _ => {
-                                return Err(Diagnostic::error(
+                        let severity = self
+                            .diagnostic_severity(module, scope, name, &c.span)?
+                            .ok_or_else(|| {
+                                Diagnostic::error(
                                     "yl.invalid_constraint",
-                                    "when body requires diagnostic emission",
+                                    "when body requires imported diagnostic operation",
                                     c.span.clone(),
-                                ))
-                            }
-                        };
+                                )
+                            })?;
                         let [argument] = values.as_slice() else {
                             return Err(Diagnostic::error(
                                 "yl.invalid_argument",
@@ -3986,7 +4505,7 @@ pub(crate) fn reject_retired_standard_operation(id: &str, span: &Span) -> Result
     Ok(())
 }
 pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
-    if !matches!(language.version, 1..=4)
+    if !matches!(language.version, 1..=5)
         || (language.version < 3 && !language.query_meanings.is_empty())
         || (language.version == 1
             && (!language.meanings.is_empty() || !language.query_meanings.is_empty()))
@@ -5072,7 +5591,7 @@ fn node_term(
 }
 
 fn validate_case_emission(emission: &Constraint) -> Result<()> {
-    let ConstraintKind::Call(name, args) = &emission.kind else {
+    let ConstraintKind::Call(_name, args) = &emission.kind else {
         return Err(Diagnostic::error(
             "yl.invalid_constraint",
             "Expected diagnostic emission",
@@ -5091,13 +5610,6 @@ fn validate_case_emission(emission: &Constraint) -> Result<()> {
             "yl.invalid_argument",
             "Diagnostic takes one positional string",
             argument.span.clone(),
-        ));
-    }
-    if !matches!(name.as_str(), "error" | "warning" | "help") {
-        return Err(Diagnostic::error(
-            "yl.invalid_constraint",
-            "Unknown diagnostic emission",
-            emission.span.clone(),
         ));
     }
     Ok(())
@@ -5248,17 +5760,18 @@ mod declarative_query_frontend_tests {
     }
     #[test]
     fn query_wrappers_expand_to_normalized_callbacks_and_conditionals() {
-        let source = r#"import { get, contribute, ancestors, find, isPresent, text } from "std/query"
+        let source = r#"import { error, warn, hint } from "core/diagnostics"
+import { get, contribute, ancestors, find, isPresent, text } from "core/query"
 symbol scope
 symbol declarations
 operation resolve(target, name) = find(ancestors(target), ancestor => get((get((ancestor, scope)), declarations, text(name))))
-operation declare(target, name) {
-    if isPresent(name) { contribute((target, declarations, text(name)), target) }
+operation declareName(target, name) {
+    when isPresent(name) { contribute((target, declarations, text(name)), target) }
 }
 node Program = name: /[a-z]+/ {
-    meanings {
-        group Register { declare(self, name) }
-        if !isPresent(resolve(self, name)) { error("Missing ${name}") }
+    semantics {
+        group Register { declareName(self, name) }
+        when !isPresent(resolve(self, name)) { error("Missing ${name}") }
     }
 }
 entry Program
@@ -5277,7 +5790,7 @@ entry Program
         let QueryExpr::Call { name, args } = &**value else {
             panic!("expected isPresent");
         };
-        assert_eq!(name, "std/query#isPresent");
+        assert_eq!(name, "core/query#isPresent");
         let QueryExpr::Call { args, .. } = &args[0] else {
             panic!("expected find");
         };
@@ -5292,10 +5805,10 @@ entry Program
     }
     #[test]
     fn pure_query_helpers_and_nested_callbacks_keep_lexical_bindings() {
-        let language = compile(r#"import { contribute, find, ancestors, get } from "std/query"
+        let language = compile(r#"import { contribute, find, ancestors, get } from "core/query"
 operation key(value) = (value, "tag")
 operation select(target, name) = find(ancestors(target), outer => find(ancestors(outer), inner => get((outer, inner, name))))
-node Program = name: /[a-z]+/ { meanings { contribute(key(self), select(self, name)) } }
+node Program = name: /[a-z]+/ { semantics { contribute(key(self), select(self, name)) } }
 entry Program"#).unwrap();
         let QueryAction::Call { args, .. } =
             &language.query_meanings["query.yl#Program"][0].actions[0]
@@ -5341,9 +5854,10 @@ entry Program"#).unwrap();
     #[test]
     fn diagnostics_interpolate_bound_values_and_nested_queries() {
         use crate::semantics::queries::QueryMessagePart as P;
-        let language = compile(r#"import { get } from "std/query"
-operation require(target, actual) { if !actual { error("Bad ${actual}; attachment ${get((target, \"}tag\"))}") } }
-node Program = "x" { meanings { require(self, false) } }
+        let language = compile(r#"import { error, warn, hint } from "core/diagnostics"
+import { get } from "core/query"
+operation require(target, actual) { when !actual { error("Bad ${actual}; attachment ${get((target, \"}tag\"))}") } }
+node Program = "x" { semantics { require(self, false) } }
 entry Program"#).unwrap();
         let QueryAction::If { then_actions, .. } =
             &language.query_meanings["query.yl#Program"][0].actions[0]
@@ -5357,7 +5871,7 @@ entry Program"#).unwrap();
         assert_eq!(
             message[3],
             P::Value(QueryExpr::Call {
-                name: "std/query#get".into(),
+                name: "core/query#get".into(),
                 args: vec![QueryExpr::Tuple(vec![
                     QueryExpr::SelfValue,
                     QueryExpr::Text("}tag".into())
@@ -5369,7 +5883,8 @@ entry Program"#).unwrap();
     fn malformed_diagnostic_expressions_are_structured_errors() {
         for message in ["${get(}", "${}", "${self self}"] {
             let source = format!(
-                r#"node Program = "x" {{ meanings {{ if true {{ error("{message}") }} }} }} entry Program"#
+                r#"import {{ error, warn, hint }} from "core/diagnostics"
+node Program = "x" {{ semantics {{ when true {{ error("{message}") }} }} }} entry Program"#
             );
             let errors = compile(&source).unwrap_err();
             assert!(
@@ -5383,8 +5898,8 @@ entry Program"#).unwrap();
     #[test]
     fn named_query_arguments_preserve_contract_order() {
         let language = compile(
-            r#"import { contribute } from "std/query"
-node Program = "x" { meanings { contribute(value = "result", key = self) } }
+            r#"import { contribute } from "core/query"
+node Program = "x" { semantics { contribute(value = "result", key = self) } }
 entry Program"#,
         )
         .unwrap();
@@ -5405,7 +5920,7 @@ entry Program"#,
             "contribute(self, self, self)",
             "contribute(key = self, key = self, value = self)",
         ] {
-            let source = format!("import {{ contribute }} from \"std/query\" node Program = \"x\" {{ meanings {{ {call} }} }} entry Program");
+            let source = format!("import {{ contribute }} from \"core/query\" node Program = \"x\" {{ semantics {{ {call} }} }} entry Program");
             let errors = compile(&source).unwrap_err();
             assert!(
                 errors
@@ -5424,19 +5939,19 @@ mod authored_standard_module_tests {
 
     const LANGUAGE: &str = r#"
         import * as references from "std/references"
-        import { declare, use } from "std/variables"
+        import { declareName, connectReference } from "std/references"
         import { unknown } from "std/types"
-        import { contribute } from "std/query"
+        import { contribute } from "core/query"
         trivia Space = /\s+/
         node Declaration = "let" name: /[a-z]+/ ";" {
-            meanings { declare(self, name) }
+            semantics { declareName(self, name) }
         }
         node Reference = name: /[a-z]+/ ";" {
-            meanings { use(self, name) }
+            semantics { connectReference(self, name) }
         }
         node Program = (Declaration | Reference)* {
-            meanings {
-                references::lexicalScope(self)
+            semantics {
+                references::createLexicalScope(self)
                 contribute((self, unknown), unknown)
             }
         }
@@ -5484,9 +5999,9 @@ mod authored_standard_module_tests {
     fn authored_operation_arguments_keep_caller_capture_identity() {
         let source = r#"import * as types from "std/types"
             symbol Red
-            node Root = first: /x/ { meanings {
-                types::annotate(first, Red)
-                types::restrictTo(first, Red)
+            node Root = first: /x/ { semantics {
+                types::annotateWithType(first, Red)
+                types::restrictTypeTo(first, Red)
             } }
             entry Root"#;
         let engine = SemanticEngine::default();
@@ -5501,20 +6016,21 @@ mod authored_standard_module_tests {
 
     #[test]
     fn nested_wrappers_preserve_caller_captures_and_member_projections() {
-        let source = r#"import * as types from "std/types"
+        let source = r#"import { error, warn, hint } from "core/diagnostics"
+import * as types from "std/types"
             import { apply, read } from "./helpers"
-            import { equal } from "std/query"
+            import { equal } from "core/query"
             symbol Red
             node Container = first: /x/
-            node Root = box: Container { meanings {
+            node Root = box: Container { semantics {
                 apply(box, Red)
-                if !equal(read(box), Red) { error("Wrong caller capture") }
+                when !equal(read(box), Red) { error("Wrong caller capture") }
             } }
             entry Root"#;
         let helper = r#"import * as types from "std/types"
-            operation nested(value, annotation) { types::annotate(value.first, annotation) }
+            operation nested(value, annotation) { types::annotateWithType(value.first, annotation) }
             export operation apply(value, annotation) { nested(value, annotation) }
-            export operation read(value) = types::typeof(value.first)"#;
+            export operation read(value) = types::typeOf(value.first)"#;
         let engine = SemanticEngine::default();
         let language = compile_sources(
             "language.yl",
@@ -5532,8 +6048,8 @@ mod authored_standard_module_tests {
 
     #[test]
     fn query_artifacts_reject_missing_and_ambiguous_scheduling_groups() {
-        let source = r#"import { contribute } from "std/query"
-            node Root = "x" { meanings { contribute("value", true) } } entry Root"#;
+        let source = r#"import { contribute } from "core/query"
+            node Root = "x" { semantics { contribute("value", true) } } entry Root"#;
         let language = compile_sources(
             "language.yl",
             &BTreeMap::from([("language.yl".into(), source.into())]),
@@ -5592,10 +6108,10 @@ mod authored_standard_module_tests {
     #[test]
     fn default_engine_registers_only_generic_query_primitives() {
         let engine = SemanticEngine::default();
-        assert!(engine.registry().contains_module("std/query"));
+        assert!(engine.registry().contains_module("core/query"));
         assert!(!engine.registry().contains_module("std/references"));
         assert!(!engine.registry().contains_module("std/variables"));
         assert!(!engine.registry().contains_module("std/types"));
-        assert!(!engine.registry().contains_module("std/syntax"));
+        assert!(!engine.registry().contains_module("core/syntax"));
     }
 }

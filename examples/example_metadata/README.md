@@ -87,8 +87,8 @@ Queued changes are coalesced; analysis is otherwise full-graph reanalysis. In-pr
 compiler work finishes before cancellation is acknowledged. Untitled buffers receive
 syntax diagnostics and formatting; save them for module resolution and hints.
 
-The server registers `std/variables` and `std/types` contracts and never executes
-meanings. Other unavailable native-library contracts produce definition diagnostics. The Rust consumer API
+The server registers `std/references` and `std/types` contracts and never executes
+semantics. Other unavailable native-library contracts produce definition diagnostics. The Rust consumer API
 and compiled-artifact CLI previews remain available for these languages. Completion,
 rename, navigation, incremental parsing and target-language LSPs remain future work.
 

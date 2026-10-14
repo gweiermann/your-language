@@ -34,7 +34,7 @@ Run **Format Document**, or configure:
 }
 ```
 
-Formatting uses the canonical four-space Rust formatter directly on the buffer. Invalid syntax leaves it unchanged. Diagnostics appear in Problems and editor underlines. Examples compose valid node/pattern examples, omit optional parts and include one item for `*` and `+`; explicit `example "..."` metadata takes priority. Generation never runs meanings. Unsupported or nonterminating cases have no hint.
+Formatting uses the canonical four-space Rust formatter directly on the buffer. Invalid syntax leaves it unchanged. Diagnostics appear in Problems and editor underlines. Examples compose valid node/pattern examples, omit optional parts and include one item for `*` and `+`; explicit `example "..."` metadata takes priority. Generation never runs semantics. Unsupported or nonterminating cases have no hint.
 
 ## Example display
 
@@ -46,7 +46,7 @@ Examples appear above each declaration as a CodeLens label, such as `example: le
 
 The server handles YL definitions, file and untitled buffers, full-document synchronization, UTF-16 positions, cancellation, stale-result rejection, dependency invalidation, diagnostics, formatting, CodeLens and optional inlay hints. It performs full reanalysis, not incremental parsing. Cancellation suppresses the response; in-progress compiler work completes before the next request. The stdio transport assumes a trusted local client and does not impose a separate message or document allocation limit. Disk imports are read only within discovered graphs. Untitled buffers get syntax diagnostics and formatting; save them before import resolution or example generation.
 
-The authored `std/references` and `std/types` libraries and generic `std/query` primitives are available for definition checking. `std/variables` aliases `std/references`; contextual `self` and captures identify syntax directly. Other host-provided native libraries must remain in their host consumer: unavailable contracts produce diagnostics, rather than being guessed or executed. No target-language language server, completion, navigation or rename is included in this experiment.
+The authored `std/references` and `std/types` libraries and generic `core/query` primitives are available for definition checking. contextual `self` and captures identify syntax directly. Other host-provided native libraries must remain in their host consumer: unavailable contracts produce diagnostics, rather than being guessed or executed. No target-language language server, completion, navigation or rename is included in this experiment.
 
 The CLI `fmt` and `examples` commands remain available independently. The extension uses `vscode-languageclient` and does not bundle Rust. See [the metadata experiment](../../examples/example_metadata/README.md) for generator limits.
 
@@ -62,3 +62,5 @@ npm test
 Set `YL_TEST_CLI` to a different absolute executable path when testing another build. CI runs Rust, client, protocol and packaging checks on Windows and Linux.
 
 Selected trivia accepting one space permits readable spacing between grammar fragments. No keyword rules are inferred; parser validation and bounded unspaced fallbacks preserve adjacency requirements.
+
+Highlighting covers `semantics`, `checks`, reactive `when`, immutable `:=` definitions, operation `return`, and qualified enum variants. Engine queries and diagnostics are imported from `core/query` and `core/diagnostics`.

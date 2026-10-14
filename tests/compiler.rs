@@ -132,7 +132,7 @@ fn diagnostic_categories() {
     );
     assert_eq!(
         code(
-            "node P = /x/ { constraints { when absent.matches(/x/) { error(\"bad\") } } } entry P"
+            "import { error, warn, hint } from \"core/diagnostics\"\nnode P = /x/ { checks { when absent.matches(/x/) { error(\"bad\") } } } entry P"
         ),
         "yl.unknown_capture"
     );
@@ -144,7 +144,7 @@ fn diagnostic_categories() {
         code("node E { node N = /x/ precedence { Unknown } } entry E"),
         "yl.invalid_precedence_member"
     );
-    assert_eq!(code("node P = value: /x/? { constraints { when value.matches(/x/) { error(\"x\") } } } entry P"),"yl.optional_capture");
+    assert_eq!(code("import { error, warn, hint } from \"core/diagnostics\"\nnode P = value: /x/? { checks { when value.matches(/x/) { error(\"x\") } } } entry P"),"yl.optional_capture");
 }
 #[test]
 fn deterministic_artifacts_and_hostile_input() {

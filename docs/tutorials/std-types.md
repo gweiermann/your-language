@@ -6,25 +6,29 @@ This tutorial follows the checked-in [Mini TypeScript definition](https://github
 
 ## Start with identities and type evidence
 
-Inside a node or pattern's `meanings` block, `self` identifies the current node or pattern occurrence. A capture identifies the captured syntax occurrence directly; neither requires a syntax-identity wrapper. Repeated captures are lists, and optional captures may be `absent`.
+Inside a node or pattern's `semantics` block, `self` identifies the current node or pattern occurrence. A capture identifies the captured syntax occurrence directly; neither requires a syntax-identity wrapper. Repeated captures are lists, and optional captures may be `absent`.
 
-Declare the primitive types in your language, then annotate literal occurrences:
+Declare the primitive types in your language, then annotateWithType literal occurrences:
 
 ```yl
-import * as types from "std/types"
+import { annotateWithType } from "std/types"
 
-symbol number
+enum Type {
+    number
+    string
+    boolean
+}
 
 node Number = value: /[0-9]+/ {
-    meanings {
-        types::annotate(self, number)
+    semantics {
+        annotateWithType(self, Type::number)
     }
 }
 ```
 
-`annotate(key, value)` contributes possible types to `(key, types::type)`. Repeating the same evidence has no effect; distinct contributions form alternatives. `types::typeof(key)` reads those alternatives, or the library's `unknown` symbol for an existing occurrence with no evidence. `types::typeof(absent)` returns `absent`, so optional missing syntax does not contribute an unknown type. Pending queries are an evaluation state, not another type symbol. `unknown` does not erase known evidence.
+`annotateWithType(key, value)` records possible types through the standard library. Repeating the same evidence has no effect; distinct contributions form alternatives. `types::typeOf(key)` reads those alternatives, or the library's `unknown` symbol for an existing occurrence with no evidence. `types::typeOf(absent)` returns `absent`, so optional missing syntax does not contribute an unknown type. Pending queries are an evaluation state, not another type symbol. `unknown` does not erase known evidence.
 
-The standard library does not export `number`, `string`, `boolean`, or a function-type marker. These are language-owned values. Namespace imports are optional: `import { annotate, typeof } from "std/types"` imports the same operations directly.
+The standard library does not export `number`, `string`, `boolean`, or a function-type marker. These are language-owned values. Documentation uses descriptive direct exports consistently; import renaming is not required.
 
 ## Choose where information belongs
 
@@ -33,32 +37,32 @@ A reference identity identifies a particular declaration, including its lexical 
 Use `referenceOf(name)` from `std/references` to address the shared binding. Associate a reference occurrence with the binding's evidence through an authored operation:
 
 ```yl
-import * as types from "std/types"
-import { use, referenceOf } from "std/references"
+import { annotateWithType, typeOf } from "std/types"
+import { connectReference, referenceOf } from "std/references"
 
 node Reference = name: Name {
-    meanings {
-        use(self, name)
-        types::annotate(self, types::typeof(referenceOf(name)))
+    semantics {
+        ref := connectReference(self, name)
+        annotateWithType(self, typeOf(ref))
     }
 }
 ```
 
-Here `Name` is the language's imported name pattern. The complete example defines it in `lexical.yl`. `use(self, name)` records the resolved declaration on the exact name capture and on the reference occurrence. The type library has no dependency on the reference library; the language connects their identities.
+Here `Name` is the language's imported name pattern. The complete example defines it in `lexical.yl`. `connectReference(self, name)` records the resolved declaration on the exact name capture and on the reference occurrence. The type library has no dependency on the reference library; the language connects their identities.
 
 ## Keep constraints separate from annotation
 
-`restrictTo(key, expected, target = key, related = absent)` checks compatibility and reports a diagnostic. It does not replace the evidence at `key` or contribute `expected` automatically. The default compatibility policy accepts every known actual candidate only if it is among the expected candidates; `unknown` is permissive. A language can author a different policy using generic data queries.
+`restrictTypeTo(key, expected, target = key, related = absent)` checks compatibility and reports a diagnostic. It does not replace the evidence at `key` or contribute `expected` automatically. The default compatibility policy accepts every known actual candidate only if it is among the expected candidates; `unknown` is permissive. A language can author a different policy using generic data queries.
 
 An initializer contributes actual evidence. An explicit binding annotation imposes a restriction on that evidence:
 
 ```yl
 operation bindingType(name, initializer, annotation) {
-    types::annotate(referenceOf(name), types::typeof(initializer))
+    annotateWithType(referenceOf(name), typeOf(initializer))
 
-    types::restrictTo(
+    restrictTypeTo(
         referenceOf(name),
-        types::typeof(annotation),
+        typeOf(annotation),
         initializer,
         annotation.value
     )
@@ -71,18 +75,20 @@ For `let count: number = "wrong";`, the check reports incompatible evidence and 
 
 ## Define operator rules in YL
 
-The language's `annotateWithType` wrapper selects a binding identity where one exists and otherwise uses the supplied target. Operations have no implicit `self`; their callers pass it explicitly. Mini TypeScript's addition node then spells out its own type policy:
+The type library accepts the supplied occurrence or declaration identity directly. Operations have no implicit `self`; their callers pass it explicitly. Mini TypeScript's addition node then spells out its own type policy:
 
 ```yl
-match (typeof(left), typeof(right)) {
-    string, string | string, number | number, string => annotateWithType(self, string),
-    number, number                                  => annotateWithType(self, number),
+import { error } from "core/diagnostics"
+
+match (typeOf(left), typeOf(right)) {
+    Type::string, Type::string | Type::string, Type::number | Type::number, Type::string => annotateWithType(self, Type::string),
+    Type::number, Type::number                                  => annotateWithType(self, Type::number),
     unknown, _ | _, unknown                         => annotateWithType(self, unknown),
     _                                               => error("${left} + ${right} is not possible")
 }
 ```
 
-`typeof`, `annotateWithType`, and the type symbols here are imports from the example's `typing.yl` and `types.yl`. The engine evaluates relevant combinations of alternatives. The selected case sees the selected operand candidates, so rereading a selected operand does not reintroduce unrelated alternatives. An unsupported known combination contributes a diagnostic; valid combinations still contribute their results.
+`typeOf`, `annotateWithType`, and the type enum here are imports from the example's `typing.yl` and `types.yl`. The engine evaluates relevant combinations of alternatives. The selected case sees the selected operand candidates, so rereading a selected operand does not reintroduce unrelated alternatives. An unsupported known combination contributes a diagnostic; valid combinations still contribute their results.
 
 There is no special native addition operation and no explicit `solve()` call. The query engine tracks dependencies and propagates evidence. Guards and diagnostics wait for the information needed to determine their result.
 
@@ -107,26 +113,26 @@ The type library stores evidence in its own channel, so the corresponding physic
 The body describes its return separately from its own type:
 
 ```yl
-types::annotate((self, returnType), typeof(result))
+annotateWithType((self, returnType), typeOf(result))
 ```
 
 The declaration connects that relationship to its binding:
 
 ```yl
-types::annotate(
+annotateWithType(
     (referenceOf(name), returnType),
-    types::typeof((contents.body, returnType))
+    typeOf((contents.body, returnType))
 )
 ```
 
-This does not give the block itself a type. A language with expression-valued blocks could instead annotate the block's `self` directly. Lists and tuples are ordinary compound values; a list is not automatically a union. Use `map(parameters, parameter => types::typeof(parameter))` when a positional list of types is needed.
+This does not give the block itself a type. A language with expression-valued blocks could instead annotateWithType the block's `self` directly. Lists and tuples are ordinary compound values; a list is not automatically a union. Use `map(parameters, parameter => types::typeOf(parameter))` when a positional list of types is needed.
 
 ## Infer each call under temporary assumptions
 
 For `identity(42)`, ask for the return under one explicit parameter assignment:
 
 ```yl
-types::resolveWith(
+resolveTypeWith(
     (functionIdentity, returnType),
     [((functionIdentity, parameters, "value"), number, argument)]
 )
@@ -185,7 +191,7 @@ cargo run --example mini_typescript -- generics-errors
 cargo run --example mini_typescript -- generics-errors --json
 ```
 
-It exits with status `1` and reports `Type number does not match string`, with `identity(42)` as the primary location and the type word `string` as the related location. The incompatible call is still a number, regardless of the separate string call to `identity`. An annotation is a restriction, not evidence that changes the inferred result.
+It exits with status `1` and reports `Type Type::number does not match Type::string`, with `identity(42)` as the primary location and the type word `string` as the related location. The incompatible call is still a number, regardless of the separate string call to `identity`. An annotation is a restriction, not evidence that changes the inferred result.
 
 The definitions are divided into `types.yl`, `typing.yl`, `expression.yl`, `parameter.yl`, `function.yl`, and `let.yl`. Follow the source to change operator or binding policy rather than extending Rust with target-language rules.
 

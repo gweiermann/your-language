@@ -112,10 +112,10 @@ fn precedence_remains_transitive_when_optional_middle_level_is_absent() {
         .unwrap();
     let engine = SemanticEngine::new(registry);
     let source = r#"import { record } from "test/order"
-node First = "a" { meanings { record("first") } }
-node Middle = "b" { meanings { record("middle") } }
-node Last = "c" { meanings { record("last") } }
-node Program = First Middle? Last { meanings { precedence { Last > Middle > First } } }
+node First = "a" { semantics { record("first") } }
+node Middle = "b" { semantics { record("middle") } }
+node Last = "c" { semantics { record("last") } }
+node Program = First Middle? Last { semantics { precedence { Last > Middle > First } } }
 entry Program"#;
     let result = engine
         .compile_and_analyze(

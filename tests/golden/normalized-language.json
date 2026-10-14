@@ -61,8 +61,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 567,
-        "end": 639
+        "start": 723,
+        "end": 811
       }
     },
     "language.yl#Expression": {
@@ -118,7 +118,7 @@
       "span": {
         "file": "language.yl",
         "start": 64,
-        "end": 565
+        "end": 721
       }
     },
     "language.yl#Expression::Group": {
@@ -147,8 +147,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 154,
-        "end": 192
+        "start": 156,
+        "end": 218
       }
     },
     "language.yl#Expression::Member": {
@@ -182,8 +182,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 197,
-        "end": 248
+        "start": 224,
+        "end": 299
       }
     },
     "language.yl#Expression::NameExpression": {
@@ -202,8 +202,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 117,
-        "end": 149
+        "start": 118,
+        "end": 150
       }
     },
     "language.yl#Expression::Number": {
@@ -262,8 +262,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 305,
-        "end": 367
+        "start": 374,
+        "end": 460
       }
     },
     "language.yl#Expression::Product": {
@@ -302,8 +302,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 372,
-        "end": 435
+        "start": 466,
+        "end": 553
       }
     },
     "language.yl#Expression::Sum": {
@@ -342,8 +342,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 440,
-        "end": 499
+        "start": 559,
+        "end": 642
       }
     },
     "language.yl#Expression::Unary": {
@@ -374,8 +374,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 253,
-        "end": 300
+        "start": 305,
+        "end": 368
       }
     },
     "language.yl#Program": {
@@ -399,8 +399,8 @@
       "constraints": [],
       "span": {
         "file": "language.yl",
-        "start": 640,
-        "end": 681
+        "start": 813,
+        "end": 854
       }
     },
     "lexical.yl#Comment": {
@@ -414,8 +414,8 @@
       "constraints": [],
       "span": {
         "file": "lexical.yl",
-        "start": 79,
-        "end": 115
+        "start": 81,
+        "end": 117
       }
     },
     "lexical.yl#Name": {
@@ -434,8 +434,8 @@
       "constraints": [],
       "span": {
         "file": "lexical.yl",
-        "start": 223,
-        "end": 273
+        "start": 228,
+        "end": 278
       }
     },
     "lexical.yl#Whitespace": {
@@ -449,8 +449,8 @@
       "constraints": [],
       "span": {
         "file": "lexical.yl",
-        "start": 39,
-        "end": 78
+        "start": 40,
+        "end": 79
       }
     }
   },
@@ -466,8 +466,8 @@
       "explicit": null,
       "span": {
         "file": "lexical.yl",
-        "start": 116,
-        "end": 155
+        "start": 119,
+        "end": 158
       }
     }
   }

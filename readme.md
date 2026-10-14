@@ -51,14 +51,14 @@ Syntax-local constraints can also add errors, warnings, and help messages to a l
 
 ## Compose meaning
 
-Language-authored meanings connect syntax to reusable native analysis libraries. The [Mini TypeScript example](./examples/mini_typescript/) demonstrates scopes, resolved bindings and inferred types through ordinary imported operations:
+Language-authored semantics connect syntax to reusable native analysis libraries. The [Mini TypeScript example](./examples/mini_typescript/) demonstrates scopes, resolved bindings and inferred types through ordinary imported operations:
 
 ```yl
 import { annotateWithType } from "./typing"
 import { number } from "./types"
 
 node Number = value: /[0-9]+/ {
-    meanings {
+    semantics {
         annotateWithType(self, number)
     }
 }
@@ -126,7 +126,7 @@ npm run docs:dev
 
 Planned development extends the syntax, AST, and diagnostic foundation across four areas:
 
-- **Language analysis:** generalize the experimental native meaning libraries with richer type inference, flow analysis and reusable analysis protocols.
+- **Language analysis:** generalize the experimental native semantic libraries with richer type inference, flow analysis and reusable analysis protocols.
 - **Developer tooling:** extend the YL language server with navigation and completion, then explore tooling for languages defined in YL and incremental analysis.
 - **Execution and integration:** parser generation, runtime performance, and bindings for additional host environments.
 - **Language authoring:** expand grammar inspection, reusable libraries and parser-validated examples.

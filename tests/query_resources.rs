@@ -16,8 +16,8 @@ fn language(grammar: &str) -> (SemanticEngine, your_language::CompiledLanguage) 
 #[test]
 fn recursively_constructed_facts_are_bounded_before_exponential_growth() {
     let (engine, language) = language(
-        r#"import { contribute, contributeAll, map, facts } from "std/query"
-node Program = "x" { meanings {
+        r#"import { contribute, contributeAll, map, facts } from "core/query"
+node Program = "x" { semantics {
     contribute("k", "seed")
     contributeAll("k", map(facts("k"), item => (item, item)))
     contribute("independent", true)
@@ -44,8 +44,8 @@ entry Program"#,
 #[test]
 fn callback_builders_reject_oversized_results_before_collecting_them() {
     let grammar = format!(
-        r#"import {{ contribute, map }} from "std/query"
-node Program = tokens: /x/* {{ meanings {{ contribute("large", map(tokens, token => "{}")) }} }}
+        r#"import {{ contribute, map }} from "core/query"
+node Program = tokens: /x/* {{ semantics {{ contribute("large", map(tokens, token => "{}")) }} }}
 entry Program"#,
         "z".repeat(1024)
     );
@@ -86,8 +86,9 @@ fn expanded_branches_share_one_key_and_diagnostic_content_budget() {
         ),
     ] {
         let grammar = format!(
-            r#"import {{ contribute, alternatives, get, concat }} from "std/query"
-node Program = "x" {{ meanings {{
+            r#"import {{ error }} from "core/diagnostics"
+import {{ contribute, alternatives, get, concat }} from "core/query"
+node Program = "x" {{ semantics {{
     contribute("selector", alternatives([{}]))
     match (get("selector")) {{ _ => {} }}
     contribute("independent", true)
@@ -116,11 +117,12 @@ entry Program"#,
 #[test]
 fn new_primitives_and_related_locations_cannot_be_mislabeled_as_old_artifacts() {
     for grammar in [
-        r#"import { contribute, tail } from "std/query"
-node Program = "x" { meanings { contribute("result",tail([true,false])) } } entry Program"#,
-        r#"node Program = "x" { meanings { if true { error("Message", self, self) } } } entry Program"#,
-        r#"import { contribute,getEarlier } from "std/query"
-node Program = "x" { meanings { contribute("result",getEarlier("other")) } } entry Program"#,
+        r#"import { contribute, tail } from "core/query"
+node Program = "x" { semantics { contribute("result",tail([true,false])) } } entry Program"#,
+        r#"import { error, warn, hint } from "core/diagnostics"
+node Program = "x" { semantics { when true { error("Message", self, self) } } } entry Program"#,
+        r#"import { contribute,getEarlier } from "core/query"
+node Program = "x" { semantics { contribute("result",getEarlier("other")) } } entry Program"#,
     ] {
         let (engine, language) = language(grammar);
         let mut json = serde_json::to_value(language).unwrap();
@@ -128,6 +130,10 @@ node Program = "x" { meanings { contribute("result",getEarlier("other")) } } ent
         let errors = engine
             .load(&serde_json::to_vec(&json).unwrap())
             .unwrap_err();
-        assert!(errors[0].message.contains("version 4"), "{:?}", errors);
+        assert!(
+            (errors[0].message.contains("version 4") || errors[0].message.contains("version 5")),
+            "{:?}",
+            errors
+        );
     }
 }

@@ -50,8 +50,8 @@ Use `import * as name` to access a module's exports through `::`:
 import * as references from "std/references"
 
 node Reference = name: Name {
-    meanings {
-        references::use(self, name)
+    semantics {
+        references::connectReference(self, name)
     }
 }
 ```

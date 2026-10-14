@@ -5,10 +5,12 @@ Constraints validate syntax already captured by a node. This guide demonstrates 
 ## Capture an optional name
 
 ```yl
+import { error, warn } from "core/diagnostics"
+
 node Program = name: /[A-Za-z]+/? ":" {
-    constraints {
+    checks {
         when name?.matches(/^[A-Z]/) {
-            warning("Names should begin with a lowercase letter.")
+            warn("Names should begin with a lowercase letter.")
         }
         when !name.isPresent() {
             error("A name is required.")
@@ -46,8 +48,10 @@ The check command writes a diagnostic array to stdout. The AST command writes th
 An ordinary `.matches` call on a possibly absent capture must have a presence guard:
 
 ```yl
+import { warn } from "core/diagnostics"
+
 when name.isPresent() && name.matches(/^[A-Z]/) {
-    warning("Names should begin with a lowercase letter.")
+    warn("Names should begin with a lowercase letter.")
 }
 ```
 

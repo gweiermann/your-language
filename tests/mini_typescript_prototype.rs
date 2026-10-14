@@ -29,18 +29,21 @@ fn literals_annotations_and_calls() {
     ));
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(binding(&result, "identity"), ["(unknown) => unknown"]);
-    assert_eq!(binding(&result, "count"), ["number"]);
-    assert_eq!(binding(&result, "again"), ["number"]);
-    assert_eq!(binding(&result, "title"), ["string"]);
-    assert_eq!(binding(&result, "enabled"), ["boolean"]);
+    assert_eq!(binding(&result, "count"), ["Type::number"]);
+    assert_eq!(binding(&result, "again"), ["Type::number"]);
+    assert_eq!(binding(&result, "title"), ["Type::string"]);
+    assert_eq!(binding(&result, "enabled"), ["Type::boolean"]);
 }
 
 #[test]
 fn multiple_parameters_nested_calls_and_zero_arguments() {
     let result = analyze("function pair(a: number, b: string) { return b; } function zero() { return 1; } let result = pair(zero(), \"yes\");");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(binding(&result, "pair"), ["(number, string) => string"]);
-    assert_eq!(binding(&result, "result"), ["string"]);
+    assert_eq!(
+        binding(&result, "pair"),
+        ["(Type::number, Type::string) => Type::string"]
+    );
+    assert_eq!(binding(&result, "result"), ["Type::string"]);
 }
 
 #[test]
@@ -48,8 +51,8 @@ fn declaration_and_reference_types_respect_shadowing() {
     let result =
         analyze("let value = 1; function inner(value: string) { return value; } let copy = value;");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(binding(&result, "value"), ["number", "string"]);
-    assert_eq!(binding(&result, "copy"), ["number"]);
+    assert_eq!(binding(&result, "value"), ["Type::number", "Type::string"]);
+    assert_eq!(binding(&result, "copy"), ["Type::number"]);
 }
 
 #[test]
@@ -60,8 +63,8 @@ fn mixed_calls_do_not_contaminate_the_declaration_signature() {
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(binding(&result, "value"), ["unknown"]);
     assert_eq!(binding(&result, "echo"), ["(unknown) => unknown"]);
-    assert_eq!(binding(&result, "one"), ["number"]);
-    assert_eq!(binding(&result, "two"), ["string"]);
+    assert_eq!(binding(&result, "one"), ["Type::number"]);
+    assert_eq!(binding(&result, "two"), ["Type::string"]);
 }
 
 #[test]
@@ -70,7 +73,10 @@ fn rejected_annotation_does_not_become_an_inferred_generic_call_type() {
     let result = analyze(source);
     assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
     let diagnostic = &result.diagnostics[0];
-    assert_eq!(diagnostic.message, "Type number does not match string");
+    assert_eq!(
+        diagnostic.message,
+        "Type Type::number does not match Type::string"
+    );
     assert_eq!(
         &source[diagnostic.primary.start..diagnostic.primary.end],
         "identity(42)"
@@ -79,9 +85,9 @@ fn rejected_annotation_does_not_become_an_inferred_generic_call_type() {
         .secondary
         .iter()
         .any(|span| span.file == "test.ts" && &source[span.start..span.end] == "string"));
-    assert_eq!(binding(&result, "count"), ["number"]);
-    assert_eq!(binding(&result, "copy"), ["number"]);
-    assert_eq!(binding(&result, "title"), ["string"]);
+    assert_eq!(binding(&result, "count"), ["Type::number"]);
+    assert_eq!(binding(&result, "copy"), ["Type::number"]);
+    assert_eq!(binding(&result, "title"), ["Type::string"]);
     assert_eq!(binding(&result, "value"), ["unknown"]);
 }
 
@@ -91,7 +97,7 @@ fn aliases_keep_the_function_binding_identity() {
         analyze("function id(value) { return value; } let alias = id; let result = alias(1);");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(binding(&result, "id"), binding(&result, "alias"));
-    assert_eq!(binding(&result, "result"), ["number"]);
+    assert_eq!(binding(&result, "result"), ["Type::number"]);
 }
 
 #[test]
@@ -101,7 +107,7 @@ fn function_arguments_retain_signatures_through_parameter_overrides() {
     ));
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(binding(&result, "identity"), ["(unknown) => unknown"]);
-    assert_eq!(binding(&result, "result"), ["number"]);
+    assert_eq!(binding(&result, "result"), ["Type::number"]);
 }
 
 #[test]
@@ -111,11 +117,11 @@ fn nested_hypotheticals_keep_captured_outer_values_shared() {
     ));
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     for (name, expected) in [
-        ("outside", "number"),
-        ("count", "number"),
-        ("title", "string"),
-        ("numberResult", "number"),
-        ("stringResult", "string"),
+        ("outside", "Type::number"),
+        ("count", "Type::number"),
+        ("title", "Type::string"),
+        ("numberResult", "Type::number"),
+        ("stringResult", "Type::string"),
     ] {
         assert_eq!(binding(&result, name), [expected]);
     }
@@ -127,17 +133,20 @@ fn generic_error_fixture_keeps_nested_returns_and_outer_types_independent() {
     let result = analyze(source);
     assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
     let diagnostic = &result.diagnostics[0];
-    assert_eq!(diagnostic.message, "Type number does not match string");
+    assert_eq!(
+        diagnostic.message,
+        "Type Type::number does not match Type::string"
+    );
     assert_eq!(
         &source[diagnostic.primary.start..diagnostic.primary.end],
         "identity(42)"
     );
     for (name, expected) in [
-        ("outside", "number"),
-        ("count", "number"),
-        ("title", "string"),
-        ("numberResult", "number"),
-        ("stringResult", "string"),
+        ("outside", "Type::number"),
+        ("count", "Type::number"),
+        ("title", "Type::string"),
+        ("numberResult", "Type::number"),
+        ("stringResult", "Type::string"),
     ] {
         assert_eq!(binding(&result, name), [expected]);
     }
@@ -201,8 +210,8 @@ fn independent_checks_survive_a_bad_call() {
     assert!(result
         .diagnostics
         .iter()
-        .any(|diagnostic| diagnostic.message.contains("string")
-            && diagnostic.message.contains("number")));
+        .any(|diagnostic| diagnostic.message.contains("Type::string")
+            && diagnostic.message.contains("Type::number")));
 }
 
 #[test]
@@ -215,8 +224,8 @@ fn repeated_concurrent_analysis_is_isolated() {
     std::thread::scope(|scope| {
         let one = scope.spawn(|| engine.analyze(&loaded, "same", "let value = 1;"));
         let two = scope.spawn(|| engine.analyze(&loaded, "other", "let value = false;"));
-        assert_eq!(binding(&one.join().unwrap(), "value"), ["number"]);
-        assert_eq!(binding(&two.join().unwrap(), "value"), ["boolean"]);
+        assert_eq!(binding(&one.join().unwrap(), "value"), ["Type::number"]);
+        assert_eq!(binding(&two.join().unwrap(), "value"), ["Type::boolean"]);
     });
 }
 
@@ -249,8 +258,8 @@ fn hypothetical_case_error_keeps_actual_argument_origin() {
 fn parameter_overrides_are_independent_and_positional() {
     let result = analyze("function choose(first, second) { return second; } let numberResult = choose(\"ignored\", 42); let stringResult = choose(true, \"yes\");");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(binding(&result, "numberResult"), ["number"]);
-    assert_eq!(binding(&result, "stringResult"), ["string"]);
+    assert_eq!(binding(&result, "numberResult"), ["Type::number"]);
+    assert_eq!(binding(&result, "stringResult"), ["Type::string"]);
     assert_eq!(
         binding(&result, "choose"),
         ["(unknown, unknown) => unknown"]
@@ -262,8 +271,8 @@ fn union_function_identities_resolve_each_signature() {
     let mut sources = definition::sources();
     let typing = sources.get_mut("definition/typing.yl").unwrap();
     *typing = typing.replace("referenceOf, enclosingScope", "referenceOf, enclosingScope, declarations").replacen(
-        "types::annotate(referenceOf(name), typeof(value))",
-        "types::annotate(referenceOf(name), typeof(value))\n    if equal(text(name), \"choice\") {\n        types::annotate(referenceOf(name), get((enclosingScope(name), declarations, \"second\")))\n    }",
+        "annotateWithType(referenceOf(name), typeOf(value))",
+        "annotateWithType(referenceOf(name), typeOf(value))\n    when equal(text(name), \"choice\") {\n        annotateWithType(referenceOf(name), get((enclosingScope(name), declarations, \"second\")))\n    }",
         1,
     );
     let engine = inference::engine();
@@ -271,7 +280,7 @@ fn union_function_identities_resolve_each_signature() {
     let loaded = engine.load(&compiled.to_bytes().unwrap()).unwrap();
     let result = engine.analyze(&loaded, "test.ts", "function first(value) { return 1; } function second(value) { return \"yes\"; } let choice = first; let result = choice(true);");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(binding(&result, "result"), ["number | string"]);
+    assert_eq!(binding(&result, "result"), ["Type::number | Type::string"]);
 }
 
 #[test]
@@ -300,6 +309,6 @@ fn let_initializers_do_not_see_their_own_or_later_declarations() {
 fn hoisted_functions_and_deferred_bodies_use_scheduled_visibility() {
     let result = analyze("let result = read(); let later = 42; function read() { return later; }");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(binding(&result, "result"), ["number"]);
-    assert_eq!(binding(&result, "read"), ["() => number"]);
+    assert_eq!(binding(&result, "result"), ["Type::number"]);
+    assert_eq!(binding(&result, "read"), ["() => Type::number"]);
 }

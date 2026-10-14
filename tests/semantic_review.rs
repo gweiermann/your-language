@@ -111,7 +111,7 @@ fn ordinary_native_operations_receive_balanced_own_activation_hooks() {
             &sources(
                 r#"
         import { action } from "test/native"
-        node Root = "x" { meanings { action() } }
+        node Root = "x" { semantics { action() } }
         entry Root
     "#,
             ),
@@ -139,8 +139,8 @@ fn failed_cleanup_activation_still_finalizes_every_started_operation_once() {
             &sources(
                 r#"
         import { scope, action } from "test/native"
-        node Child = "c" { meanings { action() } }
-        node Root = "{" child: Child "}" { meanings { scope() } }
+        node Child = "c" { semantics { action() } }
+        node Root = "{" child: Child "}" { semantics { scope() } }
         entry Root
     "#,
             ),
@@ -160,15 +160,16 @@ fn failed_cleanup_activation_still_finalizes_every_started_operation_once() {
 
 #[test]
 fn rejected_syntax_does_not_invoke_semantics_but_warnings_continue() {
-    for (severity, expected_calls) in [("error", 0), ("warning", 1), ("help", 1)] {
+    for (severity, expected_calls) in [("error", 0), ("warn", 1), ("hint", 1)] {
         let events = Events::default();
         let engine = recording_engine(&events, None);
         let grammar = format!(
             r#"
+            import {{ error, warn, hint }} from "core/diagnostics"
             import {{ action }} from "test/native"
             node Root = "x" {{
-                constraints {{ when true {{ {severity}("Local validation") }} }}
-                meanings {{ action() }}
+                checks {{ when true {{ {severity}("Local validation") }} }}
+                semantics {{ action() }}
             }}
             entry Root
         "#
@@ -203,10 +204,10 @@ fn committed_original_node_and_pattern_actions_survive_pipe_projection_once() {
         import { action } from "test/native"
         import { separatedBy } from "std/parser"
         import { notAhead } from "core/parser"
-        node Failed = "a" "!" { meanings { action() } }
-        node Accepted = "a" { meanings { action() } }
-        pattern Item = Failed | Accepted { meanings { action() } }
-        node Separator = "," { meanings { action() } }
+        node Failed = "a" "!" { semantics { action() } }
+        node Accepted = "a" { semantics { action() } }
+        pattern Item = Failed | Accepted { semantics { action() } }
+        node Separator = "," { semantics { action() } }
         node Root = notAhead(Failed) items: Item* |> separatedBy(Separator)
         entry Root
     "#;
@@ -268,8 +269,8 @@ fn pratt_occurrences_do_not_duplicate_left_hand_actions() {
                 r#"
         import { action } from "test/native"
         node E {
-            node Atom = "a" { meanings { action() } }
-            node Sum = left: E "+" right: E { meanings { action() } }
+            node Atom = "a" { semantics { action() } }
+            node Sum = left: E "+" right: E { semantics { action() } }
             precedence { Sum }
         }
         entry E
@@ -298,7 +299,7 @@ fn aliases_preserve_canonical_meaning_identity_and_abstract_boundaries() {
             "names.yl".into(),
             r#"
             import { action } from "test/native"
-            export node Name = "x" { meanings { action() } }
+            export node Name = "x" { semantics { action() } }
         "#
             .into(),
         ),
@@ -307,9 +308,9 @@ fn aliases_preserve_canonical_meaning_identity_and_abstract_boundaries() {
             r#"
             import { action } from "test/native"
             import { Name as Renamed } from "./names"
-            node Family { node Renamed meanings { action() } }
+            node Family { node Renamed semantics { action() } }
             node Root = direct: Renamed family: Family member: Family::Renamed {
-                meanings { action() }
+                semantics { action() }
             }
             entry Root
         "#
@@ -347,11 +348,12 @@ fn compatible_and_conflicting_nested_rules_accumulate_over_deeper_occurrences() 
         let engine = recording_engine(&events, None);
         let grammar = format!(
             r#"
+            import {{ error, warn, hint }} from "core/diagnostics"
             import {{ action }} from "test/native"
-            node Declaration = "d" {{ meanings {{ action() }} }}
-            node Reference = "r" {{ meanings {{ action() }} }}
-            pattern Inner = Reference Declaration {{ meanings {{ precedence {{ {inner_chain} }} }} }}
-            node Root = Inner {{ meanings {{ precedence {{ Declaration > Reference }} }} }}
+            node Declaration = "d" {{ semantics {{ action() }} }}
+            node Reference = "r" {{ semantics {{ action() }} }}
+            pattern Inner = Reference Declaration {{ semantics {{ precedence {{ {inner_chain} }} }} }}
+            node Root = Inner {{ semantics {{ precedence {{ Declaration > Reference }} }} }}
             entry Root
         "#
         );
@@ -383,16 +385,17 @@ fn compatible_and_conflicting_nested_rules_accumulate_over_deeper_occurrences() 
 #[test]
 fn equally_named_authored_symbols_from_distinct_modules_keep_distinct_identity() {
     let engine = SemanticEngine::default();
-    let source = r#"
+    let source = r#"import { error, warn, hint } from "core/diagnostics"
+
         import * as types from "std/types"
-        import * as variables from "std/variables"
+        import * as variables from "std/references"
         import { category as First } from "first"
         import { category as Second } from "second"
-        node A = "a" { meanings { types::annotate(variables::identity(self), First) } }
-        node B = "b" { meanings { types::annotate(variables::identity(self), Second) } }
+        node A = "a" { semantics { types::annotateWithType(self, First) } }
+        node B = "b" { semantics { types::annotateWithType(self, Second) } }
         node Root = a: A b: B {
-            meanings {
-                match (types::typeof(variables::identityOf(a)), types::typeof(variables::identityOf(b))) {
+            semantics {
+                match (types::typeOf(a), types::typeOf(b)) {
                     First, Second => {},
                     _ => error("Authored symbol identities were lost")
                 }
@@ -423,7 +426,7 @@ fn traversal_cycle_without_native_operations_is_a_structured_diagnostic() {
             &sources(
                 r#"
         node A = "a"
-        node Root = A { meanings { precedence { A > A } } }
+        node Root = A { semantics { precedence { A > A } } }
         entry Root
     "#,
             ),
@@ -444,11 +447,12 @@ fn bare_unannotated_node_and_pattern_are_real_traversal_boundaries() {
         let engine = recording_engine(&events, None);
         let grammar = format!(
             r#"
+            import {{ error, warn, hint }} from "core/diagnostics"
             import {{ action }} from "test/native"
-            node Child = "c" {{ meanings {{ action() }} }}
+            node Child = "c" {{ semantics {{ action() }} }}
             {construct} Deferred = Child
-            node Early = "e" {{ meanings {{ action() }} }}
-            node Root = Deferred Early {{ meanings {{ precedence {{ Early > Deferred }} }} }}
+            node Early = "e" {{ semantics {{ action() }} }}
+            node Root = Deferred Early {{ semantics {{ precedence {{ Early > Deferred }} }} }}
             entry Root
         "#
         );
@@ -496,11 +500,11 @@ fn transitive_earlier_construct_preserves_its_entire_initializer_subtree() {
     let engine = recording_engine(&events, None);
     let grammar = r#"
         import { action } from "test/native"
-        node Child = "x" { meanings { action() } }
-        node A = Child { meanings { action() } }
-        node C = A { meanings { action() } }
-        node B = "b" { meanings { action() } }
-        node Root = C B { meanings { precedence { A > B > C } } }
+        node Child = "x" { semantics { action() } }
+        node A = Child { semantics { action() } }
+        node C = A { semantics { action() } }
+        node B = "b" { semantics { action() } }
+        node Root = C B { semantics { precedence { A > B > C } } }
         entry Root
     "#;
     for chain in ["A > B > C", "A > B\nB > C"] {
@@ -531,12 +535,12 @@ fn independent_local_predecessor_is_exempt_from_ancestor_body_deferral() {
             &sources(
                 r#"
         import { action } from "test/native"
-        node Reference = "r" { meanings { action() } }
+        node Reference = "r" { semantics { action() } }
         node Body = Reference {
-            meanings { action() precedence { Reference > Body } }
+            semantics { action() precedence { Reference > Body } }
         }
-        node Outer = "o" { meanings { action() } }
-        node Root = Body Outer { meanings { precedence { Outer > Body } } }
+        node Outer = "o" { semantics { action() } }
+        node Root = Body Outer { semantics { precedence { Outer > Body } } }
         entry Root
     "#,
             ),
@@ -591,7 +595,7 @@ fn absent_pipe_input_keeps_an_empty_original_source_span() {
                 r#"
         import { observe } from "test/provenance"
         pipe wrapped() { rewrite value => "(" value ")" }
-        node Root = value: /[a-z]+/? |> wrapped() { meanings { observe(value) } }
+        node Root = value: /[a-z]+/? |> wrapped() { semantics { observe(value) } }
         entry Root
     "#,
             ),
@@ -614,10 +618,10 @@ fn region_selection_reaches_matches_at_every_wrapper_depth() {
     let engine = recording_engine(&events, None);
     let grammar = r#"
         import { action } from "test/native"
-        node A = "a" { meanings { action() } }
+        node A = "a" { semantics { action() } }
         node Wrapped = A
-        node B = "b" { meanings { action() } }
-        node Root = Wrapped first: A B last: A { meanings { precedence { B > A } } }
+        node B = "b" { semantics { action() } }
+        node Root = Wrapped first: A B last: A { semantics { precedence { B > A } } }
         entry Root
     "#;
     let language = engine.compile("language.yl", &sources(grammar)).unwrap();
@@ -641,11 +645,11 @@ fn explicit_pattern_groups_differently_wrapped_declarations_as_peers() {
     let engine = recording_engine(&events, None);
     let grammar = r#"
         import { action } from "test/native"
-        node A = "a" { meanings { action() } }
+        node A = "a" { semantics { action() } }
         node Wrapped = "(" A ")"
         pattern Declaration = A | Wrapped
-        node B = "b" { meanings { action() } }
-        node Root = Declaration Declaration B { meanings { precedence { B > Declaration } } }
+        node B = "b" { semantics { action() } }
+        node Root = Declaration Declaration B { semantics { precedence { B > Declaration } } }
         entry Root
     "#;
     let language = engine.compile("language.yl", &sources(grammar)).unwrap();
@@ -671,9 +675,9 @@ fn owning_node_is_selectable_without_hiding_its_initializer_selector() {
     let engine = recording_engine(&events, None);
     let grammar = r#"
         import { action } from "test/native"
-        node Initializer = "i" { meanings { action() } }
+        node Initializer = "i" { semantics { action() } }
         node Declaration = Initializer {
-            meanings { action() precedence { Initializer > Declaration } }
+            semantics { action() precedence { Initializer > Declaration } }
         }
         node Root = Declaration
         entry Root
@@ -693,10 +697,10 @@ fn plain_pattern_wrappers_do_not_create_false_region_boundaries() {
     let engine = recording_engine(&events, None);
     let grammar = r#"
         import { action } from "test/native"
-        node A = "a" { meanings { action() } }
+        node A = "a" { semantics { action() } }
         pattern Wrapped = A
-        node B = "b" { meanings { action() } }
-        node Root = Wrapped first: A B last: A { meanings { precedence { B > A } } }
+        node B = "b" { semantics { action() } }
+        node Root = Wrapped first: A B last: A { semantics { precedence { B > A } } }
         entry Root
     "#;
     let language = engine.compile("language.yl", &sources(grammar)).unwrap();
@@ -720,11 +724,11 @@ fn nested_named_functions_are_not_outer_function_declaration_peers() {
     let engine = recording_engine(&events, None);
     let grammar = r#"
         import { action } from "test/native"
-        node FunctionDeclaration = "f" "{" body: FunctionBody "}" { meanings { action() } }
-        node FunctionBody = FunctionDeclaration* "r" { meanings { boundary action() precedence { FunctionDeclaration > FunctionBody } } }
-        node Later = "l" { meanings { action() } }
+        node FunctionDeclaration = "f" "{" body: FunctionBody "}" { semantics { action() } }
+        node FunctionBody = FunctionDeclaration* "r" { semantics { boundary action() precedence { FunctionDeclaration > FunctionBody } } }
+        node Later = "l" { semantics { action() } }
         node Root = FunctionDeclaration Later {
-            meanings { precedence { FunctionDeclaration > Later > FunctionBody } }
+            semantics { precedence { FunctionDeclaration > Later > FunctionBody } }
         }
         entry Root
     "#;
@@ -749,10 +753,10 @@ fn qualified_named_groups_search_the_region_and_order_only_the_selected_group() 
     let engine = recording_engine(&events, None);
     let grammar = r#"
         import { action } from "test/native"
-        node A = "a" { meanings { group Early { action() } group Late { action() } } }
+        node A = "a" { semantics { group Early { action() } group Late { action() } } }
         node Wrapped = A
-        node B = "b" { meanings { action() } }
-        node Root = Wrapped A B { meanings { precedence { B > A::meanings::Late } } }
+        node B = "b" { semantics { action() } }
+        node Root = Wrapped A B { semantics { precedence { B > A::semantics::Late } } }
         entry Root
     "#;
     let language = engine.compile("language.yl", &sources(grammar)).unwrap();
@@ -779,7 +783,7 @@ fn imported_aliases_share_canonical_identity_in_region_group_selection() {
             "names.yl".into(),
             r#"
             import { action } from "test/native"
-            export node Item = "x" { meanings { group Emit { action() } } }
+            export node Item = "x" { semantics { group Emit { action() } } }
         "#
             .into(),
         ),
@@ -789,9 +793,9 @@ fn imported_aliases_share_canonical_identity_in_region_group_selection() {
             import { action } from "test/native"
             import { Item as First, Item as Second } from "./names"
             node Wrapped = First
-            node B = "b" { meanings { action() } }
+            node B = "b" { semantics { action() } }
             node Root = Wrapped First B Second {
-                meanings { precedence { B > First::meanings::Emit } }
+                semantics { precedence { B > First::semantics::Emit } }
             }
             entry Root
         "#
@@ -819,11 +823,12 @@ fn node_and_pattern_boundaries_are_selectable_but_hide_their_contents() {
         let engine = recording_engine(&events, None);
         let grammar = format!(
             r#"
+            import {{ error, warn, hint }} from "core/diagnostics"
             import {{ action }} from "test/native"
-            node A = "a" {{ meanings {{ action() }} }}
-            {construct} Region = A {{ meanings {{ boundary }} }}
-            node B = "b" {{ meanings {{ action() }} }}
-            node Root = Region A B {{ meanings {{ boundary precedence {{ B > A }} }} }}
+            node A = "a" {{ semantics {{ action() }} }}
+            {construct} Region = A {{ semantics {{ boundary }} }}
+            node B = "b" {{ semantics {{ action() }} }}
+            node Root = Region A B {{ semantics {{ boundary precedence {{ B > A }} }} }}
             entry Root
         "#
         );
@@ -870,10 +875,10 @@ fn boundary_entry_waits_for_outer_predecessors_before_local_ordering() {
     let engine = recording_engine(&events, None);
     let grammar = r#"
         import { action } from "test/native"
-        node Reference = "r" { meanings { action() } }
-        node Body = Reference { meanings { boundary action() precedence { Reference > Body } } }
-        node Outer = "o" { meanings { action() } }
-        node Root = Body Outer { meanings { precedence { Outer > Body } } }
+        node Reference = "r" { semantics { action() } }
+        node Body = Reference { semantics { boundary action() precedence { Reference > Body } } }
+        node Outer = "o" { semantics { action() } }
+        node Root = Body Outer { semantics { precedence { Outer > Body } } }
         entry Root
     "#;
     let language = engine.compile("language.yl", &sources(grammar)).unwrap();
@@ -895,7 +900,7 @@ fn repeated_boundary_marker_is_a_structured_definition_error() {
     let diagnostics = engine
         .compile(
             "language.yl",
-            &sources("node Root = \"r\" { meanings { boundary boundary } } entry Root"),
+            &sources("node Root = \"r\" { semantics { boundary boundary } } entry Root"),
         )
         .unwrap_err();
     assert_eq!(diagnostics[0].code, "yl.duplicate_boundary");

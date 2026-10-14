@@ -1,11 +1,17 @@
-node Program = name: /[A-Za-z]+/? ":" {
-    constraints {
+import { error, warn } from "core/diagnostics"
+
+node Program =
+    name: /[A-Za-z]+/?
+    ":"
+{
+    checks {
         when name?.matches(/^[A-Z]/) {
-            warning("Names should begin with a lowercase letter.")
+            warn("Names should begin with a lowercase letter.")
         }
         when !name.isPresent() {
             error("A name is required.")
         }
     }
 }
+
 entry Program

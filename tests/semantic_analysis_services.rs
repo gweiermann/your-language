@@ -72,7 +72,7 @@ fn engine() -> SemanticEngine {
 #[test]
 fn analysis_services_are_automatic_isolated_and_skip_syntax_errors() {
     let engine = engine();
-    let source = r#"import { collect } from "test/service" node Item = "a" { meanings { collect() } } node Root = Item* entry Root"#;
+    let source = r#"import { collect } from "test/service" node Item = "a" { semantics { collect() } } node Root = Item* entry Root"#;
     let language = engine
         .compile(
             "service.yl",
@@ -132,7 +132,7 @@ fn failed_service_is_not_polled_again_and_still_finishes_once() {
         .registry_mut()
         .register_service("test/failure", || Box::<Failing>::default())
         .unwrap();
-    let source = r#"import { collect } from "test/service" node Root = "a" { meanings { collect() } } entry Root"#;
+    let source = r#"import { collect } from "test/service" node Root = "a" { semantics { collect() } } entry Root"#;
     let result = engine
         .compile_and_analyze(
             "service.yl",

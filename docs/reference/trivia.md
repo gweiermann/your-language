@@ -85,8 +85,10 @@ Trivia matchers should consume text on success. A matcher that accepts empty tex
 Automatic skipping does not erase trivia information. Constraints can inspect trivia between captured source regions:
 
 ```yl
+import { error } from "core/diagnostics"
+
 node Update = operator: ("++" | "--") argument: Name {
-    constraints {
+    checks {
         when trivia.between(operator, argument) {
             error("The operator and argument must be adjacent.")
         }
@@ -97,8 +99,10 @@ node Update = operator: ("++" | "--") argument: Name {
 `trivia.between(left, right)` checks for any skipped trivia between the two captures. A named trivia declaration restricts the query:
 
 ```yl
+import { warn } from "core/diagnostics"
+
 when Comment.between(operator, argument) {
-    warning("A comment separates the operator from its argument.")
+    warn("A comment separates the operator from its argument.")
 }
 ```
 

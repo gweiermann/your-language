@@ -1,4 +1,5 @@
-import { ancestors, contribute, find, get, getEarlier, getAll, hasMultiple, isPresent, text, first, children } from "std/query"
+import { error } from "core/diagnostics"
+import { ancestors, contribute, find, get, getEarlier, getAll, hasMultiple, isPresent, text } from "core/query"
 
 export symbol scope
 
@@ -8,7 +9,7 @@ export symbol referenceIdentity
 
 export symbol reassignableSymbol
 
-export operation lexicalScope(target) {
+export operation createLexicalScope(target) {
     contribute((target, scope), target)
 }
 
@@ -16,14 +17,14 @@ export operation enclosingScope(value) = find(ancestors(value), ancestor => get(
 
 export operation resolve(name) = find(ancestors(name), ancestor => getEarlier((get((ancestor, scope)), declarations, text(name))))
 
-export operation declare(target, name, reassignable = true) {
+export operation declareName(target, name, reassignable = true) {
     contribute((enclosingScope(name), declarations, text(name)), target)
     contribute((name, referenceIdentity), target)
     contribute((target, referenceIdentity), target)
     contribute((target, nameSymbol), text(name))
     contribute((target, reassignableSymbol), reassignable)
-    if isPresent(enclosingScope(name)) {
-        if hasMultiple(getAll((enclosingScope(name), declarations, text(name)))) {
+    when isPresent(enclosingScope(name)) {
+        when hasMultiple(getAll((enclosingScope(name), declarations, text(name)))) {
             error("Duplicate declaration '${name}'", name)
         }
     }
@@ -32,24 +33,16 @@ export operation declare(target, name, reassignable = true) {
     }
 }
 
-export operation use(target, name) {
-    contribute((name, referenceIdentity), resolve(name))
-    contribute((target, referenceIdentity), resolve(name))
-    if !isPresent(resolve(name)) {
+export operation connectReference(target, name) {
+    ref := resolve(name)
+    contribute((name, referenceIdentity), ref)
+    contribute((target, referenceIdentity), ref)
+    when !isPresent(ref) {
         error("Unknown name '${name}'", name)
     }
+    return ref
 }
-
-export operation reference(target) = get((target, referenceIdentity))
 
 export operation referenceOf(value) = get((value, referenceIdentity))
 
 export symbol nameSymbol
-
-export operation identity(target) = target
-
-export operation identityOf(value) = value
-
-export operation childIdentity(target) = first(children(target))
-
-export operation identities(value) = value

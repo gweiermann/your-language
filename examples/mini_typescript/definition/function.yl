@@ -1,7 +1,8 @@
-import { lexicalScope, declare } from "std/references"
-import * as types from "std/types"
+import { annotateWithType } from "std/types"
+import { createLexicalScope, declareName } from "std/references"
 import { returnType, Annotation } from "./types"
-import { typeof, functionSignature } from "./typing"
+import { functionSignature } from "./typing"
+import { typeOf } from "std/types"
 import { separatedBy } from "std/parser"
 import { Name } from "./lexical"
 import { Parameter } from "./parameter"
@@ -16,9 +17,9 @@ export node FunctionBody =
     ";"
     "}"
 {
-    meanings {
+    semantics {
         boundary
-        types::annotate((self, returnType), typeof(result))
+        annotateWithType((self, returnType), typeOf(result))
     }
 }
 
@@ -29,8 +30,8 @@ pattern FunctionContents =
     annotation: Annotation?
     body: FunctionBody
 {
-    meanings {
-        lexicalScope(self)
+    semantics {
+        createLexicalScope(self)
     }
 }
 
@@ -39,9 +40,9 @@ export node FunctionDeclaration =
     name: Name
     contents: FunctionContents
 {
-    meanings {
+    semantics {
         group Register {
-            declare(self, name, reassignable = false)
+            declareName(self, name, reassignable = false)
             functionSignature(name, contents.parameters, contents.body, contents.annotation, contents)
         }
     }

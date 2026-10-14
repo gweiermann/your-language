@@ -1,18 +1,20 @@
-# Syntax-local constraints
+# Syntax-local checks
 
 Constraints validate a matched node using its captures, captured source text, source spans, and skipped trivia. They emit structured errors, warnings, or help messages without requiring a semantic model of the target language.
 
 Use constraints for local rules such as adjacency, spelling conventions, or restrictions on a node's own captured values. Scope lookup, binding resolution, and target-language type checking are outside this condition language.
 
-## Node constraint blocks
+## Node check blocks
 
-A concrete node can place a `constraints` block after its grammar:
+A concrete node can place a `checks` block after its grammar:
 
 ```yl
+import { warn } from "core/diagnostics"
+
 node Name = value: /[_a-zA-Z][_a-zA-Z0-9]*/ {
-    constraints {
+    checks {
         when value.matches(/^[A-Z]/) {
-            warning("Names conventionally begin with a lowercase letter.")
+            warn("Names conventionally begin with a lowercase letter.")
         }
     }
 }
@@ -20,19 +22,21 @@ node Name = value: /[_a-zA-Z][_a-zA-Z0-9]*/ {
 
 The condition sees captures from the current node. It does not see arbitrary captures from unrelated nodes. Conditions are checked as part of parsing a successfully matched node.
 
-`when` belongs inside a reusable `constraint` declaration or a node's `constraints` block. It is not a top-level statement.
+Syntax-local `when` clauses belong inside a reusable `constraint` declaration or a node's `checks` block. Semantic operations and `semantics` blocks use the same conditional spelling with dependency-tracked values. A `when` clause is not a top-level declaration.
 
 ## Diagnostic actions
 
 Conditions may emit these actions:
 
 ```yl
+import { error, warn, hint } from "core/diagnostics"
+
 error("This syntax is not allowed.")
-warning("This syntax is accepted but discouraged.")
-help("Consider an alternative spelling.")
+warn("This syntax is accepted but discouraged.")
+hint("Consider an alternative spelling.")
 ```
 
-`error` affects the success reported by checking tools. `warning` and `help` alone do not cause a failing exit status. Messages are string values; reusable constraints can parameterize them.
+`error` affects the success reported by checking tools. `warn` and `hint` alone do not cause a failing exit status. Messages are string values; reusable constraints can parameterize them.
 
 A syntax-local error can coexist with a constructed AST. It identifies invalid local syntax rather than necessarily preventing grammar matching. By contrast, a grammar failure leaves no complete AST. See the [AST API reference](/api/ast).
 
@@ -53,16 +57,20 @@ Condition operators use familiar JavaScript-style spelling with explicit operand
 Binary operators associate to the left. Boolean literals are `true` and `false`. The operators do not coerce strings, nodes, or lists to booleans.
 
 ```yl
+import { warn } from "core/diagnostics"
+
 when name.isPresent() && !name.matches(/^[A-Z]/) {
-    warning("The name does not begin with a capital letter.")
+    warn("The name does not begin with a capital letter.")
 }
 ```
 
 Equality compares matching scalar string, boolean, or enum types. Enum values must belong to the same enum. Comparisons involving optional values can use `absent`. Equality always produces a boolean.
 
 ```yl
+import { hint } from "core/diagnostics"
+
 when keyword == "let" || keyword == "const" {
-    help("This is a variable declaration.")
+    hint("This is a variable declaration.")
 }
 ```
 
@@ -73,8 +81,10 @@ No general ordering, arithmetic, implicit coercion, or arbitrary JavaScript stri
 `capture.matches(/regex/)` tests a captured text value against a regex:
 
 ```yl
+import { warn } from "core/diagnostics"
+
 when name.matches(/^[A-Z][A-Za-z0-9_]*$/) {
-    warning("This name uses the capitalized naming convention.")
+    warn("This name uses the capitalized naming convention.")
 }
 ```
 
@@ -89,6 +99,8 @@ An optional grammar result may be `absent`. This differs from `false`, an empty 
 `.isPresent()` returns a boolean indicating whether the capture has a value:
 
 ```yl
+import { error } from "core/diagnostics"
+
 when !name.isPresent() {
     error("A name is required here.")
 }
@@ -99,8 +111,10 @@ Empty strings and empty lists are present values. Presence is a cardinality ques
 Optional chaining preserves absence:
 
 ```yl
+import { warn } from "core/diagnostics"
+
 when name?.matches(/^[A-Z]/) {
-    warning("The name begins with a capital letter.")
+    warn("The name begins with a capital letter.")
 }
 ```
 
@@ -109,20 +123,24 @@ If `name` is absent, the expression produces `absent`; otherwise it produces the
 Use explicit equality to distinguish absence from a failed match:
 
 ```yl
+import { hint } from "core/diagnostics"
+
 when name?.matches(/^[A-Z]/) == false {
-    help("The name exists but does not begin with a capital letter.")
+    hint("The name exists but does not begin with a capital letter.")
 }
 
 when name?.matches(/^[A-Z]/) == absent {
-    help("The name was omitted.")
+    hint("The name was omitted.")
 }
 ```
 
 An ordinary `.matches` call on a possibly absent capture is a definition error unless the condition establishes presence before the call:
 
 ```yl
+import { warn } from "core/diagnostics"
+
 when name.isPresent() && name.matches(/^[A-Z]/) {
-    warning("Capitalized name.")
+    warn("Capitalized name.")
 }
 ```
 
@@ -145,14 +163,18 @@ For disjunction:
 - `absent || rhs` evaluates and returns `rhs`.
 
 ```yl
+import { hint } from "core/diagnostics"
+
 when primary?.matches(/^[A-Z]/) || fallback?.matches(/^[A-Z]/) {
-    help("At least one name uses the capitalized form.")
+    hint("At least one name uses the capitalized form.")
 }
 ```
 
 To include an absent name in a negative test, compare explicitly:
 
 ```yl
+import { error } from "core/diagnostics"
+
 when name?.matches(/^[A-Z]/) != true {
     error("A capitalized name is required.")
 }
@@ -163,21 +185,25 @@ when name?.matches(/^[A-Z]/) != true {
 Separate `when` clauses run independently, in source order. Emitting an error does not stop later clauses or establish presence for them:
 
 ```yl
+import { error, warn } from "core/diagnostics"
+
 when !name.isPresent() {
     error("A name is required.")
 }
 
 when name?.matches(/^[A-Z]/) {
-    warning("Names conventionally start with lowercase letters.")
+    warn("Names conventionally start with lowercase letters.")
 }
 ```
 
 Nested `when` clauses execute only when their enclosing conditions are true:
 
 ```yl
+import { warn } from "core/diagnostics"
+
 when name.isPresent() {
     when name.matches(/^[A-Z]/) {
-        warning("Capitalized name.")
+        warn("Capitalized name.")
     }
 }
 ```
@@ -189,8 +215,10 @@ The enclosing presence condition permits the inner ordinary method access.
 `trivia.between(left, right)` checks skipped trivia between two captures:
 
 ```yl
+import { error } from "core/diagnostics"
+
 node Update = operator: ("++" | "--") argument: Name {
-    constraints {
+    checks {
         when trivia.between(operator, argument) {
             error("Whitespace or comments are not allowed here.")
         }
@@ -201,8 +229,10 @@ node Update = operator: ("++" | "--") argument: Name {
 Use a named trivia matcher to restrict the check:
 
 ```yl
+import { warn } from "core/diagnostics"
+
 when Comment.between(operator, argument) {
-    warning("A comment appears inside the update expression.")
+    warn("A comment appears inside the update expression.")
 }
 ```
 
@@ -213,6 +243,8 @@ The endpoints must refer to current captures, and the trivia name must resolve a
 Declare a named constraint for rules used by several nodes:
 
 ```yl
+import { error } from "core/diagnostics"
+
 constraint adjacent(left, right, message="Trivia is not allowed here.") {
     when trivia.between(left, right) {
         error(message)
@@ -220,7 +252,7 @@ constraint adjacent(left, right, message="Trivia is not allowed here.") {
 }
 
 node Update = operator: ("++" | "--") argument: Name {
-    constraints {
+    checks {
         adjacent(operator, argument)
     }
 }
@@ -229,9 +261,11 @@ node Update = operator: ("++" | "--") argument: Name {
 Constraint parameters can receive capture references, regexes, literal messages, and configuration values. Calls support positional arguments, named arguments, defaults, and forwarding to other reusable constraints:
 
 ```yl
+import { warn } from "core/diagnostics"
+
 constraint matchesConvention(value, expression=/^[a-z]/) {
     when !value.matches(expression) {
-        warning("The value does not follow the convention.")
+        warn("The value does not follow the convention.")
     }
 }
 ```
@@ -245,10 +279,12 @@ Reusable constraints follow ordinary module visibility. Export them to share rul
 An extension contributes constraints to the existing canonical node:
 
 ```yl
+import { error } from "core/diagnostics"
+
 import { Name } from "./lexical"
 
 extend node Name {
-    constraints {
+    checks {
         when value.matches(/^reserved$/) {
             error("This spelling is reserved.")
         }

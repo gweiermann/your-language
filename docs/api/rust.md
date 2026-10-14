@@ -149,7 +149,7 @@ let formatted = your_language::format_yl("language.yl", "node Name=/[a-z]+/ entr
 assert_eq!(your_language::format_yl("language.yl", &formatted)?, formatted);
 ```
 
-The formatter uses the actual lexer and parser. It preserves comments and raw string/regex spelling, then verifies token preservation and parse-equivalence apart from spans. The standalone structural `boundary` marker is normalized to the top of its `meanings` block; all other tokens retain their order, and meaning operations are never reordered. Invalid syntax returns the same structured frontend diagnostics. Unsupported preservation failures return `yl.format_equivalence` with no formatted output. Default formatting is deterministic and idempotent, with no hard line wrapping. See [CLI formatting](/api/cli#format-yl-definitions) for file-writing and check modes.
+The formatter uses the actual lexer and parser. It preserves comments and raw string/regex spelling, then verifies token preservation and parse-equivalence apart from spans. The standalone structural `boundary` marker is normalized to the top of its `semantics` block; all other tokens retain their order, and meaning operations are never reordered. Invalid syntax returns the same structured frontend diagnostics. Unsupported preservation failures return `yl.format_equivalence` with no formatted output. Default formatting is deterministic and idempotent, with no hard line wrapping. See [CLI formatting](/api/cli#format-yl-definitions) for file-writing and check modes.
 
 
 ## Match alignment options

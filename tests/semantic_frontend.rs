@@ -13,13 +13,13 @@ fn sources(source: &str) -> BTreeMap<String, String> {
 #[test]
 fn meanings_compile_through_real_source_imports_and_pattern_boundaries() {
     let source = r#"
-import { lexicalScope, declare, use } from "std/variables"
+import { createLexicalScope, declareName, connectReference } from "std/references"
 node Name = /[a-z]+/
 node Declaration = "let" name: Name ";" {
-    meanings { group Register { declare(self, name, reassignable=false) } }
+    semantics { group Register { declareName(self, name, reassignable=false) } }
 }
-node Reference = name: Name ";" { meanings { use(self, name) } }
-pattern Contents = (Declaration | Reference)* { meanings { lexicalScope(self) } }
+node Reference = name: Name ";" { semantics { connectReference(self, name) } }
+pattern Contents = (Declaration | Reference)* { semantics { createLexicalScope(self) } }
 node Program = Contents
 entry Program
 "#;
@@ -36,7 +36,7 @@ entry Program
     let bytes = language.to_bytes().unwrap();
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["version"],
-        4
+        5
     );
     let language = load_compiled_language(&bytes).unwrap();
     let result = engine.analyze(&language, "program", "letx;x;");
@@ -49,21 +49,24 @@ entry Program
 fn source_meanings_validate_calls_captures_groups_and_selectors() {
     let engine = SemanticEngine::default();
     let cases = [
-        ("use(self, missing)", "yl.artifact"),
-        ("use(self, )", "yl.invalid_argument"),
-        ("use(self, name, name=name)", "yl.invalid_argument"),
+        ("connectReference(self, missing)", "yl.artifact"),
+        ("connectReference(self, )", "yl.invalid_argument"),
+        (
+            "connectReference(self, name, name=name)",
+            "yl.invalid_argument",
+        ),
         (
             "group Register {} group Register {}",
             "yl.duplicate_meaning_group",
         ),
         (
-            "precedence { Program::meanings::Missing > Program }",
+            "precedence { Program::semantics::Missing > Program }",
             "yl.unknown_meaning_group",
         ),
         ("precedence { Program > _ }", "yl.invalid_meaning_selector"),
     ];
     for (body, expected) in cases {
-        let source = format!("import {{ use, declare }} from \"std/variables\" node Program = name: /[a-z]+/ {{ meanings {{ {body} }} }} entry Program");
+        let source = format!("import {{ connectReference, declareName }} from \"std/references\" node Program = name: /[a-z]+/ {{ semantics {{ {body} }} }} entry Program");
         let errors = engine
             .compile("language.yl", &sources(&source))
             .unwrap_err();
@@ -75,13 +78,13 @@ fn source_meanings_validate_calls_captures_groups_and_selectors() {
 fn source_precedence_uses_resolved_definition_and_named_group_identity() {
     let engine = SemanticEngine::default();
     let source = r#"
-import { lexicalScope, declare, use } from "std/variables"
-node Declaration = "let" name: /[a-z]+/ ";" { meanings { group Register { declare(self, name) } } }
-node Reference = name: /[a-z]+/ ";" { meanings { use(self, name) } }
+import { createLexicalScope, declareName, connectReference } from "std/references"
+node Declaration = "let" name: /[a-z]+/ ";" { semantics { group Register { declareName(self, name) } } }
+node Reference = name: /[a-z]+/ ";" { semantics { connectReference(self, name) } }
 node Program = Reference Declaration {
-    meanings {
-        lexicalScope(self)
-        precedence { Declaration::meanings::Register > Reference }
+    semantics {
+        createLexicalScope(self)
+        precedence { Declaration::semantics::Register > Reference }
     }
 }
 entry Program
@@ -131,7 +134,7 @@ fn mixed_named_and_ungrouped_operations_preserve_source_order() {
         .unwrap();
     let engine = SemanticEngine::new(registry);
     let source = r#"import { record } from "test"
-node Program = "x" { meanings {
+node Program = "x" { semantics {
     record("a")
     group G { record("b") }
     record("c")
@@ -196,11 +199,11 @@ fn semantic_operation_and_group_aliases_resolve_across_source_modules() {
             "main.yl".into(),
             r#"
 import { Binder as Binding } from "./bindings"
-import { lexicalScope as scope, use as lookup } from "std/variables"
-node Reference = name: /[a-z]+/ ";" { meanings { lookup(self, name) } }
-pattern Scoped(item) = item* { meanings { scope(self) } }
+import { createLexicalScope as scope, connectReference as lookup } from "std/references"
+node Reference = name: /[a-z]+/ ";" { semantics { lookup(self, name) } }
+pattern Scoped(item) = item* { semantics { scope(self) } }
 node Program = Scoped(Binding | Reference) {
-    meanings { precedence { Binding::meanings::Register > Reference } }
+    semantics { precedence { Binding::semantics::Register > Reference } }
 }
 entry Program
 "#
@@ -209,9 +212,9 @@ entry Program
         (
             "bindings.yl".into(),
             r#"
-import { declare as register } from "std/variables"
+import { declareName as register } from "std/references"
 export node Binder = "let" name: /[a-z]+/ ";" {
-    meanings { group Register { register(self, name) } }
+    semantics { group Register { register(self, name) } }
 }
 "#
             .into(),
@@ -233,12 +236,12 @@ export node Binder = "let" name: /[a-z]+/ ";" {
 fn selected_unannotated_patterns_keep_their_occurrence_boundary() {
     let engine = SemanticEngine::default();
     let source = r#"
-import { lexicalScope, declare, use } from "std/variables"
-node Declaration = "let" name: /[a-z]+/ ";" { meanings { declare(self, name) } }
-node Reference = name: /[a-z]+/ ";" { meanings { use(self, name) } }
+import { createLexicalScope, declareName, connectReference } from "std/references"
+node Declaration = "let" name: /[a-z]+/ ";" { semantics { declareName(self, name) } }
+node Reference = name: /[a-z]+/ ";" { semantics { connectReference(self, name) } }
 pattern Uses = Reference*
 node Program = Declaration Uses {
-    meanings { lexicalScope(self) precedence { Declaration > Uses } }
+    semantics { createLexicalScope(self) precedence { Declaration > Uses } }
 }
 entry Program
 "#;

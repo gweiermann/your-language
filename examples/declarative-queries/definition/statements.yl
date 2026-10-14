@@ -1,4 +1,4 @@
-import { declare, lexicalScope, use } from "../../../stdlib/references"
+import { declareName, createLexicalScope, connectReference } from "../../../stdlib/references"
 import { Name } from "./lexical"
 
 export node Statement {
@@ -7,8 +7,8 @@ export node Statement {
         name: Name
         ";"
     {
-        meanings {
-            declare(self, name)
+        semantics {
+            declareName(self, name)
         }
     }
 
@@ -16,8 +16,8 @@ export node Statement {
         name: Name
         ";"
     {
-        meanings {
-            use(self, name)
+        semantics {
+            connectReference(self, name)
         }
     }
 
@@ -26,9 +26,9 @@ export node Statement {
         statements: Statement*
         "}"
     {
-        meanings {
+        semantics {
             boundary
-            lexicalScope(self)
+            createLexicalScope(self)
             precedence {
                 Statement::Declaration > Statement::Reference
             }

@@ -56,11 +56,11 @@ fn explicit_target_inside_authored_operation_is_the_original_pattern_occurrence(
     let result = analyze(
         r#"
 import * as types from "std/types"
-import { map } from "std/query"
+import { map } from "core/query"
 symbol number
-operation annotate(target, value) { types::annotate(target, value) }
-pattern Item = "x" { meanings { annotate(self, number) } }
-node Program = item: Item { meanings { types::annotate(self, types::typeof(item)) } }
+operation annotate(target, value) { types::annotateWithType(target, value) }
+pattern Item = "x" { semantics { annotate(self, number) } }
+node Program = item: Item { semantics { types::annotateWithType(self, types::typeOf(item)) } }
 entry Program
 "#,
         "x",
@@ -77,16 +77,16 @@ fn direct_repeated_optional_and_dotted_pattern_captures_are_addresses() {
     let result = analyze(
         r#"
 import * as types from "std/types"
-import { map } from "std/query"
+import { map } from "core/query"
 import { separatedBy } from "std/parser"
 symbol number
 symbol parameters
-pattern Item = "x" { meanings { types::annotate(self, number) } }
+pattern Item = "x" { semantics { types::annotateWithType(self, number) } }
 pattern Contents = "(" parameters: Item* |> separatedBy(",") ")"
 node Root = contents: Contents absentItem: Item? {
-    meanings {
-        types::annotate((self, parameters), map(contents.parameters, parameter => types::typeof(parameter)))
-        types::annotate(self, types::typeof(absentItem))
+    semantics {
+        types::annotateWithType((self, parameters), map(contents.parameters, parameter => types::typeOf(parameter)))
+        types::annotateWithType(self, types::typeOf(absentItem))
     }
 }
 entry Root
@@ -106,17 +106,17 @@ entry Root
 fn declaration_and_use_record_the_exact_name_capture_with_shadowing_and_dollar_prefix() {
     let result = analyze(
         r#"
-import { lexicalScope, declare, use, referenceOf } from "std/references"
+import { createLexicalScope, declareName, connectReference, referenceOf } from "std/references"
 import * as types from "std/types"
-import { map } from "std/query"
+import { map } from "core/query"
 symbol outer
 symbol inner
 pattern Name = /[a-z]+/
-node DeclareOuter = "$" name: Name { meanings { declare(self, name) types::annotate(referenceOf(name), outer) } }
-node DeclareInner = "$" name: Name { meanings { declare(self, name) types::annotate(referenceOf(name), inner) } }
-node Reference = name: Name { meanings { use(self, name) types::annotate(self, types::typeof(referenceOf(name))) } }
-node Block = "{" declaration: DeclareInner ";" value: Reference "}" { meanings { lexicalScope(self) } }
-node Root = declaration: DeclareOuter ";" block: Block ";" value: Reference { meanings { lexicalScope(self) } }
+node DeclareOuter = "$" name: Name { semantics { declareName(self, name) types::annotateWithType(referenceOf(name), outer) } }
+node DeclareInner = "$" name: Name { semantics { declareName(self, name) types::annotateWithType(referenceOf(name), inner) } }
+node Reference = name: Name { semantics { connectReference(self, name) types::annotateWithType(self, types::typeOf(referenceOf(name))) } }
+node Block = "{" declaration: DeclareInner ";" value: Reference "}" { semantics { createLexicalScope(self) } }
+node Root = declaration: DeclareOuter ";" block: Block ";" value: Reference { semantics { createLexicalScope(self) } }
 entry Root
 "#,
         "$x;{$x;x};x",
@@ -138,18 +138,18 @@ fn hypothetical_parameter_assumptions_produce_independent_returns_without_mutati
     let result = analyze(
         r#"
 import * as types from "std/types"
-import { map } from "std/query"
+import { map } from "core/query"
 symbol number
 symbol string
 symbol result
 pattern Parameter = "p"
 pattern Body = "b" source: Parameter {
-    meanings { types::annotate((self, result), types::typeof(source)) }
+    semantics { types::annotateWithType((self, result), types::typeOf(source)) }
 }
 node Root = body: Body {
-    meanings {
-        types::annotate(self, types::resolveWith((body, result), [(body.source, number)]))
-        types::annotate((self, result), types::resolveWith((body, result), [(body.source, string)]))
+    semantics {
+        types::annotateWithType(self, types::resolveTypeWith((body, result), [(body.source, number)]))
+        types::annotateWithType((self, result), types::resolveTypeWith((body, result), [(body.source, string)]))
     }
 }
 entry Root
@@ -177,24 +177,24 @@ fn hypothetical_resolution_replays_declarative_type_matches_and_preserves_outer_
     let result = analyze(
         r#"
 import * as types from "std/types"
-import { map } from "std/query"
+import { map } from "core/query"
 symbol number
 symbol string
 symbol output
 pattern Parameter = "p"
-pattern Outer = "o" { meanings { types::annotate(self, number) } }
+pattern Outer = "o" { semantics { types::annotateWithType(self, number) } }
 pattern Addition = left: Parameter right: Outer {
-    meanings {
-        match (types::typeof(left), types::typeof(right)) {
-            number, number => types::annotate((self, output), number),
-            string, number => types::annotate((self, output), string),
+    semantics {
+        match (types::typeOf(left), types::typeOf(right)) {
+            number, number => types::annotateWithType((self, output), number),
+            string, number => types::annotateWithType((self, output), string),
             _ => {}
         }
     }
 }
 node Root = addition: Addition {
-    meanings {
-        types::annotate(self, types::resolveWith((addition, output), [(addition.left, string)]))
+    semantics {
+        types::annotateWithType(self, types::resolveTypeWith((addition, output), [(addition.left, string)]))
     }
 }
 entry Root
@@ -241,9 +241,9 @@ let second = outer("hello");
 "#,
     );
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    assert_eq!(binding(&result, "first"), "number");
-    assert_eq!(binding(&result, "second"), "string");
-    assert_eq!(binding(&result, "outside"), "number");
+    assert_eq!(binding(&result, "first"), "Type::number");
+    assert_eq!(binding(&result, "second"), "Type::string");
+    assert_eq!(binding(&result, "outside"), "Type::number");
     assert_eq!(binding(&result, "identity"), "(unknown) => unknown");
     assert_eq!(binding(&result, "outer"), "(unknown) => unknown");
 }
@@ -273,9 +273,9 @@ fn duplicate_hypothetical_assumptions_are_structured_diagnostics() {
     let engine = SemanticEngine::default();
     let language=engine.compile("language.yl",&BTreeMap::from([("language.yl".into(),r#"
 import * as types from "std/types"
-import { map } from "std/query"
+import { map } from "core/query"
 symbol number
-node Root = "x" { meanings { types::annotate(self,types::resolveWith(self,[(self,number),(self,number)])) } }
+node Root = "x" { semantics { types::annotateWithType(self,types::resolveTypeWith(self,[(self,number),(self,number)])) } }
 entry Root
 "#.into())])).unwrap();
     let result = engine.analyze(&language, "program", "x");
@@ -314,7 +314,7 @@ fn hypothetical_queries_never_replay_arbitrary_native_effects() {
                 r#"import { effect } from "host"
 import * as types from "std/types"
 symbol number
-node Root = "x" { meanings { match (types::typeof(self)) { number => effect(), _ => {} } } }
+node Root = "x" { semantics { match (types::typeOf(self)) { number => effect(), _ => {} } } }
 entry Root"#
                     .into(),
             )]),
@@ -330,14 +330,14 @@ fn projections_through_repeated_parents_preserve_nested_list_groups() {
     let result = analyze(
         r#"
 import * as types from "std/types"
-import { map } from "std/query"
+import { map } from "core/query"
 import { separatedBy } from "std/parser"
 symbol number
 symbol groups
-pattern Item = "x" { meanings { types::annotate(self,number) } }
+pattern Item = "x" { semantics { types::annotateWithType(self,number) } }
 pattern Contents = "(" parameters: Item* |> separatedBy(",") ")"
 node Root = contents: Contents* {
-    meanings { types::annotate((self,groups),map(contents.parameters, parameters => map(parameters, parameter => types::typeof(parameter)))) }
+    semantics { types::annotateWithType((self,groups),map(contents.parameters, parameters => map(parameters, parameter => types::typeOf(parameter)))) }
 }
 entry Root
 "#,
@@ -363,8 +363,8 @@ fn hypothetical_union_keeps_supported_results_alongside_error_diagnostics() {
     // restriction and must not manufacture an extra observed type.
     let grammar = sources.get_mut("definition/expression.yl").unwrap();
     *grammar = grammar.replacen(
-        "annotateWithType(self, boolean)",
-        "annotateWithType(self, boolean)\n        annotateWithType(self, number)",
+        "annotateWithType(self, Type::boolean)",
+        "annotateWithType(self, Type::boolean)\n        annotateWithType(self, Type::number)",
         1,
     );
     let engine = SemanticEngine::default();
@@ -384,7 +384,7 @@ let result = add(mixed);
         "{:?}",
         result.diagnostics
     );
-    assert_eq!(binding(&result, "result"), "number");
+    assert_eq!(binding(&result, "result"), "Type::number");
 }
 
 #[test]
@@ -395,28 +395,29 @@ fn direct_hypothetical_match_queries_report_errors_and_keep_valid_combinations()
             "language.yl",
             &BTreeMap::from([(
                 "language.yl".into(),
-                r#"
+                r#"import { error, warn, hint } from "core/diagnostics"
+
 import * as types from "std/types"
-import { map } from "std/query"
+import { map } from "core/query"
 import { unknown } from "std/types"
 symbol number
 symbol boolean
 symbol result
 pattern Parameter = "p"
-pattern Actual = "a" { meanings { types::annotate(self,number) types::annotate(self,boolean) } }
+pattern Actual = "a" { semantics { types::annotateWithType(self,number) types::annotateWithType(self,boolean) } }
 pattern Body = parameter: Parameter {
-    meanings {
-        match (types::typeof(parameter)) {
-            number => types::annotate((self,result),number),
+    semantics {
+        match (types::typeOf(parameter)) {
+            number => types::annotateWithType((self,result),number),
             unknown => {},
             _ => error("Unsupported parameter")
         }
     }
 }
 node Root = body: Body actual: Actual {
-    meanings {
-        match (types::resolveWith((body,result),[(body.parameter,types::typeof(actual))])) {
-            number => types::annotate(self,number),
+    semantics {
+        match (types::resolveTypeWith((body,result),[(body.parameter,types::typeOf(actual))])) {
+            number => types::annotateWithType(self,number),
             _ => {}
         }
     }
@@ -450,27 +451,28 @@ fn rejected_direct_hypothetical_query_has_no_internal_unsettled_diagnostic() {
             "language.yl",
             &BTreeMap::from([(
                 "language.yl".into(),
-                r#"
+                r#"import { error, warn, hint } from "core/diagnostics"
+
 import * as types from "std/types"
-import { map } from "std/query"
+import { map } from "core/query"
 import { unknown } from "std/types"
 symbol number
 symbol boolean
 symbol result
 pattern Parameter = "p"
 pattern Body = parameter: Parameter {
-    meanings {
-        match (types::typeof(parameter)) {
-            number => types::annotate((self,result),number),
+    semantics {
+        match (types::typeOf(parameter)) {
+            number => types::annotateWithType((self,result),number),
             unknown => {},
             _ => error("Unsupported parameter")
         }
     }
 }
 node Root = body: Body {
-    meanings {
-        match (types::resolveWith((body,result),[(body.parameter,boolean)])) {
-            number => types::annotate(self,number),
+    semantics {
+        match (types::resolveTypeWith((body,result),[(body.parameter,boolean)])) {
+            number => types::annotateWithType(self,number),
             _ => {}
         }
     }
@@ -489,24 +491,25 @@ entry Root
 #[test]
 fn hypothetical_warning_contributions_preserve_the_result_without_effect_replay() {
     let engine = SemanticEngine::default();
-    let language=engine.compile("language.yl",&BTreeMap::from([("language.yl".into(),r#"
+    let language=engine.compile("language.yl",&BTreeMap::from([("language.yl".into(),r#"import { error, warn, hint } from "core/diagnostics"
+
 import * as types from "std/types"
-import { map } from "std/query"
+import { map } from "core/query"
 import { unknown } from "std/types"
 symbol number
 symbol boolean
 symbol result
 pattern Parameter = "p"
 pattern Body = parameter: Parameter {
-    meanings {
-        match (types::typeof(parameter)) {
-            number => types::annotate((self,result),number),
+    semantics {
+        match (types::typeOf(parameter)) {
+            number => types::annotateWithType((self,result),number),
             unknown => {},
-            _ => { types::annotate((self,result),number) warn("Fallback used") }
+            _ => { types::annotateWithType((self,result),number) warn("Fallback used") }
         }
     }
 }
-node Root = body: Body { meanings { types::annotate(self,types::resolveWith((body,result),[(body.parameter,boolean)])) } }
+node Root = body: Body { semantics { types::annotateWithType(self,types::resolveTypeWith((body,result),[(body.parameter,boolean)])) } }
 entry Root
 "#.into())])).unwrap();
     let result = engine.analyze(&language, "program", "p");
@@ -527,18 +530,18 @@ fn terminal_captures_are_stable_scalar_list_and_optional_type_addresses() {
     let result = analyze(
         r#"
 import * as types from "std/types"
-import { map } from "std/query"
+import { map } from "core/query"
 import { separatedBy } from "std/parser"
 symbol number
 symbol items
 pipe wrapped() { rewrite value => "(" value ")" }
-pattern Letter = /[a-z]/ { meanings { types::annotate(self, number) } }
+pattern Letter = /[a-z]/ { semantics { types::annotateWithType(self, number) } }
 pattern Contents = values: Letter* |> separatedBy(",")
 node Root = name: /[a-z]/ |> wrapped() ";" contents: Contents missing: /[0-9]/? {
-    meanings {
-        types::annotate(name, number)
-        types::annotate(self, types::typeof(name))
-        types::annotate((self, items), map(contents.values, value => types::typeof(value)))
+    semantics {
+        types::annotateWithType(name, number)
+        types::annotateWithType(self, types::typeOf(name))
+        types::annotateWithType((self, items), map(contents.values, value => types::typeOf(value)))
     }
 }
 entry Root

@@ -12,13 +12,13 @@ export enum Trailing {
 
 export pipe separatedBy(separator, trailing: Trailing = .none) {
     rewrite item* {
-        .none => (item (separator item)*)?
-        .optional => (item (separator item)* separator?)?
-        .required => (item (separator item)* separator)?
+        .none => (item(separator item)*)?
+        .optional => (item(separator item)* separator?)?
+        .required => (item(separator item)* separator)?
     }
     rewrite item+ {
-        .none => item (separator item)*
-        .optional => item (separator item)* separator?
-        .required => item (separator item)* separator
+        .none => item(separator item)*
+        .optional => item(separator item)* separator?
+        .required => item(separator item)* separator
     }
 }

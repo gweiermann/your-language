@@ -1,11 +1,11 @@
-import { use } from "std/variables"
+import { connectReference } from "std/references"
 import { Name } from "./lexical"
 import { FunctionExpression } from "./function"
 
 node Reference = name: Name {
-    meanings {
+    semantics {
         group Resolve {
-            use(self, name)
+            connectReference(self, name)
         }
     }
 }

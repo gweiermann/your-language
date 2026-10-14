@@ -4,20 +4,20 @@ use your_language::semantics::{queries::QueryKey, SemanticEngine, SemanticValue}
 fn language() -> (SemanticEngine, your_language::CompiledLanguage) {
     let source = r#"
 import * as types from "std/types"
-import { contribute, equal } from "std/query"
+import { contribute, equal } from "core/query"
 symbol number
 symbol string
 symbol parameter
 symbol result
 symbol external
-node Root = "x" { meanings {
- types::annotate((self,parameter), string)
- types::annotate((self,external), number)
- types::annotate((self,result), types::typeof((self,parameter)))
- contribute("first", types::resolveWith((self,result), [((self,parameter), number)]))
- contribute("second", types::resolveWith((self,result), [((self,parameter), string)]))
- contribute("original", types::typeof((self,parameter)))
- contribute("outside", types::resolveWith((self,external), [((self,parameter), string)]))
+node Root = "x" { semantics {
+ types::annotateWithType((self,parameter), string)
+ types::annotateWithType((self,external), number)
+ types::annotateWithType((self,result), types::typeOf((self,parameter)))
+ contribute("first", types::resolveTypeWith((self,result), [((self,parameter), number)]))
+ contribute("second", types::resolveTypeWith((self,result), [((self,parameter), string)]))
+ contribute("original", types::typeOf((self,parameter)))
+ contribute("outside", types::resolveTypeWith((self,external), [((self,parameter), string)]))
 } }
 entry Root
 "#;
@@ -88,7 +88,7 @@ fn canonical_std_contains_no_native_template_ownership_contracts() {
     let normalized = String::from_utf8(language.to_bytes().unwrap()).unwrap();
     assert!(!normalized.contains("register_template"));
     assert!(!normalized.contains("std/types#instantiate"));
-    assert!(normalized.contains("std/query#hypothetical"));
+    assert!(normalized.contains("core/query#hypothetical"));
 }
 
 #[test]

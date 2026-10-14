@@ -4,7 +4,7 @@ Your Language brings grammar, AST structure, and diagnostics into a shared langu
 
 ## Language analysis
 
-Native meaning libraries already provide experimental lexical scopes, declaration/reference identity and type constraints. Further work will develop composable analysis protocols, union-producing annotations, directional compatibility and per-call generic inference, followed by flow-sensitive narrowing and ownership experiments. These analyses remain separate from grammar matching and syntax-local constraints.
+Native semantic libraries already provide experimental lexical scopes, declaration/reference identity and type constraints. Further work will develop composable analysis protocols, union-producing annotations, directional compatibility and per-call generic inference, followed by flow-sensitive narrowing and ownership experiments. These analyses remain separate from grammar matching and syntax-local constraints.
 
 ## Developer tooling
 

@@ -1,4 +1,5 @@
-import { alternatives, choose, contributeAll, every, facts, filter, first, hypotheticalChecked, isPresent, contains, equal, values, map, last, tail, hasMultiple } from "std/query"
+import { error } from "core/diagnostics"
+import { alternatives, choose, contributeAll, every, facts, filter, first, hypotheticalChecked, isPresent, contains, equal, values, map, last, tail, hasMultiple } from "core/query"
 
 export symbol unknown
 
@@ -6,18 +7,18 @@ export symbol type
 
 export operation candidates(key) = facts((key, type))
 
-export operation typeof(key) = choose(isPresent(key), choose(isPresent(first(candidates(key))), alternatives(candidates(key)), unknown), absent)
+export operation typeOf(key) = choose(isPresent(key), choose(isPresent(first(candidates(key))), alternatives(candidates(key)), unknown), absent)
 
-export operation annotate(key, value) {
+export operation annotateWithType(key, value) {
     contributeAll((key, type), filter(values(value), item => !equal(item, unknown)))
 }
 
 export operation compatible(actual, expected) = choose(isPresent(actual), choose(isPresent(expected), every(values(actual), item => choose(equal(item, unknown), true, choose(contains(values(expected), unknown), true, contains(values(expected), item)))), absent), absent)
 
-export operation restrictTo(key, expected, target = key, related = absent) {
-    if !compatible(typeof(key), expected) {
-        error("Type ${typeof(key)} does not match ${expected}", target, related)
+export operation restrictTypeTo(key, expected, target = key, related = absent) {
+    when !compatible(typeOf(key), expected) {
+        error("Type ${typeOf(key)} does not match ${expected}", target, related)
     }
 }
 
-export operation resolveWith(result, assumptions) = choose(isPresent(first(hypotheticalChecked((result, type), map(assumptions, assumption => ((first(assumption), type), first(tail(assumption)), choose(hasMultiple(tail(assumption)), last(assumption), absent)))))), alternatives(hypotheticalChecked((result, type), map(assumptions, assumption => ((first(assumption), type), first(tail(assumption)), choose(hasMultiple(tail(assumption)), last(assumption), absent))))), unknown)
+export operation resolveTypeWith(result, assumptions) = choose(isPresent(first(hypotheticalChecked((result, type), map(assumptions, assumption => ((first(assumption), type), first(tail(assumption)), choose(hasMultiple(tail(assumption)), last(assumption), absent)))))), alternatives(hypotheticalChecked((result, type), map(assumptions, assumption => ((first(assumption), type), first(tail(assumption)), choose(hasMultiple(tail(assumption)), last(assumption), absent))))), unknown)

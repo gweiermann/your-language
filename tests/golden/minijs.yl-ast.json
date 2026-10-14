@@ -74,16 +74,16 @@
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 163,
-                            "end": 180
+                            "start": 155,
+                            "end": 172
                           }
                         }
                       ]
                     },
                     "span": {
                       "file": "examples/mini-js/minijs.yl",
-                      "start": 156,
-                      "end": 180
+                      "start": 148,
+                      "end": 172
                     }
                   },
                   "members": [],
@@ -94,7 +94,7 @@
               "span": {
                 "file": "examples/mini-js/minijs.yl",
                 "start": 134,
-                "end": 180
+                "end": 172
               }
             },
             {
@@ -113,16 +113,16 @@
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 215,
-                            "end": 230
+                            "start": 199,
+                            "end": 214
                           }
                         }
                       ]
                     },
                     "span": {
                       "file": "examples/mini-js/minijs.yl",
-                      "start": 208,
-                      "end": 230
+                      "start": 192,
+                      "end": 214
                     }
                   },
                   "members": [],
@@ -132,8 +132,8 @@
               },
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 186,
-                "end": 230
+                "start": 178,
+                "end": 214
               }
             },
             {
@@ -152,16 +152,16 @@
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 272,
-                            "end": 276
+                            "start": 248,
+                            "end": 252
                           }
                         }
                       ]
                     },
                     "span": {
                       "file": "examples/mini-js/minijs.yl",
-                      "start": 266,
-                      "end": 276
+                      "start": 242,
+                      "end": 252
                     }
                   },
                   "members": [],
@@ -171,8 +171,8 @@
               },
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 236,
-                "end": 276
+                "start": 220,
+                "end": 252
               }
             },
             {
@@ -190,8 +190,8 @@
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 303,
-                            "end": 306
+                            "start": 279,
+                            "end": 282
                           }
                         },
                         {
@@ -204,16 +204,16 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 314,
-                                  "end": 324
+                                  "start": 298,
+                                  "end": 308
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 307,
-                            "end": 324
+                            "start": 291,
+                            "end": 308
                           }
                         },
                         {
@@ -222,16 +222,16 @@
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 325,
-                            "end": 328
+                            "start": 317,
+                            "end": 320
                           }
                         }
                       ]
                     },
                     "span": {
                       "file": "examples/mini-js/minijs.yl",
-                      "start": 303,
-                      "end": 328
+                      "start": 279,
+                      "end": 320
                     }
                   },
                   "members": [],
@@ -241,8 +241,8 @@
               },
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 282,
-                "end": 328
+                "start": 258,
+                "end": 320
               }
             },
             {
@@ -264,16 +264,16 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 364,
-                                  "end": 374
+                                  "start": 356,
+                                  "end": 366
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 356,
-                            "end": 374
+                            "start": 348,
+                            "end": 366
                           }
                         },
                         {
@@ -282,8 +282,8 @@
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 383,
-                            "end": 386
+                            "start": 375,
+                            "end": 378
                           }
                         },
                         {
@@ -296,24 +296,24 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 405,
-                                  "end": 409
+                                  "start": 397,
+                                  "end": 401
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 395,
-                            "end": 409
+                            "start": 387,
+                            "end": 401
                           }
                         }
                       ]
                     },
                     "span": {
                       "file": "examples/mini-js/minijs.yl",
-                      "start": 356,
-                      "end": 409
+                      "start": 348,
+                      "end": 401
                     }
                   },
                   "members": [],
@@ -323,8 +323,8 @@
               },
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 334,
-                "end": 409
+                "start": 326,
+                "end": 401
               }
             },
             {
@@ -346,16 +346,16 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 443,
-                                  "end": 453
+                                  "start": 435,
+                                  "end": 445
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 435,
-                            "end": 453
+                            "start": 427,
+                            "end": 445
                           }
                         },
                         {
@@ -364,8 +364,8 @@
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 462,
-                            "end": 465
+                            "start": 454,
+                            "end": 457
                           }
                         },
                         {
@@ -384,8 +384,8 @@
                                             },
                                             "span": {
                                               "file": "examples/mini-js/minijs.yl",
-                                              "start": 485,
-                                              "end": 495
+                                              "start": 477,
+                                              "end": 487
                                             }
                                           },
                                           "Star"
@@ -393,8 +393,8 @@
                                       },
                                       "span": {
                                         "file": "examples/mini-js/minijs.yl",
-                                        "start": 485,
-                                        "end": 496
+                                        "start": 477,
+                                        "end": 488
                                       }
                                     },
                                     "separatedBy",
@@ -407,14 +407,14 @@
                                           },
                                           "span": {
                                             "file": "examples/mini-js/minijs.yl",
-                                            "start": 524,
-                                            "end": 527
+                                            "start": 504,
+                                            "end": 507
                                           }
                                         },
                                         "span": {
                                           "file": "examples/mini-js/minijs.yl",
-                                          "start": 524,
-                                          "end": 527
+                                          "start": 504,
+                                          "end": 507
                                         }
                                       },
                                       {
@@ -425,14 +425,14 @@
                                           },
                                           "span": {
                                             "file": "examples/mini-js/minijs.yl",
-                                            "start": 538,
-                                            "end": 547
+                                            "start": 520,
+                                            "end": 529
                                           }
                                         },
                                         "span": {
                                           "file": "examples/mini-js/minijs.yl",
-                                          "start": 529,
-                                          "end": 547
+                                          "start": 509,
+                                          "end": 529
                                         }
                                       }
                                     ]
@@ -440,16 +440,16 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 485,
-                                  "end": 548
+                                  "start": 477,
+                                  "end": 530
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 474,
-                            "end": 548
+                            "start": 466,
+                            "end": 530
                           }
                         },
                         {
@@ -458,16 +458,16 @@
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 557,
-                            "end": 560
+                            "start": 539,
+                            "end": 542
                           }
                         }
                       ]
                     },
                     "span": {
                       "file": "examples/mini-js/minijs.yl",
-                      "start": 435,
-                      "end": 560
+                      "start": 427,
+                      "end": 542
                     }
                   },
                   "members": [],
@@ -477,8 +477,8 @@
               },
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 415,
-                "end": 560
+                "start": 407,
+                "end": 542
               }
             },
             {
@@ -505,8 +505,8 @@
                                           },
                                           "span": {
                                             "file": "examples/mini-js/minijs.yl",
-                                            "start": 598,
-                                            "end": 601
+                                            "start": 580,
+                                            "end": 583
                                           }
                                         },
                                         {
@@ -515,8 +515,8 @@
                                           },
                                           "span": {
                                             "file": "examples/mini-js/minijs.yl",
-                                            "start": 604,
-                                            "end": 607
+                                            "start": 586,
+                                            "end": 589
                                           }
                                         },
                                         {
@@ -525,31 +525,31 @@
                                           },
                                           "span": {
                                             "file": "examples/mini-js/minijs.yl",
-                                            "start": 610,
-                                            "end": 613
+                                            "start": 592,
+                                            "end": 595
                                           }
                                         }
                                       ]
                                     },
                                     "span": {
                                       "file": "examples/mini-js/minijs.yl",
-                                      "start": 598,
-                                      "end": 613
+                                      "start": 580,
+                                      "end": 595
                                     }
                                   }
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 597,
-                                  "end": 614
+                                  "start": 579,
+                                  "end": 596
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 587,
-                            "end": 614
+                            "start": 569,
+                            "end": 596
                           }
                         },
                         {
@@ -562,24 +562,24 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 633,
-                                  "end": 643
+                                  "start": 615,
+                                  "end": 625
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 623,
-                            "end": 643
+                            "start": 605,
+                            "end": 625
                           }
                         }
                       ]
                     },
                     "span": {
                       "file": "examples/mini-js/minijs.yl",
-                      "start": 587,
-                      "end": 643
+                      "start": 569,
+                      "end": 625
                     }
                   },
                   "members": [],
@@ -589,8 +589,8 @@
               },
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 566,
-                "end": 643
+                "start": 548,
+                "end": 625
               }
             },
             {
@@ -612,16 +612,16 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 676,
-                                  "end": 686
+                                  "start": 658,
+                                  "end": 668
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 670,
-                            "end": 686
+                            "start": 652,
+                            "end": 668
                           }
                         },
                         {
@@ -634,16 +634,16 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 705,
-                                  "end": 709
+                                  "start": 687,
+                                  "end": 691
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 695,
-                            "end": 709
+                            "start": 677,
+                            "end": 691
                           }
                         },
                         {
@@ -656,24 +656,24 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 725,
-                                  "end": 735
+                                  "start": 707,
+                                  "end": 717
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 718,
-                            "end": 735
+                            "start": 700,
+                            "end": 717
                           }
                         }
                       ]
                     },
                     "span": {
                       "file": "examples/mini-js/minijs.yl",
-                      "start": 670,
-                      "end": 735
+                      "start": 652,
+                      "end": 717
                     }
                   },
                   "members": [],
@@ -683,8 +683,8 @@
               },
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 649,
-                "end": 735
+                "start": 631,
+                "end": 717
               }
             },
             {
@@ -706,16 +706,16 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 770,
-                                  "end": 780
+                                  "start": 752,
+                                  "end": 762
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 764,
-                            "end": 780
+                            "start": 746,
+                            "end": 762
                           }
                         },
                         {
@@ -733,8 +733,8 @@
                                           },
                                           "span": {
                                             "file": "examples/mini-js/minijs.yl",
-                                            "start": 800,
-                                            "end": 803
+                                            "start": 782,
+                                            "end": 785
                                           }
                                         },
                                         {
@@ -743,8 +743,8 @@
                                           },
                                           "span": {
                                             "file": "examples/mini-js/minijs.yl",
-                                            "start": 806,
-                                            "end": 809
+                                            "start": 788,
+                                            "end": 791
                                           }
                                         },
                                         {
@@ -753,31 +753,31 @@
                                           },
                                           "span": {
                                             "file": "examples/mini-js/minijs.yl",
-                                            "start": 812,
-                                            "end": 815
+                                            "start": 794,
+                                            "end": 797
                                           }
                                         }
                                       ]
                                     },
                                     "span": {
                                       "file": "examples/mini-js/minijs.yl",
-                                      "start": 800,
-                                      "end": 815
+                                      "start": 782,
+                                      "end": 797
                                     }
                                   }
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 799,
-                                  "end": 816
+                                  "start": 781,
+                                  "end": 798
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 789,
-                            "end": 816
+                            "start": 771,
+                            "end": 798
                           }
                         },
                         {
@@ -790,24 +790,24 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 832,
-                                  "end": 842
+                                  "start": 814,
+                                  "end": 824
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 825,
-                            "end": 842
+                            "start": 807,
+                            "end": 824
                           }
                         }
                       ]
                     },
                     "span": {
                       "file": "examples/mini-js/minijs.yl",
-                      "start": 764,
-                      "end": 842
+                      "start": 746,
+                      "end": 824
                     }
                   },
                   "members": [],
@@ -817,8 +817,8 @@
               },
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 741,
-                "end": 842
+                "start": 723,
+                "end": 824
               }
             },
             {
@@ -840,16 +840,16 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 873,
-                                  "end": 883
+                                  "start": 855,
+                                  "end": 865
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 867,
-                            "end": 883
+                            "start": 849,
+                            "end": 865
                           }
                         },
                         {
@@ -867,8 +867,8 @@
                                           },
                                           "span": {
                                             "file": "examples/mini-js/minijs.yl",
-                                            "start": 903,
-                                            "end": 906
+                                            "start": 885,
+                                            "end": 888
                                           }
                                         },
                                         {
@@ -877,31 +877,31 @@
                                           },
                                           "span": {
                                             "file": "examples/mini-js/minijs.yl",
-                                            "start": 909,
-                                            "end": 912
+                                            "start": 891,
+                                            "end": 894
                                           }
                                         }
                                       ]
                                     },
                                     "span": {
                                       "file": "examples/mini-js/minijs.yl",
-                                      "start": 903,
-                                      "end": 912
+                                      "start": 885,
+                                      "end": 894
                                     }
                                   }
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 902,
-                                  "end": 913
+                                  "start": 884,
+                                  "end": 895
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 892,
-                            "end": 913
+                            "start": 874,
+                            "end": 895
                           }
                         },
                         {
@@ -914,24 +914,24 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 929,
-                                  "end": 939
+                                  "start": 911,
+                                  "end": 921
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 922,
-                            "end": 939
+                            "start": 904,
+                            "end": 921
                           }
                         }
                       ]
                     },
                     "span": {
                       "file": "examples/mini-js/minijs.yl",
-                      "start": 867,
-                      "end": 939
+                      "start": 849,
+                      "end": 921
                     }
                   },
                   "members": [],
@@ -941,8 +941,8 @@
               },
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 848,
-                "end": 939
+                "start": 830,
+                "end": 921
               }
             }
           ],
@@ -955,8 +955,8 @@
               "associativity": "Left",
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 966,
-                "end": 978
+                "start": 948,
+                "end": 960
               }
             },
             {
@@ -966,8 +966,8 @@
               "associativity": "Left",
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 989,
-                "end": 994
+                "start": 963,
+                "end": 968
               }
             },
             {
@@ -977,8 +977,8 @@
               "associativity": "Right",
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 1005,
-                "end": 1016
+                "start": 971,
+                "end": 982
               }
             },
             {
@@ -988,8 +988,8 @@
               "associativity": "Left",
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 1027,
-                "end": 1034
+                "start": 985,
+                "end": 992
               }
             },
             {
@@ -999,8 +999,8 @@
               "associativity": "Left",
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 1045,
-                "end": 1048
+                "start": 995,
+                "end": 998
               }
             }
           ],
@@ -1010,7 +1010,7 @@
       "span": {
         "file": "examples/mini-js/minijs.yl",
         "start": 105,
-        "end": 1056
+        "end": 1006
       }
     },
     {
@@ -1042,8 +1042,8 @@
                                         },
                                         "span": {
                                           "file": "examples/mini-js/minijs.yl",
-                                          "start": 1095,
-                                          "end": 1098
+                                          "start": 1036,
+                                          "end": 1039
                                         }
                                       },
                                       {
@@ -1056,30 +1056,30 @@
                                               },
                                               "span": {
                                                 "file": "examples/mini-js/minijs.yl",
-                                                "start": 1108,
-                                                "end": 1118
+                                                "start": 1049,
+                                                "end": 1059
                                               }
                                             }
                                           ]
                                         },
                                         "span": {
                                           "file": "examples/mini-js/minijs.yl",
-                                          "start": 1099,
-                                          "end": 1118
+                                          "start": 1040,
+                                          "end": 1059
                                         }
                                       }
                                     ]
                                   },
                                   "span": {
                                     "file": "examples/mini-js/minijs.yl",
-                                    "start": 1095,
-                                    "end": 1118
+                                    "start": 1036,
+                                    "end": 1059
                                   }
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 1095,
-                                  "end": 1118
+                                  "start": 1036,
+                                  "end": 1059
                                 }
                               }
                             ]
@@ -1087,8 +1087,8 @@
                         },
                         "span": {
                           "file": "examples/mini-js/minijs.yl",
-                          "start": 1085,
-                          "end": 1119
+                          "start": 1031,
+                          "end": 1060
                         }
                       },
                       "Optional"
@@ -1096,16 +1096,16 @@
                   },
                   "span": {
                     "file": "examples/mini-js/minijs.yl",
-                    "start": 1085,
-                    "end": 1120
+                    "start": 1031,
+                    "end": 1061
                   }
                 }
               ]
             },
             "span": {
               "file": "examples/mini-js/minijs.yl",
-              "start": 1079,
-              "end": 1120
+              "start": 1025,
+              "end": 1061
             }
           },
           "members": [],
@@ -1115,8 +1115,8 @@
       },
       "span": {
         "file": "examples/mini-js/minijs.yl",
-        "start": 1058,
-        "end": 1120
+        "start": 1008,
+        "end": 1061
       }
     },
     {
@@ -1137,8 +1137,8 @@
                         },
                         "span": {
                           "file": "examples/mini-js/minijs.yl",
-                          "start": 1147,
-                          "end": 1156
+                          "start": 1084,
+                          "end": 1093
                         }
                       },
                       "Star"
@@ -1146,8 +1146,8 @@
                   },
                   "span": {
                     "file": "examples/mini-js/minijs.yl",
-                    "start": 1147,
-                    "end": 1157
+                    "start": 1084,
+                    "end": 1094
                   }
                 },
                 "separatedBy",
@@ -1160,14 +1160,14 @@
                       },
                       "span": {
                         "file": "examples/mini-js/minijs.yl",
-                        "start": 1177,
-                        "end": 1180
+                        "start": 1110,
+                        "end": 1113
                       }
                     },
                     "span": {
                       "file": "examples/mini-js/minijs.yl",
-                      "start": 1177,
-                      "end": 1180
+                      "start": 1110,
+                      "end": 1113
                     }
                   },
                   {
@@ -1178,14 +1178,14 @@
                       },
                       "span": {
                         "file": "examples/mini-js/minijs.yl",
-                        "start": 1191,
-                        "end": 1200
+                        "start": 1126,
+                        "end": 1135
                       }
                     },
                     "span": {
                       "file": "examples/mini-js/minijs.yl",
-                      "start": 1182,
-                      "end": 1200
+                      "start": 1115,
+                      "end": 1135
                     }
                   }
                 ]
@@ -1193,16 +1193,16 @@
             },
             "span": {
               "file": "examples/mini-js/minijs.yl",
-              "start": 1147,
-              "end": 1201
+              "start": 1084,
+              "end": 1136
             }
           }
         }
       },
       "span": {
         "file": "examples/mini-js/minijs.yl",
-        "start": 1122,
-        "end": 1201
+        "start": 1063,
+        "end": 1136
       }
     },
     {
@@ -1244,14 +1244,14 @@
                                                     },
                                                     "span": {
                                                       "file": "examples/mini-js/minijs.yl",
-                                                      "start": 1281,
-                                                      "end": 1286
+                                                      "start": 1216,
+                                                      "end": 1221
                                                     }
                                                   },
                                                   "span": {
                                                     "file": "examples/mini-js/minijs.yl",
-                                                    "start": 1281,
-                                                    "end": 1286
+                                                    "start": 1216,
+                                                    "end": 1221
                                                   }
                                                 }
                                               ]
@@ -1259,8 +1259,8 @@
                                           },
                                           "span": {
                                             "file": "examples/mini-js/minijs.yl",
-                                            "start": 1273,
-                                            "end": 1287
+                                            "start": 1208,
+                                            "end": 1222
                                           }
                                         },
                                         {
@@ -1276,14 +1276,14 @@
                                                     },
                                                     "span": {
                                                       "file": "examples/mini-js/minijs.yl",
-                                                      "start": 1298,
-                                                      "end": 1305
+                                                      "start": 1233,
+                                                      "end": 1240
                                                     }
                                                   },
                                                   "span": {
                                                     "file": "examples/mini-js/minijs.yl",
-                                                    "start": 1298,
-                                                    "end": 1305
+                                                    "start": 1233,
+                                                    "end": 1240
                                                   }
                                                 }
                                               ]
@@ -1291,31 +1291,31 @@
                                           },
                                           "span": {
                                             "file": "examples/mini-js/minijs.yl",
-                                            "start": 1290,
-                                            "end": 1306
+                                            "start": 1225,
+                                            "end": 1241
                                           }
                                         }
                                       ]
                                     },
                                     "span": {
                                       "file": "examples/mini-js/minijs.yl",
-                                      "start": 1273,
-                                      "end": 1306
+                                      "start": 1208,
+                                      "end": 1241
                                     }
                                   }
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 1272,
-                                  "end": 1307
+                                  "start": 1207,
+                                  "end": 1242
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 1266,
-                            "end": 1307
+                            "start": 1201,
+                            "end": 1242
                           }
                         },
                         {
@@ -1341,8 +1341,8 @@
                                                       },
                                                       "span": {
                                                         "file": "examples/mini-js/minijs.yl",
-                                                        "start": 1336,
-                                                        "end": 1339
+                                                        "start": 1262,
+                                                        "end": 1265
                                                       }
                                                     },
                                                     {
@@ -1355,30 +1355,30 @@
                                                             },
                                                             "span": {
                                                               "file": "examples/mini-js/minijs.yl",
-                                                              "start": 1353,
-                                                              "end": 1363
+                                                              "start": 1279,
+                                                              "end": 1289
                                                             }
                                                           }
                                                         ]
                                                       },
                                                       "span": {
                                                         "file": "examples/mini-js/minijs.yl",
-                                                        "start": 1340,
-                                                        "end": 1363
+                                                        "start": 1266,
+                                                        "end": 1289
                                                       }
                                                     }
                                                   ]
                                                 },
                                                 "span": {
                                                   "file": "examples/mini-js/minijs.yl",
-                                                  "start": 1336,
-                                                  "end": 1363
+                                                  "start": 1262,
+                                                  "end": 1289
                                                 }
                                               },
                                               "span": {
                                                 "file": "examples/mini-js/minijs.yl",
-                                                "start": 1336,
-                                                "end": 1363
+                                                "start": 1262,
+                                                "end": 1289
                                               }
                                             }
                                           ]
@@ -1386,8 +1386,8 @@
                                       },
                                       "span": {
                                         "file": "examples/mini-js/minijs.yl",
-                                        "start": 1322,
-                                        "end": 1364
+                                        "start": 1257,
+                                        "end": 1290
                                       }
                                     },
                                     "Optional"
@@ -1395,24 +1395,24 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 1322,
-                                  "end": 1365
+                                  "start": 1257,
+                                  "end": 1291
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 1316,
-                            "end": 1365
+                            "start": 1251,
+                            "end": 1291
                           }
                         }
                       ]
                     },
                     "span": {
                       "file": "examples/mini-js/minijs.yl",
-                      "start": 1266,
-                      "end": 1365
+                      "start": 1201,
+                      "end": 1291
                     }
                   },
                   "members": [],
@@ -1422,8 +1422,8 @@
               },
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 1231,
-                "end": 1365
+                "start": 1166,
+                "end": 1291
               }
             },
             {
@@ -1448,14 +1448,14 @@
                                     },
                                     "span": {
                                       "file": "examples/mini-js/minijs.yl",
-                                      "start": 1410,
-                                      "end": 1418
+                                      "start": 1336,
+                                      "end": 1344
                                     }
                                   },
                                   "span": {
                                     "file": "examples/mini-js/minijs.yl",
-                                    "start": 1410,
-                                    "end": 1418
+                                    "start": 1336,
+                                    "end": 1344
                                   }
                                 }
                               ]
@@ -1463,8 +1463,8 @@
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 1402,
-                            "end": 1419
+                            "start": 1328,
+                            "end": 1345
                           }
                         },
                         {
@@ -1480,8 +1480,8 @@
                                       },
                                       "span": {
                                         "file": "examples/mini-js/minijs.yl",
-                                        "start": 1435,
-                                        "end": 1445
+                                        "start": 1361,
+                                        "end": 1371
                                       }
                                     },
                                     "Optional"
@@ -1489,24 +1489,24 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 1435,
-                                  "end": 1446
+                                  "start": 1361,
+                                  "end": 1372
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 1428,
-                            "end": 1446
+                            "start": 1354,
+                            "end": 1372
                           }
                         }
                       ]
                     },
                     "span": {
                       "file": "examples/mini-js/minijs.yl",
-                      "start": 1402,
-                      "end": 1446
+                      "start": 1328,
+                      "end": 1372
                     }
                   },
                   "members": [],
@@ -1516,8 +1516,8 @@
               },
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 1371,
-                "end": 1446
+                "start": 1297,
+                "end": 1372
               }
             },
             {
@@ -1542,14 +1542,14 @@
                                     },
                                     "span": {
                                       "file": "examples/mini-js/minijs.yl",
-                                      "start": 1495,
-                                      "end": 1505
+                                      "start": 1421,
+                                      "end": 1431
                                     }
                                   },
                                   "span": {
                                     "file": "examples/mini-js/minijs.yl",
-                                    "start": 1495,
-                                    "end": 1505
+                                    "start": 1421,
+                                    "end": 1431
                                   }
                                 }
                               ]
@@ -1557,8 +1557,8 @@
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 1487,
-                            "end": 1506
+                            "start": 1413,
+                            "end": 1432
                           }
                         },
                         {
@@ -1571,16 +1571,16 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 1521,
-                                  "end": 1525
+                                  "start": 1447,
+                                  "end": 1451
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 1515,
-                            "end": 1525
+                            "start": 1441,
+                            "end": 1451
                           }
                         },
                         {
@@ -1589,8 +1589,8 @@
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 1534,
-                            "end": 1537
+                            "start": 1460,
+                            "end": 1463
                           }
                         },
                         {
@@ -1603,16 +1603,16 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 1550,
-                                  "end": 1560
+                                  "start": 1484,
+                                  "end": 1494
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 1538,
-                            "end": 1560
+                            "start": 1472,
+                            "end": 1494
                           }
                         },
                         {
@@ -1621,8 +1621,8 @@
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 1561,
-                            "end": 1564
+                            "start": 1503,
+                            "end": 1506
                           }
                         },
                         {
@@ -1635,24 +1635,24 @@
                                 },
                                 "span": {
                                   "file": "examples/mini-js/minijs.yl",
-                                  "start": 1579,
-                                  "end": 1584
+                                  "start": 1521,
+                                  "end": 1526
                                 }
                               }
                             ]
                           },
                           "span": {
                             "file": "examples/mini-js/minijs.yl",
-                            "start": 1573,
-                            "end": 1584
+                            "start": 1515,
+                            "end": 1526
                           }
                         }
                       ]
                     },
                     "span": {
                       "file": "examples/mini-js/minijs.yl",
-                      "start": 1487,
-                      "end": 1584
+                      "start": 1413,
+                      "end": 1526
                     }
                   },
                   "members": [],
@@ -1662,8 +1662,8 @@
               },
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 1452,
-                "end": 1584
+                "start": 1378,
+                "end": 1526
               }
             },
             {
@@ -1680,8 +1680,8 @@
               },
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 1590,
-                "end": 1605
+                "start": 1532,
+                "end": 1547
               }
             }
           ],
@@ -1691,8 +1691,8 @@
       },
       "span": {
         "file": "examples/mini-js/minijs.yl",
-        "start": 1203,
-        "end": 1607
+        "start": 1138,
+        "end": 1549
       }
     },
     {
@@ -1710,8 +1710,8 @@
                   },
                   "span": {
                     "file": "examples/mini-js/minijs.yl",
-                    "start": 1626,
-                    "end": 1629
+                    "start": 1568,
+                    "end": 1571
                   }
                 },
                 {
@@ -1727,8 +1727,8 @@
                               },
                               "span": {
                                 "file": "examples/mini-js/minijs.yl",
-                                "start": 1646,
-                                "end": 1655
+                                "start": 1588,
+                                "end": 1597
                               }
                             },
                             "Star"
@@ -1736,16 +1736,16 @@
                         },
                         "span": {
                           "file": "examples/mini-js/minijs.yl",
-                          "start": 1646,
-                          "end": 1656
+                          "start": 1588,
+                          "end": 1598
                         }
                       }
                     ]
                   },
                   "span": {
                     "file": "examples/mini-js/minijs.yl",
-                    "start": 1634,
-                    "end": 1656
+                    "start": 1576,
+                    "end": 1598
                   }
                 },
                 {
@@ -1754,16 +1754,16 @@
                   },
                   "span": {
                     "file": "examples/mini-js/minijs.yl",
-                    "start": 1661,
-                    "end": 1664
+                    "start": 1603,
+                    "end": 1606
                   }
                 }
               ]
             },
             "span": {
               "file": "examples/mini-js/minijs.yl",
-              "start": 1626,
-              "end": 1664
+              "start": 1568,
+              "end": 1606
             }
           },
           "members": [],
@@ -1773,8 +1773,8 @@
       },
       "span": {
         "file": "examples/mini-js/minijs.yl",
-        "start": 1609,
-        "end": 1664
+        "start": 1551,
+        "end": 1606
       }
     },
     {
@@ -1796,8 +1796,8 @@
                         },
                         "span": {
                           "file": "examples/mini-js/minijs.yl",
-                          "start": 1704,
-                          "end": 1713
+                          "start": 1642,
+                          "end": 1651
                         }
                       },
                       "Star"
@@ -1805,16 +1805,16 @@
                   },
                   "span": {
                     "file": "examples/mini-js/minijs.yl",
-                    "start": 1704,
-                    "end": 1714
+                    "start": 1642,
+                    "end": 1652
                   }
                 }
               ]
             },
             "span": {
               "file": "examples/mini-js/minijs.yl",
-              "start": 1692,
-              "end": 1714
+              "start": 1630,
+              "end": 1652
             }
           },
           "members": [],
@@ -1824,8 +1824,8 @@
       },
       "span": {
         "file": "examples/mini-js/minijs.yl",
-        "start": 1666,
-        "end": 1714
+        "start": 1608,
+        "end": 1652
       }
     },
     {
@@ -1838,8 +1838,8 @@
             },
             "span": {
               "file": "examples/mini-js/minijs.yl",
-              "start": 1722,
-              "end": 1729
+              "start": 1660,
+              "end": 1667
             }
           },
           "trivia": [
@@ -1849,8 +1849,8 @@
               },
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 1743,
-                "end": 1753
+                "start": 1681,
+                "end": 1691
               }
             },
             {
@@ -1859,8 +1859,8 @@
               },
               "span": {
                 "file": "examples/mini-js/minijs.yl",
-                "start": 1755,
-                "end": 1762
+                "start": 1693,
+                "end": 1700
               }
             }
           ]
@@ -1868,14 +1868,14 @@
       },
       "span": {
         "file": "examples/mini-js/minijs.yl",
-        "start": 1716,
-        "end": 1764
+        "start": 1654,
+        "end": 1702
       }
     }
   ],
   "span": {
     "file": "examples/mini-js/minijs.yl",
     "start": 0,
-    "end": 1765
+    "end": 1703
   }
 }

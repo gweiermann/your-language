@@ -53,7 +53,7 @@ test('standard contracts validated without effects; incomplete untitled files an
     const s=await session(t);
     const dir=await mkdtemp(join(tmpdir(),'yl-lsp-')); t.after(()=>rm(dir,{recursive:true,force:true}));
     const uri=pathToFileURL(join(dir,'lang.yl')).href;
-    s.open(uri,'import { lexicalScope } from "std/variables"\nnode Root = "x" { meanings { lexicalScope(self) } }\nentry Root');
+    s.open(uri,'import { createLexicalScope } from "std/references"\nnode Root = "x" { semantics { createLexicalScope(self) } }\nentry Root');
     assert.deepEqual((await s.diagnostic(uri,1)).diagnostics,[]);
     assert.match(JSON.stringify(await s.hints(uri)),/example/);
     s.change(uri,'import { missing } from "custom/native"\nnode Root="x"\nentry Root',2);
@@ -124,21 +124,22 @@ test('type contributions, syntax identities and authored wrappers validate witho
     const s=await session(t);
     const dir=await mkdtemp(join(tmpdir(),'yl-lsp-types-')); t.after(()=>rm(dir,{recursive:true,force:true}));
     const uri=pathToFileURL(join(dir,'lang.yl')).href;
-    const text=`import * as types from "std/types"
-import { children, first } from "std/query"
+    const text=`import { error } from "core/diagnostics"
+import * as types from "std/types"
+import { children, first } from "core/query"
 symbol number
-operation annotateWithType(target,value) { types::annotate(target,value) }
-operation restrictTypeTo(target,value) { types::restrictTo(target,value) }
-operation typeof(value) = types::typeof(value)
-node Value="x" { meanings { annotateWithType(self,number) } }
-node Root=value: Value { meanings {
+operation annotateWithType(target,value) { types::annotateWithType(target,value) }
+operation restrictTypeTo(target,value) { types::restrictTypeTo(target,value) }
+operation typeof(value) = types::typeOf(value)
+node Value="x" { semantics { annotateWithType(self,number) } }
+node Root=value: Value { semantics {
     annotateWithType(self,typeof(value))
     restrictTypeTo(self,number)
-    types::annotate(value,[number])
-    types::annotate(first(children(self)),number)
-    types::annotate("invalid-key",number)
-    match (types::typeof(self)) {
-        number => types::annotate(self,number),
+    types::annotateWithType(value,[number])
+    types::annotateWithType(first(children(self)),number)
+    types::annotateWithType("invalid-key",number)
+    match (types::typeOf(self)) {
+        number => types::annotateWithType(self,number),
         _ => error("This runtime effect must not execute while checking the definition"),
     }
 } }
@@ -150,21 +151,21 @@ entry Root`;
     assert.match(JSON.stringify(await s.hints(uri)),/example/);
     const edits=await s.connection.sendRequest('textDocument/formatting',{textDocument:{uri},options:{tabSize:4,insertSpaces:true}});
     assert.match(edits[0].newText,/import \* as types/);
-    assert.match(edits[0].newText,/from "std\/query"/);
+    assert.match(edits[0].newText,/from "core\/query"/);
     assert.match(edits[0].newText,/operation annotateWithType\(target, value\)/);
-    assert.match(edits[0].newText,/types::restrictTo/);
-    assert.match(edits[0].newText,/types::typeof/);
-    s.change(uri,text.replace('types::annotate(target,value)','types::annotate(target)'),2);
+    assert.match(edits[0].newText,/types::restrictTypeTo/);
+    assert.match(edits[0].newText,/types::typeOf/);
+    s.change(uri,text.replace('types::annotateWithType(target,value)','types::annotateWithType(target)'),2);
     assert.ok((await s.diagnostic(uri,2)).diagnostics.some(d=>d.severity===1));
-    s.change(uri,text.replace('types::restrictTo(target,value)','types::restrictTo(target)'),3);
+    s.change(uri,text.replace('types::restrictTypeTo(target,value)','types::restrictTypeTo(target)'),3);
     assert.ok((await s.diagnostic(uri,3)).diagnostics.some(d=>d.severity===1));
     s.change(uri,text.replace('first(children(self))','first()'),4);
     assert.ok((await s.diagnostic(uri,4)).diagnostics.some(d=>d.severity===1));
-    s.change(uri,text.replaceAll('types::annotate','types::ensure'),5);
+    s.change(uri,text.replaceAll('types::annotateWithType','types::ensure'),5);
     assert.ok((await s.diagnostic(uri,5)).diagnostics.some(d=>d.severity===1));
     s.change(uri,text,6);
     assert.deepEqual((await s.diagnostic(uri,6)).diagnostics,[]);
-    s.change(uri,text.replace('types::annotate(target,value)','types::annotate(self,value)'),7);
+    s.change(uri,text.replace('types::annotateWithType(target,value)','types::annotateWithType(self,value)'),7);
     assert.ok((await s.diagnostic(uri,7)).diagnostics.some(d=>d.code==='yl.operation_self'));
     s.change(uri,text,8);
     assert.deepEqual((await s.diagnostic(uri,8)).diagnostics,[]);
@@ -187,7 +188,7 @@ test('imported child CodeLens uses entry trivia and buffer changes preserve spac
 
 test('LSP buffer formatting aligns match arrows by default',async t=> {
     const s=await session(t),uri='untitled:alignment';
-    const text='node Root = "x" { meanings { match (a,b) { number,number => type(number), string,string | string,number | number,string => type(string), _ => {} } } }';
+    const text='node Root = "x" { semantics { match (a,b) { number,number => type(number), string,string | string,number | number,string => type(string), _ => {} } } }';
     s.open(uri,text);await s.diagnostic(uri,1);
     const [edit]=await s.connection.sendRequest('textDocument/formatting',{textDocument:{uri},options:{tabSize:4,insertSpaces:true}});
     const lines=edit.newText.split('\n').filter(line=>line.includes('=>'));

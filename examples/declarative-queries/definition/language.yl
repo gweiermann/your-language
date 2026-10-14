@@ -1,11 +1,11 @@
-import { lexicalScope } from "../../../stdlib/references"
+import { createLexicalScope } from "../../../stdlib/references"
 import { Whitespace } from "./lexical"
 import { Statement } from "./statements"
 
 node Program = statements: Statement* {
-    meanings {
+    semantics {
         boundary
-        lexicalScope(self)
+        createLexicalScope(self)
         precedence {
             Statement::Declaration > Statement::Reference
         }

@@ -54,7 +54,7 @@ fn wrappers_expand_hygienically_through_namespace_reexports_and_reload() {
     let sources = graph(
         r#"import * as lib from "bridge"
 symbol Kind
-node Program = "x" { meanings { lib.annotate() } }
+node Program = "x" { semantics { lib.annotate() } }
 entry Program"#
             .replace("lib.annotate", "lib::annotate")
             .as_str(),
@@ -88,7 +88,7 @@ fn wrappers_preserve_caller_captures_and_tuple_list_values() {
     let sources = graph(
         r#"import * as native from "test"
 operation capture(value) { native::value(value) }
-node Program = name: /[a-z]+/ { meanings { capture((name, ["text", true, absent])) } }
+node Program = name: /[a-z]+/ { semantics { capture((name, ["text", true, absent])) } }
 entry Program"#,
         &[],
     );
@@ -114,7 +114,7 @@ fn wrapper_named_arguments_and_multiple_actions_preserve_order() {
     let sources = graph(
         r#"import * as native from "test"
 operation annotate(first="first",second="second") { native::value(first) native::value(second) }
-node Program="x" { meanings { annotate(second="last") } }
+node Program="x" { semantics { annotate(second="last") } }
 entry Program"#,
         &[],
     );
@@ -161,7 +161,7 @@ fn invalid_wrapper_calls_and_private_namespace_members_are_diagnostics() {
         (
             "operation a() { native::value(\"a\") }",
             "native::value(a())",
-            "yl.invalid_operation_query",
+            "yl.operation_result",
         ),
         (
             "operation a() = native::value(\"a\")",
@@ -169,7 +169,7 @@ fn invalid_wrapper_calls_and_private_namespace_members_are_diagnostics() {
             "yl.invalid_operation_action",
         ),
     ] {
-        let source=format!("import * as native from \"test\"\n{operation}\nnode Program=\"x\" {{meanings{{{call}}}}}\nentry Program");
+        let source=format!("import * as native from \"test\"\n{operation}\nnode Program=\"x\" {{semantics{{{call}}}}}\nentry Program");
         let errors = engine()
             .compile("language.yl", &graph(&source, &[]))
             .unwrap_err();
@@ -178,7 +178,7 @@ fn invalid_wrapper_calls_and_private_namespace_members_are_diagnostics() {
             "{call}: {errors:?}"
         );
     }
-    let source="import * as lib from \"library\"\nnode Program=\"x\" { meanings { lib::private() } }\nentry Program";
+    let source="import * as lib from \"library\"\nnode Program=\"x\" { semantics { lib::private() } }\nentry Program";
     let errors = engine()
         .compile(
             "language.yl",
@@ -191,7 +191,7 @@ fn invalid_wrapper_calls_and_private_namespace_members_are_diagnostics() {
 }
 #[test]
 fn semantic_tuples_and_operations_format_idempotently() {
-    let source="import * as native from \"test\"\noperation emit(value=absent){native::value((value,[true,\"a\"]))}\nnode Program=\"x\"{meanings{emit()}}\nentry Program";
+    let source="import * as native from \"test\"\noperation emit(value=absent){native::value((value,[true,\"a\"]))}\nnode Program=\"x\"{semantics{emit()}}\nentry Program";
     let formatted = your_language::format_yl("language.yl", source).unwrap();
     assert_eq!(
         formatted,
@@ -241,7 +241,7 @@ fn contextual_literal_capture_names_survive_wrapper_arguments() {
     let source = r#"import * as native from "test"
 operation annotate(value = absent) { native::value(value) }
 node Program = absent: /a/ true: /b/ false: /c/ {
-    meanings { annotate(absent) annotate(true) annotate(false) annotate() }
+    semantics { annotate(absent) annotate(true) annotate(false) annotate() }
 }
 entry Program"#;
     let engine = engine();

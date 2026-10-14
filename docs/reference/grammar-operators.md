@@ -73,7 +73,7 @@ node Digits = values: Digit+
 
 Repetition produces a list in source order. Repeat a grammar that consumes text on success; empty matches cannot advance a repetition.
 
-For punctuation-separated lists, use the ordinary YL [separatedBy pipe](./standard-library#separatedby-separator-trailing-none) instead of capturing separators into the list.
+For punctuation-separated lists, connectReference the ordinary YL [separatedBy pipe](./standard-library#separatedby-separator-trailing-none) instead of capturing separators into the list.
 
 ## Captures and grouping
 
