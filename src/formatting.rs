@@ -505,9 +505,10 @@ impl Layout {
         let mut stack: Vec<(bool, bool)> = vec![];
         let mut depth = 0;
         let mut previous: Option<&Token> = None;
-        for token in tokens
+        for (index, token) in tokens
             .iter()
-            .filter(|token| !matches!(token.kind, TokenKind::End))
+            .enumerate()
+            .filter(|(_, token)| !matches!(token.kind, TokenKind::End))
         {
             let raw = &source[token.span.start..token.span.end];
             let grammar = self
@@ -594,7 +595,13 @@ impl Layout {
                 {
                     output.line(false);
                 }
-                if space_between(previous, token) {
+                let positional_index = symbol == Some("[")
+                    && tokens
+                        .iter()
+                        .skip(index + 1)
+                        .find(|next| !matches!(next.kind, TokenKind::Comment))
+                        .is_some_and(|next| matches!(next.kind, TokenKind::Index(_)));
+                if !positional_index && space_between(previous, token) {
                     output.space();
                 }
                 output.token(raw, indent);

@@ -360,9 +360,10 @@ impl Compiler {
                     self.validate_expr(symbol, item, locals)?;
                 }
             }
-            ExprKind::Capture(_, inner) | ExprKind::Repeat(inner, _) | ExprKind::Group(inner) => {
-                self.validate_expr(symbol, inner, locals)?
-            }
+            ExprKind::Capture(_, inner)
+            | ExprKind::Repeat(inner, _)
+            | ExprKind::Index(inner, _)
+            | ExprKind::Group(inner) => self.validate_expr(symbol, inner, locals)?,
             ExprKind::Regex(regex) => {
                 regex::Regex::new(regex).map_err(|e| {
                     Diagnostic::error("yl.invalid_regex", e.to_string(), expr.span.clone())
@@ -1583,6 +1584,7 @@ impl Compiler {
                 }
             }
             ExprKind::Tuple(_)
+            | ExprKind::Index(_, _)
             | ExprKind::List(_)
             | ExprKind::EnumConstant(_, _)
             | ExprKind::Bool(_)
@@ -2080,7 +2082,9 @@ impl Compiler {
                 }
                 ExprKind::Call(_, args) => nodes.extend(args.iter().map(|arg| &arg.value)),
                 ExprKind::Tuple(values) | ExprKind::List(values) => nodes.extend(values),
-                ExprKind::Group(value) | ExprKind::Not(value) => nodes.push(value),
+                ExprKind::Group(value) | ExprKind::Not(value) | ExprKind::Index(value, _) => {
+                    nodes.push(value)
+                }
                 ExprKind::Lambda { body, .. } => nodes.push(body),
                 _ => {}
             }
@@ -2117,6 +2121,9 @@ impl Compiler {
             }
             ExprKind::Group(value) => ExprKind::Group(Box::new(Self::result_only(value))),
             ExprKind::Not(value) => ExprKind::Not(Box::new(Self::result_only(value))),
+            ExprKind::Index(value, index) => {
+                ExprKind::Index(Box::new(Self::result_only(value)), *index)
+            }
             // A callback owns its body; it is not evaluated by reading its value.
             _ => value.kind.clone(),
         };
@@ -2135,7 +2142,9 @@ impl Compiler {
                 ExprKind::SemanticBlock { .. } => true,
                 ExprKind::Call(_, args) => args.iter().any(|arg| has_block(&arg.value)),
                 ExprKind::Tuple(values) | ExprKind::List(values) => values.iter().any(has_block),
-                ExprKind::Group(value) | ExprKind::Not(value) => has_block(value),
+                ExprKind::Group(value) | ExprKind::Not(value) | ExprKind::Index(value, _) => {
+                    has_block(value)
+                }
                 _ => false,
             }
         }
@@ -2361,6 +2370,10 @@ impl Compiler {
                     .iter()
                     .map(|value| self.expand_semantic_expr(context, value, bindings, stack))
                     .collect::<Result<Vec<_>>>()?,
+            ),
+            ExprKind::Index(value, index) => ExprKind::Index(
+                Box::new(self.expand_semantic_expr(context, value, bindings, stack)?),
+                *index,
             ),
             ExprKind::Group(value) => {
                 return self.expand_semantic_expr(context, value, bindings, stack)
@@ -2865,7 +2878,7 @@ impl Compiler {
         }
         fn query(expr: &Expr) -> bool {
             match &expr.kind {
-                ExprKind::Lambda { .. } | ExprKind::Local(_) => true,
+                ExprKind::Lambda { .. } | ExprKind::Local(_) | ExprKind::Index(_, _) => true,
                 ExprKind::Call(name, args) => {
                     name.starts_with("core/query#") || args.iter().any(|arg| query(&arg.value))
                 }
@@ -3079,7 +3092,9 @@ impl Compiler {
                         ExprKind::List(values) | ExprKind::Tuple(values) => {
                             values.iter().any(has_effect)
                         }
-                        ExprKind::Group(value) | ExprKind::Not(value) => has_effect(value),
+                        ExprKind::Group(value)
+                        | ExprKind::Not(value)
+                        | ExprKind::Index(value, _) => has_effect(value),
                         _ => false,
                     }
                 }
@@ -3131,6 +3146,10 @@ impl Compiler {
             ExprKind::Literal(value) => Q::Text(value.clone()),
             ExprKind::Group(value) => self.query_expr_normalized(symbol, value)?,
             ExprKind::Not(value) => Q::Not(Box::new(self.query_expr_normalized(symbol, value)?)),
+            ExprKind::Index(value, index) => Q::Index {
+                value: Box::new(self.query_expr_normalized(symbol, value)?),
+                index: *index,
+            },
             ExprKind::Tuple(values) => Q::Tuple(
                 values
                     .iter()
@@ -3324,7 +3343,9 @@ impl Compiler {
                                 refs(value, names, bound);
                             }
                         }
-                        ExprKind::Group(value) | ExprKind::Not(value) => refs(value, names, bound),
+                        ExprKind::Group(value)
+                        | ExprKind::Not(value)
+                        | ExprKind::Index(value, _) => refs(value, names, bound),
                         ExprKind::Lambda { parameter, body } => {
                             let mut nested = bound.clone();
                             nested.insert(parameter.clone());
@@ -4430,6 +4451,9 @@ fn substitute(expr: &Expr, args: &BTreeMap<String, Expr>) -> Expr {
         **inner = substitute(inner, args);
     }
     if let ExprKind::Not(inner) = &mut result.kind {
+        **inner = substitute(inner, args);
+    }
+    if let ExprKind::Index(inner, _) = &mut result.kind {
         **inner = substitute(inner, args);
     }
     if let ExprKind::Binary(_, left, right) = &mut result.kind {

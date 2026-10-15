@@ -42,6 +42,35 @@ Absence can still be inspected deliberately: `isPresent(absent)` is false, `isLi
 
 For callbacks, `find` continues after an absent result, `map` preserves absent positions, `filter` excludes an absent predicate result, and `every` returns `absent` if a required predicate is absent. These rules preserve positional parameter and annotation lists.
 
+## Positional access
+
+Use square brackets to read a zero-based position from a tuple or list. Access can be chained and applies to captured lists, local definitions, operation results, and callback parameters:
+
+```yl
+import { contribute, map } from "core/query"
+
+symbol selected
+symbol labels
+
+operation second(value) = value[1]
+
+node Program = "example" {
+    semantics {
+        pair := ("name", ("Ada", "Lovelace"))
+        contribute((self, selected), second(pair)[0])
+        contribute((self, labels), map([pair], item => item[0]))
+    }
+}
+
+entry Program
+```
+
+The selected value is `"Ada"`; the labels value is `["name"]`. The access expression retains the selected value's syntax identity and source information when the element is a capture.
+
+An empty collection or an index outside its bounds returns `absent`, just like `first` and `last` on an empty collection. An absent receiver stays absent; a pending receiver keeps its dependencies pending. A non-collection receiver produces a structured query type diagnostic.
+
+An index must be a nonnegative integer literal between `0` and `4294967295`. Dynamic indexes and numeric query values are not introduced by this syntax. Existing `first`, `last`, and `tail` operations remain available. List literals still use brackets with comma-separated values, for example `[pair, pair]`; positional access follows its receiver, as in `pair[0]`.
+
 ## Immutable local definitions and operation results
 
 Use `:=` to give a name to a dependency-tracked expression. The name is immutable; its value can remain pending until its dependencies settle. Textual order does not impose execution order, and sibling definitions can refer to one another. Duplicate definitions and unresolved definition cycles are errors.

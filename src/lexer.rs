@@ -3,6 +3,8 @@ use crate::diagnostic::{Diagnostic, Span};
 #[derive(Clone, Debug, PartialEq)]
 pub enum TokenKind {
     Word(String),
+    /// Digits are accepted only by positional-access syntax, not as query values.
+    Index(String),
     String(String),
     Regex(String),
     Symbol(String),
@@ -119,6 +121,12 @@ fn tokenize(file: &str, source: &str, comments: bool) -> Result<Vec<Token>, Diag
             } else {
                 TokenKind::Regex(value)
             }
+        } else if ch.is_ascii_digit() {
+            i += 1;
+            while source.as_bytes().get(i).is_some_and(u8::is_ascii_digit) {
+                i += 1;
+            }
+            TokenKind::Index(source[start..i].into())
         } else if ch.is_ascii_alphabetic() || ch == '_' {
             i += 1;
             while let Some(c) = source[i..].chars().next() {

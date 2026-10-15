@@ -31,7 +31,7 @@ fn image_is_indexed_self_contained_and_deterministic() {
     let compiled = language();
     let bytes = compiled.to_bytes().unwrap();
     let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(json["version"], 6);
+    assert_eq!(json["version"], 7);
     assert!(json.get("rules").is_none());
     assert!(json.get("query_meanings").is_none());
     assert!(json["parser"]["rules"].is_array());
@@ -87,7 +87,7 @@ fn image_rejects_unknown_capabilities_indices_and_opcodes() {
 fn retired_formats_require_recompilation() {
     let original: serde_json::Value =
         serde_json::from_slice(&language().to_bytes().unwrap()).unwrap();
-    for version in [1, 2, 3, 4, 5, 7] {
+    for version in [1, 2, 3, 4, 5, 6, 8] {
         let mut value = original.clone();
         value["version"] = version.into();
         let errors = load_compiled_language(&serde_json::to_vec(&value).unwrap()).unwrap_err();

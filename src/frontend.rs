@@ -649,11 +649,71 @@ impl Parser {
                 _ => return Err(self.error("yl.unexpected_token", "Expected semantic value")),
             }
         };
-        self.depth -= 1;
-        Ok(Expr {
+        let value = Expr {
             kind,
             span: self.span_from(&start),
-        })
+        };
+        let value = self.semantic_indexes(value)?;
+        self.depth -= 1;
+        Ok(value)
+    }
+    fn semantic_indexes(&mut self, mut value: Expr) -> Result<Expr> {
+        // Postfix chains can be combined through groups without increasing parser
+        // call depth. Bound the resulting tree before the compiler clones it.
+        let mut pending = vec![(&value, 1usize)];
+        let mut depth = 0;
+        while let Some((expr, current)) = pending.pop() {
+            depth = depth.max(current);
+            match &expr.kind {
+                ExprKind::Group(inner) | ExprKind::Not(inner) | ExprKind::Index(inner, _) => {
+                    pending.push((inner, current + 1));
+                }
+                ExprKind::Tuple(values) | ExprKind::List(values) => {
+                    pending.extend(values.iter().map(|inner| (inner, current + 1)));
+                }
+                ExprKind::Call(_, args) => {
+                    pending.extend(args.iter().map(|arg| (&arg.value, current + 1)));
+                }
+                ExprKind::Lambda { body, .. } => pending.push((body, current + 1)),
+                _ => {}
+            }
+        }
+        if depth > 128 {
+            return Err(self.error(
+                "yl.depth_limit",
+                "Semantic value nesting exceeds resource limit",
+            ));
+        }
+        while self.take("[") {
+            depth += 1;
+            if depth > 128 {
+                return Err(self.error(
+                    "yl.depth_limit",
+                    "Semantic value nesting exceeds resource limit",
+                ));
+            }
+            let TokenKind::Index(digits) = &self.token().kind else {
+                return Err(self.error(
+                    "yl.invalid_index",
+                    "Expected a nonnegative integer literal index",
+                ));
+            };
+            // A fixed-width index keeps source behavior independent of the host's pointer size.
+            let index = digits.parse::<u32>().map_err(|_| {
+                self.error(
+                    "yl.invalid_index",
+                    "Index exceeds the maximum supported value (4294967295)",
+                )
+            })? as usize;
+            self.bump();
+            self.expect("]")?;
+            let span = self.span_from(&value.span);
+            value = Expr {
+                kind: ExprKind::Index(Box::new(value), index),
+                span,
+            };
+        }
+        Ok(value)
     }
     fn meaning_block(&mut self) -> Result<Vec<MeaningSyntaxAction>> {
         let mut actions = vec![];

@@ -38,6 +38,8 @@ pub enum ExprKind {
     Group(Box<Expr>),
     Tuple(Vec<Expr>),
     List(Vec<Expr>),
+    /// Zero-based positional access in semantic expressions.
+    Index(Box<Expr>, usize),
     Sequence(Vec<Expr>),
     Choice(Vec<Expr>),
     Repeat(Box<Expr>, Quantifier),

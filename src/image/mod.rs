@@ -11,12 +11,13 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const FORMAT_VERSION: u32 = 6;
+pub const FORMAT_VERSION: u32 = 7;
 const CAPABILITIES: &[&str] = &[
     "indexed-parser",
     "indexed-checks",
     "indexed-queries",
     "semantic-scheduling",
+    "positional-index",
 ];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -9,6 +9,8 @@
     { "name": "string.regexp.yl", "begin": "/(?![/*])", "end": "/", "patterns": [{ "name": "constant.character.escape.yl", "match": "\\\\." }] },
     { "match": "\\b(node|pattern|pipe|enum|trivia|operation|symbol)\\s+([A-Za-z_][A-Za-z_0-9]*)", "captures": { "1": { "name": "keyword.control.yl" }, "2": { "name": "entity.name.type.yl" } } },
     { "name": "keyword.control.yl", "match": "\\b(export|import|from|as|node|pattern|pipe|rewrite|match|else|enum|semantics|group|boundary|precedence|right|nonassoc|trivia|constraint|operation|symbol|return|example|checks|when|extend|entry)\\b" },
+    { "name": "constant.numeric.integer.yl", "match": "\\b[0-9]+\\b" },
+    { "name": "punctuation.section.brackets.yl", "match": "[\\[\\]]" },
     { "name": "constant.language.yl", "match": "\\b(true|false|absent|self)\\b" },
     { "name": "constant.other.enum.yl", "match": "\\.[A-Za-z_][A-Za-z_0-9]*" },
     { "name": "variable.other.constant.yl", "match": "\\b[A-Za-z_][A-Za-z_0-9]*(?=\\s*:=)" },
