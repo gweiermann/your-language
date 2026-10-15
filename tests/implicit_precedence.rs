@@ -33,8 +33,8 @@ fn implicit_infix_matches_explicit_left_and_survives_reload() {
     let implicit_ir = serde_json::to_value(&implicit).unwrap();
     let explicit_ir = serde_json::to_value(&explicit).unwrap();
     assert_eq!(
-        implicit_ir["rules"]["test.yl#E"]["body"],
-        explicit_ir["rules"]["test.yl#E"]["body"]
+        implicit_ir["parser"]["rules"][0]["body"],
+        explicit_ir["parser"]["rules"][0]["body"]
     );
     for input in ["1+2+3", "a+b+c", "(1+2)+3", "1+(2+3)"] {
         let actual = parse(&implicit, input);

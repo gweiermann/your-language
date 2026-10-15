@@ -88,7 +88,7 @@ fn canonical_std_contains_no_native_template_ownership_contracts() {
     let normalized = String::from_utf8(language.to_bytes().unwrap()).unwrap();
     assert!(!normalized.contains("register_template"));
     assert!(!normalized.contains("std/types#instantiate"));
-    assert!(normalized.contains("core/query#hypothetical"));
+    assert!(normalized.contains("\"HypotheticalChecked\""));
 }
 
 #[test]

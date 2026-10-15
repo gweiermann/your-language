@@ -13,7 +13,7 @@ pub struct ExampleDefinition {
     pub explicit: Option<Example>,
     pub span: Span,
 }
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Preview {
     pub definition: String,
     pub span: Span,
@@ -23,6 +23,9 @@ pub struct Preview {
 impl CompiledLanguage {
     /// One bounded, parser-validated representative per node and parameterless pattern.
     pub fn example_previews(&self) -> Vec<Preview> {
+        if let Some(image) = &self.image {
+            return image.previews.clone();
+        }
         // Check the selected trivia itself, without automatic trivia skipping.
         // This is a presentation choice at fragment boundaries, never a keyword rule.
         let mut trivia_language = self.clone();

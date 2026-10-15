@@ -297,13 +297,8 @@ fn corrupted_query_artifacts_are_rejected_before_runtime_indexing() {
         .unwrap();
     let mut json: serde_json::Value =
         serde_json::from_slice(&language.to_bytes().unwrap()).unwrap();
-    let owner = json["query_meanings"]
-        .as_object_mut()
-        .unwrap()
-        .values_mut()
-        .next()
-        .unwrap();
-    owner[0]["actions"][0] = serde_json::json!({"Call":{"name":"core/query#contribute","args":[],"span":{"file":"bad","start":0,"end":0}}});
+    json["queries"]["expressions"][0] =
+        serde_json::json!({"Call":{"opcode":"Contribute","args":[]}});
     assert!(load_compiled_language(&serde_json::to_vec(&json).unwrap()).is_err());
 }
 

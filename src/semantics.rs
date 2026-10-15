@@ -862,7 +862,9 @@ fn analyze(
     source: &str,
     registry: &OperationRegistry,
 ) -> AnalysisResult {
-    if !language.query_meanings.is_empty() {
+    // Public constructors prepare and validate immutable images once. The
+    // normalization-only path exists for compiler-internal tests and examples.
+    if language.image.is_none() && language.has_declarative_meanings() {
         if let Err(error) = crate::compiler::validate_language(language) {
             return AnalysisResult {
                 ast: None,

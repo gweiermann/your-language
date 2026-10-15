@@ -66,7 +66,7 @@ Loads the entry module and its imports, parses YL, resolves declarations, valida
 yl compile <entry.yl> -o <language.ylc>
 ```
 
-Performs the same validation and writes the normalized artifact. The output file's parent directory must exist. Non-fatal definition diagnostics are printed to stderr; success prints `Compiled <language.ylc>` to stdout. The artifact is usable without the original `.yl` modules.
+Performs the same validation and writes the indexed executable image. The output file's parent directory must exist. Non-fatal definition diagnostics are printed to stderr; success prints `Compiled <language.ylc>` to stdout. The artifact is usable without the original `.yl` modules.
 
 ## Generate an AST
 

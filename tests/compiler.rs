@@ -158,6 +158,6 @@ fn deterministic_artifacts_and_hostile_input() {
     }
     let json = String::from_utf8(bytes)
         .unwrap()
-        .replace("\"version\": 1", "\"version\": 999");
+        .replace("\"version\": 6", "\"version\": 999");
     assert!(load_compiled_language(json.as_bytes()).is_err());
 }

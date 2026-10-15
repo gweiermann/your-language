@@ -1,5 +1,6 @@
 //! Declarative contribution discovery and dependency evaluation over syntax identities.
 use super::*;
+use crate::image::query::{Action, ActionId, Case, Expr, ExprId, MessagePart, Opcode, QueryImage};
 use std::collections::BTreeSet;
 use std::{cell::RefCell, rc::Rc};
 
@@ -144,25 +145,25 @@ impl ProducerState {
 
 #[derive(Clone)]
 enum Guard {
-    If(QueryExpr, bool),
+    If(ExprId, bool),
     Case {
-        inputs: Vec<QueryExpr>,
-        cases: Vec<QueryCase>,
+        inputs: Vec<ExprId>,
+        cases: Vec<Case>,
         selected: usize,
     },
 }
 
 #[derive(Clone)]
 enum Effect {
-    Contribution(QueryExpr, QueryExpr),
-    Contributions(QueryExpr, QueryExpr),
+    Contribution(ExprId, ExprId),
+    Contributions(ExprId, ExprId),
     Diagnostic {
         severity: crate::diagnostic::Severity,
-        message: Vec<QueryMessagePart>,
-        target: Option<QueryExpr>,
-        related: Vec<QueryExpr>,
+        message: Vec<MessagePart>,
+        target: Option<ExprId>,
+        related: Vec<ExprId>,
     },
-    Observe(QueryExpr),
+    Observe(ExprId),
 }
 
 #[derive(Clone)]
@@ -225,7 +226,7 @@ struct Trace {
     producers: BTreeSet<usize>,
     diagnostics: Vec<Diagnostic>,
     order: Option<(usize, usize)>,
-    branch_values: Vec<(QueryExpr, SemanticValue)>,
+    branch_values: Vec<(ExprId, SemanticValue)>,
     approximate: bool,
 }
 
@@ -254,6 +255,7 @@ impl Drop for HypotheticalGuard {
 }
 
 struct Engine<'a> {
+    image: &'a QueryImage,
     producers: Vec<Producer<'a>>,
     discovered_blocks: BTreeSet<(usize, String)>,
     block_orders: BTreeMap<(usize, String), (usize, usize)>,
@@ -573,6 +575,7 @@ impl<'a> Engine<'a> {
 
     fn new(
         language: &CompiledLanguage,
+        image: &'a QueryImage,
         occurrences: &'a [Occurrence],
         source: &'a str,
         ranks: &BTreeMap<(usize, usize), usize>,
@@ -590,6 +593,7 @@ impl<'a> Engine<'a> {
             }
         }
         let mut engine = Self {
+            image,
             producers: vec![],
             discovered_blocks: BTreeSet::new(),
             block_orders: BTreeMap::new(),
@@ -633,7 +637,7 @@ impl<'a> Engine<'a> {
         // Discovery completes for the entire committed occurrence forest before
         // any get can observe absence. Conditional branches are included too.
         for owner in engine.occurrences.values().copied().collect::<Vec<_>>() {
-            if let Some(groups) = language.query_meanings.get(&owner.definition) {
+            if let Some(groups) = image.groups.get(&owner.definition) {
                 for group in groups {
                     let original = language.meanings[&owner.definition]
                         .groups
@@ -656,12 +660,12 @@ impl<'a> Engine<'a> {
     fn discover_expression(
         &mut self,
         owner: &'a Occurrence,
-        expression: &QueryExpr,
+        expression: &ExprId,
         guards: &[Guard],
         rank: usize,
     ) {
-        match expression {
-            QueryExpr::Block {
+        match &self.image.expressions[*expression as usize] {
+            Expr::Block {
                 invocation,
                 actions,
                 result,
@@ -676,24 +680,25 @@ impl<'a> Engine<'a> {
                         .insert((owner.id, invocation.clone()), (rank, self.producers.len()));
                 }
             }
-            QueryExpr::Call { name, args } if primitive(name) == "choose" => {
+            Expr::Call {
+                opcode: Opcode::Choose,
+                args,
+            } => {
                 self.discover_expression(owner, &args[0], guards, rank);
                 for (value, expected) in [(&args[1], true), (&args[2], false)] {
                     let mut nested = guards.to_vec();
-                    nested.push(Guard::If(args[0].clone(), expected));
+                    nested.push(Guard::If(args[0], expected));
                     self.discover_expression(owner, value, &nested, rank);
                 }
             }
-            QueryExpr::Call { args: values, .. }
-            | QueryExpr::Tuple(values)
-            | QueryExpr::List(values) => {
+            Expr::Call { args: values, .. } | Expr::Tuple(values) | Expr::List(values) => {
                 for value in values {
                     self.discover_expression(owner, value, guards, rank);
                 }
             }
-            QueryExpr::Not(value) => self.discover_expression(owner, value, guards, rank),
+            Expr::Not(value) => self.discover_expression(owner, value, guards, rank),
             // Effectful callback bodies are rejected during compilation and artifact validation.
-            QueryExpr::Lambda { .. } => {}
+            Expr::Lambda { .. } => {}
             _ => {}
         }
     }
@@ -701,21 +706,20 @@ impl<'a> Engine<'a> {
     fn discover(
         &mut self,
         owner: &'a Occurrence,
-        actions: &[QueryAction],
+        actions: &[ActionId],
         guards: &[Guard],
         rank: usize,
     ) {
         for action in actions {
+            let action = &self.image.actions[*action as usize];
             match action {
-                QueryAction::Call { args, .. } => {
-                    for arg in args {
-                        self.discover_expression(owner, arg, guards, rank);
-                    }
+                Action::Call { expression, .. } => {
+                    self.discover_expression(owner, expression, guards, rank)
                 }
-                QueryAction::If { condition, .. } => {
+                Action::If { condition, .. } => {
                     self.discover_expression(owner, condition, guards, rank)
                 }
-                QueryAction::Match { inputs, cases, .. } => {
+                Action::Match { inputs, cases, .. } => {
                     for input in inputs {
                         self.discover_expression(owner, input, guards, rank);
                     }
@@ -725,14 +729,14 @@ impl<'a> Engine<'a> {
                         }
                     }
                 }
-                QueryAction::Emit {
+                Action::Emit {
                     message,
                     target,
                     related,
                     ..
                 } => {
                     for part in message {
-                        if let QueryMessagePart::Value(value) = part {
+                        if let MessagePart::Value(value) = part {
                             self.discover_expression(owner, value, guards, rank);
                         }
                     }
@@ -742,21 +746,21 @@ impl<'a> Engine<'a> {
                 }
             }
             let (effect, span) = match action {
-                QueryAction::Call { name, args, span } if primitive(name) == "contribute" => {
-                    (Effect::Contribution(args[0].clone(), args[1].clone()), span)
+                Action::Call { expression, span } => {
+                    let effect = match &self.image.expressions[*expression as usize] {
+                        Expr::Call {
+                            opcode: Opcode::Contribute,
+                            args,
+                        } => Effect::Contribution(args[0], args[1]),
+                        Expr::Call {
+                            opcode: Opcode::ContributeAll,
+                            args,
+                        } => Effect::Contributions(args[0], args[1]),
+                        _ => Effect::Observe(*expression),
+                    };
+                    (effect, span)
                 }
-                QueryAction::Call { name, args, span } if primitive(name) == "contributeAll" => (
-                    Effect::Contributions(args[0].clone(), args[1].clone()),
-                    span,
-                ),
-                QueryAction::Call { name, args, span } => (
-                    Effect::Observe(QueryExpr::Call {
-                        name: name.clone(),
-                        args: args.clone(),
-                    }),
-                    span,
-                ),
-                QueryAction::Emit {
+                Action::Emit {
                     severity,
                     message,
                     target,
@@ -766,25 +770,25 @@ impl<'a> Engine<'a> {
                     Effect::Diagnostic {
                         severity: severity.clone(),
                         message: message.clone(),
-                        target: target.clone(),
+                        target: *target,
                         related: related.clone(),
                     },
                     span,
                 ),
-                QueryAction::If {
+                Action::If {
                     condition,
                     then_actions,
                     else_actions,
                     ..
                 } => {
                     let mut nested = guards.to_vec();
-                    nested.push(Guard::If(condition.clone(), true));
+                    nested.push(Guard::If(*condition, true));
                     self.discover(owner, then_actions, &nested, rank);
-                    *nested.last_mut().expect("new guard") = Guard::If(condition.clone(), false);
+                    *nested.last_mut().expect("new guard") = Guard::If(*condition, false);
                     self.discover(owner, else_actions, &nested, rank);
                     continue;
                 }
-                QueryAction::Match { inputs, cases, .. } => {
+                Action::Match { inputs, cases, .. } => {
                     for (selected, case) in cases.iter().enumerate() {
                         let mut nested = guards.to_vec();
                         nested.push(Guard::Case {
@@ -941,7 +945,7 @@ impl<'a> Engine<'a> {
 
     fn eval(
         &self,
-        expression: &QueryExpr,
+        expression: &ExprId,
         owner: &Occurrence,
         locals: &Locals,
         trace: &mut Trace,
@@ -959,7 +963,7 @@ impl<'a> Engine<'a> {
 
     fn eval_inner(
         &self,
-        expression: &QueryExpr,
+        expression: &ExprId,
         owner: &Occurrence,
         locals: &Locals,
         trace: &mut Trace,
@@ -973,8 +977,8 @@ impl<'a> Engine<'a> {
             return Ok(Outcome::Ready(value.clone()));
         }
         let ready = |value| Ok(Outcome::Ready(value));
-        match expression {
-            QueryExpr::BindingValue { invocation, result } => {
+        match &self.image.expressions[*expression as usize] {
+            Expr::BindingValue { invocation, result } => {
                 let order = self
                     .block_orders
                     .get(&(owner.id, invocation.clone()))
@@ -991,29 +995,27 @@ impl<'a> Engine<'a> {
                 trace.order = previous;
                 value
             }
-            QueryExpr::Block { result, .. } => self.eval(result, owner, locals, trace),
-            QueryExpr::SelfValue => ready(SemanticValue::Identity(SemanticIdentity::Occurrence(
+            Expr::Block { result, .. } => self.eval(result, owner, locals, trace),
+            Expr::SelfValue => ready(SemanticValue::Identity(SemanticIdentity::Occurrence(
                 owner.id,
             ))),
-            QueryExpr::Capture(name) => ready(self.capture_value(owner.capture_path(name)?)),
-            QueryExpr::Local(name) => {
-                locals
-                    .get(name)
-                    .cloned()
-                    .map(Outcome::Ready)
-                    .ok_or_else(|| {
-                        Diagnostic::error(
-                            "query.local",
-                            format!("Unbound callback parameter {name}"),
-                            owner.span.clone(),
-                        )
-                    })
-            }
-            QueryExpr::Absent => ready(SemanticValue::Absent),
-            QueryExpr::Bool(value) => ready(SemanticValue::Bool(*value)),
-            QueryExpr::Text(value) => ready(SemanticValue::Text(value.clone())),
-            QueryExpr::Symbol(value) => ready(SemanticValue::Symbol(value.clone())),
-            QueryExpr::Tuple(items) | QueryExpr::List(items) => {
+            Expr::Capture(name) => ready(self.capture_value(owner.capture_path(name)?)),
+            Expr::Local(name) => locals
+                .get(name)
+                .cloned()
+                .map(Outcome::Ready)
+                .ok_or_else(|| {
+                    Diagnostic::error(
+                        "query.local",
+                        format!("Unbound callback parameter {name}"),
+                        owner.span.clone(),
+                    )
+                }),
+            Expr::Absent => ready(SemanticValue::Absent),
+            Expr::Bool(value) => ready(SemanticValue::Bool(*value)),
+            Expr::Text(value) => ready(SemanticValue::Text(value.clone())),
+            Expr::Symbol(value) => ready(SemanticValue::Symbol(value.clone())),
+            Expr::Tuple(items) | Expr::List(items) => {
                 let mut values = vec![];
                 let mut cost = (1, 0);
                 for item in items {
@@ -1025,13 +1027,18 @@ impl<'a> Engine<'a> {
                         outcome => return Ok(outcome),
                     }
                 }
-                ready(if matches!(expression, QueryExpr::Tuple(_)) {
-                    SemanticValue::Tuple(values)
-                } else {
-                    SemanticValue::List(values)
-                })
+                ready(
+                    if matches!(
+                        &self.image.expressions[*expression as usize],
+                        Expr::Tuple(_)
+                    ) {
+                        SemanticValue::Tuple(values)
+                    } else {
+                        SemanticValue::List(values)
+                    },
+                )
             }
-            QueryExpr::Not(value) => match self.eval(value, owner, locals, trace)? {
+            Expr::Not(value) => match self.eval(value, owner, locals, trace)? {
                 Outcome::Ready(SemanticValue::Bool(value)) => ready(SemanticValue::Bool(!value)),
                 Outcome::Ready(SemanticValue::Absent) => ready(SemanticValue::Absent),
                 Outcome::Ready(_) => Err(Diagnostic::error(
@@ -1041,14 +1048,12 @@ impl<'a> Engine<'a> {
                 )),
                 value => Ok(value),
             },
-            QueryExpr::Lambda { .. } => Err(Diagnostic::error(
+            Expr::Lambda { .. } => Err(Diagnostic::error(
                 "query.callback",
                 "A callback is only valid as find's second argument",
                 owner.span.clone(),
             )),
-            QueryExpr::Call { name, args } => {
-                self.call(primitive(name), args, owner, locals, trace)
-            }
+            Expr::Call { opcode, args } => self.call(*opcode, args, owner, locals, trace),
         }
     }
 
@@ -1056,12 +1061,12 @@ impl<'a> Engine<'a> {
     // pending. Ordinary data tuples still preserve absent fields and shapes.
     fn eval_key(
         &self,
-        expression: &QueryExpr,
+        expression: &ExprId,
         owner: &Occurrence,
         locals: &Locals,
         trace: &mut Trace,
     ) -> Result<Outcome, Diagnostic> {
-        let QueryExpr::Tuple(parts) = expression else {
+        let Expr::Tuple(parts) = &self.image.expressions[*expression as usize] else {
             return self.eval(expression, owner, locals, trace);
         };
         let mut values = vec![];
@@ -1084,8 +1089,8 @@ impl<'a> Engine<'a> {
 
     fn call(
         &self,
-        name: &str,
-        args: &[QueryExpr],
+        name: Opcode,
+        args: &[ExprId],
         owner: &Occurrence,
         locals: &Locals,
         trace: &mut Trace,
@@ -1093,18 +1098,21 @@ impl<'a> Engine<'a> {
         let bad = || {
             Diagnostic::error(
                 "query.argument",
-                format!("Invalid arguments for {name}"),
+                format!("Invalid arguments for {}", name.name()),
                 owner.span.clone(),
             )
         };
-        if matches!(name, "get" | "getEarlier" | "getAll" | "facts") {
+        if matches!(
+            name,
+            Opcode::Get | Opcode::GetEarlier | Opcode::GetAll | Opcode::Facts
+        ) {
             return match self.eval_key(&args[0], owner, locals, trace)? {
                 Outcome::Ready(value) => match address(&value, &owner.span)? {
                     Some(key) => Ok(self.lookup_visible(
                         &key,
-                        name == "getAll",
-                        name == "facts",
-                        name == "getEarlier",
+                        name == Opcode::GetAll,
+                        name == Opcode::Facts,
+                        name == Opcode::GetEarlier,
                         trace,
                     )),
                     None => Ok(Outcome::Ready(SemanticValue::Absent)),
@@ -1112,7 +1120,7 @@ impl<'a> Engine<'a> {
                 outcome => Ok(outcome),
             };
         }
-        if name == "choose" {
+        if name == Opcode::Choose {
             return match self.eval(&args[0], owner, locals, trace)? {
                 Outcome::Ready(SemanticValue::Bool(condition)) => {
                     self.eval(&args[if condition { 1 } else { 2 }], owner, locals, trace)
@@ -1122,7 +1130,10 @@ impl<'a> Engine<'a> {
                 value => Ok(value),
             };
         }
-        if matches!(name, "find" | "map" | "every" | "filter") {
+        if matches!(
+            name,
+            Opcode::Find | Opcode::Map | Opcode::Every | Opcode::Filter
+        ) {
             let values = match self.eval(&args[0], owner, locals, trace)? {
                 Outcome::Ready(SemanticValue::List(values)) => values,
                 Outcome::Ready(SemanticValue::Absent) => {
@@ -1131,7 +1142,7 @@ impl<'a> Engine<'a> {
                 Outcome::Ready(_) => return Err(bad()),
                 pending => return Ok(pending),
             };
-            let QueryExpr::Lambda { parameter, body } = &args[1] else {
+            let Expr::Lambda { parameter, body } = &self.image.expressions[args[1] as usize] else {
                 return Err(bad());
             };
             let mut locals = locals.clone();
@@ -1142,22 +1153,24 @@ impl<'a> Engine<'a> {
                 locals.insert(parameter.clone(), value.clone());
                 let result = self.eval(body, owner, &locals, trace)?;
                 match (name, result) {
-                    ("find", Outcome::Ready(SemanticValue::Absent)) => {}
-                    ("find", result) => return Ok(result),
-                    ("map", Outcome::Ready(value)) => {
+                    (Opcode::Find, Outcome::Ready(SemanticValue::Absent)) => {}
+                    (Opcode::Find, result) => return Ok(result),
+                    (Opcode::Map, Outcome::Ready(value)) => {
                         add_value_cost(&mut cost, &value, &owner.span)?;
                         mapped.push(value)
                     }
-                    ("filter", Outcome::Ready(SemanticValue::Bool(true))) => mapped.push(value),
-                    ("filter", Outcome::Ready(SemanticValue::Bool(false))) => {}
-                    ("filter", Outcome::Ready(SemanticValue::Absent)) => {}
-                    ("every", Outcome::Ready(SemanticValue::Absent)) => {
+                    (Opcode::Filter, Outcome::Ready(SemanticValue::Bool(true))) => {
+                        mapped.push(value)
+                    }
+                    (Opcode::Filter, Outcome::Ready(SemanticValue::Bool(false))) => {}
+                    (Opcode::Filter, Outcome::Ready(SemanticValue::Absent)) => {}
+                    (Opcode::Every, Outcome::Ready(SemanticValue::Absent)) => {
                         return Ok(Outcome::Ready(SemanticValue::Absent))
                     }
-                    ("every", Outcome::Ready(SemanticValue::Bool(false))) => {
+                    (Opcode::Every, Outcome::Ready(SemanticValue::Bool(false))) => {
                         return Ok(Outcome::Ready(SemanticValue::Bool(false)))
                     }
-                    ("every", Outcome::Ready(SemanticValue::Bool(true))) => {}
+                    (Opcode::Every, Outcome::Ready(SemanticValue::Bool(true))) => {}
                     (_, Outcome::Pending) => pending = true,
                     (_, Outcome::Conflict(ids)) => return Ok(Outcome::Conflict(ids)),
                     _ => return Err(bad()),
@@ -1167,15 +1180,18 @@ impl<'a> Engine<'a> {
                 Outcome::Pending
             } else {
                 Outcome::Ready(match name {
-                    "map" | "filter" => SemanticValue::List(mapped),
-                    "every" => SemanticValue::Bool(true),
+                    Opcode::Map | Opcode::Filter => SemanticValue::List(mapped),
+                    Opcode::Every => SemanticValue::Bool(true),
                     _ => SemanticValue::Absent,
                 })
             });
         }
         // Presence inspectors and explicit value materialization observe absence.
         // Other pure primitives end only this dependent expression, not its caller.
-        let strict = !matches!(name, "isPresent" | "equal" | "isList" | "values");
+        let strict = !matches!(
+            name,
+            Opcode::IsPresent | Opcode::Equal | Opcode::IsList | Opcode::Values
+        );
         let mut values = vec![];
         let mut blocked = None;
         for arg in args {
@@ -1192,8 +1208,10 @@ impl<'a> Engine<'a> {
             return Ok(blocked);
         }
         let result = match (name, values.as_slice()) {
-            ("ancestors", [value]) => SemanticValue::List(self.ancestors(value, &owner.span)?),
-            ("children", [value]) => {
+            (Opcode::Ancestors, [value]) => {
+                SemanticValue::List(self.ancestors(value, &owner.span)?)
+            }
+            (Opcode::Children, [value]) => {
                 let identity = match value {
                     SemanticValue::Identity(identity) => Some(identity.clone()),
                     SemanticValue::Source(source) => source_identity(source),
@@ -1217,9 +1235,11 @@ impl<'a> Engine<'a> {
                 };
                 SemanticValue::List(children)
             }
-            ("text", [SemanticValue::Source(source)]) => SemanticValue::Text(source.text.clone()),
-            ("text", [SemanticValue::Text(text)]) => SemanticValue::Text(text.clone()),
-            ("text", [SemanticValue::Identity(SemanticIdentity::Occurrence(id))]) => {
+            (Opcode::Text, [SemanticValue::Source(source)]) => {
+                SemanticValue::Text(source.text.clone())
+            }
+            (Opcode::Text, [SemanticValue::Text(text)]) => SemanticValue::Text(text.clone()),
+            (Opcode::Text, [SemanticValue::Identity(SemanticIdentity::Occurrence(id))]) => {
                 let owner = self.occurrences.get(id).ok_or_else(bad)?;
                 SemanticValue::Text(
                     self.source
@@ -1228,15 +1248,19 @@ impl<'a> Engine<'a> {
                         .into(),
                 )
             }
-            ("isPresent", [value]) => SemanticValue::Bool(!matches!(value, SemanticValue::Absent)),
-            ("equal", [left, right]) => SemanticValue::Bool(equal_values(left, right)),
-            ("hasMultiple", [SemanticValue::List(values)]) => SemanticValue::Bool(values.len() > 1),
-            ("values", [SemanticValue::Alternatives { values, .. }]) => {
+            (Opcode::IsPresent, [value]) => {
+                SemanticValue::Bool(!matches!(value, SemanticValue::Absent))
+            }
+            (Opcode::Equal, [left, right]) => SemanticValue::Bool(equal_values(left, right)),
+            (Opcode::HasMultiple, [SemanticValue::List(values)]) => {
+                SemanticValue::Bool(values.len() > 1)
+            }
+            (Opcode::Values, [SemanticValue::Alternatives { values, .. }]) => {
                 SemanticValue::List(values.clone())
             }
-            ("values", [SemanticValue::Absent]) => SemanticValue::List(vec![]),
-            ("values", [value]) => SemanticValue::List(vec![value.clone()]),
-            ("alternatives", [SemanticValue::List(values)]) => {
+            (Opcode::Values, [SemanticValue::Absent]) => SemanticValue::List(vec![]),
+            (Opcode::Values, [value]) => SemanticValue::List(vec![value.clone()]),
+            (Opcode::Alternatives, [SemanticValue::List(values)]) => {
                 let mut unique = vec![];
                 for value in values {
                     if !unique.iter().any(|item| equal_values(item, value)) {
@@ -1252,7 +1276,7 @@ impl<'a> Engine<'a> {
                     },
                 }
             }
-            ("flatten", [SemanticValue::List(values)]) => {
+            (Opcode::Flatten, [SemanticValue::List(values)]) => {
                 let mut items = vec![];
                 for value in values {
                     match value {
@@ -1262,17 +1286,19 @@ impl<'a> Engine<'a> {
                 }
                 SemanticValue::List(items)
             }
-            ("isList", [value]) => SemanticValue::Bool(matches!(value, SemanticValue::List(_))),
-            ("tail", [SemanticValue::List(values) | SemanticValue::Tuple(values)]) => {
+            (Opcode::IsList, [value]) => {
+                SemanticValue::Bool(matches!(value, SemanticValue::List(_)))
+            }
+            (Opcode::Tail, [SemanticValue::List(values) | SemanticValue::Tuple(values)]) => {
                 SemanticValue::List(values.iter().skip(1).cloned().collect())
             }
-            ("last", [SemanticValue::List(values) | SemanticValue::Tuple(values)]) => {
+            (Opcode::Last, [SemanticValue::List(values) | SemanticValue::Tuple(values)]) => {
                 values.last().cloned().unwrap_or(SemanticValue::Absent)
             }
-            ("first", [SemanticValue::List(values) | SemanticValue::Tuple(values)]) => {
+            (Opcode::First, [SemanticValue::List(values) | SemanticValue::Tuple(values)]) => {
                 values.first().cloned().unwrap_or(SemanticValue::Absent)
             }
-            ("concat", [SemanticValue::List(values)]) => {
+            (Opcode::Concat, [SemanticValue::List(values)]) => {
                 let texts = values
                     .iter()
                     .map(|value| match value {
@@ -1282,10 +1308,10 @@ impl<'a> Engine<'a> {
                     .collect::<Result<Vec<_>, _>>()?;
                 SemanticValue::Text(texts.concat())
             }
-            ("contains", [SemanticValue::List(values), value]) => {
+            (Opcode::Contains, [SemanticValue::List(values), value]) => {
                 SemanticValue::Bool(values.iter().any(|item| equal_values(item, value)))
             }
-            ("unique", [SemanticValue::List(values)]) => {
+            (Opcode::Unique, [SemanticValue::List(values)]) => {
                 let mut unique = vec![];
                 for value in values {
                     if !unique.iter().any(|item| equal_values(item, value)) {
@@ -1294,13 +1320,13 @@ impl<'a> Engine<'a> {
                 }
                 SemanticValue::List(unique)
             }
-            ("isSubset", [SemanticValue::List(left), SemanticValue::List(right)]) => {
+            (Opcode::IsSubset, [SemanticValue::List(left), SemanticValue::List(right)]) => {
                 SemanticValue::Bool(
                     left.iter()
                         .all(|value| right.iter().any(|item| equal_values(value, item))),
                 )
             }
-            ("lookup", [SemanticValue::List(fields), key]) => {
+            (Opcode::Lookup, [SemanticValue::List(fields), key]) => {
                 let mut result = None;
                 for field in fields {
                     let SemanticValue::Tuple(pair) = field else {
@@ -1322,7 +1348,7 @@ impl<'a> Engine<'a> {
                 }
                 result.unwrap_or(SemanticValue::Absent)
             }
-            ("keys", [SemanticValue::List(fields)]) => {
+            (Opcode::Keys, [SemanticValue::List(fields)]) => {
                 let mut keys = vec![];
                 for field in fields {
                     let SemanticValue::Tuple(pair) = field else {
@@ -1335,7 +1361,7 @@ impl<'a> Engine<'a> {
                 }
                 SemanticValue::List(keys)
             }
-            ("zip", [SemanticValue::List(left), SemanticValue::List(right)]) => {
+            (Opcode::Zip, [SemanticValue::List(left), SemanticValue::List(right)]) => {
                 SemanticValue::List(
                     left.iter()
                         .zip(right)
@@ -1346,7 +1372,7 @@ impl<'a> Engine<'a> {
                 )
             }
             (
-                "hypothetical" | "hypotheticalAll" | "hypotheticalChecked",
+                Opcode::Hypothetical | Opcode::HypotheticalAll | Opcode::HypotheticalChecked,
                 [key, SemanticValue::List(assumptions)],
             ) => {
                 return self.hypothetical(
@@ -1354,8 +1380,8 @@ impl<'a> Engine<'a> {
                     assumptions,
                     trace,
                     &owner.span,
-                    name != "hypothetical",
-                    name == "hypotheticalChecked",
+                    name != Opcode::Hypothetical,
+                    name == Opcode::HypotheticalChecked,
                 );
             }
             _ => return Err(bad()),
@@ -1365,7 +1391,7 @@ impl<'a> Engine<'a> {
 
     fn abstract_expr(
         &self,
-        expr: &QueryExpr,
+        expr: &ExprId,
         owner: &Occurrence,
         locals: &Locals,
         depth: usize,
@@ -1381,17 +1407,20 @@ impl<'a> Engine<'a> {
                 }
             }
         }
-        match expr {
-            QueryExpr::Block { result, .. } | QueryExpr::BindingValue { result, .. } => {
+        match &self.image.expressions[*expr as usize] {
+            Expr::Block { result, .. } | Expr::BindingValue { result, .. } => {
                 self.abstract_expr(result, owner, locals, depth + 1)
             }
-            QueryExpr::Tuple(values) => Pattern::Tuple(
+            Expr::Tuple(values) => Pattern::Tuple(
                 values
                     .iter()
                     .map(|value| self.abstract_expr(value, owner, locals, depth + 1))
                     .collect(),
             ),
-            QueryExpr::Call { name, args } if primitive(name) == "get" => {
+            Expr::Call {
+                opcode: Opcode::Get,
+                args,
+            } => {
                 let key = self.abstract_expr(&args[0], owner, locals, depth + 1);
                 let candidates = self.producers.iter().filter(|producer| {
                     matches!(
@@ -1421,13 +1450,17 @@ impl<'a> Engine<'a> {
                     Pattern::Union(possibilities)
                 }
             }
-            QueryExpr::Call { name, args } if primitive(name) == "find" => {
+            Expr::Call {
+                opcode: Opcode::Find,
+                args,
+            } => {
                 let Ok(Outcome::Ready(SemanticValue::List(values))) =
                     self.eval(&args[0], owner, locals, &mut Trace::default())
                 else {
                     return Pattern::Any;
                 };
-                let QueryExpr::Lambda { parameter, body } = &args[1] else {
+                let Expr::Lambda { parameter, body } = &self.image.expressions[args[1] as usize]
+                else {
                     return Pattern::Any;
                 };
                 let mut candidates = vec![];
@@ -1529,7 +1562,7 @@ impl<'a> Engine<'a> {
                         }
                         for value in candidates {
                             let mut context = context.clone();
-                            context.branch_values.push((input.clone(), value.clone()));
+                            context.branch_values.push((*input, value.clone()));
                             let mut values = prefix.clone();
                             values.push(value);
                             next.push((values, context));
@@ -1723,8 +1756,8 @@ impl<'a> Engine<'a> {
                 let mut text = String::new();
                 for part in message {
                     let fragment = match part {
-                        QueryMessagePart::Text(value) => value.clone(),
-                        QueryMessagePart::Value(value) => {
+                        MessagePart::Text(value) => value.clone(),
+                        MessagePart::Value(value) => {
                             match self.eval(value, producer.owner, &Locals::new(), trace)? {
                                 Outcome::Ready(value) => self.display_value(&value),
                                 Outcome::Pending => return Ok(ProducerState::Pending),
@@ -1852,6 +1885,7 @@ impl<'a> Engine<'a> {
             return Ok(Outcome::Ready(SemanticValue::Absent));
         };
         let mut copy = Self {
+            image: self.image,
             producers: self.producers.clone(),
             discovered_blocks: self.discovered_blocks.clone(),
             block_orders: self.block_orders.clone(),
@@ -2099,7 +2133,20 @@ pub(super) fn execute(
     diagnostics: &mut Vec<Diagnostic>,
     source: &str,
 ) {
-    if language.query_meanings.is_empty() {
+    let fallback;
+    let image = if let Some(image) = &language.image {
+        &image.queries
+    } else {
+        fallback = match QueryImage::compile(language) {
+            Ok(image) => image,
+            Err(error) => {
+                diagnostics.push(error);
+                return;
+            }
+        };
+        &fallback
+    };
+    if image.groups.is_empty() {
         return;
     }
     let ranks = match super::scheduler::query_group_ranks(language, occurrences) {
@@ -2109,7 +2156,7 @@ pub(super) fn execute(
             return;
         }
     };
-    let mut engine = Engine::new(language, occurrences, source, &ranks);
+    let mut engine = Engine::new(language, image, occurrences, source, &ranks);
     diagnostics.extend(engine.settle());
     for (id, producer) in engine.producers.iter().enumerate() {
         if !matches!(

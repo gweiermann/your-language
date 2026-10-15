@@ -62,12 +62,13 @@ fn example() -> your_language::diagnostic::CompileResult<()> {
 
 ## `CompiledLanguage`
 
-`CompiledLanguage` is the normalized runtime input. Its rule storage is encapsulated; callers compile or load a language rather than assembling one manually.
+`CompiledLanguage` is a checked, immutable executable language handle. Callers compile or load it rather than assembling one manually. The engine executes indexed parser, check, and query tables directly.
 
 ```rust
 impl CompiledLanguage {
     pub fn diagnostics(&self) -> &[Diagnostic];
     pub fn to_bytes(&self) -> CompileResult<Vec<u8>>;
+    pub fn executable_image(&self) -> &your_language::image::LanguageImage;
 }
 ```
 
@@ -79,7 +80,7 @@ impl CompiledLanguage {
 pub fn load_compiled_language(bytes: &[u8]) -> CompileResult<CompiledLanguage>
 ```
 
-Deserializes and validates an artifact before returning it. Invalid JSON, unsupported formats, and invalid normalized references or checks produce diagnostics. Hosts should use this function rather than relying on direct Serde deserialization alone.
+Deserializes and validates an artifact before returning it. Invalid JSON, unsupported formats, and invalid normalized references or checks produce diagnostics. Only checked compilation and loading construct a `CompiledLanguage`; direct Serde deserialization of image tables does not produce an executable handle.
 
 ## `parse` and `parse_named`
 
@@ -126,7 +127,7 @@ pub fn parse_yl(file: &str, source: &str) -> CompileResult<syntax::Module>;
 
 Parses one YL source into a spanned surface AST without resolving imports or validating the complete language. The public `syntax` module models declarations, grammar expressions, condition expressions, argument lists, and source spans. Use this API for source inspection; use compilation for executable language validation.
 
-The `ir` module exposes normalized representation types for inspection and Serde support. Those enums describe the interpreter input, not an alternative surface language. [Artifact documentation](/api/artifacts) describes the intended boundary. Generated Rust documentation gives exhaustive field and enum definitions:
+The `image` module exposes indexed executable tables for inspection and Serde support. `CompiledLanguage::executable_image()` provides a read-only view. The `ir` module contains compiler normalization types; these recursive types are not the serialized format and are not reconstructed by the loader. [Artifact documentation](/api/artifacts) describes the intended boundary. Generated Rust documentation gives exhaustive field and enum definitions:
 
 ```sh
 cargo doc --no-deps --open

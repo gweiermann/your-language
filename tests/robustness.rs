@@ -52,9 +52,9 @@ fn corrupted_artifacts_are_rejected_before_execution() {
         assert!(load_compiled_language(&bytes[..offset]).is_err());
     }
     let mut json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    json["rules"]["a.yl#P"]["body"]["Concrete"] = serde_json::json!({"Ref":"missing"});
+    json["parser"]["instructions"][0] = serde_json::json!({"Ref":999999});
     assert!(load_compiled_language(&serde_json::to_vec(&json).unwrap()).is_err());
-    json["rules"]["a.yl#P"]["body"]["Concrete"] = serde_json::json!({"Regex":"["});
+    json["parser"]["instructions"][0] = serde_json::json!({"Regex":"["});
     assert!(load_compiled_language(&serde_json::to_vec(&json).unwrap()).is_err());
 }
 #[test]
@@ -82,20 +82,19 @@ fn invalid_precedence_plans_are_rejected_and_never_overflow() {
         serde_json::from_slice(&language.to_bytes().unwrap()).unwrap();
     for power in [0, usize::MAX, 1000] {
         let mut corrupt = original.clone();
-        corrupt["rules"]["a.yl#E"]["body"]["Abstract"]["operators"][0]["binding_power"] =
+        corrupt["parser"]["rules"][0]["body"]["Abstract"]["operators"][0]["binding_power"] =
             serde_json::json!(power);
         let bytes = serde_json::to_vec(&corrupt).unwrap();
         assert!(
             load_compiled_language(&bytes).is_err(),
             "Corrupt binding power {power} was accepted"
         );
-        // Even callers deserializing the public v0 IR directly cannot trigger arithmetic panics.
-        let unchecked: your_language::CompiledLanguage = serde_json::from_slice(&bytes).unwrap();
-        assert!(std::panic::catch_unwind(|| parse(&unchecked, "1+2")).is_ok());
+        // Deserializing image tables does not grant an executable language handle.
+        // Only the checked loader constructs a CompiledLanguage.
     }
     for field in ["left", "right"] {
         let mut corrupt = original.clone();
-        corrupt["rules"]["a.yl#E"]["body"]["Abstract"]["operators"][0][field] =
+        corrupt["parser"]["rules"][0]["body"]["Abstract"]["operators"][0][field] =
             serde_json::json!(false);
         assert!(load_compiled_language(&serde_json::to_vec(&corrupt).unwrap()).is_err());
     }

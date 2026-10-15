@@ -1,50 +1,263 @@
 {
-  "version": 5,
-  "entry": "golden.yl#Program",
-  "rules": {
-    "golden.yl#Name": {
-      "name": "Name",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "value",
-            {
-              "Regex": "[a-z]+"
-            }
-          ]
+  "version": 6,
+  "capabilities": [
+    "indexed-parser",
+    "indexed-checks",
+    "indexed-queries",
+    "semantic-scheduling"
+  ],
+  "parser": {
+    "entry": 1,
+    "rules": [
+      {
+        "definition": "golden.yl#Name",
+        "name": "Name",
+        "trivia": false,
+        "body": {
+          "Concrete": 1
+        },
+        "constraints": [],
+        "span": {
+          "file": "golden.yl",
+          "start": 103,
+          "end": 130
         }
       },
-      "constraints": [],
-      "span": {
-        "file": "golden.yl",
-        "start": 103,
-        "end": 130
-      }
-    },
-    "golden.yl#Program": {
-      "name": "Program",
-      "trivia": false,
-      "body": {
-        "Concrete": {
-          "Capture": [
-            "name",
-            {
-              "Ref": "golden.yl#Name"
-            }
-          ]
+      {
+        "definition": "golden.yl#Program",
+        "name": "Program",
+        "trivia": false,
+        "body": {
+          "Concrete": 3
+        },
+        "constraints": [],
+        "span": {
+          "file": "golden.yl",
+          "start": 132,
+          "end": 415
         }
-      },
-      "constraints": [],
-      "span": {
-        "file": "golden.yl",
-        "start": 132,
-        "end": 415
       }
+    ],
+    "instructions": [
+      {
+        "Regex": "[a-z]+"
+      },
+      {
+        "Capture": [
+          "value",
+          0
+        ]
+      },
+      {
+        "Ref": 0
+      },
+      {
+        "Capture": [
+          "name",
+          2
+        ]
+      },
+      {
+        "Ref": 0
+      },
+      {
+        "Ref": 1
+      }
+    ],
+    "trivia": [],
+    "checks": [],
+    "preview_roots": {
+      "golden.yl#Name": 4,
+      "golden.yl#Program": 5
     }
   },
-  "trivia": [],
-  "meanings": {
+  "queries": {
+    "expressions": [
+      "SelfValue",
+      {
+        "Symbol": "golden.yl#scope"
+      },
+      {
+        "Tuple": [
+          0,
+          1
+        ]
+      },
+      {
+        "Call": {
+          "opcode": "Contribute",
+          "args": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "Capture": "name"
+      },
+      {
+        "Call": {
+          "opcode": "Ancestors",
+          "args": [
+            4
+          ]
+        }
+      },
+      {
+        "Local": "ancestor@golden.yl:261"
+      },
+      {
+        "Tuple": [
+          6,
+          1
+        ]
+      },
+      {
+        "Call": {
+          "opcode": "Get",
+          "args": [
+            7
+          ]
+        }
+      },
+      {
+        "Lambda": {
+          "parameter": "ancestor@golden.yl:261",
+          "body": 8
+        }
+      },
+      {
+        "Call": {
+          "opcode": "Find",
+          "args": [
+            5,
+            9
+          ]
+        }
+      },
+      {
+        "Call": {
+          "opcode": "IsPresent",
+          "args": [
+            10
+          ]
+        }
+      },
+      {
+        "Symbol": "golden.yl#result"
+      },
+      {
+        "Tuple": [
+          4,
+          12
+        ]
+      },
+      {
+        "Local": "ancestor@golden.yl:361"
+      },
+      {
+        "Tuple": [
+          14,
+          1
+        ]
+      },
+      {
+        "Call": {
+          "opcode": "Get",
+          "args": [
+            15
+          ]
+        }
+      },
+      {
+        "Lambda": {
+          "parameter": "ancestor@golden.yl:361",
+          "body": 16
+        }
+      },
+      {
+        "Call": {
+          "opcode": "Find",
+          "args": [
+            5,
+            17
+          ]
+        }
+      },
+      {
+        "Call": {
+          "opcode": "Contribute",
+          "args": [
+            13,
+            18
+          ]
+        }
+      }
+    ],
+    "actions": [
+      {
+        "Call": {
+          "expression": 3,
+          "span": {
+            "file": "golden.yl",
+            "start": 184,
+            "end": 215
+          }
+        }
+      },
+      {
+        "Call": {
+          "expression": 19,
+          "span": {
+            "file": "golden.yl",
+            "start": 312,
+            "end": 397
+          }
+        }
+      },
+      {
+        "If": {
+          "condition": 11,
+          "then_actions": [
+            1
+          ],
+          "else_actions": [],
+          "span": {
+            "file": "golden.yl",
+            "start": 224,
+            "end": 407
+          }
+        }
+      }
+    ],
+    "groups": {
+      "golden.yl#Program": [
+        {
+          "name": null,
+          "actions": [
+            0
+          ],
+          "span": {
+            "file": "golden.yl",
+            "start": 184,
+            "end": 215
+          }
+        },
+        {
+          "name": null,
+          "actions": [
+            2
+          ],
+          "span": {
+            "file": "golden.yl",
+            "start": 224,
+            "end": 407
+          }
+        }
+      ]
+    }
+  },
+  "semantics": {
     "golden.yl#Program": {
       "boundary": false,
       "groups": [
@@ -70,168 +283,26 @@
       "precedence": []
     }
   },
-  "query_meanings": {
-    "golden.yl#Program": [
-      {
-        "name": null,
-        "actions": [
-          {
-            "Call": {
-              "name": "core/query#contribute",
-              "args": [
-                {
-                  "Tuple": [
-                    "SelfValue",
-                    {
-                      "Symbol": "golden.yl#scope"
-                    }
-                  ]
-                },
-                "SelfValue"
-              ],
-              "span": {
-                "file": "golden.yl",
-                "start": 184,
-                "end": 215
-              }
-            }
-          }
-        ],
-        "span": {
-          "file": "golden.yl",
-          "start": 184,
-          "end": 215
-        }
+  "previews": [
+    {
+      "definition": "golden.yl#Name",
+      "span": {
+        "file": "golden.yl",
+        "start": 103,
+        "end": 130
       },
-      {
-        "name": null,
-        "actions": [
-          {
-            "If": {
-              "condition": {
-                "Call": {
-                  "name": "core/query#isPresent",
-                  "args": [
-                    {
-                      "Call": {
-                        "name": "core/query#find",
-                        "args": [
-                          {
-                            "Call": {
-                              "name": "core/query#ancestors",
-                              "args": [
-                                {
-                                  "Capture": "name"
-                                }
-                              ]
-                            }
-                          },
-                          {
-                            "Lambda": {
-                              "parameter": "ancestor@golden.yl:261",
-                              "body": {
-                                "Call": {
-                                  "name": "core/query#get",
-                                  "args": [
-                                    {
-                                      "Tuple": [
-                                        {
-                                          "Local": "ancestor@golden.yl:261"
-                                        },
-                                        {
-                                          "Symbol": "golden.yl#scope"
-                                        }
-                                      ]
-                                    }
-                                  ]
-                                }
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  ]
-                }
-              },
-              "then_actions": [
-                {
-                  "Call": {
-                    "name": "core/query#contribute",
-                    "args": [
-                      {
-                        "Tuple": [
-                          {
-                            "Capture": "name"
-                          },
-                          {
-                            "Symbol": "golden.yl#result"
-                          }
-                        ]
-                      },
-                      {
-                        "Call": {
-                          "name": "core/query#find",
-                          "args": [
-                            {
-                              "Call": {
-                                "name": "core/query#ancestors",
-                                "args": [
-                                  {
-                                    "Capture": "name"
-                                  }
-                                ]
-                              }
-                            },
-                            {
-                              "Lambda": {
-                                "parameter": "ancestor@golden.yl:361",
-                                "body": {
-                                  "Call": {
-                                    "name": "core/query#get",
-                                    "args": [
-                                      {
-                                        "Tuple": [
-                                          {
-                                            "Local": "ancestor@golden.yl:361"
-                                          },
-                                          {
-                                            "Symbol": "golden.yl#scope"
-                                          }
-                                        ]
-                                      }
-                                    ]
-                                  }
-                                }
-                              }
-                            }
-                          ]
-                        }
-                      }
-                    ],
-                    "span": {
-                      "file": "golden.yl",
-                      "start": 312,
-                      "end": 397
-                    }
-                  }
-                }
-              ],
-              "else_actions": [],
-              "span": {
-                "file": "golden.yl",
-                "start": 224,
-                "end": 407
-              }
-            }
-          }
-        ],
-        "span": {
-          "file": "golden.yl",
-          "start": 224,
-          "end": 407
-        }
-      }
-    ]
-  }
+      "text": "a",
+      "reason": null
+    },
+    {
+      "definition": "golden.yl#Program",
+      "span": {
+        "file": "golden.yl",
+        "start": 132,
+        "end": 415
+      },
+      "text": "a",
+      "reason": null
+    }
+  ]
 }

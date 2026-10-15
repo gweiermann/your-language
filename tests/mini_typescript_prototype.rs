@@ -9,9 +9,11 @@ fn analyze(source: &str) -> AnalysisResult {
     let compiled = engine
         .compile(definition::ENTRY, &definition::sources())
         .unwrap();
-    assert!(serde_json::to_value(&compiled).unwrap()["query_meanings"]
-        .as_object()
-        .is_some_and(|groups| !groups.is_empty()));
+    assert!(
+        serde_json::to_value(&compiled).unwrap()["queries"]["groups"]
+            .as_object()
+            .is_some_and(|groups| !groups.is_empty())
+    );
     let loaded = engine.load(&compiled.to_bytes().unwrap()).unwrap();
     let result = engine.analyze(&loaded, "test.ts", source);
     assert_eq!(result, engine.analyze(&compiled, "test.ts", source));
