@@ -56,7 +56,7 @@ cargo run --example getting-started
 Both thin launchers pass their `yl.json` to the same in-process project runner
 used by the CLI. They print original diagnostics, each fixture's result, and a
 summary; expected negative fixtures do not make the example fail. The complete
-[example catalog](../../examples/README.md) lists both names for every project.
+[example catalog](https://github.com/gweiermann/your-language/tree/main/examples) lists both names for every project.
 
 Rust consumers can inspect the report without printing or invoking a subprocess:
 
