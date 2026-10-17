@@ -1,0 +1,19 @@
+import { program } from "./hooks"
+import { Whitespace, Comment, keyword } from "./lexical"
+import { Expression } from "./expression"
+import { Statement } from "./statement"
+
+node Program =
+    statements: Statement*
+    keyword("result")
+    result: Expression
+    ";"
+{
+    backend {
+        program(statements, result)
+    }
+}
+
+entry Program {
+    trivia Whitespace, Comment
+}

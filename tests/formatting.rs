@@ -27,6 +27,25 @@ fn tree(source: &str) -> serde_json::Value {
     result
 }
 #[test]
+fn formats_hook_declarations_and_backend_sections() {
+    let source = "export hook add(left,right) node Sum=left:Number right:Number{backend{runtime::add(left,right)}} pattern Wrapper=Number{backend{wrap(self)}}";
+    let formatted = format_yl("hooks.yl", source).unwrap();
+    assert!(
+        formatted.contains("export hook add(left, right)"),
+        "{formatted}"
+    );
+    assert!(
+        formatted.contains("backend {\n        runtime::add(left, right)\n    }"),
+        "{formatted}"
+    );
+    assert!(
+        formatted.contains("backend {\n        wrap(self)\n    }"),
+        "{formatted}"
+    );
+    assert_eq!(tree(source), tree(&formatted));
+    assert_eq!(format_yl("hooks.yl", &formatted).unwrap(), formatted);
+}
+#[test]
 fn formats_expression_matches_inside_operations_bindings_and_callbacks() {
     let source = "operation q(left,right)=match(left,right){true,false|false,true=>left,_=>match(left){_=>right}} operation use(values){v:=map(values,item=>match(item){true=>false,_=>true}) return match(v){_=>v}[0]}";
     let formatted = format_yl("source", source).unwrap();

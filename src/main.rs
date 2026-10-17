@@ -10,7 +10,7 @@ use your_language::{
 
 fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
     let usage = || {
-        vec![Diagnostic::error("yl.cli","Usage: yl project check|ast <source> [--json] | yl lsp | yl examples <entry.yl|language.ylc> | yl fmt [--check] [--json] [--align-match-arrows] <files...> | yl check <entry.yl> | yl compile <entry.yl> -o <language.ylc> | yl language <language.ylc> ast <source> | yl language <language.ylc> check <source> [--json]",Span::default())]
+        vec![Diagnostic::error("yl.cli","Usage: yl project check|ast <source> [--json] | yl lsp | yl examples <entry.yl|language.ylc> | yl fmt [--check] [--json] [--align-match-arrows] <files...> | yl check <entry.yl> | yl compile <entry.yl> -o <language.ylc> | yl language <language.ylc> hooks [--json] | yl language <language.ylc> ast <source> | yl language <language.ylc> check <source> [--json]",Span::default())]
     };
     let io = |path: &str, e: std::io::Error| {
         vec![Diagnostic::error(
@@ -96,6 +96,21 @@ fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
             Ok(true)
         }
         Some("language")
+            if args.get(2).is_some_and(|s| s == "hooks")
+                && (args.len() == 3 || args.len() == 4 && args[3] == "--json") =>
+        {
+            let language =
+                load_compiled_language(&fs::read(&args[1]).map_err(|e| io(&args[1], e))?)?;
+            if args.len() == 4 {
+                println!("{}", json(&language.required_hooks())?);
+            } else {
+                for hook in language.required_hooks() {
+                    println!("{}({})", hook.id, hook.parameters.join(", "));
+                }
+            }
+            Ok(true)
+        }
+        Some("language")
             if args.len() == 4 && matches!(args[2].as_str(), "ast" | "check")
                 || args.len() == 5 && args[2] == "check" && args[4] == "--json" =>
         {
@@ -173,8 +188,11 @@ fn main() -> ExitCode {
     }
     let args: Vec<_> = env::args().skip(1).collect();
     let diagnostic_json = (args.first().is_some_and(|a| a == "language")
-        && args.get(2).is_some_and(|a| a == "check")
-        && args.get(4).is_some_and(|a| a == "--json"))
+        && args.get(2).is_some_and(|a| a == "hooks")
+        && args.get(3).is_some_and(|a| a == "--json"))
+        || (args.first().is_some_and(|a| a == "language")
+            && args.get(2).is_some_and(|a| a == "check")
+            && args.get(4).is_some_and(|a| a == "--json"))
         || (args.first().is_some_and(|a| a == "project")
             && args.get(1).is_some_and(|a| a == "check")
             && args.get(3).is_some_and(|a| a == "--json"));

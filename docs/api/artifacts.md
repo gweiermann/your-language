@@ -35,11 +35,11 @@ cargo run --example compiled_image
 cargo run --example compiled_image -- examples/mini_typescript/definition/language.yl examples/mini_typescript/programs/generics.txt
 ```
 
-Both examples report format `9`, `AST: true`, and `diagnostics: 0`. Timing numbers describe the current machine and build; they are not performance guarantees.
+Both examples report format `10`, `AST: true`, and `diagnostics: 0`. Timing numbers describe the current machine and build; they are not performance guarantees.
 
 ## Representation
 
-Format `7` uses deterministic pretty JSON. It contains executable tables with integer references:
+Format `10` uses deterministic pretty JSON. It contains executable tables with integer references:
 
 ```text
 language image
@@ -80,7 +80,7 @@ The image describes what the engine can execute. Each target source gets its own
 
 A language definition cannot precompute the actual scopes or references of a program it has not parsed. The image therefore contains producer templates; the engine discovers their concrete instances and dependencies from committed syntax, then evaluates them to settlement. Scheduling boundaries, guarded actions, pending values, and isolated hypothetical queries retain their normal behavior.
 
-This representation covers parsing and semantic analysis. It does not introduce a target-program interpreter, JIT, or new native execution hooks.
+The image also records optional [backend hook mappings](/reference/backends). Parsing and analysis do not invoke these hooks. An external consumer explicitly binds a host backend and dispatches syntax to interpret, transpile, or compile a program; runtime values and execution policy remain host-owned.
 
 ## Validation on reload
 
@@ -94,7 +94,7 @@ Module identities are relative to the entry directory. Relocating the same defin
 
 ## Compatibility
 
-All newly compiled languages use format `9`. Formats `1` through `8` are retired: recompile their YL definitions with the current compiler. The loader reports this explicitly instead of rebuilding recursive normalization IR or maintaining a second production executor.
+All newly compiled languages use format `10`. Formats `1` through `9` are retired: recompile their YL definitions with the current compiler. The loader reports this explicitly instead of rebuilding recursive normalization IR or maintaining a second production executor.
 
 The image format is versioned but experimental. Long-term binary compatibility, a memory-mapped layout, and an ABI are not promised. An eventual binary encoding can represent these same tables without changing YL syntax.
 

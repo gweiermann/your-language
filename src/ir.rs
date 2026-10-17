@@ -15,6 +15,7 @@ pub struct HighlightSpan {
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompiledLanguage {
     pub(crate) version: u32,
+    pub(crate) backend: crate::backend::BackendImage,
     pub(crate) entry: String,
     pub(crate) rules: BTreeMap<String, Rule>,
     pub(crate) trivia: Vec<String>,

@@ -74,6 +74,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
+name = "leb128fmt"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
+
+[[package]]
 name = "libc"
 version = "0.2.190"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -295,6 +301,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-encoder"
+version = "0.225.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f7eac0445cac73bcf09e6a97f83248d64356dccf9f2b100199769b6b42464e5"
+dependencies = [
+ "leb128fmt",
+]
+
+[[package]]
 name = "windows-link"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -323,6 +338,7 @@ dependencies = [
  "stacker",
  "unicode-width",
  "url",
+ "wasm-encoder",
 ]
 
 [[package]]

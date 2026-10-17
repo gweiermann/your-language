@@ -1,0 +1,74 @@
+import { declare, assign, block, conditional, repeat } from "./hooks"
+import { Name, keyword } from "./lexical"
+import { Expression } from "./expression"
+
+node Declaration =
+    keyword("let")
+    name: Name
+    "="
+    initializer: Expression
+    ";"
+{
+    backend {
+        declare(name, initializer)
+    }
+}
+
+node Assignment =
+    name: Name
+    "="
+    value: Expression
+    ";"
+{
+    backend {
+        assign(name, value)
+    }
+}
+
+node Block =
+    "{"
+    statements: Statement*
+    "}"
+{
+    backend {
+        block(statements)
+    }
+}
+
+node Conditional =
+    keyword("if")
+    "("
+    condition: Expression
+    ")"
+    yes: Block
+    keyword("else")
+    no: Block
+{
+    backend {
+        conditional(condition, yes, no)
+    }
+}
+
+node Repeat =
+    keyword("while")
+    "("
+    condition: Expression
+    ")"
+    body: Block
+{
+    backend {
+        repeat(condition, body)
+    }
+}
+
+export node Statement {
+    node Declaration
+
+    node Assignment
+
+    node Block
+
+    node Conditional
+
+    node Repeat
+}

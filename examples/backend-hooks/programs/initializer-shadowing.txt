@@ -1,0 +1,7 @@
+let value = 41;
+let answer = 0;
+{
+    let value = value + 1;
+    answer = value;
+}
+result answer;

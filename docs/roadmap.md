@@ -12,7 +12,7 @@ The YL language server supplies live definition diagnostics, formatting and comp
 
 ## Execution and integration
 
-Parser generation and runtime optimization will address execution cost while preserving language behavior. Additional host bindings, including a C ABI, will broaden embedding options. Compilation strategies such as JIT execution will be evaluated against measured needs.
+Host-controlled backend hooks already support reusable Rust consumers; the examples interpret, transpile to JavaScript, and emit WebAssembly binaries from one language artifact. Further work will develop richer backends and consumer interfaces. Parser generation and runtime optimization will address execution cost while preserving language behavior. Additional host bindings, including a C ABI, will broaden embedding options. Compilation strategies such as JIT execution will be evaluated against measured needs.
 
 ## Language authoring
 

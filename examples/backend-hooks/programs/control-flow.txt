@@ -1,0 +1,12 @@
+let count = 0;
+let total = 0;
+while (count < 3) {
+    total = total + 14;
+    count = count + 1;
+}
+if (total < 40) {
+    total = 999;
+} else {
+    total = total + 0;
+}
+result total;

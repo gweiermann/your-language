@@ -11,7 +11,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const FORMAT_VERSION: u32 = 9;
+pub const FORMAT_VERSION: u32 = 10;
 const CAPABILITIES: &[&str] = &[
     "indexed-parser",
     "indexed-checks",
@@ -21,6 +21,7 @@ const CAPABILITIES: &[&str] = &[
     "recursive-query-functions",
     "value-match",
     "ide-highlighting",
+    "host-backend-hooks",
 ];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -28,6 +29,7 @@ const CAPABILITIES: &[&str] = &[
 pub struct LanguageImage {
     pub version: u32,
     pub capabilities: Vec<String>,
+    pub backend: crate::backend::BackendImage,
     pub parser: parser::ParserImage,
     pub queries: query::QueryImage,
     /// Compiled scheduling selectors and external native operation contracts.
@@ -39,6 +41,7 @@ impl LanguageImage {
     pub(crate) fn compile(language: &CompiledLanguage) -> Result<Self, Diagnostic> {
         let image = Self {
             version: FORMAT_VERSION,
+            backend: language.backend.clone(),
             capabilities: CAPABILITIES.iter().map(|s| (*s).to_owned()).collect(),
             parser: parser::ParserImage::compile(language)?,
             queries: query::QueryImage::compile(language)?,
@@ -72,6 +75,17 @@ impl LanguageImage {
         self.parser.validate()?;
         self.queries.validate()?;
         let captures = self.parser.capture_sets();
+        self.backend.validate(&captures)?;
+        for owner in self.backend.calls.keys() {
+            if !self.semantics.contains_key(owner)
+                || self
+                    .parser
+                    .rule_id(owner)
+                    .is_some_and(|id| self.parser.rules[id as usize].trivia)
+            {
+                return Err(invalid("Backend call has an untraced or trivia owner"));
+            }
+        }
         self.queries.validate_owner_captures(&captures)?;
         for (owner, definition) in &self.semantics {
             let available = captures.get(owner).ok_or_else(|| {
