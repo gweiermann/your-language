@@ -76,6 +76,16 @@ impl LanguageImage {
         self.queries.validate()?;
         let captures = self.parser.capture_sets();
         self.backend.validate(&captures)?;
+        for owner in self.backend.calls.keys() {
+            if !self.semantics.contains_key(owner)
+                || self
+                    .parser
+                    .rule_id(owner)
+                    .is_some_and(|id| self.parser.rules[id as usize].trivia)
+            {
+                return Err(invalid("Backend call has an untraced or trivia owner"));
+            }
+        }
         self.queries.validate_owner_captures(&captures)?;
         for (owner, definition) in &self.semantics {
             let available = captures.get(owner).ok_or_else(|| {

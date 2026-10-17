@@ -98,7 +98,10 @@ impl BackendImage {
                 return Err(invalid("Backend hook call has incompatible arity"));
             }
             for arg in &call.arguments {
-                check(arg, available, 0)?;
+                check(arg, available, 0).map_err(|mut error| {
+                    error.primary = Box::new(call.span.clone());
+                    error
+                })?;
             }
         }
         Ok(())
@@ -337,7 +340,7 @@ impl BackendProgram<'_> {
                 syntax,
             )
         })?;
-        self.capture_source(&occurrence.capture_path(name)?)
+        self.named_capture(occurrence, name)
     }
     /// Bridge a checked syntax handle to this program's static attachment identity.
     pub fn semantic_identity(
@@ -438,6 +441,13 @@ impl BackendProgram<'_> {
         };
         context.dispatch(host, self.root)
     }
+    fn named_capture(&self, occurrence: &Occurrence, name: &str) -> Result<Capture, Diagnostic> {
+        if let Some(capture) = occurrence.captures.get(name) {
+            self.capture_source(capture)
+        } else {
+            self.capture_source(&occurrence.capture_path(name)?)
+        }
+    }
     fn capture_source(&self, source: &SourceCapture) -> Result<Capture, Diagnostic> {
         fn select(program: &BackendProgram<'_>, selection: OccurrenceSelection) -> Capture {
             match selection {
@@ -534,9 +544,7 @@ impl<H: Backend> BackendContext<'_, '_, H> {
                         id: occurrence.id,
                         terminal: false,
                     })),
-                    ArgumentPlan::Capture(name) => {
-                        program.capture_source(&occurrence.capture_path(name)?)
-                    }
+                    ArgumentPlan::Capture(name) => program.named_capture(occurrence, name),
                     ArgumentPlan::Tuple(items) => Ok(Capture::Tuple(
                         items
                             .iter()

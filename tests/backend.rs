@@ -176,7 +176,7 @@ fn corrupt_backend_image_is_rejected() {
     let lang = language(SIMPLE);
     let bytes = lang.to_bytes().unwrap();
     let original: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    for corrupt in ["id", "arity", "capture", "owner"] {
+    for corrupt in ["id", "arity", "capture", "owner", "untraced"] {
         let mut value = original.clone();
         match corrupt {
             "id" => value["backend"]["calls"]["main.yl#Program"]["hook"] = 999.into(),
@@ -184,6 +184,12 @@ fn corrupt_backend_image_is_rejected() {
             "capture" => {
                 value["backend"]["calls"]["main.yl#Program"]["arguments"][0] =
                     serde_json::json!({"Capture":"missing"})
+            }
+            "untraced" => {
+                value["semantics"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("main.yl#Program");
             }
             _ => {
                 let call = value["backend"]["calls"]["main.yl#Program"].clone();
@@ -315,4 +321,43 @@ fn parser_checks_and_editor_inspection_do_not_invoke_hooks() {
     assert!(analysis.diagnostics.is_empty());
     assert!(!analysis.occurrences.is_empty());
     let _ = language.highlight_named("input", "1,2");
+}
+#[test]
+fn backend_can_inspect_static_facts_without_owning_analysis_state() {
+    let language = language(
+        r#"import { contribute } from "core/query" symbol tag hook literal(value) node Program = value:/[0-9]+/ { semantics { contribute((self, tag), "checked") } backend { literal(value) } } entry Program"#,
+    );
+    let program = language.prepare_backend("input", "42").unwrap();
+    let identity = program.semantic_identity(program.root()).unwrap();
+    let key = your_language::semantics::queries::QueryKey::Tuple(vec![
+        your_language::semantics::queries::QueryKey::Identity(identity),
+        your_language::semantics::queries::QueryKey::Symbol("main.yl#tag".into()),
+    ]);
+    assert!(program
+        .analysis()
+        .graph
+        .query_entries
+        .iter()
+        .any(|entry| entry.key == key
+            && entry.value == your_language::semantics::SemanticValue::Text("checked".into())));
+    assert_eq!(program.run(&mut Host::default()).unwrap(), "42");
+}
+#[test]
+fn cli_inspects_hook_contracts_without_a_host_or_definition_sources() {
+    let language = language(SIMPLE);
+    let artifact =
+        std::env::temp_dir().join(format!("yl-backend-manifest-{}.ylc", std::process::id()));
+    std::fs::write(&artifact, language.to_bytes().unwrap()).unwrap();
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_yl"))
+        .args(["language", artifact.to_str().unwrap(), "hooks", "--json"])
+        .output()
+        .unwrap();
+    std::fs::remove_file(&artifact).unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let hooks: Vec<HookContract> = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(hooks, language.required_hooks());
 }

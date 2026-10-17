@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "capabilities": [
     "indexed-parser",
     "indexed-checks",
@@ -8,8 +8,13 @@
     "positional-index",
     "recursive-query-functions",
     "value-match",
-    "ide-highlighting"
+    "ide-highlighting",
+    "host-backend-hooks"
   ],
+  "backend": {
+    "hooks": [],
+    "calls": {}
+  },
   "parser": {
     "entry": 1,
     "rules": [

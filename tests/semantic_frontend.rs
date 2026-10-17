@@ -36,7 +36,7 @@ entry Program
     let bytes = language.to_bytes().unwrap();
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["version"],
-        9
+        your_language::image::FORMAT_VERSION
     );
     let language = load_compiled_language(&bytes).unwrap();
     let result = engine.analyze(&language, "program", "letx;x;");
