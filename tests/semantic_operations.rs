@@ -146,7 +146,7 @@ fn invalid_wrapper_calls_and_private_namespace_members_are_diagnostics() {
         (
             "operation a() = a()",
             "native::value(a())",
-            "yl.operation_cycle",
+            "yl.query_native_effect",
         ),
         (
             "operation a(x) { native::value(x) }",

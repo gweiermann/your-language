@@ -29,6 +29,7 @@ pub enum Opcode {
     Last,
     Tail,
     IsList,
+    Length,
     HypotheticalAll,
     HypotheticalChecked,
     Every,
@@ -70,6 +71,7 @@ impl Opcode {
             "last" => Self::Last,
             "tail" => Self::Tail,
             "isList" => Self::IsList,
+            "length" => Self::Length,
             "hypotheticalAll" => Self::HypotheticalAll,
             "hypotheticalChecked" => Self::HypotheticalChecked,
             "every" => Self::Every,
@@ -109,6 +111,7 @@ impl Opcode {
             Self::Last => "last",
             Self::Tail => "tail",
             Self::IsList => "isList",
+            Self::Length => "length",
             Self::HypotheticalAll => "hypotheticalAll",
             Self::HypotheticalChecked => "hypotheticalChecked",
             Self::Every => "every",
@@ -166,6 +169,14 @@ pub enum Expr {
     Index {
         value: ExprId,
         index: usize,
+    },
+    Invoke {
+        name: String,
+        args: Vec<ExprId>,
+    },
+    Match {
+        inputs: Vec<ExprId>,
+        cases: Vec<ValueCase>,
     },
     BindingValue {
         invocation: String,
@@ -232,11 +243,23 @@ pub struct ImageGroup {
     pub actions: Vec<ActionId>,
     pub span: Span,
 }
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ValueCase {
+    pub alternatives: Vec<Vec<Option<ExprId>>>,
+    pub value: ExprId,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Function {
+    pub parameters: Vec<String>,
+    pub body: ExprId,
+}
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct QueryImage {
     pub expressions: Vec<Expr>,
     pub actions: Vec<Action>,
     pub groups: BTreeMap<String, Vec<ImageGroup>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub functions: BTreeMap<String, Function>,
 }
 fn bad(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error("yl.artifact", message, Span::default())
@@ -247,18 +270,50 @@ impl QueryImage {
             image: QueryImage,
             expressions: BTreeMap<String, ExprId>,
             actions: BTreeMap<String, ActionId>,
+            locals: BTreeMap<String, String>,
+            lambda_depth: usize,
         }
         impl Builder {
             fn expr(&mut self, source: &QueryExpr) -> Result<ExprId, Diagnostic> {
                 let value = match source {
                     QueryExpr::SelfValue => Expr::SelfValue,
                     QueryExpr::Capture(name) => Expr::Capture(name.clone()),
-                    QueryExpr::Local(name) => Expr::Local(name.clone()),
+                    QueryExpr::Local(name) => {
+                        Expr::Local(self.locals.get(name).unwrap_or(name).clone())
+                    }
                     QueryExpr::Tuple(values) => Expr::Tuple(self.exprs(values)?),
                     QueryExpr::List(values) => Expr::List(self.exprs(values)?),
                     QueryExpr::Index { value, index } => Expr::Index {
                         value: self.expr(value)?,
                         index: *index,
+                    },
+                    QueryExpr::Invoke { name, args } => Expr::Invoke {
+                        name: name.clone(),
+                        args: self.exprs(args)?,
+                    },
+                    QueryExpr::Match { inputs, cases } => Expr::Match {
+                        inputs: self.exprs(inputs)?,
+                        cases: cases
+                            .iter()
+                            .map(|case| {
+                                Ok(ValueCase {
+                                    alternatives: case
+                                        .alternatives
+                                        .iter()
+                                        .map(|row| {
+                                            row.iter()
+                                                .map(|item| {
+                                                    item.as_ref()
+                                                        .map(|value| self.expr(value))
+                                                        .transpose()
+                                                })
+                                                .collect()
+                                        })
+                                        .collect::<Result<_, Diagnostic>>()?,
+                                    value: self.expr(&case.value)?,
+                                })
+                            })
+                            .collect::<Result<_, Diagnostic>>()?,
                     },
                     QueryExpr::BindingValue { invocation, result } => Expr::BindingValue {
                         invocation: invocation.clone(),
@@ -278,10 +333,22 @@ impl QueryImage {
                             .ok_or_else(|| bad(format!("Unknown query operation {name}")))?,
                         args: self.exprs(args)?,
                     },
-                    QueryExpr::Lambda { parameter, body } => Expr::Lambda {
-                        parameter: parameter.clone(),
-                        body: self.expr(body)?,
-                    },
+                    QueryExpr::Lambda { parameter, body } => {
+                        let canonical = format!("lambda@{}", self.lambda_depth);
+                        let previous = self.locals.insert(parameter.clone(), canonical.clone());
+                        self.lambda_depth += 1;
+                        let body = self.expr(body);
+                        self.lambda_depth -= 1;
+                        if let Some(previous) = previous {
+                            self.locals.insert(parameter.clone(), previous);
+                        } else {
+                            self.locals.remove(parameter);
+                        }
+                        Expr::Lambda {
+                            parameter: canonical,
+                            body: body?,
+                        }
+                    }
                     QueryExpr::Bool(value) => Expr::Bool(*value),
                     QueryExpr::Text(value) => Expr::Text(value.clone()),
                     QueryExpr::Symbol(value) => Expr::Symbol(value.clone()),
@@ -398,6 +465,8 @@ impl QueryImage {
             image: Self::default(),
             expressions: BTreeMap::new(),
             actions: BTreeMap::new(),
+            locals: BTreeMap::new(),
+            lambda_depth: 0,
         };
         for (definition, groups) in &language.query_meanings {
             let groups = groups
@@ -412,17 +481,28 @@ impl QueryImage {
                 .collect::<Result<_, Diagnostic>>()?;
             builder.image.groups.insert(definition.clone(), groups);
         }
+        for (name, function) in &language.query_functions {
+            let body = builder.expr(&function.body)?;
+            builder.image.functions.insert(
+                name.clone(),
+                Function {
+                    parameters: function.parameters.clone(),
+                    body,
+                },
+            );
+        }
         builder.image.validate()?;
         Ok(builder.image)
     }
     pub fn validate(&self) -> Result<(), Diagnostic> {
         self.validate_structure()?;
+        self.validate_context(&[], true)?;
         for groups in self.groups.values() {
             let actions = groups
                 .iter()
                 .flat_map(|group| group.actions.iter().copied())
                 .collect::<Vec<_>>();
-            self.validate_context(&actions)?;
+            self.validate_context(&actions, false)?;
         }
         Ok(())
     }
@@ -486,6 +566,59 @@ impl QueryImage {
                     }
                     for id in args {
                         expr(*id)?;
+                    }
+                    &[]
+                }
+                Expr::Invoke { name, args } => {
+                    let function = self
+                        .functions
+                        .get(name)
+                        .ok_or_else(|| bad("Unknown compiled query function"))?;
+                    if args.len() != function.parameters.len() {
+                        return Err(bad(
+                            "Query function argument count differs from its signature",
+                        ));
+                    }
+                    for id in args {
+                        expr(*id)?;
+                    }
+                    &[]
+                }
+                Expr::Match { inputs, cases } => {
+                    if inputs.is_empty() || cases.is_empty() {
+                        return Err(bad("A value match requires inputs and cases"));
+                    }
+                    let mut wildcard = false;
+                    for id in inputs {
+                        expr(*id)?;
+                    }
+                    for case in cases {
+                        if case.alternatives.is_empty() {
+                            return Err(bad("A value match case requires patterns"));
+                        }
+                        for row in &case.alternatives {
+                            if wildcard {
+                                return Err(bad("A value match wildcard must be last"));
+                            }
+                            if row.len() != inputs.len() {
+                                return Err(bad(
+                                    "Value match pattern arity differs from selectors",
+                                ));
+                            }
+                            for id in row.iter().flatten() {
+                                expr(*id)?;
+                                if !matches!(
+                                    &self.expressions[*id as usize],
+                                    Expr::Bool(_) | Expr::Text(_) | Expr::Symbol(_) | Expr::Absent
+                                ) {
+                                    return Err(bad(
+                                        "A value match pattern must be a constant or wildcard",
+                                    ));
+                                }
+                            }
+                            wildcard = row.iter().all(Option::is_none);
+                        }
+                        expr(case.value)?;
                     }
                     &[]
                 }
@@ -655,15 +788,29 @@ impl QueryImage {
                 }
             }
         }
+        for function in self.functions.values() {
+            if function.body as usize >= self.expressions.len() {
+                return Err(bad("Query function body index is out of bounds"));
+            }
+            let unique: BTreeSet<_> = function.parameters.iter().collect();
+            if unique.len() != function.parameters.len() {
+                return Err(bad("Duplicate query function parameter"));
+            }
+        }
         Ok(())
     }
-    fn validate_context(&self, roots: &[ActionId]) -> Result<(), Diagnostic> {
+    fn validate_context(
+        &self,
+        roots: &[ActionId],
+        include_functions: bool,
+    ) -> Result<(), Diagnostic> {
         #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
         struct Context {
             node: usize,
             locals: BTreeSet<String>,
             callback: bool,
             action_call: bool,
+            function: bool,
         }
         let offset = self.expressions.len();
         let mut pending = roots
@@ -673,8 +820,21 @@ impl QueryImage {
                 locals: BTreeSet::new(),
                 callback: false,
                 action_call: false,
+                function: false,
             })
             .collect::<Vec<_>>();
+        pending.extend(
+            self.functions
+                .values()
+                .filter(|_| include_functions)
+                .map(|function| Context {
+                    node: function.body as usize,
+                    locals: function.parameters.iter().cloned().collect(),
+                    callback: true,
+                    action_call: false,
+                    function: true,
+                }),
+        );
         let mut seen = BTreeSet::new();
         let mut blocks = BTreeMap::<String, (Vec<ActionId>, ExprId)>::new();
         let mut bindings = BTreeSet::new();
@@ -740,6 +900,11 @@ impl QueryImage {
             }
             let value = &self.expressions[context.node];
             match value {
+                Expr::SelfValue | Expr::Capture(_) if context.function => {
+                    return Err(bad(
+                        "Compiled query functions require explicit syntax parameters",
+                    ))
+                }
                 Expr::Local(name) if !context.locals.contains(name) => {
                     return Err(bad("Unbound query callback parameter"))
                 }
@@ -803,6 +968,7 @@ impl QueryImage {
                                 locals,
                                 callback: true,
                                 action_call: false,
+                                function: context.function,
                             });
                         } else {
                             pending.push(Context {
@@ -815,6 +981,32 @@ impl QueryImage {
                 }
                 Expr::Tuple(values) | Expr::List(values) => {
                     for id in values {
+                        pending.push(Context {
+                            node: *id as usize,
+                            action_call: false,
+                            ..context.clone()
+                        });
+                    }
+                }
+                Expr::Invoke { args, .. } => {
+                    for id in args {
+                        pending.push(Context {
+                            node: *id as usize,
+                            action_call: false,
+                            ..context.clone()
+                        });
+                    }
+                }
+                Expr::Match { inputs, cases } => {
+                    for id in inputs
+                        .iter()
+                        .chain(
+                            cases
+                                .iter()
+                                .flat_map(|case| case.alternatives.iter().flatten().flatten()),
+                        )
+                        .chain(cases.iter().map(|case| &case.value))
+                    {
                         pending.push(Context {
                             node: *id as usize,
                             action_call: false,
@@ -849,6 +1041,7 @@ mod tests {
         QueryImage {
             expressions,
             actions,
+            functions: BTreeMap::new(),
             groups: BTreeMap::from([(
                 "test#Root".into(),
                 vec![ImageGroup {

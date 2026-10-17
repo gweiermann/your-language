@@ -578,6 +578,33 @@ impl Parser {
         Ok(result)
     }
     fn semantic_value(&mut self) -> Result<Expr> {
+        self.semantic_binary(0)
+    }
+    fn semantic_binary(&mut self, minimum: u8) -> Result<Expr> {
+        let mut left = self.semantic_atom()?;
+        loop {
+            let (operator, precedence) = if self.is("||") {
+                ("||", 1)
+            } else if self.is("&&") {
+                ("&&", 2)
+            } else {
+                break;
+            };
+            if precedence < minimum {
+                break;
+            }
+            self.bump();
+            let right = self.semantic_binary(precedence + 1)?;
+            let span = Span::new(&left.span.file, left.span.start, right.span.end);
+            left = Expr {
+                kind: ExprKind::Binary(operator.into(), Box::new(left), Box::new(right)),
+                span,
+            };
+        }
+        // Left-associative operator chains also contribute to the AST resource bound.
+        self.semantic_indexes(left)
+    }
+    fn semantic_atom(&mut self) -> Result<Expr> {
         let start = self.token().span.clone();
         self.depth += 1;
         if self.depth > 128 {
@@ -586,8 +613,36 @@ impl Parser {
                 "Semantic value nesting exceeds resource limit",
             ));
         }
-        let kind = if self.take("!") {
-            ExprKind::Not(Box::new(self.semantic_value()?))
+        let kind = if self.take("match") {
+            self.expect("(")?;
+            let mut inputs = vec![self.semantic_value()?];
+            while self.take(",") {
+                inputs.push(self.semantic_value()?);
+            }
+            self.expect(")")?;
+            self.expect("{")?;
+            let mut cases = vec![];
+            while !self.is("}") {
+                let case_start = self.token().span.clone();
+                let alternatives = self.match_patterns(inputs.len())?;
+                self.expect("=>")?;
+                let value = self.semantic_value()?;
+                cases.push(ValueMatchCase {
+                    alternatives,
+                    value,
+                    span: self.span_from(&case_start),
+                });
+                if !self.take(",") && !self.is("}") {
+                    return Err(self.error(
+                        "yl.unexpected_token",
+                        "Expected ',' between match value cases",
+                    ));
+                }
+            }
+            self.expect("}")?;
+            ExprKind::Match { inputs, cases }
+        } else if self.take("!") {
+            ExprKind::Not(Box::new(self.semantic_atom()?))
         } else if matches!(self.token().kind, TokenKind::Word(_))
             && matches!(self.peek(1), TokenKind::Symbol(value) if value == "=>")
         {
@@ -675,6 +730,23 @@ impl Parser {
                     pending.extend(args.iter().map(|arg| (&arg.value, current + 1)));
                 }
                 ExprKind::Lambda { body, .. } => pending.push((body, current + 1)),
+                ExprKind::Binary(_, left, right) => {
+                    pending.push((left, current + 1));
+                    pending.push((right, current + 1));
+                }
+                ExprKind::Match { inputs, cases } => {
+                    pending.extend(inputs.iter().map(|inner| (inner, current + 1)));
+                    for case in cases {
+                        pending.push((&case.value, current + 1));
+                        pending.extend(
+                            case.alternatives
+                                .iter()
+                                .flatten()
+                                .flatten()
+                                .map(|inner| (inner, current + 1)),
+                        );
+                    }
+                }
                 _ => {}
             }
         }
@@ -795,27 +867,7 @@ impl Parser {
         let mut cases = vec![];
         while !self.is("}") {
             let case_start = self.token().span.clone();
-            let mut alternatives = vec![];
-            loop {
-                let mut patterns = vec![];
-                loop {
-                    patterns.push(if self.take("_") {
-                        None
-                    } else {
-                        Some(self.atom()?)
-                    });
-                    if !self.take(",") {
-                        break;
-                    }
-                }
-                if patterns.len() == 1 && patterns[0].is_none() {
-                    patterns.resize(inputs.len(), None);
-                }
-                alternatives.push(patterns);
-                if !self.take("|") {
-                    break;
-                }
-            }
+            let alternatives = self.match_patterns(inputs.len())?;
             self.expect("=>")?;
             let all_actions = if self.take("{") {
                 self.meaning_block()?
@@ -844,6 +896,30 @@ impl Parser {
             cases,
             span: self.span_from(&start),
         })
+    }
+    fn match_patterns(&mut self, arity: usize) -> Result<Vec<Vec<Option<Expr>>>> {
+        let mut alternatives = vec![];
+        loop {
+            let mut patterns = vec![];
+            loop {
+                patterns.push(if self.take("_") {
+                    None
+                } else {
+                    Some(self.atom()?)
+                });
+                if !self.take(",") {
+                    break;
+                }
+            }
+            if patterns.len() == 1 && patterns[0].is_none() {
+                patterns.resize(arity, None);
+            }
+            alternatives.push(patterns);
+            if !self.take("|") {
+                break;
+            }
+        }
+        Ok(alternatives)
     }
     fn example(&mut self) -> Result<Example> {
         let start = self.tokens[self.position.saturating_sub(1)].span.clone();
@@ -1444,6 +1520,80 @@ entry Program
 #[cfg(test)]
 mod semantic_refresh_tests {
     use super::*;
+
+    #[test]
+    fn semantic_boolean_operators_have_standard_precedence() {
+        let source = "operation q(a, b, c) = !a && b || c";
+        let module = parse_yl("boolean.yl", source).unwrap();
+        let DeclKind::Operation {
+            body: OperationBody::Query(value),
+            ..
+        } = &module.declarations[0].kind
+        else {
+            panic!("Expected a query");
+        };
+        let ExprKind::Binary(or, left, right) = &value.kind else {
+            panic!("Expected disjunction");
+        };
+        assert_eq!(or, "||");
+        assert!(matches!(&right.kind, ExprKind::Ref(name) if name == "c"));
+        let ExprKind::Binary(and, left, right) = &left.kind else {
+            panic!("Expected conjunction");
+        };
+        assert_eq!(and, "&&");
+        assert!(matches!(left.kind, ExprKind::Not(_)));
+        assert!(matches!(&right.kind, ExprKind::Ref(name) if name == "b"));
+    }
+
+    #[test]
+    fn semantic_boolean_operator_chains_obey_ast_depth_limits() {
+        let source = format!("operation q() = {}", vec!["true"; 140].join(" && "));
+        assert!(parse_yl("deep.yl", &source)
+            .unwrap_err()
+            .iter()
+            .any(|error| error.code == "yl.depth_limit"));
+        assert!(parse_yl("bad.yl", "operation q() = true &&").is_err());
+    }
+
+    #[test]
+    fn expression_matches_keep_alternatives_values_and_spans() {
+        let source = r#"operation compare(left, right) = match (left, right) {
+            Type::number, Type::number | Type::string, Type::string => true,
+            true, false => match (right) { _ => [left, right] }[0],
+            _ => false
+        }"#;
+        let module = parse_yl("match.yl", source).unwrap();
+        let DeclKind::Operation {
+            body: OperationBody::Query(value),
+            ..
+        } = &module.declarations[0].kind
+        else {
+            panic!("Expected a query operation");
+        };
+        let ExprKind::Match { inputs, cases } = &value.kind else {
+            panic!("Expected a value match");
+        };
+        assert_eq!(inputs.len(), 2);
+        assert_eq!(cases[0].alternatives.len(), 2);
+        assert_eq!(cases[2].alternatives, vec![vec![None, None]]);
+        assert!(matches!(cases[1].value.kind, ExprKind::Index(_, 0)));
+        assert_eq!(
+            &source[cases[2].span.start..cases[2].span.end],
+            "_ => false"
+        );
+    }
+
+    #[test]
+    fn malformed_expression_matches_are_diagnostics() {
+        for source in [
+            "operation q() = match () { _ => true }",
+            "operation q() = match (true) { _ => }",
+            "operation q() = match (true) { true => true false => false }",
+            "operation q() = match (true) { _ => { q() } }",
+        ] {
+            assert!(parse_yl("bad.yl", source).is_err(), "{source}");
+        }
+    }
 
     #[test]
     fn bindings_returns_and_reactive_guards_preserve_source_spans() {

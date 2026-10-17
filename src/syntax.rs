@@ -8,6 +8,10 @@ pub struct Expr {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
+    Match {
+        inputs: Vec<Expr>,
+        cases: Vec<ValueMatchCase>,
+    },
     Lambda {
         parameter: String,
         body: Box<Expr>,
@@ -45,6 +49,12 @@ pub enum ExprKind {
     Repeat(Box<Expr>, Quantifier),
     Capture(String, Box<Expr>),
     Pipe(Box<Expr>, String, Vec<Argument>),
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ValueMatchCase {
+    pub alternatives: Vec<Vec<Option<Expr>>>,
+    pub value: Expr,
+    pub span: Span,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Quantifier {

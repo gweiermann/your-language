@@ -1,0 +1,11 @@
+{
+  "type": "Program",
+  "fields": {
+    "name": "demo"
+  },
+  "span": {
+    "file": "program",
+    "start": 0,
+    "end": 4
+  }
+}

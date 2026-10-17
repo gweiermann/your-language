@@ -1,11 +1,13 @@
 {
-  "version": 7,
+  "version": 8,
   "capabilities": [
     "indexed-parser",
     "indexed-checks",
     "indexed-queries",
     "semantic-scheduling",
-    "positional-index"
+    "positional-index",
+    "recursive-query-functions",
+    "value-match"
   ],
   "parser": {
     "entry": 18,

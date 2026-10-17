@@ -1,0 +1,37 @@
+{
+  "records": [],
+  "attachments": [],
+  "query_entries": [
+    {
+      "key": {
+        "Tuple": [
+          {
+            "Identity": {
+              "Occurrence": 0
+            }
+          },
+          {
+            "Text": "joined"
+          }
+        ]
+      },
+      "value": {
+        "Text": "ab"
+      },
+      "producer": 0,
+      "span": {
+        "file": "program",
+        "start": 0,
+        "end": 4
+      }
+    }
+  ],
+  "query_dependencies": [
+    {
+      "producer": 0,
+      "state": "present",
+      "reads": [],
+      "waits_for": []
+    }
+  ]
+}

@@ -20,7 +20,7 @@ node Number = value: /[0-9]+/
 }
 ```
 
-Keys can be identities, symbols (including qualified enum variants), text, booleans, or nested tuples containing those values. Text and symbols remain distinct even when their spellings match. A tuple containing `absent` cannot identify an attachment, so its lookup returns `absent`. A pending key component keeps the lookup pending.
+Keys can be identities, symbols (including qualified enum variants), text, booleans, integers produced by `length`, or nested tuples containing those values. Text and symbols remain distinct even when their spellings match. A tuple containing `absent` cannot identify an attachment, so its lookup returns `absent`. A pending key component keeps the lookup pending.
 
 ## Explicit targets and absent query paths
 
@@ -69,7 +69,7 @@ The selected value is `"Ada"`; the labels value is `["name"]`. The access expres
 
 An empty collection or an index outside its bounds returns `absent`, just like `first` and `last` on an empty collection. An absent receiver stays absent; a pending receiver keeps its dependencies pending. A non-collection receiver produces a structured query type diagnostic.
 
-An index must be a nonnegative integer literal between `0` and `4294967295`. Dynamic indexes and numeric query values are not introduced by this syntax. Existing `first`, `last`, and `tail` operations remain available. List literals still use brackets with comma-separated values, for example `[pair, pair]`; positional access follows its receiver, as in `pair[0]`.
+An index must be a nonnegative integer literal between `0` and `4294967295`. Dynamic indexes and numeric literals are not introduced by this syntax. `length(collection)` independently returns a nonnegative integer value for lists and tuples; `text(length(collection))` converts that count to text. Existing `first`, `last`, and `tail` operations remain available. List literals still use brackets with comma-separated values, for example `[pair, pair]`; positional access follows its receiver, as in `pair[0]`.
 
 ## Immutable local definitions and operation results
 
@@ -162,7 +162,7 @@ The optional second diagnostic argument selects source syntax to underline; a th
 The standard query primitives operate on ordinary immutable values:
 
 - `text(value)`, `isPresent(value)`, and `equal(left, right)`.
-- `first(values)`, `last(values)`, `tail(values)`, `isList(value)`, `hasMultiple(values)`, `contains(values, value)`, and `unique(values)`.
+- `length(values)`, `first(values)`, `last(values)`, `tail(values)`, `isList(value)`, `hasMultiple(values)`, `contains(values, value)`, and `unique(values)`.
 - `isSubset(left, right)` compares list membership.
 - `map(values, item => expression)` preserves positions; `filter(values, item => predicate)` retains matching values; `every(values, item => predicate)` evaluates boolean predicates.
 - `keys(fields)` and `lookup(fields, key)` work on lists of two-element key/value tuples. Duplicate matching keys are diagnosed by `lookup`.
@@ -188,7 +188,7 @@ Original contributions and diagnostics remain unchanged. Pure YL operations comp
 
 ## Producer discovery and cycles
 
-Compilation expands authored operations into normalized actions. Analysis discovers every producer in the committed occurrence forest, including guarded branches, before lookup can report final absence. Internal structural key-footprint analysis narrows candidate producers by known tuple components and propagates possible scope identities through composed lookups. Unknown components remain conservative.
+Compilation lowers authored operations into normalized actions and compiled pure-function bodies. Analysis discovers every producer in the committed occurrence forest, including guarded branches, before lookup can report final absence. Internal structural key-footprint analysis narrows candidate producers by known tuple components and propagates possible scope identities through composed lookups. Unknown components remain conservative.
 
 `get` and `getAll` await final results. A cycle that depends on final presence or absence produces a dependency diagnostic. Positive accumulation can use `facts` with `contributeAll` and reach a fixed point. `facts` must not be mistaken for a completed lookup; negative or oscillating equations are rejected when propagation fails to converge. Hypothetical evaluation has the same convergence requirement.
 
@@ -230,3 +230,22 @@ The integration tests verify separate parameter positions, nested hypothetical c
 `hypotheticalAll` returns all final contributions without forwarding diagnostics. `hypotheticalChecked` also forwards demanded authored diagnostic contributions. Assumptions can optionally carry a third source-origin value for precise caller underlines. Ordinary `hypothetical` and `hypotheticalAll` leave speculative diagnostics isolated. All modes preserve original contributions and use analysis-local memoization.
 
 Compound query values are bounded to 16,384 retained nodes, 128 nesting levels and one MiB of owned text per collection. Builders enforce limits before another propagation round can clone growing values. Cyclic compound construction reports a structured resource or nonconvergence diagnostic. Match distribution is limited to 4,096 combinations.
+
+## Pure functions and recursive value matches
+
+Pure block-bodied and recursive operations compile to indexed function bodies, with explicit parameter bindings. Simple expression wrappers may be expanded into the calling instruction graph. They may call one another recursively. Value-producing `match` expressions return the selected arm; boolean and enum pattern sets must be exhaustive, or end with a wildcard fallback. `&&` and `||` short-circuit in value expressions, with `!` binding tighter than `&&`, then `||`.
+
+```yl
+import { isPresent, tail, concat } from "core/query"
+
+operation join(parts) = match (isPresent(parts[0])) {
+    false => "",
+    true => concat([parts[0], join(tail(parts))])
+}
+```
+
+A selector that is pending keeps the match pending. Explicit alternative values distribute over Cartesian selector combinations, retaining branch-local selections. Function parameters establish fresh lexical evaluation frames; a recursive call cannot accidentally inherit its caller's parameter-specific branch choices.
+
+Recursive computations cannot contribute facts, emit diagnostics, or invoke native lifecycle effects. Unused definitions are checked too. Effectful operations remain separately discovered actions. Pure-call memoization is isolated to an evaluation and its order/hypothetical context, with dependency observations retained. Revisited argument cycles report `query.recursion`; bounded work, depth, value sizes, and a cumulative 16 MiB function-allocation budget report `query.resource`.
+
+See the [structural types tutorial](/tutorials/compound-types) for recursive comparisons and source-aware diagnostic evidence implemented in YL.

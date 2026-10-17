@@ -156,8 +156,7 @@ fn deterministic_artifacts_and_hostile_input() {
     for source in [b"{}".as_slice(), b"not json", b"null", b"[]"] {
         assert!(load_compiled_language(source).is_err());
     }
-    let json = String::from_utf8(bytes)
-        .unwrap()
-        .replace("\"version\": 7", "\"version\": 999");
-    assert!(load_compiled_language(json.as_bytes()).is_err());
+    let mut json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    json["version"] = 999.into();
+    assert!(load_compiled_language(&serde_json::to_vec(&json).unwrap()).is_err());
 }

@@ -44,6 +44,7 @@ export default defineConfig({
         { text: 'Embed in Rust', link: '/tutorials/embedding' },
         { text: 'Authored lexical scopes', link: '/tutorials/declarative-scopes' },
         { text: 'Build type inference with std/types', link: '/tutorials/std-types' },
+        { text: 'Structural types and evidence', link: '/tutorials/compound-types' },
         { text: 'Scopes and type inference', link: '/tutorials/semantic-inference' },
       ] },
       { text: 'Language reference', items: reference },

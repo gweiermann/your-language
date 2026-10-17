@@ -8,10 +8,10 @@ use crate::{
 use std::collections::{BTreeMap, BTreeSet};
 use unicode_width::UnicodeWidthStr;
 
-/// Presentation options. Canonical formatting aligns meaning-match case arrows.
+/// Presentation options. Canonical formatting aligns match case arrows.
 #[derive(Clone, Copy, Debug)]
 pub struct FormatOptions {
-    /// Align single-line meaning-match case arrows within each match block.
+    /// Align single-line match case arrows within each match block.
     pub align_match_arrows: bool,
 }
 impl Default for FormatOptions {
@@ -74,48 +74,57 @@ fn align_match_arrows(file: &str, source: &str) -> CompileResult<String> {
     }
     let mut padding = BTreeMap::new();
     let mut added_spaces = 0usize;
-    for meanings in &layout.meanings {
-        for matching in meanings
-            .groups
-            .iter()
-            .filter_map(|group| group.matching.as_ref())
-        {
-            let mut arrows = vec![];
-            for case in &matching.cases {
-                let first = tokens.partition_point(|token| token.span.start < case.span.start);
-                let Some(arrow) = tokens[first..]
-                    .iter()
-                    .take_while(|token| token.span.end <= case.span.end)
-                    .find(
-                        |token| matches!(&token.kind, TokenKind::Symbol(symbol) if symbol == "=>"),
-                    )
-                else {
-                    continue;
-                };
-                // Do not guess layout for comments or raw literals that split a
-                // header across lines, or contain font/tab-dependent tab stops.
-                if source[case.span.start..arrow.span.start].contains(['\n', '\r', '\t']) {
-                    continue;
-                }
-                let line = source[..arrow.span.start]
-                    .rfind('\n')
-                    .map_or(0, |start| start + 1);
-                arrows.push((arrow.span.start, source[line..arrow.span.start].width()));
+    let case_groups = layout
+        .meanings
+        .iter()
+        .flat_map(|meanings| {
+            meanings
+                .groups
+                .iter()
+                .filter_map(|group| group.matching.as_ref())
+                .map(|matching| {
+                    matching
+                        .cases
+                        .iter()
+                        .map(|case| case.span.clone())
+                        .collect::<Vec<_>>()
+                })
+        })
+        .chain(layout.value_matches.iter().cloned());
+    for cases in case_groups {
+        let mut arrows = vec![];
+        for span in &cases {
+            let first = tokens.partition_point(|token| token.span.start < span.start);
+            let Some(arrow) = tokens[first..]
+                .iter()
+                .take_while(|token| token.span.end <= span.end)
+                .find(|token| matches!(&token.kind, TokenKind::Symbol(symbol) if symbol == "=>"))
+            else {
+                continue;
+            };
+            // Do not guess layout for comments or raw literals that split a
+            // header across lines, or contain font/tab-dependent tab stops.
+            if source[span.start..arrow.span.start].contains(['\n', '\r', '\t']) {
+                continue;
             }
-            if let Some(column) = arrows.iter().map(|(_, width)| *width).max() {
-                for (start, width) in arrows {
-                    if width < column {
-                        let spaces = column - width;
-                        added_spaces = added_spaces.saturating_add(spaces);
-                        if added_spaces > 1024 * 1024 {
-                            return Err(vec![Diagnostic::error(
-                                "yl.format_alignment_limit",
-                                "Match alignment exceeds the one-MiB padding limit",
-                                Span::new(file, 0, 0),
-                            )]);
-                        }
-                        padding.insert(start, spaces);
+            let line = source[..arrow.span.start]
+                .rfind('\n')
+                .map_or(0, |start| start + 1);
+            arrows.push((arrow.span.start, source[line..arrow.span.start].width()));
+        }
+        if let Some(column) = arrows.iter().map(|(_, width)| *width).max() {
+            for (start, width) in arrows {
+                if width < column {
+                    let spaces = column - width;
+                    added_spaces = added_spaces.saturating_add(spaces);
+                    if added_spaces > 1024 * 1024 {
+                        return Err(vec![Diagnostic::error(
+                            "yl.format_alignment_limit",
+                            "Match alignment exceeds the one-MiB padding limit",
+                            Span::new(file, 0, 0),
+                        )]);
                     }
+                    padding.insert(start, spaces);
                 }
             }
         }
@@ -171,6 +180,7 @@ struct Layout {
     grammar_ends: BTreeSet<usize>,
     choice_separators: Vec<Span>,
     meanings: Vec<Meanings>,
+    value_matches: Vec<Vec<Span>>,
     containers: Vec<DeclarationContainer>,
 }
 impl Layout {
@@ -309,7 +319,7 @@ impl Layout {
                         self.meaning_action(action);
                     }
                 }
-                OperationBody::Query(_) => {}
+                OperationBody::Query(value) => self.semantic_value(value),
             },
             DeclKind::Entry { .. } | DeclKind::Symbol { .. } => {}
         }
@@ -320,18 +330,27 @@ impl Layout {
             self.line(&group.span, false);
             for call in &group.calls {
                 self.line(&call.span, false);
+                for argument in &call.arguments {
+                    self.semantic_value(&argument.value);
+                }
             }
             for action in &group.actions {
                 self.meaning_action(action);
             }
             if let Some(matching) = &group.matching {
                 self.line(&matching.span, false);
+                for input in &matching.inputs {
+                    self.semantic_value(input);
+                }
                 for case in &matching.cases {
                     self.line(&case.span, false);
                     for action in &case.nested_actions {
                         self.meaning_action(action);
                     }
                     for action in &case.actions {
+                        for argument in &action.arguments {
+                            self.semantic_value(&argument.value);
+                        }
                         // Single actions stay on the case's line. Blocks with
                         // several actions receive one line per call.
                         if case.actions.len() > 1 {
@@ -347,22 +366,35 @@ impl Layout {
     }
     fn meaning_action(&mut self, action: &MeaningSyntaxAction) {
         match action {
-            MeaningSyntaxAction::Call(call) => self.line(&call.span, false),
-            MeaningSyntaxAction::Binding { span, .. }
-            | MeaningSyntaxAction::Return { span, .. } => self.line(span, false),
+            MeaningSyntaxAction::Call(call) => {
+                self.line(&call.span, false);
+                for argument in &call.arguments {
+                    self.semantic_value(&argument.value);
+                }
+            }
+            MeaningSyntaxAction::Binding { span, value, .. }
+            | MeaningSyntaxAction::Return { span, value } => {
+                self.line(span, false);
+                self.semantic_value(value);
+            }
             MeaningSyntaxAction::If {
+                condition,
                 actions,
                 otherwise,
                 span,
                 ..
             } => {
                 self.line(span, false);
+                self.semantic_value(condition);
                 for action in actions.iter().chain(otherwise) {
                     self.meaning_action(action);
                 }
             }
             MeaningSyntaxAction::Match(matching) => {
                 self.line(&matching.span, false);
+                for input in &matching.inputs {
+                    self.semantic_value(input);
+                }
                 for case in &matching.cases {
                     self.line(&case.span, false);
                     if case.actions.len() + case.nested_actions.len() > 1 {
@@ -373,8 +405,47 @@ impl Layout {
                     for action in &case.nested_actions {
                         self.meaning_action(action);
                     }
+                    for call in &case.actions {
+                        for argument in &call.arguments {
+                            self.semantic_value(&argument.value);
+                        }
+                    }
                 }
             }
+        }
+    }
+    fn semantic_value(&mut self, value: &Expr) {
+        match &value.kind {
+            ExprKind::Match { inputs, cases } => {
+                self.value_matches
+                    .push(cases.iter().map(|case| case.span.clone()).collect());
+                for input in inputs {
+                    self.semantic_value(input);
+                }
+                for case in cases {
+                    self.line(&case.span, false);
+                    self.semantic_value(&case.value);
+                }
+            }
+            ExprKind::Group(inner) | ExprKind::Not(inner) | ExprKind::Index(inner, _) => {
+                self.semantic_value(inner);
+            }
+            ExprKind::Lambda { body, .. } => self.semantic_value(body),
+            ExprKind::Binary(_, left, right) => {
+                self.semantic_value(left);
+                self.semantic_value(right);
+            }
+            ExprKind::Call(_, arguments) => {
+                for argument in arguments {
+                    self.semantic_value(&argument.value);
+                }
+            }
+            ExprKind::List(values) | ExprKind::Tuple(values) => {
+                for value in values {
+                    self.semantic_value(value);
+                }
+            }
+            _ => {}
         }
     }
     fn constraint(&mut self, constraint: &Constraint) {
@@ -546,6 +617,12 @@ impl Layout {
                 TokenKind::Symbol(symbol) => Some(symbol.as_str()),
                 _ => None,
             };
+            let positional_index = symbol == Some("[")
+                && tokens
+                    .iter()
+                    .skip(index + 1)
+                    .find(|next| !matches!(next.kind, TokenKind::Comment))
+                    .is_some_and(|next| matches!(next.kind, TokenKind::Index(_)));
             if symbol == Some("|")
                 && self
                     .choice_separators
@@ -586,7 +663,8 @@ impl Layout {
                         && !self.inline.iter().any(|span| {
                             span.start <= previous.span.start && previous.span.end <= span.end
                         })
-                }) && !matches!(symbol, Some("," | ")"))
+                }) && !matches!(symbol, Some("," | ")" | "]"))
+                    && !positional_index
                 {
                     output.line(false);
                 }
@@ -595,12 +673,6 @@ impl Layout {
                 {
                     output.line(false);
                 }
-                let positional_index = symbol == Some("[")
-                    && tokens
-                        .iter()
-                        .skip(index + 1)
-                        .find(|next| !matches!(next.kind, TokenKind::Comment))
-                        .is_some_and(|next| matches!(next.kind, TokenKind::Index(_)));
                 if !positional_index && space_between(previous, token) {
                     output.space();
                 }

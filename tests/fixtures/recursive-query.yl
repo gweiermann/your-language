@@ -1,0 +1,15 @@
+import { contribute, isPresent, concat, tail } from "core/query"
+
+operation join(parts) = match (isPresent(parts[0]), isPresent(parts[1])) {
+    false, _ => "",
+    true, false => parts[0],
+    true, true => concat([parts[0], join(tail(parts))])
+}
+
+node Program = name: /[a-z]+/ {
+    semantics {
+        contribute((self, "joined"), join(["a", "b"]))
+    }
+}
+
+entry Program

@@ -1,0 +1,160 @@
+import { error } from "core/diagnostics"
+import { choose, equal, isPresent, lookup, map, text, zip } from "core/query"
+import { connectReference } from "std/references"
+import { separatedBy } from "std/parser"
+import { Name } from "./lexical"
+import { inheritType, checkUniqueFields } from "./types"
+import { Type, Comparison, annotateWithType, typeOf, restrictWritesTo, writeTypeOf, evidence, evidenceOf, numberType, stringType, booleanType, tupleEvidence, listEvidence, structEvidence, compareTypes, reportDifference } from "./typing"
+
+operation copyEvidence(target, item) {
+    annotateWithType(target, item[0], item[1], item[2])
+}
+
+node Number = value: /[0-9]+/ {
+    semantics {
+        annotateWithType(self, numberType(), value)
+    }
+}
+
+node String = value: /"[^"\n]*"/ {
+    semantics {
+        annotateWithType(self, stringType(), value)
+    }
+}
+
+node Boolean = value: /true|false/ {
+    semantics {
+        annotateWithType(self, booleanType(), value)
+    }
+}
+
+node Reference = name: Name {
+    semantics {
+        ref := connectReference(self, name)
+        copyEvidence(self, evidenceOf(ref))
+        restrictWritesTo(self, writeTypeOf(ref))
+    }
+}
+
+node Tuple =
+    "("
+    items: Expression* |> separatedBy(",")
+    ")"
+{
+    semantics {
+        copyEvidence(self, tupleEvidence(map(items, item => evidenceOf(item)), self))
+    }
+}
+
+node List =
+    "["
+    items: Expression* |> separatedBy(",")
+    "]"
+{
+    semantics {
+        copyEvidence(self, listEvidence(map(items, item => evidenceOf(item)), self))
+    }
+}
+
+node ObjectField =
+    name: Name
+    ":"
+    value: Expression
+
+node Object =
+    "{"
+    fields: ObjectField* |> separatedBy(",")
+    "}"
+{
+    semantics {
+        // Zip projected names and values, retaining each value's original evidence.
+        checkUniqueFields(fields.name)
+        copyEvidence(self, structEvidence(map(zip(fields.name, fields.value), field => (text(field[0]), evidenceOf(field[1]))), self))
+    }
+}
+
+node Member =
+    base: Expression
+    "."
+    name: Name
+{
+    semantics {
+        parent := evidenceOf(base)
+        selected := choose(equal(parent[0][0], Type::struct), lookup(parent[0][1], text(name)), absent)
+        when isPresent(selected) {
+            retained := lookup(parent[2], text(name))
+            copyEvidence(self, choose(isPresent(retained), retained, evidence(selected, self)))
+            contract := writeTypeOf(base)
+            fieldContract := choose(equal(contract[0], Type::struct), lookup(contract[1], text(name)), absent)
+            restrictWritesTo(self, choose(isPresent(fieldContract), fieldContract, selected))
+        }
+        else {
+            error("Property '${name}' does not exist on this type", [(name, "unknown property")])
+        }
+    }
+}
+
+node Index =
+    base: Expression
+    "["
+    index: /[0-9]+/
+    "]"
+{
+    semantics {
+        descriptor := typeOf(base)
+        when equal(descriptor[0], Type::list) {
+            annotateWithType(self, descriptor[1])
+            contract := writeTypeOf(base)
+            restrictWritesTo(self, choose(equal(contract[0], Type::list), contract[1], descriptor[1]))
+        }
+        else {
+            error("Only homogeneous list types support this index expression", [(index, absent)])
+        }
+    }
+}
+
+export node Expression {
+    node Member
+
+    node Index
+
+    node Tuple
+
+    node List
+
+    node Object
+
+    node Boolean
+
+    node Number
+
+    node String
+
+    node Reference
+
+    precedence {
+        Member, Index
+    }
+
+    semantics {
+        inheritType(self)
+    }
+}
+
+export node Assignment =
+    target: Expression
+    "="
+    value: Expression
+    ";"
+{
+    semantics {
+        differences := compareTypes(evidenceOf(value), writeTypeOf(target), Comparison::assignable)
+        when isPresent(differences[0]) {
+            reportDifference(differences[0], [target])
+        }
+    }
+}
+
+export node ExpressionStatement =
+    value: Expression
+    ";"

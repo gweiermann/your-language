@@ -23,6 +23,12 @@ pub enum Severity {
     Warning,
     Help,
 }
+/// A source highlight belonging to one diagnostic, optionally carrying its own label.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiagnosticAnnotation {
+    pub span: Span,
+    pub label: Option<String>,
+}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Diagnostic {
     pub severity: Severity,
@@ -30,6 +36,10 @@ pub struct Diagnostic {
     pub message: String,
     pub primary: Box<Span>,
     pub secondary: Vec<Span>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    // Keep the frequently returned Diagnostic below Rust's large-error threshold.
+    #[allow(clippy::box_collection)]
+    pub annotations: Box<Vec<DiagnosticAnnotation>>,
     pub help: Option<String>,
 }
 impl Diagnostic {
@@ -40,6 +50,7 @@ impl Diagnostic {
             message: message.into(),
             primary: Box::new(primary),
             secondary: vec![],
+            annotations: Box::default(),
             help: None,
         }
     }

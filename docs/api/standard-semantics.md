@@ -2,7 +2,7 @@
 
 For a step-by-step introduction with runnable examples, follow [Build type inference with std/types](/tutorials/std-types).
 
-The compiler bundles `std/references` and `std/types` as ordinary YL modules. Their operations expand into generic attachment queries during compilation. Reloaded `.ylc` files execute indexed query instructions and need no library source, native lexical stack or native type solver.
+The compiler bundles `std/references` and `std/types` as ordinary YL modules. Their operations lower to generic attachment actions and compiled pure query functions during compilation. Reloaded `.ylc` files execute indexed query instructions and need no library source, native lexical stack or native type solver.
 
 ## Reference identities and scopes
 

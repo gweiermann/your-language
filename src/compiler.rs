@@ -45,6 +45,9 @@ struct Compiler {
     next_marker: u32,
     invocation_path: std::cell::RefCell<Vec<Span>>,
     expansion_nodes: std::cell::Cell<usize>,
+    query_operations: BTreeSet<String>,
+    query_functions:
+        std::cell::RefCell<BTreeMap<String, Option<crate::semantics::queries::QueryFunction>>>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -906,6 +909,7 @@ impl Compiler {
         }
         self.validate_declarations()?;
         self.validate_pipe_matches()?;
+        self.find_query_operations()?;
         self.validate_semantic_wrappers()?;
         let mut entries = vec![];
         for (module, ast) in &self.modules {
@@ -965,6 +969,7 @@ impl Compiler {
             trivia,
             meanings: BTreeMap::new(),
             query_meanings: BTreeMap::new(),
+            query_functions: BTreeMap::new(),
             examples: BTreeMap::new(),
             diagnostics: vec![],
             image: None,
@@ -1256,6 +1261,12 @@ impl Compiler {
         } else {
             2
         };
+        language.query_functions = self
+            .query_functions
+            .borrow()
+            .iter()
+            .filter_map(|(name, value)| value.clone().map(|value| (name.clone(), value)))
+            .collect();
         validate_language(&language)?;
         language.image = Some(Box::new(crate::image::LanguageImage::compile(&language)?));
         Ok(language)
@@ -1583,7 +1594,8 @@ impl Compiler {
                     collect_lists,
                 }
             }
-            ExprKind::Tuple(_)
+            ExprKind::Match { .. }
+            | ExprKind::Tuple(_)
             | ExprKind::Index(_, _)
             | ExprKind::List(_)
             | ExprKind::EnumConstant(_, _)
@@ -1952,6 +1964,351 @@ impl Compiler {
             }
         })
     }
+    fn find_query_operations(&mut self) -> Result<()> {
+        fn expressions<'a>(body: &'a OperationBody, out: &mut Vec<&'a Expr>) {
+            fn actions<'a>(items: &'a [MeaningSyntaxAction], out: &mut Vec<&'a Expr>) {
+                for item in items {
+                    match item {
+                        MeaningSyntaxAction::Binding { value, .. }
+                        | MeaningSyntaxAction::Return { value, .. } => out.push(value),
+                        MeaningSyntaxAction::Call(call) => {
+                            out.extend(call.arguments.iter().map(|arg| &arg.value))
+                        }
+                        MeaningSyntaxAction::If {
+                            condition,
+                            actions: yes,
+                            otherwise,
+                            ..
+                        } => {
+                            out.push(condition);
+                            actions(yes, out);
+                            actions(otherwise, out);
+                        }
+                        MeaningSyntaxAction::Match(value) => {
+                            out.extend(&value.inputs);
+                            for case in &value.cases {
+                                actions(&case.nested_actions, out);
+                                for call in &case.actions {
+                                    out.extend(call.arguments.iter().map(|arg| &arg.value));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            match body {
+                OperationBody::Query(value) => out.push(value),
+                OperationBody::Conditional(items) => actions(items, out),
+                OperationBody::Actions(calls) => {
+                    for call in calls {
+                        out.extend(call.arguments.iter().map(|arg| &arg.value));
+                    }
+                }
+            }
+        }
+        let mut graph = BTreeMap::<String, BTreeSet<String>>::new();
+        let mut pure = BTreeSet::new();
+        let mut projected_parameters = BTreeSet::new();
+        for (id, symbol) in &self.symbols {
+            let DeclKind::Operation {
+                body, parameters, ..
+            } = &symbol.declaration.kind
+            else {
+                continue;
+            };
+            if matches!(body, OperationBody::Query(_))
+                || matches!(body, OperationBody::Conditional(actions) if actions.iter().all(|action| matches!(action, MeaningSyntaxAction::Binding { .. } | MeaningSyntaxAction::Return { .. })) && actions.iter().any(|action| matches!(action, MeaningSyntaxAction::Return { .. })))
+            {
+                pure.insert(id.clone());
+            }
+            let mut pending = vec![];
+            expressions(body, &mut pending);
+            let mut edges = BTreeSet::new();
+            while let Some(value) = pending.pop() {
+                match &value.kind {
+                    ExprKind::Ref(name)
+                        if name.split_once('.').is_some_and(|(root, _)| {
+                            parameters.iter().any(|parameter| parameter.name == root)
+                        }) =>
+                    {
+                        projected_parameters.insert(id.clone());
+                    }
+                    ExprKind::Call(name, args) => {
+                        let called =
+                            self.resolve(&symbol.module, &symbol.name, name, &value.span)?;
+                        edges.insert(called);
+                        pending.extend(args.iter().map(|arg| &arg.value));
+                    }
+                    ExprKind::Tuple(values) | ExprKind::List(values) => pending.extend(values),
+                    ExprKind::Group(value) | ExprKind::Not(value) | ExprKind::Index(value, _) => {
+                        pending.push(value)
+                    }
+                    ExprKind::Lambda { body, .. } => pending.push(body),
+                    ExprKind::Binary(_, left, right) => {
+                        pending.push(left);
+                        pending.push(right);
+                    }
+                    ExprKind::Match { inputs, cases } => {
+                        pending.extend(inputs);
+                        for case in cases {
+                            pending.push(&case.value);
+                            pending.extend(case.alternatives.iter().flatten().flatten());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            graph.insert(id.clone(), edges);
+        }
+        loop {
+            let rejected: Vec<_> = pure
+                .iter()
+                .filter(|id| {
+                    graph[*id].iter().any(|called| {
+                        if graph.contains_key(called) {
+                            !pure.contains(called)
+                        } else {
+                            !called.starts_with("core/query#")
+                                || matches!(
+                                    called.as_str(),
+                                    "core/query#contribute" | "core/query#contributeAll"
+                                )
+                        }
+                    })
+                })
+                .cloned()
+                .collect();
+            if rejected.is_empty() {
+                break;
+            }
+            for id in rejected {
+                pure.remove(&id);
+            }
+        }
+        loop {
+            let inherited: Vec<_> = graph
+                .iter()
+                .filter(|(id, edges)| {
+                    !projected_parameters.contains(*id)
+                        && edges.iter().any(|edge| projected_parameters.contains(edge))
+                })
+                .map(|(id, _)| id.clone())
+                .collect();
+            if inherited.is_empty() {
+                break;
+            }
+            projected_parameters.extend(inherited);
+        }
+        self.query_operations.extend(
+            pure.into_iter()
+                .filter(|id| !projected_parameters.contains(id))
+                .filter(|id| {
+                    matches!(
+                        &self.symbols[id].declaration.kind,
+                        DeclKind::Operation {
+                            body: OperationBody::Conditional(_),
+                            ..
+                        }
+                    )
+                }),
+        );
+        for start in graph.keys() {
+            let mut seen = BTreeSet::new();
+            let mut pending: Vec<_> = graph[start].iter().collect();
+            while let Some(next) = pending.pop() {
+                if next == start {
+                    self.query_operations.insert(start.clone());
+                    break;
+                }
+                if seen.insert(next) {
+                    if let Some(edges) = graph.get(next) {
+                        pending.extend(edges);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn compile_query_function(&self, id: &str) -> Result<()> {
+        if self.query_functions.borrow().contains_key(id) {
+            return Ok(());
+        }
+        let symbol = &self.symbols[id];
+        let DeclKind::Operation {
+            parameters, body, ..
+        } = &symbol.declaration.kind
+        else {
+            unreachable!()
+        };
+        let actions = self.operation_actions(body);
+        if actions.iter().any(|action| {
+            !matches!(
+                action,
+                MeaningSyntaxAction::Binding { .. } | MeaningSyntaxAction::Return { .. }
+            )
+        }) {
+            return Err(Diagnostic::error(
+                "yl.recursive_effect",
+                "Recursive operations must be pure value computations",
+                symbol.declaration.span.clone(),
+            ));
+        }
+        self.query_functions.borrow_mut().insert(id.into(), None);
+        let env = parameters
+            .iter()
+            .map(|parameter| {
+                (
+                    parameter.name.clone(),
+                    Expr {
+                        kind: ExprKind::Local(parameter.name.clone()),
+                        span: parameter.span.clone(),
+                    },
+                )
+            })
+            .collect();
+        let mut stack = vec![];
+        let bindings = self.local_bindings(symbol, &actions, &env, &mut stack)?;
+        let result = match body {
+            OperationBody::Query(value) => value,
+            _ => actions
+                .iter()
+                .find_map(|action| match action {
+                    MeaningSyntaxAction::Return { value, .. } => Some(value),
+                    _ => None,
+                })
+                .ok_or_else(|| {
+                    Diagnostic::error(
+                        "yl.operation_result",
+                        "A recursive operation needs a value result",
+                        symbol.declaration.span.clone(),
+                    )
+                })?,
+        };
+        let expanded = self.expand_semantic_expr(symbol, result, &bindings, &mut stack)?;
+        fn pure(
+            value: crate::semantics::queries::QueryExpr,
+        ) -> Result<crate::semantics::queries::QueryExpr> {
+            use crate::semantics::queries::QueryExpr as Q;
+            fn actions_pure(actions: Vec<crate::semantics::queries::QueryAction>) -> Result<()> {
+                use crate::semantics::queries::QueryAction as A;
+                for action in actions {
+                    match action {
+                        A::Call { name, args, .. } => {
+                            pure(Q::Call { name, args })?;
+                        }
+                        A::If {
+                            condition,
+                            then_actions,
+                            else_actions,
+                            ..
+                        } => {
+                            pure(condition)?;
+                            actions_pure(then_actions)?;
+                            actions_pure(else_actions)?;
+                        }
+                        A::Match { inputs, cases, .. } => {
+                            for input in inputs {
+                                pure(input)?;
+                            }
+                            for case in cases {
+                                for value in case.alternatives.into_iter().flatten().flatten() {
+                                    pure(value)?;
+                                }
+                                actions_pure(case.actions)?;
+                            }
+                        }
+                        A::Emit { .. } => {
+                            return Err(Diagnostic::error(
+                                "yl.recursive_effect",
+                                "Recursive operations cannot emit diagnostics",
+                                Span::default(),
+                            ))
+                        }
+                    }
+                }
+                Ok(())
+            }
+            Ok(match value {
+                Q::BindingValue { result, .. } => pure(*result)?,
+                Q::Block {
+                    actions, result, ..
+                } => {
+                    actions_pure(actions)?;
+                    pure(*result)?
+                }
+                Q::Call { name, args } => {
+                    if matches!(
+                        name.as_str(),
+                        "core/query#contribute" | "core/query#contributeAll"
+                    ) {
+                        return Err(Diagnostic::error(
+                            "yl.recursive_effect",
+                            "Recursive operations cannot contribute facts",
+                            Span::default(),
+                        ));
+                    }
+                    Q::Call {
+                        name,
+                        args: args.into_iter().map(pure).collect::<Result<_>>()?,
+                    }
+                }
+                Q::Invoke { name, args } => Q::Invoke {
+                    name,
+                    args: args.into_iter().map(pure).collect::<Result<_>>()?,
+                },
+                Q::Match { inputs, cases } => Q::Match {
+                    inputs: inputs.into_iter().map(pure).collect::<Result<_>>()?,
+                    cases: cases
+                        .into_iter()
+                        .map(|case| {
+                            Ok(crate::semantics::queries::QueryValueCase {
+                                alternatives: case.alternatives,
+                                value: pure(case.value)?,
+                            })
+                        })
+                        .collect::<Result<_>>()?,
+                },
+                Q::List(values) => Q::List(values.into_iter().map(pure).collect::<Result<_>>()?),
+                Q::Tuple(values) => Q::Tuple(values.into_iter().map(pure).collect::<Result<_>>()?),
+                Q::Index { value, index } => Q::Index {
+                    value: Box::new(pure(*value)?),
+                    index,
+                },
+                Q::Not(value) => Q::Not(Box::new(pure(*value)?)),
+                Q::Lambda { parameter, body } => Q::Lambda {
+                    parameter,
+                    body: Box::new(pure(*body)?),
+                },
+                value => value,
+            })
+        }
+        for action in &actions {
+            if let MeaningSyntaxAction::Binding { name, .. } = action {
+                pure(self.query_expr_normalized(symbol, &bindings[name])?).map_err(
+                    |mut error| {
+                        error.message = format!("{} ({id}, definition {name})", error.message);
+                        *error.primary = symbol.declaration.span.clone();
+                        error
+                    },
+                )?;
+            }
+        }
+        let body = pure(self.query_expr_normalized(symbol, &expanded)?).map_err(|mut error| {
+            error.message = format!("{} ({id})", error.message);
+            *error.primary = symbol.declaration.span.clone();
+            error
+        })?;
+        self.query_functions.borrow_mut().insert(
+            id.into(),
+            Some(crate::semantics::queries::QueryFunction {
+                parameters: parameters.iter().map(|p| p.name.clone()).collect(),
+                body,
+            }),
+        );
+        Ok(())
+    }
+
     fn validate_semantic_wrappers(&self) -> Result<()> {
         for wrapper in self.symbols.values() {
             let DeclKind::Operation {
@@ -2086,6 +2443,17 @@ impl Compiler {
                     nodes.push(value)
                 }
                 ExprKind::Lambda { body, .. } => nodes.push(body),
+                ExprKind::Binary(_, left, right) => {
+                    nodes.push(left);
+                    nodes.push(right);
+                }
+                ExprKind::Match { inputs, cases } => {
+                    nodes.extend(inputs);
+                    for case in cases {
+                        nodes.push(&case.value);
+                        nodes.extend(case.alternatives.iter().flatten().flatten());
+                    }
+                }
                 _ => {}
             }
         }
@@ -2094,6 +2462,31 @@ impl Compiler {
     }
     fn result_only(value: &Expr) -> Expr {
         let kind = match &value.kind {
+            ExprKind::Binary(operator, left, right) => ExprKind::Binary(
+                operator.clone(),
+                Box::new(Self::result_only(left)),
+                Box::new(Self::result_only(right)),
+            ),
+            ExprKind::Match { inputs, cases } => ExprKind::Match {
+                inputs: inputs.iter().map(Self::result_only).collect(),
+                cases: cases
+                    .iter()
+                    .map(|case| ValueMatchCase {
+                        alternatives: case
+                            .alternatives
+                            .iter()
+                            .map(|patterns| {
+                                patterns
+                                    .iter()
+                                    .map(|pattern| pattern.as_ref().map(Self::result_only))
+                                    .collect()
+                            })
+                            .collect(),
+                        value: Self::result_only(&case.value),
+                        span: case.span.clone(),
+                    })
+                    .collect(),
+            },
             ExprKind::SemanticBlock {
                 invocation, result, ..
             } => ExprKind::SemanticBinding {
@@ -2139,6 +2532,14 @@ impl Compiler {
     ) -> Result<Vec<crate::semantics::queries::QueryAction>> {
         fn has_block(value: &Expr) -> bool {
             match &value.kind {
+                ExprKind::Binary(_, left, right) => has_block(left) || has_block(right),
+                ExprKind::Match { inputs, cases } => {
+                    inputs.iter().any(has_block)
+                        || cases.iter().any(|case| {
+                            has_block(&case.value)
+                                || case.alternatives.iter().flatten().flatten().any(has_block)
+                        })
+                }
                 ExprKind::SemanticBlock { .. } => true,
                 ExprKind::Call(_, args) => args.iter().any(|arg| has_block(&arg.value)),
                 ExprKind::Tuple(values) | ExprKind::List(values) => values.iter().any(has_block),
@@ -2189,6 +2590,30 @@ impl Compiler {
             ExprKind::Not(inner) => ExprKind::Not(Box::new(
                 self.expand_semantic_expr(context, inner, bindings, stack)?,
             )),
+            ExprKind::Binary(operator, left, right) if matches!(operator.as_str(), "&&" | "||") => {
+                let left = self.expand_semantic_expr(context, left, bindings, stack)?;
+                let right = self.expand_semantic_expr(context, right, bindings, stack)?;
+                let constant = Expr {
+                    kind: ExprKind::Bool(operator == "||"),
+                    span: expr.span.clone(),
+                };
+                let arguments = if operator == "&&" {
+                    vec![left, right, constant]
+                } else {
+                    vec![left, constant, right]
+                };
+                ExprKind::Call(
+                    "core/query#choose".into(),
+                    arguments
+                        .into_iter()
+                        .map(|value| Argument {
+                            name: None,
+                            span: expr.span.clone(),
+                            value,
+                        })
+                        .collect(),
+                )
+            }
             ExprKind::Ref(name) => {
                 if let Some(value) = bindings.get(name) {
                     self.charge_semantic_copy(value)?;
@@ -2278,6 +2703,34 @@ impl Compiler {
                         parameters, body, ..
                     } = &wrapper.declaration.kind
                     {
+                        if self.query_operations.contains(&id) {
+                            self.compile_query_function(&id)?;
+                            let mut call_stack = vec![];
+                            self.invocation_path.borrow_mut().push(expr.span.clone());
+                            let env = self.bind_semantic_wrapper(
+                                wrapper,
+                                parameters,
+                                &arguments,
+                                &expr.span,
+                                &mut call_stack,
+                            );
+                            self.invocation_path.borrow_mut().pop();
+                            let env = env?;
+                            return Ok(Expr {
+                                kind: ExprKind::Call(
+                                    id,
+                                    parameters
+                                        .iter()
+                                        .map(|parameter| Argument {
+                                            name: None,
+                                            value: env[&parameter.name].clone(),
+                                            span: expr.span.clone(),
+                                        })
+                                        .collect(),
+                                ),
+                                span: expr.span.clone(),
+                            });
+                        }
                         self.invocation_path.borrow_mut().push(expr.span.clone());
                         let env = self.bind_semantic_wrapper(
                             wrapper, parameters, &arguments, &expr.span, stack,
@@ -2375,6 +2828,44 @@ impl Compiler {
                 Box::new(self.expand_semantic_expr(context, value, bindings, stack)?),
                 *index,
             ),
+            ExprKind::Match { inputs, cases } => ExprKind::Match {
+                inputs: inputs
+                    .iter()
+                    .map(|value| self.expand_semantic_expr(context, value, bindings, stack))
+                    .collect::<Result<_>>()?,
+                cases: cases
+                    .iter()
+                    .map(|case| {
+                        Ok(ValueMatchCase {
+                            alternatives: case
+                                .alternatives
+                                .iter()
+                                .map(|row| {
+                                    row.iter()
+                                        .map(|value| {
+                                            value
+                                                .as_ref()
+                                                .map(|value| {
+                                                    self.expand_semantic_expr(
+                                                        context, value, bindings, stack,
+                                                    )
+                                                })
+                                                .transpose()
+                                        })
+                                        .collect::<Result<_>>()
+                                })
+                                .collect::<Result<_>>()?,
+                            value: self.expand_semantic_expr(
+                                context,
+                                &case.value,
+                                bindings,
+                                stack,
+                            )?,
+                            span: case.span.clone(),
+                        })
+                    })
+                    .collect::<Result<_>>()?,
+            },
             ExprKind::Group(value) => {
                 return self.expand_semantic_expr(context, value, bindings, stack)
             }
@@ -2664,6 +3155,13 @@ impl Compiler {
                 syntax.span.clone(),
             ));
         };
+        if self.query_operations.contains(&name) {
+            return Err(Diagnostic::error(
+                "yl.query_native_effect",
+                "Compiled query function values cannot be passed to native lifecycle operations",
+                syntax.span.clone(),
+            ));
+        }
         let call = self.lower_meaning_call(
             symbol,
             &MeaningSyntaxCall {
@@ -2704,6 +3202,9 @@ impl Compiler {
                     .map(|value| self.lower_meaning_value(symbol, value, false))
                     .collect::<Result<Vec<_>>>()?,
             )),
+            ExprKind::Call(name, _) if !pattern && self.query_operations.contains(name) => {
+                Err(Diagnostic::error("yl.query_native_effect", "Compiled query function values cannot be passed to native lifecycle operations", expr.span.clone()))
+            }
             ExprKind::Call(name, arguments) if !pattern => {
                 Ok(MeaningValue::Call(Box::new(self.lower_meaning_query(
                     symbol,
@@ -2878,7 +3379,11 @@ impl Compiler {
         }
         fn query(expr: &Expr) -> bool {
             match &expr.kind {
-                ExprKind::Lambda { .. } | ExprKind::Local(_) | ExprKind::Index(_, _) => true,
+                ExprKind::Binary(_, _, _)
+                | ExprKind::Match { .. }
+                | ExprKind::Lambda { .. }
+                | ExprKind::Local(_)
+                | ExprKind::Index(_, _) => true,
                 ExprKind::Call(name, args) => {
                     name.starts_with("core/query#") || args.iter().any(|arg| query(&arg.value))
                 }
@@ -3087,6 +3592,19 @@ impl Compiler {
             ExprKind::Lambda { parameter, body } => {
                 fn has_effect(value: &Expr) -> bool {
                     match &value.kind {
+                        ExprKind::Binary(_, left, right) => has_effect(left) || has_effect(right),
+                        ExprKind::Match { inputs, cases } => {
+                            inputs.iter().any(has_effect)
+                                || cases.iter().any(|case| {
+                                    has_effect(&case.value)
+                                        || case
+                                            .alternatives
+                                            .iter()
+                                            .flatten()
+                                            .flatten()
+                                            .any(has_effect)
+                                })
+                        }
                         ExprKind::SemanticBlock { .. } => true,
                         ExprKind::Call(_, args) => args.iter().any(|arg| has_effect(&arg.value)),
                         ExprKind::List(values) | ExprKind::Tuple(values) => {
@@ -3162,6 +3680,46 @@ impl Compiler {
                     .map(|value| self.query_expr_normalized(symbol, value))
                     .collect::<Result<Vec<_>>>()?,
             ),
+            ExprKind::Call(name, args) if self.query_operations.contains(name) => Q::Invoke {
+                name: name.clone(),
+                args: args
+                    .iter()
+                    .map(|arg| self.query_expr_normalized(symbol, &arg.value))
+                    .collect::<Result<_>>()?,
+            },
+            ExprKind::Match { inputs, cases } => {
+                self.validate_value_match(symbol, inputs.len(), cases, &expr.span)?;
+                Q::Match {
+                    inputs: inputs
+                        .iter()
+                        .map(|value| self.query_expr_normalized(symbol, value))
+                        .collect::<Result<_>>()?,
+                    cases: cases
+                        .iter()
+                        .map(|case| {
+                            Ok(crate::semantics::queries::QueryValueCase {
+                                alternatives: case
+                                    .alternatives
+                                    .iter()
+                                    .map(|row| {
+                                        row.iter()
+                                            .map(|value| {
+                                                value
+                                                    .as_ref()
+                                                    .map(|value| {
+                                                        self.query_expr_normalized(symbol, value)
+                                                    })
+                                                    .transpose()
+                                            })
+                                            .collect::<Result<_>>()
+                                    })
+                                    .collect::<Result<_>>()?,
+                                value: self.query_expr_normalized(symbol, &case.value)?,
+                            })
+                        })
+                        .collect::<Result<_>>()?,
+                }
+            }
             ExprKind::Call(name, args) => Q::Call {
                 name: name.clone(),
                 args: self.query_arguments(symbol, name, args, &expr.span)?,
@@ -3174,6 +3732,102 @@ impl Compiler {
                 ))
             }
         })
+    }
+    fn validate_value_match(
+        &self,
+        symbol: &Symbol,
+        arity: usize,
+        cases: &[ValueMatchCase],
+        span: &Span,
+    ) -> Result<()> {
+        use crate::semantics::queries::QueryExpr as Q;
+        let bad =
+            |message: &str| Diagnostic::error("yl.match_exhaustiveness", message, span.clone());
+        if arity == 0 || cases.is_empty() {
+            return Err(bad("A value match needs inputs and cases"));
+        }
+        let mut rows = vec![];
+        let mut wildcard = false;
+        for case in cases {
+            for row in &case.alternatives {
+                if wildcard {
+                    return Err(bad("Wildcard case must be last"));
+                }
+                if row.len() != arity {
+                    return Err(bad("Match tuple arity differs from its inputs"));
+                }
+                let row = row
+                    .iter()
+                    .map(|pattern| {
+                        pattern
+                            .as_ref()
+                            .map(|pattern| self.query_expr_normalized(symbol, pattern))
+                            .transpose()
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                if row.iter().flatten().any(|pattern| {
+                    !matches!(pattern, Q::Bool(_) | Q::Symbol(_) | Q::Text(_) | Q::Absent)
+                }) {
+                    return Err(bad("Value match patterns must be constants or wildcards"));
+                }
+                wildcard = row.iter().all(Option::is_none);
+                rows.push(row);
+            }
+        }
+        if wildcard {
+            return Ok(());
+        }
+        let mut combinations = vec![vec![]];
+        for column in 0..arity {
+            let patterns: Vec<_> = rows.iter().filter_map(|row| row[column].as_ref()).collect();
+            let domain = if patterns.is_empty() {
+                vec![Q::Absent]
+            } else if patterns.iter().all(|pattern| matches!(pattern, Q::Bool(_))) {
+                vec![Q::Bool(false), Q::Bool(true)]
+            } else if let Q::Symbol(first) = patterns[0] {
+                let parent = first.rsplit_once("::").map(|(parent, _)| parent);
+                let variants =
+                    parent
+                        .and_then(|parent| self.symbols.get(parent))
+                        .and_then(|symbol| match &symbol.declaration.kind {
+                            DeclKind::Enum { variants, .. } => Some(variants),
+                            _ => None,
+                        });
+                match (parent, variants) {
+                    (Some(parent), Some(variants)) if patterns.iter().all(|pattern| matches!(pattern, Q::Symbol(name) if name.rsplit_once("::").is_some_and(|(owner,_)| owner == parent))) => variants.iter().map(|variant| Q::Symbol(format!("{parent}::{variant}"))).collect(),
+                    _ => return Err(bad("A value match over open values requires a wildcard fallback")),
+                }
+            } else {
+                return Err(bad(
+                    "A value match over open values requires a wildcard fallback",
+                ));
+            };
+            if domain.len().saturating_mul(combinations.len()) > 4096 {
+                return Err(bad("Value match exhaustiveness exceeds the resource limit"));
+            }
+            combinations = combinations
+                .into_iter()
+                .flat_map(|prefix| {
+                    domain.iter().map(move |value| {
+                        let mut result = prefix.clone();
+                        result.push(value.clone());
+                        result
+                    })
+                })
+                .collect();
+        }
+        if combinations.iter().any(|values| {
+            !rows.iter().any(|row| {
+                row.iter()
+                    .zip(values)
+                    .all(|(pattern, value)| pattern.as_ref().is_none_or(|pattern| pattern == value))
+            })
+        }) {
+            return Err(bad(
+                "Value match does not cover every boolean or enum combination",
+            ));
+        }
+        Ok(())
     }
     fn query_arguments(
         &self,
@@ -3327,6 +3981,21 @@ impl Compiler {
                 }
                 fn refs(expr: &Expr, names: &mut BTreeSet<String>, bound: &BTreeSet<String>) {
                     match &expr.kind {
+                        ExprKind::Binary(_, left, right) => {
+                            refs(left, names, bound);
+                            refs(right, names, bound);
+                        }
+                        ExprKind::Match { inputs, cases } => {
+                            for input in inputs {
+                                refs(input, names, bound);
+                            }
+                            for case in cases {
+                                refs(&case.value, names, bound);
+                                for pattern in case.alternatives.iter().flatten().flatten() {
+                                    refs(pattern, names, bound);
+                                }
+                            }
+                        }
                         ExprKind::Ref(name) => {
                             let root = name.split('.').next().unwrap_or(name);
                             if !bound.contains(root) {
@@ -3580,15 +4249,16 @@ impl Compiler {
                         };
                         let expanded =
                             self.expand_semantic_expr(symbol, &arg.value, bindings, stack)?;
-                        let ExprKind::Literal(text) = &expanded.kind else {
-                            return Err(Diagnostic::error(
-                                "yl.invalid_diagnostic",
-                                "Diagnostic needs a string",
-                                call.span.clone(),
-                            ));
+                        let (text, mut message) = match &expanded.kind {
+                            ExprKind::Literal(text) => (text.as_str(), vec![]),
+                            _ => (
+                                "",
+                                vec![QueryMessagePart::Value(
+                                    self.query_expr_normalized(symbol, &expanded)?,
+                                )],
+                            ),
                         };
-                        let mut message = vec![];
-                        let mut rest = text.as_str();
+                        let mut rest = text;
                         while let Some((before, after)) = rest.split_once("${") {
                             message.push(QueryMessagePart::Text(before.into()));
                             let mut quoted = false;
@@ -4447,6 +5117,17 @@ fn substitute(expr: &Expr, args: &BTreeMap<String, Expr>) -> Expr {
         }
     }
     let mut result = expr.clone();
+    if let ExprKind::Match { inputs, cases } = &mut result.kind {
+        for input in inputs {
+            *input = substitute(input, args);
+        }
+        for case in cases {
+            for pattern in case.alternatives.iter_mut().flatten().flatten() {
+                *pattern = substitute(pattern, args);
+            }
+            case.value = substitute(&case.value, args);
+        }
+    }
     if let ExprKind::Group(inner) = &mut result.kind {
         **inner = substitute(inner, args);
     }

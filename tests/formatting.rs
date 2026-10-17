@@ -27,6 +27,38 @@ fn tree(source: &str) -> serde_json::Value {
     result
 }
 #[test]
+fn formats_expression_matches_inside_operations_bindings_and_callbacks() {
+    let source = "operation q(left,right)=match(left,right){true,false|false,true=>left,_=>match(left){_=>right}} operation use(values){v:=map(values,item=>match(item){true=>false,_=>true}) return match(v){_=>v}[0]}";
+    let formatted = format_yl("source", source).unwrap();
+    assert_eq!(tree(source), tree(&formatted));
+    assert!(
+        formatted.contains("match (left, right) {\n    true, false | false, true"),
+        "{formatted}"
+    );
+    assert!(
+        formatted
+            .lines()
+            .any(|line| line.trim_start().starts_with('_') && line.ends_with("=> match (left) {"))
+            && formatted.contains("\n        _ => right\n    }"),
+        "{formatted}"
+    );
+    assert!(formatted.contains("\n        true => false"), "{formatted}");
+    assert!(formatted.contains("}[0]"), "{formatted}");
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+#[test]
+fn formats_boolean_semantic_expressions_with_nested_value_matches() {
+    let source = "operation q(a,b)=!a&&match(b){true=>false,false=>true}||a";
+    let formatted = format_yl("source", source).unwrap();
+    assert_eq!(tree(source), tree(&formatted));
+    assert!(formatted.contains("!a && match (b) {"), "{formatted}");
+    assert!(
+        formatted.contains("\n    true  => false,\n    false => true"),
+        "{formatted}"
+    );
+    assert_eq!(format_yl("source", &formatted).unwrap(), formatted);
+}
+#[test]
 fn formats_semantic_blocks_without_changing_syntax() {
     let source = "import{scope}from\"lib\"node Program=name:/[a-z]+/ {semantics{boundary scope() group Register{scope()} precedence{Program>Child}}}entry Program";
     let formatted = format_yl("source", source).unwrap();
