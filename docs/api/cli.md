@@ -15,7 +15,7 @@ yl fmt --json <files...>
 
 Meaning-match `=>` arrows align to the widest single-line header in each match block. Each block is independent; rewrite arrows retain their usual spacing. Tuple alternatives and single/block actions are supported. Literal, regex, and comment contents are preserved. Headers split across lines or containing raw tabs retain their ordinary spacing. Unicode displayed widths use the non-CJK convention of [unicode-width](https://docs.rs/unicode-width/0.2.2/unicode_width/trait.UnicodeWidthStr.html); font-dependent rendering can differ. Alignment permits at most one MiB of added spaces per file, otherwise returns `yl.format_alignment_limit` without writing.
 
-`fmt`, `fmt --check`, and the Rust `format_yl` API all use this aligned canonical layout. The earlier `--align-match-arrows` flag remains accepted for compatibility; it is no longer needed. See `examples/formatting-alignment` for a reproducible before/after comparison.
+`fmt`, `fmt --check`, and the Rust `format_yl` API all use this aligned canonical layout. The earlier `--align-match-arrows` flag remains accepted for compatibility; it is no longer needed. See `examples/13-formatting` for a reproducible before/after comparison.
 
 `--check` makes no writes. Human output prints `Would format <file>` and renders a `yl.format_required` warning at the first layout difference, with a source underline and help. Check mode exits 1 when any file needs formatting, even though formatting warnings are separate from syntax errors. A clean human check is silent. Write mode prints `Formatted <file>` only for files it changes. Syntax and I/O errors use structured error diagnostics and exit 1.
 
@@ -109,10 +109,10 @@ Warnings and help messages alone do not cause failure in language checking. Form
 ## Repository examples
 
 ```sh
-cargo run -- check examples/mini-js/minijs.yl
-cargo run -- compile examples/mini-js/minijs.yl -o minijs.ylc
-cargo run -- language minijs.ylc ast examples/mini-js/program.js
-cargo run -- language minijs.ylc check examples/mini-js/invalid.js
+cargo run -- check examples/03-mini-js/definition/minijs.yl
+cargo run -- compile examples/03-mini-js/definition/minijs.yl -o minijs.ylc
+cargo run -- language minijs.ylc ast examples/03-mini-js/programs/program.txt
+cargo run -- language minijs.ylc check examples/03-mini-js/programs/invalid.txt
 ```
 
 `cargo run --quiet -- ...` suppresses Cargo's own build messages. It does not alter YL output.
@@ -133,7 +133,7 @@ provided by this command.
 ## Representative examples
 
 ```sh
-cargo run -- examples examples/example_metadata/language.yl
+cargo run -- examples examples/04-ide-metadata/definition/language.yl
 cargo run -- examples language.ylc
 ```
 
@@ -145,9 +145,9 @@ within the experimental bounded generator.
 ## Check a project program
 
 ```sh
-yl project check examples/mini_typescript/programs/program.txt
-yl project check examples/compound-types/programs/invalid-scattered.txt --json
-yl project ast examples/mini_typescript/programs/program.txt
+yl project check examples/08-mini-typescript/programs/program.txt
+yl project check examples/12-diagnostic-origins/programs/invalid-scattered.txt --json
+yl project ast examples/08-mini-typescript/programs/program.txt
 ```
 
 The nearest `yl.json` selects the entry and project-relative file globs. The source must match that configuration. The CLI compiles the entry in memory; there is no intermediate artifact file to manage. `check` runs parsing, syntax checks and authored semantic queries, with the same diagnostics as the editor. A clean check is silent, JSON checks emit a diagnostic array, and errors exit nonzero. `ast` prints the parsed AST as JSON and emits any parse diagnostics as JSON to stderr. Project discovery, malformed configuration and missing language entry errors follow the requested JSON/human format. See [project configuration](/guide/editor#programs-in-a-language-project).

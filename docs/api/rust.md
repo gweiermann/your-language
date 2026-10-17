@@ -14,7 +14,7 @@ Compiles a filesystem entry module and its dependency graph. Relative imports re
 
 ```rust
 fn example() -> your_language::diagnostic::CompileResult<()> {
-    let language = your_language::compile_language("examples/mini-js/minijs.yl")?;
+    let language = your_language::compile_language("examples/03-mini-js/definition/minijs.yl")?;
     for diagnostic in language.diagnostics() {
         eprintln!("{}", diagnostic.message);
     }

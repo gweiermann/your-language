@@ -6,7 +6,7 @@ use your_language::{
 fn analyze(source: &str) -> your_language::semantics::AnalysisResult {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let language =
-        compile_language(root.join("examples/declarative-functions/definition/language.yl"))
+        compile_language(root.join("examples/10-declarative-functions/definition/language.yl"))
             .unwrap();
     let reloaded = load_compiled_language(&language.to_bytes().unwrap()).unwrap();
     SemanticEngine::default().analyze(&reloaded, "program", source)
@@ -55,7 +55,7 @@ fn call_types(result: &your_language::semantics::AnalysisResult) -> Vec<(String,
 #[test]
 fn authored_identity_function_has_independent_number_and_string_calls() {
     let result = analyze(include_str!(
-        "../examples/declarative-functions/programs/identity.txt"
+        "../examples/10-declarative-functions/programs/identity.txt"
     ));
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     let types = call_types(&result);
@@ -90,7 +90,7 @@ fn each_parameter_is_addressed_by_name_and_nested_hypothetical_calls_remain_isol
 #[test]
 fn authored_function_arity_and_unresolved_callee_diagnostics_have_source_spans() {
     let result = analyze(include_str!(
-        "../examples/declarative-functions/programs/errors.txt"
+        "../examples/10-declarative-functions/programs/errors.txt"
     ));
     assert!(result
         .diagnostics

@@ -1,0 +1,9 @@
+{
+  "entry": "./definition/language.yl",
+  "files": [
+    "programs/**/*.txt"
+  ],
+  "expectErrors": [
+    "programs/invalid.txt"
+  ]
+}

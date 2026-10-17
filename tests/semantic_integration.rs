@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use your_language::semantics::SemanticEngine;
-#[path = "../examples/semantics/definition.rs"]
+#[path = "../examples/06-references/hosts/definition.rs"]
 mod definition;
 #[test]
 fn authored_consumer_compiles_and_survives_reload_without_native_adapters() {
@@ -8,7 +8,7 @@ fn authored_consumer_compiles_and_survives_reload_without_native_adapters() {
     let language = engine
         .compile(definition::ENTRY, &definition::sources())
         .unwrap();
-    let source = include_str!("../examples/semantics/programs/program.txt");
+    let source = include_str!("../examples/06-references/programs/program.txt");
     let direct = engine.analyze(&language, "source", source);
     assert!(direct.diagnostics.is_empty(), "{:?}", direct.diagnostics);
     let loaded = engine.load(&language.to_bytes().unwrap()).unwrap();

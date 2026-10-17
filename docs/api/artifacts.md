@@ -8,7 +8,7 @@ A `.ylc` file is an immutable program for the YL engine. Compilation resolves mo
 fn example() -> your_language::diagnostic::CompileResult<()> {
     use your_language::{compile_language, load_compiled_language, parse_named};
 
-    let compiled = compile_language("examples/mini-js/minijs.yl")?;
+    let compiled = compile_language("examples/03-mini-js/definition/minijs.yl")?;
     let bytes = compiled.to_bytes()?;
     let reloaded = load_compiled_language(&bytes)?;
     assert_eq!(bytes, reloaded.to_bytes()?);
@@ -21,9 +21,9 @@ fn example() -> your_language::diagnostic::CompileResult<()> {
 The CLI uses the same checked interface:
 
 ```sh
-cargo run -- compile examples/mini-js/minijs.yl -o target/minijs.ylc
-cargo run -- language target/minijs.ylc ast examples/mini-js/program.js
-cargo run -- language target/minijs.ylc check examples/mini-js/invalid.js
+cargo run -- compile examples/03-mini-js/definition/minijs.yl -o target/minijs.ylc
+cargo run -- language target/minijs.ylc ast examples/03-mini-js/programs/program.txt
+cargo run -- language target/minijs.ylc check examples/03-mini-js/programs/invalid.txt
 ```
 
 The final command reports the invalid program with source underlines and exits unsuccessfully. Add `--json` for structured diagnostics. The compiled language remains usable after its original `.yl` files are removed.
@@ -32,7 +32,7 @@ To inspect table counts and measure compilation, checked loading, and analysis s
 
 ```sh
 cargo run --example compiled_image
-cargo run --example compiled_image -- examples/mini_typescript/definition/language.yl examples/mini_typescript/programs/generics.txt
+cargo run --example compiled_image -- examples/08-mini-typescript/definition/language.yl examples/08-mini-typescript/programs/generics.txt
 ```
 
 Both examples report format `10`, `AST: true`, and `diagnostics: 0`. Timing numbers describe the current machine and build; they are not performance guarantees.

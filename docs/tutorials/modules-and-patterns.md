@@ -1,6 +1,6 @@
 # Compose modules and patterns
 
-This guide uses `examples/mini-js/lexical.yl` to build a reusable lexical module, then shows how its exports compose into the entry module.
+This guide uses `examples/03-mini-js/definition/lexical.yl` to build a reusable lexical module, then shows how its exports compose into the entry module.
 
 ## Define a keyword policy
 

@@ -1,6 +1,6 @@
-#[path = "../examples/mini_typescript/definition.rs"]
+#[path = "../examples/08-mini-typescript/hosts/definition.rs"]
 mod definition;
-#[path = "../examples/mini_typescript/inference.rs"]
+#[path = "../examples/08-mini-typescript/hosts/inference.rs"]
 mod inference;
 use your_language::semantics::AnalysisResult;
 
@@ -39,7 +39,7 @@ fn replace_action(grammar: &mut String, pattern: &str, action: &str) {
 #[test]
 fn addition_policy_lives_in_authored_meanings() {
     let result = analyze(include_str!(
-        "../examples/mini_typescript/programs/addition.txt"
+        "../examples/08-mini-typescript/programs/addition.txt"
     ));
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     for (name, expected) in [
@@ -64,7 +64,7 @@ fn addition_policy_lives_in_authored_meanings() {
 #[test]
 fn unsupported_additions_emit_authored_diagnostics() {
     let result = analyze(include_str!(
-        "../examples/mini_typescript/programs/addition-errors.txt"
+        "../examples/08-mini-typescript/programs/addition-errors.txt"
     ));
     assert_eq!(result.diagnostics.len(), 2, "{:?}", result.diagnostics);
     assert!(result

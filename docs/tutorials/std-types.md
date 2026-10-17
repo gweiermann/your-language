@@ -1,10 +1,10 @@
 # Build type inference with std/types
 
-`std/types` is an ordinary YL module built on attachment queries. It supplies type evidence, compatibility checks, and hypothetical evaluation. Your language supplies the type symbols, the meaning of each operator, and the representation of function signatures. No native helper recognizes Mini TypeScript node names or primitive types.
+`std/types` is an ordinary YL module built on attachment queries. It supplies type type contributions, compatibility checks, and hypothetical evaluation. Your language supplies the type symbols, the meaning of each operator, and the representation of function signatures. No native helper recognizes Mini TypeScript node names or primitive types.
 
-This tutorial follows the checked-in [Mini TypeScript definition](https://github.com/gweiermann/your-language/tree/main/examples/mini_typescript/definition). It is an experimental language, not a complete implementation of TypeScript.
+This tutorial follows the checked-in [Mini TypeScript definition](https://github.com/gweiermann/your-language/tree/main/examples/08-mini-typescript/definition). It is an experimental language, not a complete implementation of TypeScript.
 
-## Start with identities and type evidence
+## Start with identities and type type contributions
 
 Inside a node or pattern's `semantics` block, `self` identifies the current node or pattern occurrence. A capture identifies the captured syntax occurrence directly; neither requires a syntax-identity wrapper. Repeated captures are lists, and optional captures may be `absent`.
 
@@ -26,7 +26,7 @@ node Number = value: /[0-9]+/ {
 }
 ```
 
-`annotateWithType(key, value)` records possible types through the standard library. Repeating the same evidence has no effect; distinct contributions form alternatives. `types::typeOf(key)` reads those alternatives, or the library's `unknown` symbol for an existing occurrence with no evidence. `types::typeOf(absent)` returns `absent`, so optional missing syntax does not contribute an unknown type. Pending queries are an evaluation state, not another type symbol. `unknown` does not erase known evidence.
+`annotateWithType(key, value)` records possible types through the standard library. Repeating the same type contribution has no effect; distinct contributions form alternatives. `types::typeOf(key)` reads those alternatives, or the library's `unknown` symbol for an existing occurrence with no type contribution. `types::typeOf(absent)` returns `absent`, so optional missing syntax does not contribute an unknown type. Pending queries are an evaluation state, not another type symbol. `unknown` does not erase known type contributions.
 
 The standard library does not export `number`, `string`, `boolean`, or a function-type marker. These are language-owned values. Documentation uses descriptive direct exports consistently; import renaming is not required.
 
@@ -34,7 +34,7 @@ The standard library does not export `number`, `string`, `boolean`, or a functio
 
 A reference identity identifies a particular declaration, including its lexical scope. A declaration and the references that resolve to it share that identity, even when an inner declaration shadows the same spelling. Syntax identities remain distinct for individual occurrences.
 
-Use `referenceOf(name)` from `std/references` to address the shared binding. Associate a reference occurrence with the binding's evidence through an authored operation:
+Use `referenceOf(name)` from `std/references` to address the shared binding. Associate a reference occurrence with the binding's type contributions through an authored operation:
 
 ```yl
 import { annotateWithType, typeOf } from "std/types"
@@ -52,9 +52,9 @@ Here `Name` is the language's imported name pattern. The complete example define
 
 ## Keep constraints separate from annotation
 
-`restrictTypeTo(key, expected, target = key, related = absent)` checks compatibility and reports a diagnostic. It does not replace the evidence at `key` or contribute `expected` automatically. The default compatibility policy accepts every known actual candidate only if it is among the expected candidates; `unknown` is permissive. A language can author a different policy using generic data queries.
+`restrictTypeTo(key, expected, target = key, related = absent)` checks compatibility and reports a diagnostic. It does not replace the type contributions at `key` or contribute `expected` automatically. The default compatibility policy accepts every known actual candidate only if it is among the expected candidates; `unknown` is permissive. A language can author a different policy using generic data queries.
 
-An initializer contributes actual evidence. An explicit binding annotation imposes a restriction on that evidence:
+An initializer contributes actual type contributions. An explicit binding annotation imposes a restriction on that type contributions:
 
 ```yl
 operation bindingType(name, initializer, annotation) {
@@ -69,9 +69,9 @@ operation bindingType(name, initializer, annotation) {
 }
 ```
 
-No presence guard is needed: an absent annotation ends only the dependent restriction, while initializer evidence still contributes. In this example, `annotation` is an optional `Annotation` node whose `value` capture contains the type word. `initializer` is the expression following `=`. The third argument chooses the primary diagnostic location; the fourth supplies a related location, excluding the colon and whitespace.
+No presence guard is needed: an absent annotation ends only the dependent restriction, while initializer type contributions still contributes. In this example, `annotation` is an optional `Annotation` node whose `value` capture contains the type word. `initializer` is the expression following `=`. The third argument chooses the primary diagnostic location; the fourth supplies a related location, excluding the colon and whitespace.
 
-For `let count: number = "wrong";`, the check reports incompatible evidence and marks `"wrong"` as the primary location. An annotation expresses a requirement; it does not retroactively change a string expression into a number.
+For `let count: number = "wrong";`, the check reports incompatible type contributions and marks `"wrong"` as the primary location. An annotation expresses a requirement; it does not retroactively change a string expression into a number.
 
 ## Define operator rules in YL
 
@@ -90,7 +90,7 @@ match (typeOf(left), typeOf(right)) {
 
 `typeOf`, `annotateWithType`, and the type enum here are imports from the example's `typing.yl` and `types.yl`. The engine evaluates relevant combinations of alternatives. The selected case sees the selected operand candidates, so rereading a selected operand does not reintroduce unrelated alternatives. An unsupported known combination contributes a diagnostic; valid combinations still contribute their results.
 
-There is no special native addition operation and no explicit `solve()` call. The query engine tracks dependencies and propagates evidence. Guards and diagnostics wait for the information needed to determine their result.
+There is no special native addition operation and no explicit `solve()` call. The query engine tracks dependencies and propagates type contributions. Guards and diagnostics wait for the information needed to determine their result.
 
 ## Address function information with tuple keys
 
@@ -108,7 +108,7 @@ For a parameter named `value`, Mini TypeScript uses these logical type keys:
 (functionIdentity, returnType)
 ```
 
-The type library stores evidence in its own channel, so the corresponding physical attachment keys also include `types::type`. Authored operations normally use the logical keys and let `std/types` add that channel.
+The type library stores type contributions in its own channel, so the corresponding physical attachment keys also include `types::type`. Authored operations normally use the logical keys and let `std/types` add that channel.
 
 The body describes its return separately from its own type:
 
@@ -140,7 +140,7 @@ resolveTypeWith(
 
 `functionIdentity` comes from the resolved callee, and `argument` is the captured argument expression. Each assumption contains a logical key and its temporary type; the optional third component preserves the argument's source location for diagnostics. Real calls build that list from their parameter names and argument captures.
 
-Only the listed keys are overridden. The engine recomputes dependent relationships in isolation. It leaves original parameter evidence and captured outer types unchanged. Calling the same function with a string therefore does not turn the earlier number result into `number | string`.
+Only the listed keys are overridden. The engine recomputes dependent relationships in isolation. It leaves original parameter type contributions and captured outer types unchanged. Calling the same function with a string therefore does not turn the earlier number result into `number | string`.
 
 ```javascript
 let outside = 10;
@@ -171,27 +171,27 @@ Hypothetical queries retain authored error and warning provenance. They do not r
 From the repository root:
 
 ```shell
-cargo run --example mini_typescript -- program
-cargo run --example mini_typescript -- addition
-cargo run --example mini_typescript -- higher-order
-cargo run --example mini_typescript -- errors
-cargo run --example mini_typescript -- errors --json
+cargo run --example mini_typescript_host -- program
+cargo run --example mini_typescript_host -- addition
+cargo run --example mini_typescript_host -- higher-order
+cargo run --example mini_typescript_host -- errors
+cargo run --example mini_typescript_host -- errors --json
 ```
 
 The first three fixtures succeed and print inferred bindings. The `errors` fixture exits with status `1` and displays source diagnostics; `--json` returns the full analysis result and structured diagnostics instead. The `generics` fixture can be edited directly to compare valid and invalid annotations:
 
 ```shell
-cargo run --example mini_typescript -- generics
+cargo run --example mini_typescript_host -- generics
 ```
 
 The separate `generics-errors` fixture changes `let count: number` to `let count: string`:
 
 ```shell
-cargo run --example mini_typescript -- generics-errors
-cargo run --example mini_typescript -- generics-errors --json
+cargo run --example mini_typescript_host -- generics-errors
+cargo run --example mini_typescript_host -- generics-errors --json
 ```
 
-It exits with status `1` and reports `Type Type::number does not match Type::string`, with `identity(42)` as the primary location and the type word `string` as the related location. The incompatible call is still a number, regardless of the separate string call to `identity`. An annotation is a restriction, not evidence that changes the inferred result.
+It exits with status `1` and reports `Type Type::number does not match Type::string`, with `identity(42)` as the primary location and the type word `string` as the related location. The incompatible call is still a number, regardless of the separate string call to `identity`. An annotation is a restriction, not type contributions that changes the inferred result.
 
 The definitions are divided into `types.yl`, `typing.yl`, `expression.yl`, `parameter.yl`, `function.yl`, and `let.yl`. Follow the source to change operator or binding policy rather than extending Rust with target-language rules.
 

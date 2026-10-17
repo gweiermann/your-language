@@ -15,15 +15,15 @@ cargo install --path . --locked
 The binary is named `yl`. Ensure the Cargo binary directory is on `PATH`. Alternatively, run commands through Cargo without installing:
 
 ```sh
-cargo run -- check examples/getting-started/language.yl
+cargo run -- check examples/01-getting-started/definition/language.yl
 ```
 
 ## Verify the installation
 
 ```sh
-yl check examples/getting-started/language.yl
-yl compile examples/getting-started/language.yl -o getting-started.ylc
-yl language getting-started.ylc ast examples/getting-started/program.txt
+yl check examples/01-getting-started/definition/language.yl
+yl compile examples/01-getting-started/definition/language.yl -o getting-started.ylc
+yl language getting-started.ylc ast examples/01-getting-started/programs/program.txt
 ```
 
 The first command validates the definition. The second writes an artifact. The third writes a JSON AST containing two declarations. Paths are relative to the shell's working directory; run these examples from the repository root.

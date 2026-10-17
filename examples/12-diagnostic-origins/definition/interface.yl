@@ -1,0 +1,44 @@
+import { contribute, choose, isPresent } from "core/query"
+import { declareName, createLexicalScope } from "std/references"
+import { separatedBy } from "std/parser"
+import { Name } from "./lexical"
+import { TypeExpression, StructType, definition } from "./types"
+import { annotateWithType, typeOf } from "./origins"
+import { parameterType, genericType } from "../../11-compound-types/definition/typing"
+
+export node TypeParameter = name: Name {
+    semantics {
+        declareName(self, name)
+        annotateWithType(self, parameterType(self))
+    }
+}
+
+pattern TypeParameters =
+    "<"
+    items: TypeParameter+ |> separatedBy(",")
+    ">"
+
+pattern InterfaceContents =
+    parameters: TypeParameters?
+    body: StructType
+{
+    semantics {
+        boundary
+        createLexicalScope(self)
+        precedence {
+            TypeParameter > TypeExpression
+        }
+    }
+}
+
+export node InterfaceDeclaration =
+    "interface"
+    name: Name
+    contents: InterfaceContents
+{
+    semantics {
+        declareName(self, name)
+        parameters := choose(isPresent(contents.parameters), contents.parameters.items, [])
+        contribute((self, definition), genericType(parameters, typeOf(contents.body)))
+    }
+}

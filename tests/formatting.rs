@@ -939,20 +939,22 @@ fn aligned(source: &str) -> String {
 }
 #[test]
 fn meaning_match_alignment_is_default_and_aligns_tuple_alternatives() {
-    let source = include_str!("../examples/formatting-alignment/match-arrows.yl");
+    let source = include_str!("../examples/13-formatting/definition/match-arrows.yl");
     let canonical = format_yl("source", source).unwrap();
     assert_eq!(
         canonical,
         format_yl_with_options("source", source, FormatOptions::default()).unwrap()
     );
-    assert!(canonical.contains("number, number                                   => type(number)"));
     let formatted = aligned(source);
+    assert!(formatted.contains("=> annotateWithType(self, Type::number)"));
+    assert!(formatted.contains("=> error(\"Unsupported operands\", self)"));
+    let columns: Vec<_> = formatted
+        .lines()
+        .filter_map(|line| line.find("=>"))
+        .collect();
+    assert_eq!(columns.len(), 4);
     assert!(
-        formatted.contains("number, number                                   => type(number)"),
-        "{formatted}"
-    );
-    assert!(
-        formatted.contains("_                                                => error("),
+        columns.iter().all(|column| *column == columns[0]),
         "{formatted}"
     );
     assert_eq!(tree(source), tree(&formatted));
@@ -1039,7 +1041,7 @@ fn cli_default_alignment_check_json_write_and_legacy_flag_agree() {
     let path = root.0.join("match.yl");
     let source = format_yl_with_options(
         "source",
-        include_str!("../examples/formatting-alignment/match-arrows.yl"),
+        include_str!("../examples/13-formatting/definition/match-arrows.yl"),
         FormatOptions {
             align_match_arrows: false,
         },

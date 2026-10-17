@@ -1,0 +1,27 @@
+import { isPresent } from "core/query"
+import { declareName } from "std/references"
+import { Name } from "./lexical"
+import { Annotation } from "./types"
+import { Expression } from "./expression"
+import { annotateWithType, typeOf, restrictWritesTo, compareTypes, Comparison, reportDifference } from "./typing"
+
+export node LetDeclaration =
+    "let"
+    name: Name
+    annotation: Annotation?
+    "="
+    initializer: Expression
+    ";"
+{
+    semantics {
+        declareName(self, name)
+        annotateWithType(self, typeOf(initializer))
+        when isPresent(annotation) {
+            restrictWritesTo(self, typeOf(annotation))
+            differences := compareTypes(typeOf(initializer), typeOf(annotation), Comparison::assignable)
+            when isPresent(differences[0]) {
+                reportDifference(differences[0], initializer)
+            }
+        }
+    }
+}

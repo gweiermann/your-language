@@ -1,4 +1,5 @@
 mod format_command;
+mod project_command;
 
 use std::{env, fs, path::Path, process::ExitCode};
 use your_language::diagnostic_render::print_diagnostics;
@@ -10,7 +11,7 @@ use your_language::{
 
 fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
     let usage = || {
-        vec![Diagnostic::error("yl.cli","Usage: yl project check|ast <source> [--json] | yl lsp | yl examples <entry.yl|language.ylc> | yl fmt [--check] [--json] [--align-match-arrows] <files...> | yl check <entry.yl> | yl compile <entry.yl> -o <language.ylc> | yl language <language.ylc> hooks [--json] | yl language <language.ylc> ast <source> | yl language <language.ylc> check <source> [--json]",Span::default())]
+        vec![Diagnostic::error("yl.cli","Usage: yl project list <directory> [--json] | yl project check <source|yl.json|directory> [--json] | yl project ast <source> | yl lsp | yl examples <entry.yl|language.ylc> | yl fmt [--check] [--json] [--align-match-arrows] <files...> | yl check <entry.yl> | yl compile <entry.yl> -o <language.ylc> | yl language <language.ylc> hooks [--json] | yl language <language.ylc> ast <source> | yl language <language.ylc> check <source> [--json]",Span::default())]
     };
     let io = |path: &str, e: std::io::Error| {
         vec![Diagnostic::error(
@@ -20,58 +21,7 @@ fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
         )]
     };
     match args.first().map(String::as_str) {
-        Some("project")
-            if (args.len() == 3
-                || args.len() == 4 && args[3] == "--json" && args[1] == "check")
-                && matches!(args[1].as_str(), "check" | "ast") =>
-        {
-            let project = your_language::project::Project::discover(Path::new(&args[2]))?
-                .filter(|project| project.matches(Path::new(&args[2])))
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "yl.project",
-                        "Source does not match a nearest yl.json project",
-                        Span::new(&args[2], 0, 0),
-                    )]
-                })?;
-            let language = compile_language(&project.entry).map_err(|mut errors| {
-                let root = project.entry.parent().unwrap_or(Path::new("."));
-                project_diagnostic_paths(&mut errors, root, None);
-                errors
-            })?;
-            let source = fs::read_to_string(&args[2]).map_err(|e| io(&args[2], e))?;
-            let mut result = if args[1] == "check" && language.has_declarative_meanings() {
-                let analysis = your_language::semantics::SemanticEngine::default()
-                    .analyze(&language, &args[2], &source);
-                your_language::ParseResult {
-                    ast: analysis.ast,
-                    diagnostics: analysis.diagnostics,
-                }
-            } else {
-                parse_named(&language, &args[2], &source)
-            };
-            let mut diagnostics = language.diagnostics().to_vec();
-            diagnostics.append(&mut result.diagnostics);
-            result.diagnostics = diagnostics;
-            project_diagnostic_paths(
-                &mut result.diagnostics,
-                project.entry.parent().unwrap_or(Path::new(".")),
-                Some(&args[2]),
-            );
-            if args[1] == "ast" {
-                println!("{}", json(&result.ast)?);
-                if !result.diagnostics.is_empty() {
-                    eprintln!("{}", json(&result.diagnostics)?);
-                }
-            } else if args.len() == 4 {
-                println!("{}", json(&result.diagnostics)?);
-            } else {
-                print_diagnostics(&result.diagnostics, |span| {
-                    fs::read_to_string(&span.file).ok()
-                });
-            }
-            Ok(!result.has_errors())
-        }
+        Some("project") => project_command::run(&args[1..]),
         Some("examples") if args.len() == 2 => {
             let language = if Path::new(&args[1]).extension().is_some_and(|e| e == "ylc") {
                 load_compiled_language(&fs::read(&args[1]).map_err(|e| io(&args[1], e))?)?
@@ -155,23 +105,6 @@ fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
         _ => Err(usage()),
     }
 }
-fn project_diagnostic_paths(diagnostics: &mut [Diagnostic], root: &Path, source: Option<&str>) {
-    for diagnostic in diagnostics {
-        for span in std::iter::once(diagnostic.primary.as_mut())
-            .chain(diagnostic.secondary.iter_mut())
-            .chain(
-                diagnostic
-                    .annotations
-                    .iter_mut()
-                    .map(|annotation| &mut annotation.span),
-            )
-        {
-            if source != Some(span.file.as_str()) && Path::new(&span.file).is_relative() {
-                span.file = root.join(&span.file).to_string_lossy().into();
-            }
-        }
-    }
-}
 fn json(value: &impl serde::Serialize) -> Result<String, Vec<Diagnostic>> {
     serde_json::to_string_pretty(value)
         .map_err(|e| vec![Diagnostic::error("yl.json", e.to_string(), Span::default())])
@@ -194,7 +127,7 @@ fn main() -> ExitCode {
             && args.get(2).is_some_and(|a| a == "check")
             && args.get(4).is_some_and(|a| a == "--json"))
         || (args.first().is_some_and(|a| a == "project")
-            && args.get(1).is_some_and(|a| a == "check")
+            && args.get(1).is_some_and(|a| a == "check" || a == "list")
             && args.get(3).is_some_and(|a| a == "--json"));
     let ast_json = args.first().is_some_and(|a| a == "language")
         && args.get(2).is_some_and(|a| a == "ast")

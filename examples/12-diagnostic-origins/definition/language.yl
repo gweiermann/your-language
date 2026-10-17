@@ -1,0 +1,19 @@
+import { createLexicalScope } from "std/references"
+import { Whitespace, Comment } from "./lexical"
+import { InterfaceDeclaration } from "./interface"
+import { LetDeclaration } from "./let"
+import { Assignment, ExpressionStatement } from "./expression"
+
+node Program = statements: (InterfaceDeclaration | LetDeclaration | Assignment | ExpressionStatement)* {
+    semantics {
+        boundary
+        createLexicalScope(self)
+        precedence {
+            InterfaceDeclaration > LetDeclaration > Assignment > ExpressionStatement
+        }
+    }
+}
+
+entry Program {
+    trivia Whitespace, Comment
+}

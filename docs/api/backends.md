@@ -63,4 +63,4 @@ Inside a hook, `context.dispatch(self, child)` explicitly invokes a child. `cont
 
 These limits count dispatches, not arbitrary host instructions. A hook performing its own long-running computation or loop must honor its application's cancellation and resource policy. Hooks are trusted application code; the engine does not sandbox Rust host implementations.
 
-See `examples/backend-hooks/hosts/mod.rs` for complete interpreter, JavaScript, and WebAssembly implementations using this interface.
+See `examples/14-backend-hooks/hosts/mod.rs` for complete interpreter, JavaScript, and WebAssembly implementations using this interface.

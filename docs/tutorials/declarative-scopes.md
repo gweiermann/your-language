@@ -3,7 +3,7 @@
 The declarative-query example implements lexical scopes and references in YL. Rust provides attachment queries and data operations; the library defines declaration ownership, shadowing, duplicates, and missing-name diagnostics.
 
 ```text
-examples/declarative-queries/
+examples/07-declarative-queries/
 ├── definition/
 │   ├── lexical.yl
 │   ├── statements.yl
@@ -69,10 +69,10 @@ This library intentionally makes declarations visible throughout their enclosing
 From the repository root:
 
 ```shell
-cargo run -- compile examples/declarative-queries/definition/language.yl -o target/declarative.ylc
-cargo run -- language target/declarative.ylc check examples/declarative-queries/programs/shadowing.txt
-cargo run -- language target/declarative.ylc check examples/declarative-queries/programs/errors.txt
-cargo run -- language target/declarative.ylc check examples/declarative-queries/programs/errors.txt --json
+cargo run -- compile examples/07-declarative-queries/definition/language.yl -o target/declarative.ylc
+cargo run -- language target/declarative.ylc check examples/07-declarative-queries/programs/shadowing.txt
+cargo run -- language target/declarative.ylc check examples/07-declarative-queries/programs/errors.txt
+cargo run -- language target/declarative.ylc check examples/07-declarative-queries/programs/errors.txt --json
 ```
 
 The shadowing program succeeds, including a reference before its inner declaration. The error program reports both duplicate declaration names and the missing reference, with exact name spans. Its process exits with code `1`; the JSON form returns the same diagnostic information.

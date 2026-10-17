@@ -212,9 +212,9 @@ entry Root
     );
 }
 
-#[path = "../examples/mini_typescript/definition.rs"]
+#[path = "../examples/08-mini-typescript/hosts/definition.rs"]
 mod definition;
-#[path = "../examples/mini_typescript/inference.rs"]
+#[path = "../examples/08-mini-typescript/hosts/inference.rs"]
 mod inference;
 fn mini(source: &str) -> AnalysisResult {
     let engine = inference::engine();

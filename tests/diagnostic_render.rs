@@ -132,7 +132,7 @@ fn semantic_example_defaults_to_human_output_and_json_is_explicit() {
 #[test]
 fn mini_typescript_consumer_renders_initializer_origin_and_json_uses_same_span() {
     let build = Command::new(env!("CARGO"))
-        .args(["build", "--quiet", "--example", "mini_typescript"])
+        .args(["build", "--quiet", "--example", "mini_typescript_host"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
         .unwrap();
@@ -145,7 +145,10 @@ fn mini_typescript_consumer_renders_initializer_origin_and_json_uses_same_span()
         .parent()
         .unwrap()
         .join("examples")
-        .join(format!("mini_typescript{}", std::env::consts::EXE_SUFFIX));
+        .join(format!(
+            "mini_typescript_host{}",
+            std::env::consts::EXE_SUFFIX
+        ));
     let human = Command::new(&executable)
         .arg("errors")
         .env_remove("NO_COLOR")
@@ -176,7 +179,7 @@ fn mini_typescript_consumer_renders_initializer_origin_and_json_uses_same_span()
     assert_eq!(json.status.code(), Some(1));
     assert!(json.stderr.is_empty());
     let value: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
-    let source = include_str!("../examples/mini_typescript/programs/errors.txt");
+    let source = include_str!("../examples/08-mini-typescript/programs/errors.txt");
     let diagnostics = value["diagnostics"].as_array().unwrap();
     let diagnostic = diagnostics
         .iter()

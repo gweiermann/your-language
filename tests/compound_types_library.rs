@@ -6,7 +6,7 @@ fn evaluate(actions: &str) -> AnalysisResult {
         r#"
 import {{ contribute, isPresent, equal }} from "core/query"
 import {{ numberType, stringType, tupleType, listType, unionType, structType,
-          parameterType, genericType, instantiateType, isIdenticalTo, isAssignableTo, typeOf, evidenceOf, unknownType }} from "./typing"
+          parameterType, genericType, instantiateType, isIdenticalTo, isAssignableTo, typeOf, unknownType }} from "./typing"
 symbol first
 symbol second
 node Program = "x" {{ semantics {{ {actions} }} }}
@@ -21,7 +21,7 @@ entry Program
                 ("language.yl".into(), source),
                 (
                     "typing.yl".into(),
-                    include_str!("../examples/compound-types/definition/typing.yl").into(),
+                    include_str!("../examples/11-compound-types/definition/typing.yl").into(),
                 ),
             ]),
         )
@@ -110,11 +110,9 @@ fn absent_targets_end_queries_but_present_untyped_targets_remain_unknown() {
     let result = evaluate(
         r#"
         contribute("absentType", isPresent(typeOf(absent)))
-        contribute("absentEvidence", isPresent(evidenceOf(absent)))
         contribute("presentUnknown", equal(typeOf(self), unknownType()))
     "#,
     );
     assert!(!boolean(&result, "absentType"));
-    assert!(!boolean(&result, "absentEvidence"));
     assert!(boolean(&result, "presentUnknown"));
 }

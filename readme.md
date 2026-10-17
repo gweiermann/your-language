@@ -47,11 +47,11 @@ import { separatedBy } from "std/parser"
 pattern Arguments = Expression* |> separatedBy(",")
 ```
 
-Syntax-local constraints can also add errors, warnings, and help messages to a language. Explore the [MiniJS example](./examples/mini-js/) for expressions, functions, calls, precedence, and comments working together.
+Syntax-local constraints can also add errors, warnings, and help messages to a language. Explore the [MiniJS example](./examples/03-mini-js/) for expressions, functions, calls, precedence, and comments working together.
 
 ## Compose meaning
 
-Language-authored semantics connect syntax to reusable libraries for scopes, references, and type inference. The [Mini TypeScript example](./examples/mini_typescript/) demonstrates scopes, resolved bindings and inferred types through ordinary imported operations:
+Language-authored semantics connect syntax to reusable libraries for scopes, references, and type inference. The [Mini TypeScript example](./examples/08-mini-typescript/) demonstrates scopes, resolved bindings and inferred types through ordinary imported operations:
 
 ```yl
 import { annotateWithType } from "./typing"
@@ -67,12 +67,12 @@ node Number = value: /[0-9]+/ {
 The language owns its primitive type symbols and operator rules; the engine supplies generic identity-keyed queries. Run the complete example from the repository root:
 
 ```sh
-cargo run --example mini_typescript -- addition
+cargo run --example mini_typescript_host -- addition
 ```
 
-It reports `numberSum: number`, `stringSum: string` and the types of the other bindings. The authored `std/types` library tracks type evidence and restrictions through generic queries. Function calls infer independent results under temporary parameter assignments. See the [std/types tutorial](https://gweiermann.github.io/your-language/tutorials/std-types) for the full workflow and limits.
+It reports `numberSum: number`, `stringSum: string` and the types of the other bindings. The authored `std/types` library tracks type contributions and restrictions through generic queries. Function calls infer independent results under temporary parameter assignments. See the [std/types tutorial](https://gweiermann.github.io/your-language/tutorials/std-types) for the full workflow and limits.
 
-The [compound-types example](./examples/compound-types/) adds structural interfaces, tuples, lists, and explicit generic arguments. Its recursive comparison and source-evidence tracking are implemented in YL. A mismatch discovered through several declarations can underline the original incompatible literal and the final requirement together; see the [structural types tutorial](https://gweiermann.github.io/your-language/tutorials/compound-types).
+The [compound-types example](./examples/11-compound-types/) adds structural interfaces, tuples, lists, and explicit generic arguments. Its constructors and recursive comparison are implemented in YL; see the [compound types tutorial](https://gweiermann.github.io/your-language/tutorials/compound-types). A separate [diagnostic-origins example](./examples/12-diagnostic-origins/) adds optional source tracking so a mismatch discovered through several declarations can underline the original incompatible literal.
 
 ## Interpret, transpile, and compile
 
@@ -88,13 +88,13 @@ node Addition = left: Expression "+" right: Expression {
 }
 ```
 
-Hooks receive unevaluated syntax. A Rust consumer decides what to visit and what to produce: runtime values, generated source, or compiled instructions. The [backend example](./examples/backend-hooks/) uses one reloaded `.ylc` for an interpreter, JavaScript transpiler, and WebAssembly binary compiler.
+Hooks receive unevaluated syntax. A Rust consumer decides what to visit and what to produce: runtime values, generated source, or compiled instructions. The [backend example](./examples/14-backend-hooks/) uses one reloaded `.ylc` for an interpreter, JavaScript transpiler, and WebAssembly binary compiler.
 
 ```sh
 cargo run --example backend_interpret
 cargo run --example backend_javascript > target/backend.js
 node target/backend.js
-cargo run --example backend_wasm -- examples/backend-hooks/programs/control-flow.txt target/backend.wasm
+cargo run --example backend_wasm -- examples/14-backend-hooks/programs/control-flow.txt target/backend.wasm
 ```
 
 The interpreter and executed JavaScript print `42`; the Wasm compiler writes a module exporting `run() -> i32`. See the [backend tutorial](https://gweiermann.github.io/your-language/tutorials/backends) for executing the module and implementing a consumer.
@@ -124,23 +124,23 @@ cargo install --path . --locked
 Check and compile the MiniJS definition:
 
 ```sh
-yl check examples/mini-js/minijs.yl
-yl compile examples/mini-js/minijs.yl -o minijs.ylc
+yl check examples/03-mini-js/definition/minijs.yl
+yl compile examples/03-mini-js/definition/minijs.yl -o minijs.ylc
 ```
 
 Format YL definition files or check their layout:
 
 ```sh
-yl fmt examples/getting-started/language.yl
-yl fmt --check examples/getting-started/language.yl
+yl fmt examples/01-getting-started/definition/language.yl
+yl fmt --check examples/01-getting-started/definition/language.yl
 ```
 
 Generate an AST or check a source file for diagnostics:
 
 ```sh
-yl language minijs.ylc ast examples/mini-js/program.js
-yl language minijs.ylc check examples/mini-js/invalid.js
-yl language minijs.ylc check examples/mini-js/invalid.js --json
+yl language minijs.ylc ast examples/03-mini-js/programs/program.txt
+yl language minijs.ylc check examples/03-mini-js/programs/invalid.txt
+yl language minijs.ylc check examples/03-mini-js/programs/invalid.txt --json
 ```
 
 `ast` writes JSON. `check` shows source snippets and colored underlines; `--json` provides diagnostics for tools. Clean checks are silent, and errors produce a nonzero exit code. Commands also work through `cargo run -- <command>`.
@@ -162,6 +162,21 @@ To run the documentation locally:
 npm ci
 npm run docs:dev
 ```
+
+## Explore the examples
+
+The [numbered example projects](examples/README.md) progress from syntax and
+references to type inference, compound types, source diagnostics, and host
+backends. Each has a `yl.json` entrypoint and `.txt` programs with project-specific
+editor support.
+
+```powershell
+cargo run -- project list examples
+cargo run -- project check examples/11-compound-types
+cargo run -- project check examples/12-diagnostic-origins/programs/invalid-scattered.txt
+```
+
+The last command intentionally reports a nested type error and exits with status 1.
 
 ## Roadmap
 

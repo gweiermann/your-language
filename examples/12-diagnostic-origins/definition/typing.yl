@@ -1,0 +1,103 @@
+import { facts, map, filter, flatten, unique, lookup, equal, every, isPresent, choose, tail, concat, length, text } from "core/query"
+import { error } from "core/diagnostics"
+import { unknown } from "std/types"
+// Reuse the source-independent type model and policies from the previous example.
+import { Type, Comparison, Difference, describeDifference } from "../../11-compound-types/definition/typing"
+import { typeSources, typeSource, childTypeSource } from "./origins"
+
+operation appendPath(path, segment) = flatten([path, [segment]])
+
+operation sameLength(left, right) = equal(length(left), length(right))
+
+operation problem(path, actual, expected, reason) = [(path, actual[0], expected, reason, actual[1])]
+
+// Public comparison returns ALL discovered differences, each with its actual
+// offending syntax. Empty means success. Diagnostic emission is kept outside
+// this pure recursive worker.
+export operation compareTypes(actualSource, expected, mode) = compareAt(actualSource, expected, mode, [])
+
+operation compareAt(actual, expected, mode, path) = match (equal(actual[0], expected), equal(actual[0][0], unknown), equal(expected[0], unknown)) {
+    true, _, _ | _, true, _ | _, _, true => [],
+    _                                    => compareDifferent(actual, expected, mode, path)
+}
+
+operation compareDifferent(actual, expected, mode, path) = match (actual[0][0], expected[0]) {
+    Type::parameter, _ | _, Type::parameter => problem(path, actual, expected, Difference::unresolvedParameter),
+    Type::union, _                          => compareActualUnion(actual, expected, mode, path),
+    _, Type::union                          => compareExpectedUnion(actual, expected, mode, path),
+    Type::struct, Type::struct              => compareFields(actual, expected, mode, path),
+    Type::tuple, Type::tuple                => compareTuple(actual, expected, mode, path),
+    Type::list, Type::list                  => compareList(actual, expected, path),
+    _                                       => problem(path, actual, expected, Difference::incompatibleType)
+}
+
+operation compareActualUnion(actual, expected, mode, path) = match (mode) {
+    Comparison::identical => compareUnionIdentity(actual, expected, path),
+    _                     => flatten(map(unionTypeSources(actual), member => compareAt(member, expected, mode, path)))
+}
+
+operation unionTypeSources(actual) = choose(isPresent(actual[2][0]), actual[2], map(actual[0][1], member => typeSource(member, actual[1])))
+
+operation compareExpectedUnion(actual, expected, mode, path) = match (mode) {
+    Comparison::identical => problem(path, actual, expected, Difference::incompatibleType),
+    _                     => choose(isPresent(filter(expected[1], member => noDifferences(compareAt(actual, member, mode, path)))[0]), [], problem(path, actual, expected, Difference::incompatibleType))
+}
+
+operation compareUnionIdentity(actual, expected, path) = match (expected[0]) {
+    Type::union => choose(every(actual[0][1], member => everyMemberHasEqual([member], expected[1])) && everyMemberHasEqual(expected[1], actual[0][1]), [], problem(path, actual, expected, Difference::incompatibleType)),
+    _           => problem(path, actual, expected, Difference::incompatibleType)
+}
+
+operation everyMemberHasEqual(left, right) = every(left, member => isPresent(filter(right, other => isIdenticalTo(member, other))[0]))
+
+operation compareFields(actual, expected, mode, path) {
+    actualFields := actual[0][1]
+    expectedFields := expected[1]
+    required := flatten(map(expectedFields, field => compareField(actual, field, mode, appendPath(path, field[0]))))
+    extras := match (mode) {
+        Comparison::identical => flatten(map(filter(actualFields, field => !isPresent(lookup(expectedFields, field[0]))), field => problem(appendPath(path, field[0]), childTypeSource(actual, field[1], lookup(actual[2], field[0])), expected, Difference::extraField))),
+        _                     => []
+    }
+    return flatten([required, extras])
+}
+
+operation compareField(actual, field, mode, path) = match (isPresent(lookup(actual[0][1], field[0]))) {
+    false => problem(path, actual, field[1], Difference::missingField),
+    true  => compareAt(childTypeSource(actual, lookup(actual[0][1], field[0]), lookup(actual[2], field[0])), field[1], mode, path)
+}
+
+operation compareTuple(actual, expected, mode, path) = match (sameLength(actual[0][1], expected[1])) {
+    false => problem(path, actual, expected, Difference::tupleLength),
+    true  => compareTupleElements(actual[0][1], expected[1], actual[2], actual, mode, path)
+}
+
+operation compareTupleElements(actualTypes, expectedTypes, children, parent, mode, path, preceding = []) = match (isPresent(actualTypes[0])) {
+    false => [],
+    true  => flatten([compareAt(childTypeSource(parent, actualTypes[0], children[0]), expectedTypes[0], mode, appendPath(path, concat(["[", text(length(preceding)), "]"]))), compareTupleElements(tail(actualTypes), tail(expectedTypes), tail(children), parent, mode, path, flatten([preceding, [true]]))])
+}
+
+// Invariance is checked on the complete element descriptor. If a source element
+// itself is incompatible, use its narrower span; otherwise highlight the list.
+// Example: List<number> -> List<number | string> is rejected at the list span.
+operation compareList(actual, expected, path) {
+    incompatibleElements := flatten(map(actual[2], item => compareAt(item, expected[1], Comparison::assignable, appendPath(path, "[element]"))))
+    invariant := compareAt(typeSource(actual[0][1], actual[1]), expected[1], Comparison::identical, appendPath(path, "[element type]"))
+    return choose(noDifferences(incompatibleElements), choose(noDifferences(invariant), [], problem(path, actual, expected, Difference::invariantList)), incompatibleElements)
+}
+
+operation noDifferences(differences) = !isPresent(differences[0])
+
+export operation isIdenticalTo(left, right) = noDifferences(compareTypes(typeSource(left, absent), right, Comparison::identical))
+
+export operation isAssignableTo(left, right) = noDifferences(compareTypes(typeSource(left, absent), right, Comparison::assignable))
+
+export operation originsOf(target) = unique(map(facts((target, typeSources)), item => item[1]))
+
+operation diagnosticAnnotations(item, contributors) = flatten([[(item[4], absent)], map(filter(unique(contributors), node => isPresent(node) && !equal(node, item[4])), node => (node, absent))])
+
+export operation reportDifference(item, contributors = []) {
+    error(describeDifference(item), diagnosticAnnotations(item, contributors))
+}
+// The example reports the first difference only; compareTypes retains all of them.
+// An eventual diagnostic batch API may report the entire list. No effectful map
+// callback or hidden native report-all helper is assumed here.

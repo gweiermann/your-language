@@ -1,0 +1,1 @@
+let scores: number[] = [10, "wrong"];

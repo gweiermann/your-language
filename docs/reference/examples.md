@@ -43,7 +43,7 @@ Generation is bounded to 48 nesting levels, 10,000 steps per definition, 24 cand
 ## CLI and editor
 
 ```sh
-cargo run -- examples examples/example_metadata/language.yl
+cargo run -- examples examples/04-ide-metadata/definition/language.yl
 ```
 
 The JSON array includes canonical definition IDs, UTF-8 declaration spans, text or null, and an unavailable reason. The checked-in fixture produces `let name = 42 ;` for `Program` and `42` for `List`. The command also accepts `.ylc` artifacts. Metadata and tooling templates survive artifact reload.

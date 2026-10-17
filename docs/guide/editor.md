@@ -63,7 +63,7 @@ Place `yl.json` next to your language's `definition/` and `programs/` folders:
 ```json
 {
   "entry": "./definition/language.yl",
-  "files": ["programs/**/*.ts"]
+  "files": ["programs/**/*.txt"]
 }
 ```
 
@@ -73,12 +73,12 @@ The entry and globs are relative to `yl.json`. `*` matches characters within a d
 
 Changing an open YL module or configuration invalidates dependent programs. Open buffers override disk; closing them returns to disk contents. The server caches each compiled module graph while the graph's source texts remain unchanged. Program diagnostics execute authored YL semantic queries; definition example previews continue to validate parsing only. Missing entries and invalid configuration files produce structured diagnostics. Syntax errors in programs retain highlighting for the consistent parsed prefix.
 
-For example, open `examples/mini_typescript/programs/program.txt`. The function declaration's name uses the `function` category through a contextual pattern, while ordinary references use `variable`. Another runnable project is `examples/compound-types/programs/invalid-scattered.txt`, whose grouped diagnostic points at evidence and its requirement. The CLI discovers the same project:
+For example, open `examples/08-mini-typescript/programs/program.txt`. The function declaration's name uses the `function` category through a contextual pattern, while ordinary references use `variable`. Another runnable project is `examples/12-diagnostic-origins/programs/invalid-scattered.txt`, whose grouped diagnostic points at the original incompatible value and the requirement. The CLI discovers the same project:
 
 ```sh
-cargo run --quiet -- project check examples/mini_typescript/programs/program.txt
-cargo run --quiet -- project check examples/compound-types/programs/invalid-scattered.txt --json
-cargo run --quiet -- project ast examples/mini_typescript/programs/program.txt
+cargo run --quiet -- project check examples/08-mini-typescript/programs/program.txt
+cargo run --quiet -- project check examples/12-diagnostic-origins/programs/invalid-scattered.txt --json
+cargo run --quiet -- project ast examples/08-mini-typescript/programs/program.txt
 ```
 
 A clean check is silent (or `[]` with `--json`). An invalid program exits nonzero; `ast` prints only the AST JSON and writes diagnostics as JSON to stderr. The target language's formatter is not inferred from its grammar: Format Document remains available for `.yl` definitions only.

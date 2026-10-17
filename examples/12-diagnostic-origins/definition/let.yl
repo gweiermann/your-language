@@ -1,0 +1,30 @@
+import { inheritTypeFrom, annotateWithType, typeSourceOf, typeOf, restrictWritesTo } from "./origins"
+import { isPresent } from "core/query"
+import { declareName } from "std/references"
+import { Name } from "./lexical"
+import { Annotation } from "./types"
+import { Expression } from "./expression"
+import { compareTypes, reportDifference } from "./typing"
+import { Comparison } from "../../11-compound-types/definition/typing"
+
+export node LetDeclaration =
+    "let"
+    name: Name
+    annotation: Annotation?
+    "="
+    initializer: Expression
+    ";"
+{
+    semantics {
+        declareName(self, name)
+        item := typeSourceOf(initializer)
+        inheritTypeFrom(self, initializer)
+        when isPresent(annotation) {
+            restrictWritesTo(self, typeOf(annotation))
+            differences := compareTypes(item, typeOf(annotation), Comparison::assignable)
+            when isPresent(differences[0]) {
+                reportDifference(differences[0], [annotation.value, initializer])
+            }
+        }
+    }
+}

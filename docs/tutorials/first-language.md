@@ -1,6 +1,6 @@
 # Build a first language
 
-This tutorial defines a small declaration language, compiles it, and inspects the resulting tree. The complete files are in `examples/getting-started/`.
+This tutorial defines a small declaration language, compiles it, and inspects the resulting tree. The complete files are in `examples/01-getting-started/`.
 
 ## Define names and numbers
 
@@ -47,9 +47,9 @@ let count = 7
 For the checked-in files, run from the repository root:
 
 ```sh
-yl check examples/getting-started/language.yl
-yl compile examples/getting-started/language.yl -o getting-started.ylc
-yl language getting-started.ylc ast examples/getting-started/program.txt
+yl check examples/01-getting-started/definition/language.yl
+yl compile examples/01-getting-started/definition/language.yl -o getting-started.ylc
+yl language getting-started.ylc ast examples/01-getting-started/programs/program.txt
 ```
 
 The JSON root has `type: "Program"`, a `fields.declarations` array, and a source span. Each declaration contains `Name` and `Number` nodes. Source spans use half-open UTF-8 byte offsets.
@@ -57,7 +57,7 @@ The JSON root has `type: "Program"`, a `fields.declarations` array, and a source
 ## Check instead of generating a tree
 
 ```sh
-yl language getting-started.ylc check examples/getting-started/program.txt
+yl language getting-started.ylc check examples/01-getting-started/programs/program.txt
 ```
 
 A valid file produces no diagnostic output. Add `--json` to receive `[]`. Replace a number with an unexpected character to inspect a parse diagnostic.

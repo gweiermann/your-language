@@ -1,0 +1,28 @@
+interface Box<T> {
+    value: T;
+}
+
+interface Envelope<T> {
+    payload: {
+        details: {
+            record: Box<T>;
+        };
+    };
+}
+
+interface User {
+    name: string;
+    scores: number[];
+}
+
+let user: User = { name: "Ada", scores: [10, 20] };
+let name: string = user.name;
+let score: number = user.scores[0];
+let pair: [number, string] = (42, "answer");
+let mixed: (number | string)[] = [42, "answer"];
+let result: Envelope<number> = { payload: { details: { record: { value: 42 } } } };
+let textBox: Box<string> = { value: "label" };
+let label: string = textBox.value;
+
+user.name = "Grace";
+user.scores[0] = 30;

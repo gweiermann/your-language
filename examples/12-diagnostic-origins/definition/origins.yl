@@ -1,0 +1,55 @@
+import { contribute, get, facts, map, choose, isPresent, equal } from "core/query"
+import { Type, unknownType, unionType, tupleType, listType, structType } from "../../11-compound-types/definition/typing"
+
+// A type source is (descriptor, originating syntax, child sources).
+// Keep it separate from the plain descriptor model used by compound types.
+export symbol typeSources
+
+export symbol writeRestriction
+
+// Write contracts are separate from inferred typeSource: a union annotation may
+// accept later writes without claiming that the initializer had every union type.
+export operation restrictWritesTo(target, value) {
+    contribute((target, writeRestriction), value)
+}
+
+export operation writeTypeOf(target) {
+    restriction := get((target, writeRestriction))
+    return choose(isPresent(restriction), restriction, typeOf(target))
+}
+
+export operation typeSource(value, origin, children = []) =(value, origin, children)
+
+// Each contribution keeps its OWN origin, even if several contributions have the
+// same type. No source location is stored globally on number/string/etc.
+export operation annotateWithType(target, value, origin = target, children = []) {
+    contribute((target, typeSources), typeSource(value, origin, children))
+}
+
+export operation typeSourceOf(target) {
+    contributions := facts((target, typeSources))
+    combined := unionType(map(contributions, item => item[0]))
+    return choose(isPresent(target), match (isPresent(contributions[0]), isPresent(contributions[1])) {
+        false, _    => typeSource(unknownType(), target),
+        true, false => contributions[0],
+        true, true  => choose(equal(combined[0], Type::union), typeSource(combined, target, contributions), typeSource(combined, contributions[0][1], contributions[0][2]))
+    }, absent)
+}
+
+export operation typeOf(target) = typeSourceOf(target)[0]
+
+export operation tupleTypeSource(elements, origin) = typeSource(tupleType(map(elements, item => item[0])), origin, elements)
+
+export operation listTypeSource(elements, origin) = typeSource(listType(unionType(map(elements, item => item[0]))), origin, elements)
+
+export operation structTypeSource(fields, origin) = typeSource(structType(map(fields, field => (field[0], field[1][0]))), origin, fields)
+
+export operation childTypeSource(parent, childType, retained) = choose(isPresent(retained), retained, typeSource(childType, parent[1]))
+
+export operation annotateTypeSource(target, source) {
+    annotateWithType(target, source[0], source[1], source[2])
+}
+
+export operation inheritTypeFrom(target, source) {
+    annotateTypeSource(target, typeSourceOf(source))
+}

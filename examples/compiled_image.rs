@@ -13,8 +13,8 @@ fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     let (entry, source) = match args.as_slice() {
         [] => (
-            PathBuf::from("examples/mini-js/minijs.yl"),
-            PathBuf::from("examples/mini-js/program.js"),
+            PathBuf::from("examples/03-mini-js/definition/minijs.yl"),
+            PathBuf::from("examples/03-mini-js/programs/program.txt"),
         ),
         [entry, source] => (entry.into(), source.into()),
         _ => return Err("Usage: cargo run --example compiled_image -- [entry.yl source]".into()),

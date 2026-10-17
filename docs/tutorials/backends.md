@@ -1,6 +1,6 @@
 # Interpret, transpile, and compile
 
-The `examples/backend-hooks` project defines one language and three consumers of the same compiled language image. The Rust interpreter executes the program, the JavaScript transpiler emits readable source, and the WebAssembly compiler emits a real binary module. All three use the public Rust library directly, without a CLI subprocess or separate parser implementation.
+The `examples/14-backend-hooks` project defines one language and three consumers of the same compiled language image. The Rust interpreter executes the program, the JavaScript transpiler emits readable source, and the WebAssembly compiler emits a real binary module. All three use the public Rust library directly, without a CLI subprocess or separate parser implementation.
 
 ## The sample language
 
@@ -23,10 +23,10 @@ These are policies of the sample hosts, not requirements imposed by the engine. 
 ## Compile and inspect the contract
 
 ```sh
-cargo run -- compile examples/backend-hooks/definition/language.yl -o target/backend.ylc
+cargo run -- compile examples/14-backend-hooks/definition/language.yl -o target/backend.ylc
 cargo run -- language target/backend.ylc hooks
 cargo run -- language target/backend.ylc hooks --json
-cargo run -- language target/backend.ylc check examples/backend-hooks/programs/control-flow.txt
+cargo run -- language target/backend.ylc check examples/14-backend-hooks/programs/control-flow.txt
 ```
 
 The contract lists qualified names such as `hooks.yl#add(left, right)`. Checking succeeds without binding any hooks.
@@ -34,10 +34,10 @@ The contract lists qualified names such as `hooks.yl#add(left, right)`. Checking
 ## Execute the three consumers
 
 ```sh
-cargo run --example backend_interpret -- examples/backend-hooks/programs/control-flow.txt
-cargo run --example backend_javascript -- examples/backend-hooks/programs/control-flow.txt > target/backend.js
+cargo run --example backend_interpret -- examples/14-backend-hooks/programs/control-flow.txt
+cargo run --example backend_javascript -- examples/14-backend-hooks/programs/control-flow.txt > target/backend.js
 node target/backend.js
-cargo run --example backend_wasm -- examples/backend-hooks/programs/control-flow.txt target/backend.wasm
+cargo run --example backend_wasm -- examples/14-backend-hooks/programs/control-flow.txt target/backend.wasm
 node -e "const fs=require('node:fs'); const b=fs.readFileSync('target/backend.wasm'); console.log(new WebAssembly.Instance(new WebAssembly.Module(b)).exports.run())"
 ```
 

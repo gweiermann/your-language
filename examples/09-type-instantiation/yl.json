@@ -1,0 +1,9 @@
+{
+  "entry": "./definition/main.yl",
+  "files": [
+    "programs/**/*.txt"
+  ],
+  "expectErrors": [
+    "programs/errors.txt"
+  ]
+}

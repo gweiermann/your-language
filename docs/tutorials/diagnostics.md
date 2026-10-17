@@ -1,6 +1,6 @@
 # Add syntax diagnostics
 
-Constraints validate syntax already captured by a node. This guide demonstrates optional captures, presence checks, and the difference between AST output and diagnostic output. Complete files are in `examples/constraints/`.
+Constraints validate syntax already captured by a node. This guide demonstrates optional captures, presence checks, and the difference between AST output and diagnostic output. Complete files are in `examples/02-constraints/`.
 
 ## Capture an optional name
 
@@ -27,9 +27,9 @@ The grammar accepts both `Example:` and `:`. Constraints can therefore report a 
 ## Inspect human diagnostics
 
 ```sh
-yl compile examples/constraints/language.yl -o constraints.ylc
-yl language constraints.ylc check examples/constraints/warning.txt
-yl language constraints.ylc check examples/constraints/error.txt
+yl compile examples/02-constraints/definition/language.yl -o constraints.ylc
+yl language constraints.ylc check examples/02-constraints/programs/warning.txt
+yl language constraints.ylc check examples/02-constraints/programs/error.txt
 ```
 
 The first source emits a warning and exits successfully. The second emits an error and exits nonzero. Terminal diagnostics include a source location, the relevant line, and colored underlines when stderr is a terminal.
@@ -37,8 +37,8 @@ The first source emits a warning and exits successfully. The second emits an err
 ## Integrate with tools
 
 ```sh
-yl language constraints.ylc check examples/constraints/error.txt --json
-yl language constraints.ylc ast examples/constraints/error.txt
+yl language constraints.ylc check examples/02-constraints/programs/error.txt --json
+yl language constraints.ylc ast examples/02-constraints/programs/error.txt
 ```
 
 The check command writes a diagnostic array to stdout. The AST command writes the tree to stdout and diagnostic JSON to stderr. Syntax-local errors retain a successfully built AST; a grammar parse failure produces `null` instead.

@@ -1,0 +1,173 @@
+import { error } from "core/diagnostics"
+import { children, first, get, choose, isPresent, map, text, equal, length, zip, find, filter } from "core/query"
+import { connectReference } from "std/references"
+import { separatedBy } from "std/parser"
+import { Name } from "./lexical"
+import { annotateWithType, typeOf, restrictWritesTo, writeTypeOf, numberType, stringType, booleanType, tupleType, listType, unionType, structType, instantiateType } from "./typing"
+
+export symbol definition
+
+export operation inheritType(target) {
+    annotateWithType(target, typeOf(first(children(target))))
+    restrictWritesTo(target, writeTypeOf(first(children(target))))
+}
+
+export operation checkUniqueFields(names) {
+    duplicate := find(names, name => choose(equal(length(filter(names, other => equal(text(other), text(name)))), length([true])), absent, name))
+    when isPresent(duplicate) {
+        matching := filter(names, name => equal(text(name), text(duplicate)))
+        error("Duplicate field name", map(matching, name => (name, "declared here")))
+    }
+}
+
+node NumberType = "number" {
+    semantics {
+        annotateWithType(self, numberType())
+    }
+}
+
+node StringType = "string" {
+    semantics {
+        annotateWithType(self, stringType())
+    }
+}
+
+node BooleanType = "boolean" {
+    semantics {
+        annotateWithType(self, booleanType())
+    }
+}
+
+node NamedType = name: Name {
+    semantics {
+        ref := connectReference(self, name)
+        // Parameters already carry their own type. Interfaces carry a template.
+        template := get((ref, definition))
+        when isPresent(template) {
+            when equal(length(template[0]), length([])) {
+                annotateWithType(self, instantiateType(template, []))
+            }
+            else {
+                error("Wrong number of type arguments", [(self, absent)])
+            }
+        }
+        else {
+            annotateWithType(self, typeOf(ref))
+        }
+    }
+}
+
+node GenericType =
+    name: Name
+    "<"
+    arguments: TypeExpression+ |> separatedBy(",")
+    ">"
+{
+    semantics {
+        ref := connectReference(self, name)
+        template := get((ref, definition))
+        when !equal(length(template[0]), length(arguments)) {
+            error("Wrong number of type arguments", [(self, absent)])
+        }
+        else {
+            annotateWithType(self, instantiateType(template, map(arguments, item => typeOf(item))))
+        }
+    }
+}
+
+node ArrayType =
+    element: TypeExpression
+    "["
+    "]"
+{
+    semantics {
+        annotateWithType(self, listType(typeOf(element)))
+    }
+}
+
+node UnionType =
+    left: TypeExpression
+    "|"
+    right: TypeExpression
+{
+    semantics {
+        annotateWithType(self, unionType([typeOf(left), typeOf(right)]))
+    }
+}
+
+node GroupedType =
+    "("
+    value: TypeExpression
+    ")"
+{
+    semantics {
+        annotateWithType(self, typeOf(value))
+    }
+}
+
+node TupleType =
+    "["
+    elements: TypeExpression* |> separatedBy(",")
+    "]"
+{
+    semantics {
+        annotateWithType(self, tupleType(map(elements, item => typeOf(item))))
+    }
+}
+
+export node TypeField =
+    name: Name
+    ":"
+    value: TypeExpression
+    ";"
+
+export node StructType =
+    "{"
+    fields: TypeField*
+    "}"
+{
+    semantics {
+        // Pair projected field names with their inferred descriptors.
+        checkUniqueFields(fields.name)
+        annotateWithType(self, structType(map(zip(fields.name, fields.value), field => (text(field[0]), typeOf(field[1])))))
+    }
+}
+
+export node TypeExpression {
+    node UnionType
+
+    node ArrayType
+
+    node GenericType
+
+    node GroupedType
+
+    node TupleType
+
+    node StructType
+
+    node NumberType
+
+    node StringType
+
+    node BooleanType
+
+    node NamedType
+
+    precedence {
+        ArrayType > UnionType
+    }
+
+    semantics {
+        inheritType(self)
+    }
+}
+
+export node Annotation =
+    ":"
+    value: TypeExpression
+{
+    semantics {
+        annotateWithType(self, typeOf(value))
+    }
+}

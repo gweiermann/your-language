@@ -1,6 +1,0 @@
-{
-  "entry": "./definition/main.yl",
-  "files": [
-    "programs/*.txt"
-  ]
-}
