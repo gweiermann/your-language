@@ -1,0 +1,22 @@
+import { equal, text } from "core/query"
+import { error } from "core/diagnostics"
+
+operation second(pair) = pair[1]
+
+node Name = /[a-z]+/
+
+node Program = names: Name+ {
+    semantics {
+        pair :=(names[0], names[1])
+        selected := second(pair)
+        when equal(text(selected), "wrong") {
+            error("Unexpected ${text(pair[1])}", selected)
+        }
+    }
+}
+
+trivia Space = /\s+/
+
+entry Program {
+    trivia Space
+}

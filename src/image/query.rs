@@ -163,6 +163,10 @@ pub enum Expr {
     Local(String),
     Tuple(Vec<ExprId>),
     List(Vec<ExprId>),
+    Index {
+        value: ExprId,
+        index: usize,
+    },
     BindingValue {
         invocation: String,
         result: ExprId,
@@ -252,6 +256,10 @@ impl QueryImage {
                     QueryExpr::Local(name) => Expr::Local(name.clone()),
                     QueryExpr::Tuple(values) => Expr::Tuple(self.exprs(values)?),
                     QueryExpr::List(values) => Expr::List(self.exprs(values)?),
+                    QueryExpr::Index { value, index } => Expr::Index {
+                        value: self.expr(value)?,
+                        index: *index,
+                    },
                     QueryExpr::BindingValue { invocation, result } => Expr::BindingValue {
                         invocation: invocation.clone(),
                         result: self.expr(result)?,
@@ -479,6 +487,13 @@ impl QueryImage {
                     for id in args {
                         expr(*id)?;
                     }
+                    &[]
+                }
+                Expr::Index { value, index } => {
+                    if u32::try_from(*index).is_err() {
+                        return Err(bad("Positional index exceeds the supported range"));
+                    }
+                    expr(*value)?;
                     &[]
                 }
                 Expr::BindingValue { result, .. }
@@ -807,7 +822,7 @@ impl QueryImage {
                         });
                     }
                 }
-                Expr::Not(id) => pending.push(Context {
+                Expr::Not(id) | Expr::Index { value: id, .. } => pending.push(Context {
                     node: *id as usize,
                     action_call: false,
                     ..context
@@ -911,6 +926,36 @@ entry Root
         assert!(value.validate().is_err());
         value.groups.get_mut("test#Root").unwrap()[0].actions[0] = u32::MAX;
         assert!(value.validate_owner_captures(&BTreeMap::new()).is_err());
+    }
+    #[test]
+    fn positional_index_operands_are_validated_before_execution() {
+        let mut value = image(
+            vec![
+                Expr::Index { value: 0, index: 0 },
+                Expr::Call {
+                    opcode: Opcode::First,
+                    args: vec![0],
+                },
+            ],
+            vec![Action::Call {
+                expression: 1,
+                span: Span::default(),
+            }],
+        );
+        assert!(value.validate().unwrap_err().message.contains("cycle"));
+        value.expressions[0] = Expr::Index {
+            value: u32::MAX,
+            index: 0,
+        };
+        assert!(value.validate().is_err());
+        if usize::BITS > 32 {
+            value.expressions[0] = Expr::Index {
+                value: 2,
+                index: u32::MAX as usize + 1,
+            };
+            value.expressions.push(Expr::Tuple(vec![]));
+            assert!(value.validate().unwrap_err().message.contains("range"));
+        }
     }
     #[test]
     fn action_cycles_cannot_hide_inside_operation_blocks() {

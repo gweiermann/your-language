@@ -46,6 +46,8 @@ test('packaged grammar equals docs source and tokenizes representative YL syntax
   scope('// ancestor => value', '=>', 'comment.line.double-slash.yl');
   scope('ref := connectReference(self, name)', ':=', 'keyword.operator.yl');
   scope('ref := connectReference(self, name)', 'ref', 'variable.other.constant.yl');
+  scope('completed[1][0]', '1', 'constant.numeric.integer.yl');
+  scope('completed[1][0]', '[', 'punctuation.section.brackets.yl');
   scope('return ref', 'return', 'keyword.control.yl');
   scope('checks {}', 'checks', 'keyword.control.yl');
   scope('semantics {}', 'semantics', 'keyword.control.yl');

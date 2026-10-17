@@ -1,10 +1,11 @@
 {
-  "version": 6,
+  "version": 7,
   "capabilities": [
     "indexed-parser",
     "indexed-checks",
     "indexed-queries",
-    "semantic-scheduling"
+    "semantic-scheduling",
+    "positional-index"
   ],
   "parser": {
     "entry": 1,

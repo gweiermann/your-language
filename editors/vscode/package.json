@@ -2,7 +2,7 @@
   "name": "your-language",
   "displayName": "Your Language",
   "description": "YL syntax highlighting, live diagnostics, formatting and example hints.",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "publisher": "gweiermann",
   "license": "UNLICENSED",
   "repository": {

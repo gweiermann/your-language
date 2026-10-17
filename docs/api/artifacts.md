@@ -35,11 +35,11 @@ cargo run --example compiled_image
 cargo run --example compiled_image -- examples/mini_typescript/definition/language.yl examples/mini_typescript/programs/generics.txt
 ```
 
-Both examples report format `6`, `AST: true`, and `diagnostics: 0`. Timing numbers describe the current machine and build; they are not performance guarantees.
+Both examples report format `7`, `AST: true`, and `diagnostics: 0`. Timing numbers describe the current machine and build; they are not performance guarantees.
 
 ## Representation
 
-Format `6` uses deterministic pretty JSON. It contains executable tables with integer references:
+Format `7` uses deterministic pretty JSON. It contains executable tables with integer references:
 
 ```text
 language image
@@ -94,7 +94,7 @@ Module identities are relative to the entry directory. Relocating the same defin
 
 ## Compatibility
 
-All newly compiled languages use format `6`. Formats `1`–`5` are retired: recompile their YL definitions with the current compiler. The loader reports this explicitly instead of rebuilding recursive normalization IR or maintaining a second production executor.
+All newly compiled languages use format `7`. Formats `1`–`5` are retired: recompile their YL definitions with the current compiler. The loader reports this explicitly instead of rebuilding recursive normalization IR or maintaining a second production executor.
 
 The image format is versioned but experimental. Long-term binary compatibility, a memory-mapped layout, and an ABI are not promised. An eventual binary encoding can represent these same tables without changing YL syntax.
 

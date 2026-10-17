@@ -190,6 +190,21 @@ enum Pattern {
     Empty,
 }
 impl Pattern {
+    fn at_index(&self, index: usize) -> Self {
+        match self {
+            Self::Tuple(values) => values.get(index).cloned().unwrap_or(Self::Empty),
+            Self::Exact(QueryKey::Tuple(values)) => values
+                .get(index)
+                .cloned()
+                .map(Self::Exact)
+                .unwrap_or(Self::Empty),
+            Self::Union(values) => {
+                Self::Union(values.iter().map(|value| value.at_index(index)).collect())
+            }
+            Self::Empty => Self::Empty,
+            _ => Self::Any,
+        }
+    }
     fn matches(&self, key: &QueryKey) -> bool {
         match self {
             Self::Any => true,
@@ -696,7 +711,9 @@ impl<'a> Engine<'a> {
                     self.discover_expression(owner, value, guards, rank);
                 }
             }
-            Expr::Not(value) => self.discover_expression(owner, value, guards, rank),
+            Expr::Not(value) | Expr::Index { value, .. } => {
+                self.discover_expression(owner, value, guards, rank)
+            }
             // Effectful callback bodies are rejected during compilation and artifact validation.
             Expr::Lambda { .. } => {}
             _ => {}
@@ -1038,6 +1055,18 @@ impl<'a> Engine<'a> {
                     },
                 )
             }
+            Expr::Index { value, index } => match self.eval(value, owner, locals, trace)? {
+                Outcome::Ready(SemanticValue::Tuple(values) | SemanticValue::List(values)) => {
+                    ready(values.get(*index).cloned().unwrap_or(SemanticValue::Absent))
+                }
+                Outcome::Ready(SemanticValue::Absent) => ready(SemanticValue::Absent),
+                Outcome::Ready(_) => Err(Diagnostic::error(
+                    "query.index",
+                    "Positional indexing requires a tuple or list",
+                    owner.span.clone(),
+                )),
+                outcome => Ok(outcome),
+            },
             Expr::Not(value) => match self.eval(value, owner, locals, trace)? {
                 Outcome::Ready(SemanticValue::Bool(value)) => ready(SemanticValue::Bool(!value)),
                 Outcome::Ready(SemanticValue::Absent) => ready(SemanticValue::Absent),
@@ -1411,6 +1440,15 @@ impl<'a> Engine<'a> {
             Expr::Block { result, .. } | Expr::BindingValue { result, .. } => {
                 self.abstract_expr(result, owner, locals, depth + 1)
             }
+            Expr::Index { value, index } => match &self.image.expressions[*value as usize] {
+                Expr::Tuple(values) | Expr::List(values) => values
+                    .get(*index)
+                    .map(|value| self.abstract_expr(value, owner, locals, depth + 1))
+                    .unwrap_or(Pattern::Empty),
+                _ => self
+                    .abstract_expr(value, owner, locals, depth + 1)
+                    .at_index(*index),
+            },
             Expr::Tuple(values) => Pattern::Tuple(
                 values
                     .iter()
@@ -2320,6 +2358,7 @@ pub(crate) fn action_node_count(actions: &[QueryAction], limit: usize) -> Option
                     pending.extend(args.iter().map(Node::Expression));
                 }
                 QueryExpr::Not(value)
+                | QueryExpr::Index { value, .. }
                 | QueryExpr::Lambda { body: value, .. }
                 | QueryExpr::BindingValue { result: value, .. } => {
                     pending.push(Node::Expression(value))
@@ -2515,6 +2554,21 @@ pub(crate) fn validate_groups(
                     }
                     Ok(())
                 }
+                QueryExpr::Index { value, index } => {
+                    if self.version < 5 {
+                        return Err(Self::bad(
+                            span,
+                            "Positional indexing requires normalized version 5",
+                        ));
+                    }
+                    if u32::try_from(*index).is_err() {
+                        return Err(Self::bad(
+                            span,
+                            "Positional index exceeds the supported range",
+                        ));
+                    }
+                    self.expr(value, locals, span, depth + 1)
+                }
                 QueryExpr::Not(value) => self.expr(value, locals, span, depth + 1),
                 _ => Ok(()),
             }
@@ -2637,6 +2691,10 @@ pub enum QueryExpr {
     Local(String),
     Tuple(Vec<QueryExpr>),
     List(Vec<QueryExpr>),
+    Index {
+        value: Box<QueryExpr>,
+        index: usize,
+    },
     BindingValue {
         invocation: String,
         result: Box<QueryExpr>,
@@ -2712,6 +2770,20 @@ pub struct QueryCase {
 #[cfg(test)]
 mod validation_tests {
     use super::*;
+
+    #[test]
+    fn positional_index_validates_its_operand_and_wire_range() {
+        let index = |value, index| QueryExpr::Index {
+            value: Box::new(value),
+            index,
+        };
+        assert!(validate(index(QueryExpr::Tuple(vec![]), 0), 5).is_ok());
+        assert!(validate(index(QueryExpr::Tuple(vec![]), 0), 4).is_err());
+        assert!(validate(index(QueryExpr::Capture("missing".into()), 0), 5).is_err());
+        if usize::BITS > 32 {
+            assert!(validate(index(QueryExpr::Tuple(vec![]), u32::MAX as usize + 1), 5).is_err());
+        }
+    }
 
     #[test]
     fn binding_reads_require_a_declared_invocation_context() {
