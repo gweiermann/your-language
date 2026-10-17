@@ -1,0 +1,9 @@
+{
+  "entry": "definition/minijs.yl",
+  "files": [
+    "programs/**/*.txt"
+  ],
+  "expectErrors": [
+    "programs/invalid.txt"
+  ]
+}

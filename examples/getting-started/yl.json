@@ -1,6 +1,0 @@
-{
-  "entry": "./language.yl",
-  "files": [
-    "*.txt"
-  ]
-}

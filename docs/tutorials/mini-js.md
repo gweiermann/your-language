@@ -1,6 +1,6 @@
 # Walk through MiniJS
 
-MiniJS demonstrates how YL features combine into a programming-language grammar. Its source lives in `examples/mini-js/` and is exercised through compilation, artifact reload, AST generation, and negative source fixtures.
+MiniJS demonstrates how YL features combine into a programming-language grammar. Its source lives in `examples/03-mini-js/` and is exercised through compilation, artifact reload, AST generation, and negative source fixtures.
 
 ## Lexical definitions
 
@@ -43,11 +43,11 @@ The statement family includes variable declarations, return statements, function
 ## Execute the complete flow
 
 ```sh
-yl check examples/mini-js/minijs.yl
-yl compile examples/mini-js/minijs.yl -o minijs.ylc
-yl language minijs.ylc ast examples/mini-js/program.js
-yl language minijs.ylc check examples/mini-js/invalid.js
-yl language minijs.ylc check examples/mini-js/invalid.js --json
+yl check examples/03-mini-js/definition/minijs.yl
+yl compile examples/03-mini-js/definition/minijs.yl -o minijs.ylc
+yl language minijs.ylc ast examples/03-mini-js/programs/program.txt
+yl language minijs.ylc check examples/03-mini-js/programs/invalid.txt
+yl language minijs.ylc check examples/03-mini-js/programs/invalid.txt --json
 ```
 
 The valid sample produces a `Program` node with four statements. The invalid source demonstrates an unexpected-token diagnostic. `.ylc` contains the normalized grammar required to repeat these operations without the original definition files.

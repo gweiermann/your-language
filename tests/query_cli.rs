@@ -11,7 +11,7 @@ fn cli_compiles_reloads_and_reports_authored_name_diagnostics_as_human_and_json(
         .current_dir(root)
         .args([
             "compile",
-            "examples/declarative-queries/definition/language.yl",
+            "examples/07-declarative-queries/definition/language.yl",
             "-o",
         ])
         .arg(&output)
@@ -28,7 +28,7 @@ fn cli_compiles_reloads_and_reports_authored_name_diagnostics_as_human_and_json(
         .arg(&output)
         .args([
             "check",
-            "examples/declarative-queries/programs/shadowing.txt",
+            "examples/07-declarative-queries/programs/shadowing.txt",
         ])
         .output()
         .unwrap();
@@ -41,7 +41,10 @@ fn cli_compiles_reloads_and_reports_authored_name_diagnostics_as_human_and_json(
         .current_dir(root)
         .arg("language")
         .arg(&output)
-        .args(["check", "examples/declarative-queries/programs/errors.txt"])
+        .args([
+            "check",
+            "examples/07-declarative-queries/programs/errors.txt",
+        ])
         .env("CLICOLOR_FORCE", "1")
         .env_remove("NO_COLOR")
         .output()
@@ -57,7 +60,7 @@ fn cli_compiles_reloads_and_reports_authored_name_diagnostics_as_human_and_json(
         .arg(&output)
         .args([
             "check",
-            "examples/declarative-queries/programs/errors.txt",
+            "examples/07-declarative-queries/programs/errors.txt",
             "--json",
         ])
         .output()
@@ -66,12 +69,12 @@ fn cli_compiles_reloads_and_reports_authored_name_diagnostics_as_human_and_json(
     assert!(json.stderr.is_empty());
     let diagnostics: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
     assert_eq!(diagnostics.as_array().unwrap().len(), 3);
-    let source = include_str!("../examples/declarative-queries/programs/errors.txt");
+    let source = include_str!("../examples/07-declarative-queries/programs/errors.txt");
     let ast = Command::new(executable)
         .current_dir(root)
         .arg("language")
         .arg(&output)
-        .args(["ast", "examples/declarative-queries/programs/errors.txt"])
+        .args(["ast", "examples/07-declarative-queries/programs/errors.txt"])
         .output()
         .unwrap();
     assert!(ast.status.success());

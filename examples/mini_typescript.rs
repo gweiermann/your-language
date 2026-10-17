@@ -1,7 +1,7 @@
 //! Mini TypeScript: authored reference and type queries through the public API.
-#[path = "mini_typescript/definition.rs"]
+#[path = "08-mini-typescript/hosts/definition.rs"]
 mod definition;
-#[path = "mini_typescript/inference.rs"]
+#[path = "08-mini-typescript/hosts/inference.rs"]
 mod inference;
 use your_language::{diagnostic::Severity, diagnostic_render::print_diagnostics};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -24,15 +24,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let source = match choice {
-        "program" => include_str!("mini_typescript/programs/program.txt"),
-        "errors" => include_str!("mini_typescript/programs/errors.txt"),
-        "generics" => include_str!("mini_typescript/programs/generics.txt"),
-        "generics-errors" => include_str!("mini_typescript/programs/generics-errors.txt"),
-        "higher-order" => include_str!("mini_typescript/programs/higher-order.txt"),
-        "union" => include_str!("mini_typescript/programs/union.txt"),
-        "union-errors" => include_str!("mini_typescript/programs/union-errors.txt"),
-        "addition" => include_str!("mini_typescript/programs/addition.txt"),
-        "addition-errors" => include_str!("mini_typescript/programs/addition-errors.txt"),
+        "program" => include_str!("08-mini-typescript/programs/program.txt"),
+        "errors" => include_str!("08-mini-typescript/programs/errors.txt"),
+        "generics" => include_str!("08-mini-typescript/programs/generics.txt"),
+        "generics-errors" => include_str!("08-mini-typescript/programs/generics-errors.txt"),
+        "higher-order" => include_str!("08-mini-typescript/programs/higher-order.txt"),
+        "union" => include_str!("08-mini-typescript/programs/union.txt"),
+        "union-errors" => include_str!("08-mini-typescript/programs/union-errors.txt"),
+        "addition" => include_str!("08-mini-typescript/programs/addition.txt"),
+        "addition-errors" => include_str!("08-mini-typescript/programs/addition-errors.txt"),
         _ => return Err(
             "Choose program, errors, generics, generics-errors, higher-order, union, union-errors, addition or addition-errors, optionally --json"
                 .into(),

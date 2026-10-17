@@ -2,7 +2,7 @@
 
 > **Historical design checkpoint.** This document preserves the original syntax-only proposal. For current syntax and public contracts, use the [language reference](../docs/reference/nodes.md), [syntax checks](../docs/reference/constraints.md), [semantic libraries](../docs/reference/meaning-libraries.md), and [declarative queries](../docs/api/declarative-queries.md). In particular, current source uses `checks`, `semantics`, and explicit imports from `core/diagnostics`; the earlier spellings in this checkpoint are historical.
 
-See [MiniJS example](../examples/mini-js/) for the MiniJS validation language.
+See [MiniJS example](../examples/03-mini-js/) for the MiniJS validation language.
 
 ## Modules
 

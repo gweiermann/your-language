@@ -3,7 +3,7 @@ use your_language::{
     diagnostic::Severity, diagnostic_render::print_diagnostics, semantics::SemanticEngine,
 };
 
-#[path = "semantics/definition.rs"]
+#[path = "06-references/hosts/definition.rs"]
 mod definition;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -24,19 +24,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (file, source) = match choice {
         "program" => (
             "programs/program.txt",
-            include_str!("semantics/programs/program.txt"),
+            include_str!("06-references/programs/program.txt"),
         ),
         "unresolved" => (
             "programs/unresolved.txt",
-            include_str!("semantics/programs/unresolved.txt"),
+            include_str!("06-references/programs/unresolved.txt"),
         ),
         "duplicate" => (
             "programs/duplicate.txt",
-            include_str!("semantics/programs/duplicate.txt"),
+            include_str!("06-references/programs/duplicate.txt"),
         ),
         "initializer" => (
             "programs/initializer-error.txt",
-            include_str!("semantics/programs/initializer-error.txt"),
+            include_str!("06-references/programs/initializer-error.txt"),
         ),
         _ => return Err("Choose program, unresolved, duplicate, or initializer".into()),
     };

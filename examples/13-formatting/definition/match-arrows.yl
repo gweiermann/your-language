@@ -1,0 +1,34 @@
+import { error } from "core/diagnostics"
+import { typeOf, annotateWithType, unknown } from "std/types"
+
+enum Type {
+    number
+    string
+}
+
+trivia Whitespace = /\s+/
+
+node Number = /[0-9]+/ {
+    semantics {
+        annotateWithType(self, Type::number)
+    }
+}
+
+node Addition =
+    left: Number
+    "+"
+    right: Number
+{
+    semantics {
+        match (typeOf(left), typeOf(right)) {
+            Type::string, Type::string | Type::string, Type::number | Type::number, Type::string => annotateWithType(self, Type::string)
+            Type::number, Type::number                                                           => annotateWithType(self, Type::number)
+            unknown, _ | _, unknown                                                              => annotateWithType(self, unknown)
+            _                                                                                    => error("Unsupported operands", self)
+        }
+    }
+}
+
+entry Addition {
+    trivia Whitespace
+}

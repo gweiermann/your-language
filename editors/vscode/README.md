@@ -48,7 +48,7 @@ The server handles YL definitions, file and untitled buffers, full-document sync
 
 The authored `std/references` and `std/types` libraries and generic `core/query` primitives are available for definition checking. contextual `self` and captures identify syntax directly. Other host-provided native libraries must remain in their host consumer: unavailable contracts produce diagnostics, rather than being guessed or executed. Completion, navigation and rename remain future work.
 
-The CLI `fmt` and `examples` commands remain available independently. The extension uses `vscode-languageclient` and does not bundle Rust. See [the metadata experiment](../../examples/example_metadata/README.md) for generator limits.
+The CLI `fmt` and `examples` commands remain available independently. The extension uses `vscode-languageclient` and does not bundle Rust. See [the metadata experiment](../../examples/04-ide-metadata/README.md) for generator limits.
 
 ## Development
 
@@ -73,7 +73,7 @@ A project-local `yl.json` enables diagnostics and semantic tokens for matching s
 ```json
 {
   "entry": "./definition/language.yl",
-  "files": ["programs/**/*.ts"]
+  "files": ["programs/**/*.txt"]
 }
 ```
 

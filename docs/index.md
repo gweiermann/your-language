@@ -27,9 +27,9 @@ features:
 ## One definition, two tools
 
 ```sh
-yl compile examples/mini-js/minijs.yl -o minijs.ylc
-yl language minijs.ylc ast examples/mini-js/program.js
-yl language minijs.ylc check examples/mini-js/invalid.js
+yl compile examples/03-mini-js/definition/minijs.yl -o minijs.ylc
+yl language minijs.ylc ast examples/03-mini-js/programs/program.txt
+yl language minijs.ylc check examples/03-mini-js/programs/invalid.txt
 ```
 
 Use the [CLI](/api/cli) to generate ASTs or check syntax, or embed the [Rust API](/api/rust) in an application. Compose experimental binding and type analysis with [semantic libraries](/reference/meaning-libraries), and explore [live editor tooling](/guide/editor). Begin with [installation](/guide/installation), then follow a [tutorial](/tutorials/first-language).

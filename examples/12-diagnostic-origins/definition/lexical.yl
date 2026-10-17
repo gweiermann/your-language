@@ -1,0 +1,9 @@
+export node Name = value: /[a-zA-Z_][a-zA-Z0-9_]*/ {
+    ide {
+        highlightAs "variable"
+    }
+}
+
+export trivia Whitespace = /\s+/
+
+export trivia Comment = /\/\/[^\n]*/

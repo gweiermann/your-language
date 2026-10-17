@@ -1,0 +1,11 @@
+{
+  "entry": "./definition/language.yl",
+  "files": [
+    "programs/**/*.txt"
+  ],
+  "expectErrors": [
+    "programs/unresolved.txt",
+    "programs/duplicate.txt",
+    "programs/initializer-error.txt"
+  ]
+}

@@ -101,7 +101,7 @@ fn authored_hypothetical_example_cli_preserves_human_and_json_underlines() {
     let cli = env!("CARGO_BIN_EXE_yl");
     let compile = Command::new(cli)
         .arg("compile")
-        .arg(root.join("examples/type_instantiation/definition/main.yl"))
+        .arg(root.join("examples/09-type-instantiation/definition/main.yl"))
         .arg("-o")
         .arg(&artifact)
         .output()
@@ -111,7 +111,7 @@ fn authored_hypothetical_example_cli_preserves_human_and_json_underlines() {
         "{}",
         String::from_utf8_lossy(&compile.stderr)
     );
-    let program = root.join("examples/type_instantiation/programs/program.txt");
+    let program = root.join("examples/09-type-instantiation/programs/program.txt");
     let success = Command::new(cli)
         .arg("language")
         .arg(&artifact)
@@ -124,7 +124,7 @@ fn authored_hypothetical_example_cli_preserves_human_and_json_underlines() {
         "{}",
         String::from_utf8_lossy(&success.stderr)
     );
-    let errors = root.join("examples/type_instantiation/programs/errors.txt");
+    let errors = root.join("examples/09-type-instantiation/programs/errors.txt");
     let human = Command::new(cli)
         .arg("language")
         .arg(&artifact)

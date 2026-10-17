@@ -12,7 +12,7 @@ This follows the distinction between a type and a quantified type scheme in Dama
 
 ## What the current implementation actually does
 
-The public kernel exports `std/types::{ensure, typeof, unknown}`. [Kernel](../src/semantics/types.rs), [authored wrappers](../examples/mini_typescript/definition/typing.yl)
+The public kernel exports `std/types::{ensure, typeof, unknown}`. [Kernel](../src/semantics/types.rs), [authored wrappers](../examples/08-mini-typescript/definition/typing.yl)
 
 * `TypeKey` is a binding/occurrence identity plus an optional authored slot symbol.
 * `ensure` records equality constraints. Its `requirement` flag changes diagnostic provenance, **not** the equality relation.

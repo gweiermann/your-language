@@ -334,7 +334,7 @@ entry Pair { trivia Space }"#;
 #[test]
 fn checked_in_fixture_cli_and_reload_generate_readable_trivia_examples() {
     let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("examples/example_metadata/language.yl");
+        .join("examples/04-ide-metadata/definition/language.yl");
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_yl"))
         .arg("examples")
         .arg(&fixture)

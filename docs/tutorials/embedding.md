@@ -9,7 +9,7 @@ use your_language::diagnostic::CompileResult;
 use your_language::{compile_language, load_compiled_language, parse_named};
 
 fn main() -> CompileResult<()> {
-    let language = compile_language("examples/mini-js/minijs.yl")?;
+    let language = compile_language("examples/03-mini-js/definition/minijs.yl")?;
     let bytes = language.to_bytes()?;
     let reloaded = load_compiled_language(&bytes)?;
 

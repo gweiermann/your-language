@@ -153,7 +153,7 @@ operation requireName(name) {
 }
 ```
 
-`when` requires a boolean condition and supports an optional `else`. A pending condition keeps its possible contributions pending. A settled false condition rules its branch out. `match` selects the first matching case for each Cartesian combination of explicit alternative values and requires a final wildcard case. Branches may contribute values or emit diagnostics. Rereading a matched expression inside its branch yields that combination's selected member, including inside nested matches; unmatched alternatives do not become evidence through a branch reread.
+`when` requires a boolean condition and supports an optional `else`. A pending condition keeps its possible contributions pending. A settled false condition rules its branch out. `match` selects the first matching case for each Cartesian combination of explicit alternative values and requires a final wildcard case. Branches may contribute values or emit diagnostics. Rereading a matched expression inside its branch yields that combination's selected member, including inside nested matches; unmatched alternatives do not become type contributions through a branch reread.
 
 The optional second diagnostic argument selects source syntax to underline; a third argument selects a related source location. Diagnostic messages can interpolate semantic expressions; pending interpolation values delay emission. Diagnostics belong to the evaluating occurrence and reflect its settled branch, so intermediate diagnostics do not accumulate across propagation rounds.
 
@@ -206,7 +206,7 @@ See the [authored scopes tutorial](/tutorials/declarative-scopes) for a complete
 
 ## Authored function relationships
 
-The `examples/declarative-functions` language keeps type symbols in its own `types.yl` module and type rules in `typing.yl`. It contains no native reference or type adapter.
+The `examples/10-declarative-functions` language keeps type symbols in its own `types.yl` module and type rules in `typing.yl`. It contains no native reference or type adapter.
 
 ```javascript
 identity(42);
@@ -220,8 +220,8 @@ function identity(value) {
 The two calls have types `number` and `string`. The original function's unresolved parameter and return remain `unknown`. Parameter types are attached to the resolved function declaration's public signature and addressed by parameter name. A function body stores its return information at `(self, returnType)` rather than acquiring a block type.
 
 ```shell
-cargo run -- compile examples/declarative-functions/definition/language.yl -o target/query-functions.ylc
-cargo run -- language target/query-functions.ylc check examples/declarative-functions/programs/identity.txt
+cargo run -- compile examples/10-declarative-functions/definition/language.yl -o target/query-functions.ylc
+cargo run -- language target/query-functions.ylc check examples/10-declarative-functions/programs/identity.txt
 cargo test --test declarative_functions
 ```
 
@@ -248,4 +248,4 @@ A selector that is pending keeps the match pending. Explicit alternative values 
 
 Recursive computations cannot contribute facts, emit diagnostics, or invoke native lifecycle effects. Unused definitions are checked too. Effectful operations remain separately discovered actions. Pure-call memoization is isolated to an evaluation and its order/hypothetical context, with dependency observations retained. Revisited argument cycles report `query.recursion`; bounded work, depth, value sizes, and a cumulative 16 MiB function-allocation budget report `query.resource`.
 
-See the [structural types tutorial](/tutorials/compound-types) for recursive comparisons and source-aware diagnostic evidence implemented in YL.
+See the [structural types tutorial](/tutorials/compound-types) for recursive comparisons and source-aware diagnostic type contributions implemented in YL.

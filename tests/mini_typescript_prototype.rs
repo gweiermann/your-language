@@ -1,6 +1,6 @@
-#[path = "../examples/mini_typescript/definition.rs"]
+#[path = "../examples/08-mini-typescript/hosts/definition.rs"]
 mod definition;
-#[path = "../examples/mini_typescript/inference.rs"]
+#[path = "../examples/08-mini-typescript/hosts/inference.rs"]
 mod inference;
 use your_language::semantics::AnalysisResult;
 
@@ -27,7 +27,7 @@ fn binding(result: &AnalysisResult, name: &str) -> Vec<String> {
 #[test]
 fn literals_annotations_and_calls() {
     let result = analyze(include_str!(
-        "../examples/mini_typescript/programs/program.txt"
+        "../examples/08-mini-typescript/programs/program.txt"
     ));
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(binding(&result, "identity"), ["(unknown) => unknown"]);
@@ -105,7 +105,7 @@ fn aliases_keep_the_function_binding_identity() {
 #[test]
 fn function_arguments_retain_signatures_through_parameter_overrides() {
     let result = analyze(include_str!(
-        "../examples/mini_typescript/programs/higher-order.txt"
+        "../examples/08-mini-typescript/programs/higher-order.txt"
     ));
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(binding(&result, "identity"), ["(unknown) => unknown"]);
@@ -115,7 +115,7 @@ fn function_arguments_retain_signatures_through_parameter_overrides() {
 #[test]
 fn nested_hypotheticals_keep_captured_outer_values_shared() {
     let result = analyze(include_str!(
-        "../examples/mini_typescript/programs/generics.txt"
+        "../examples/08-mini-typescript/programs/generics.txt"
     ));
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     for (name, expected) in [
@@ -131,7 +131,7 @@ fn nested_hypotheticals_keep_captured_outer_values_shared() {
 
 #[test]
 fn generic_error_fixture_keeps_nested_returns_and_outer_types_independent() {
-    let source = include_str!("../examples/mini_typescript/programs/generics-errors.txt");
+    let source = include_str!("../examples/08-mini-typescript/programs/generics-errors.txt");
     let result = analyze(source);
     assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
     let diagnostic = &result.diagnostics[0];
@@ -202,7 +202,7 @@ fn annotation_errors_underline_the_actual_expression() {
 #[test]
 fn independent_checks_survive_a_bad_call() {
     let result = analyze(include_str!(
-        "../examples/mini_typescript/programs/errors.txt"
+        "../examples/08-mini-typescript/programs/errors.txt"
     ));
     assert!(result.diagnostics.len() >= 3, "{:?}", result.diagnostics);
     assert!(result

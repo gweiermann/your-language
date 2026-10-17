@@ -1,6 +1,0 @@
-{
-  "entry": "./minijs.yl",
-  "files": [
-    "*.js"
-  ]
-}

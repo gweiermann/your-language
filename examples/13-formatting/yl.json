@@ -1,0 +1,6 @@
+{
+  "entry": "definition/match-arrows.yl",
+  "files": [
+    "programs/**/*.txt"
+  ]
+}

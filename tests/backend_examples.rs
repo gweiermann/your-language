@@ -1,4 +1,4 @@
-#[path = "../examples/backend-hooks/hosts/mod.rs"]
+#[path = "../examples/14-backend-hooks/hosts/mod.rs"]
 mod hosts;
 use std::{path::Path, process::Command};
 use your_language::backend::Backend;
@@ -6,7 +6,7 @@ use your_language::backend::Backend;
 fn source(name: &str) -> String {
     std::fs::read_to_string(
         Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("examples/backend-hooks/programs")
+            .join("examples/14-backend-hooks/programs")
             .join(name),
     )
     .unwrap()

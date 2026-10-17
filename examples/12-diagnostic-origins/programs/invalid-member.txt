@@ -1,0 +1,7 @@
+interface User {
+    name: string;
+    scores: number[];
+}
+
+let user: User = { name: "Ada", scores: [10, 20] };
+user.missing;

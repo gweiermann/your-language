@@ -3,7 +3,7 @@ use your_language::{
     frontend::parse_yl, load_compiled_language, semantics::SemanticEngine, syntax::DeclKind,
 };
 
-#[path = "../examples/semantics/definition.rs"]
+#[path = "../examples/06-references/hosts/definition.rs"]
 mod definition;
 
 fn sources(source: &str) -> BTreeMap<String, String> {
@@ -163,14 +163,14 @@ fn checked_in_semantic_language_resolves_functions_and_reports_negative_inputs()
     let valid = engine.analyze(
         &language,
         "valid.txt",
-        include_str!("../examples/semantics/programs/program.txt"),
+        include_str!("../examples/06-references/programs/program.txt"),
     );
     assert!(valid.diagnostics.is_empty(), "{:?}", valid.diagnostics);
     assert!(valid.ast.is_some());
     let unresolved = engine.analyze(
         &language,
         "unresolved.txt",
-        include_str!("../examples/semantics/programs/unresolved.txt"),
+        include_str!("../examples/06-references/programs/unresolved.txt"),
     );
     assert_eq!(
         unresolved.diagnostics.len(),
@@ -183,7 +183,7 @@ fn checked_in_semantic_language_resolves_functions_and_reports_negative_inputs()
     let duplicate = engine.analyze(
         &language,
         "duplicate.txt",
-        include_str!("../examples/semantics/programs/duplicate.txt"),
+        include_str!("../examples/06-references/programs/duplicate.txt"),
     );
     assert!(duplicate
         .diagnostics

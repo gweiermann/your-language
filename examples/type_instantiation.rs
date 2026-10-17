@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let json = args.iter().any(|arg| arg == "--json");
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let engine = SemanticEngine::default();
-    let language = compile_language(root.join("examples/type_instantiation/definition/main.yl"))
+    let language = compile_language(root.join("examples/09-type-instantiation/definition/main.yl"))
         .map_err(|errors| format!("{errors:?}"))?;
     let loaded = engine
         .load(
@@ -21,8 +21,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .map_err(|errors| format!("{errors:?}"))?;
     let file = if errors { "errors.txt" } else { "program.txt" };
-    let source =
-        std::fs::read_to_string(root.join("examples/type_instantiation/programs").join(file))?;
+    let source = std::fs::read_to_string(
+        root.join("examples/09-type-instantiation/programs")
+            .join(file),
+    )?;
     let result = engine.analyze(&loaded, file, &source);
     if json {
         println!("{}", serde_json::to_string_pretty(&result)?);

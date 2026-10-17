@@ -30,7 +30,7 @@ The library diagnoses same-scope duplicates and preserves inner shadowing. Decla
 
 Syntax captures and `self` carry their identities directly; redundant identity wrappers are not exported.
 
-## Type evidence and restrictions
+## Type type contributions and restrictions
 
 ```yl
 import { annotateWithType } from "std/types"
@@ -47,16 +47,16 @@ The standard library defines `unknown` and the metadata-channel symbol `type`. T
 
 | Operation | Behavior |
 | --- | --- |
-| `annotateWithType(key, value)` | Contribute possible type evidence at `(key, type)`. Repeated evidence is deduplicated; different evidence forms a union. |
-| `candidates(key)` | Read the current distinct evidence as a list during fixed-point propagation. |
-| `typeOf(key)` | Read one type, a set of alternatives, or `unknown` for an existing key with no evidence. An absent key returns `absent`. |
+| `annotateWithType(key, value)` | Contribute possible type type contributions at `(key, type)`. Repeated type contributions is deduplicated; different type contributions forms a union. |
+| `candidates(key)` | Read the current distinct type contributions as a list during fixed-point propagation. |
+| `typeOf(key)` | Read one type, a set of alternatives, or `unknown` for an existing key with no type contribution. An absent key returns `absent`. |
 | `compatible(actual, expected)` | Check candidate membership; `unknown` remains permissive. Languages can author different structural compatibility rules. |
-| `restrictTypeTo(key, expected, target = key, related = absent)` | Validate observed evidence without changing it. Emit an authored diagnostic at `target`, optionally marking a related annotation. |
+| `restrictTypeTo(key, expected, target = key, related = absent)` | Validate observed type contributions without changing it. Emit an authored diagnostic at `target`, optionally marking a related annotation. |
 | `resolveTypeWith(result, assumptions)` | Recompute a result under explicit temporary type assignments, preserving the original store. |
 
 Keys can be syntax identities, resolved declaration identities or nested tuples. `(functionIdentity, returnType)` can describe a function's return without assigning a type to its body block. An ordered list is an ordinary compound value, not automatically a union. Repeated syntax captures are lists: use `map(captures, value => typeOf(value))` to form a positional type list.
 
-A restriction alone does not annotate a value. An initializer contributes actual evidence; an explicit declaration annotation restricts that evidence:
+A restriction alone does not annotate a value. An initializer contributes actual type contributions; an explicit declaration annotation restricts that type contributions:
 
 ```yl
 operation bindingType(name, initializer, annotation) {
@@ -65,13 +65,13 @@ operation bindingType(name, initializer, annotation) {
 }
 ```
 
-An optional absent annotation suppresses the dependent restriction without suppressing initializer evidence. No `isPresent` guard is required for this path. Missing-name diagnostics deliberately inspect absence in the reference library.
+An optional absent annotation suppresses the dependent restriction without suppressing initializer type contributions. No `isPresent` guard is required for this path. Missing-name diagnostics deliberately inspect absence in the reference library.
 
 The initializer remains the primary error location; the related source points to the annotation's type word. Type policy is in the library and language definition, so a structural language can replace membership checks with authored field/subset queries.
 
 ## Generic function relationships
 
-Each assumption is `(logicalTypeKey, temporaryType)`, optionally followed by an originating source capture. Only supplied keys are overridden. Dependent relationships are recalculated; outer captures and original parameter evidence remain unchanged.
+Each assumption is `(logicalTypeKey, temporaryType)`, optionally followed by an originating source capture. Only supplied keys are overridden. Dependent relationships are recalculated; outer captures and original parameter type contributions remain unchanged.
 
 ```yl
 resolveTypeWith(
@@ -84,4 +84,4 @@ resolveTypeWith(
 
 Explicit return annotations can serve as authored recursive-call anchors. Unanchored recursive hypotheses report structured cycles; the evaluator does not guess a target-language return type. Hypothetical nesting, alternative combinations and artifact depth are bounded.
 
-The [Mini TypeScript example](https://github.com/gweiermann/your-language/tree/main/examples/mini_typescript) demonstrates per-parameter keys, independent identity calls, function aliases, higher-order calls, unions, explicit annotations and source diagnostics using these authored modules.
+The [Mini TypeScript example](https://github.com/gweiermann/your-language/tree/main/examples/08-mini-typescript) demonstrates per-parameter keys, independent identity calls, function aliases, higher-order calls, unions, explicit annotations and source diagnostics using these authored modules.

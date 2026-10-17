@@ -8,7 +8,7 @@ use your_language::{
 };
 
 fn directory() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/compound-types")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/12-diagnostic-origins")
 }
 
 fn analyze(name: &str) -> (String, your_language::semantics::AnalysisResult) {
@@ -57,7 +57,7 @@ fn declaration_type<'a>(result: &'a AnalysisResult, name: &str) -> &'a SemanticV
     }
     let declaration =
         find(&result.occurrences, name).unwrap_or_else(|| panic!("Missing declaration {name}"));
-    let evidence = result.graph.query_entries.iter().find(|entry| matches!(&entry.key, QueryKey::Tuple(values) if matches!(values.as_slice(), [QueryKey::Identity(SemanticIdentity::Occurrence(id)), QueryKey::Symbol(symbol)] if *id == declaration.id && symbol.ends_with("#typeEvidence"))))
+    let evidence = result.graph.query_entries.iter().find(|entry| matches!(&entry.key, QueryKey::Tuple(values) if matches!(values.as_slice(), [QueryKey::Identity(SemanticIdentity::Occurrence(id)), QueryKey::Symbol(symbol)] if *id == declaration.id && symbol.ends_with("#typeSources"))))
         .unwrap_or_else(|| panic!("Missing type evidence for {name}"));
     &tuple(&evidence.value)[0]
 }
