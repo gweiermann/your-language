@@ -6,13 +6,15 @@ execute semantic operations, or promise a complete regex/grammar synthesizer.
 
 ```yl
 node Number = /[0-9]+/ {
-    example "42"
+    ide {
+        example "42"
+    }
 }
 
 entry Number
 ```
 
-`example` is optional metadata on a node or parameterless pattern. An explicit
+`ide { example "..." }` is optional metadata on a node or parameterless pattern. An explicit
 example wins over generation, must consume the complete source, and must pass
 syntax-local constraints. Invalid metadata produces `yl.invalid_example` at the
 example declaration. Duplicate examples are rejected. Metadata does not alter

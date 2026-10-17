@@ -15,6 +15,7 @@ const reference = [
   ['Core and standard library', 'standard-library'],
   ['Semantic libraries', 'meaning-libraries'],
   ['Syntax examples', 'examples'],
+  ['IDE metadata', 'ide'],
 ].map(([text, slug]) => ({ text, link: `/reference/${slug}` }))
 
 export default defineConfig({

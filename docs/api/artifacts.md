@@ -35,7 +35,7 @@ cargo run --example compiled_image
 cargo run --example compiled_image -- examples/mini_typescript/definition/language.yl examples/mini_typescript/programs/generics.txt
 ```
 
-Both examples report format `8`, `AST: true`, and `diagnostics: 0`. Timing numbers describe the current machine and build; they are not performance guarantees.
+Both examples report format `9`, `AST: true`, and `diagnostics: 0`. Timing numbers describe the current machine and build; they are not performance guarantees.
 
 ## Representation
 
@@ -94,7 +94,7 @@ Module identities are relative to the entry directory. Relocating the same defin
 
 ## Compatibility
 
-All newly compiled languages use format `8`. Formats `1`–`5` are retired: recompile their YL definitions with the current compiler. The loader reports this explicitly instead of rebuilding recursive normalization IR or maintaining a second production executor.
+All newly compiled languages use format `9`. Formats `1` through `8` are retired: recompile their YL definitions with the current compiler. The loader reports this explicitly instead of rebuilding recursive normalization IR or maintaining a second production executor.
 
 The image format is versioned but experimental. Long-term binary compatibility, a memory-mapped layout, and an ABI are not promised. An eventual binary encoding can represent these same tables without changing YL syntax.
 

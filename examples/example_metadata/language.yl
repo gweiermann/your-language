@@ -6,12 +6,14 @@ trivia Whitespace = /\s+/
 pattern Name = /[a-z]+/ {
     ide {
         example "name"
+        highlightAs "variable"
     }
 }
 
 node Number = /[0-9]+/ {
     ide {
         example "42"
+        highlightAs "number"
     }
 }
 

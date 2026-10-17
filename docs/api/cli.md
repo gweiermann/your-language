@@ -140,3 +140,14 @@ cargo run -- examples language.ylc
 `yl examples` emits JSON with definition IDs, source spans, validated text and reasons
 for unavailable previews. Explicit node/pattern `example "..."` metadata takes priority
 within the experimental bounded generator.
+
+
+## Check a project program
+
+```sh
+yl project check examples/mini_typescript/programs/program.txt
+yl project check examples/compound-types/programs/invalid-scattered.txt --json
+yl project ast examples/mini_typescript/programs/program.txt
+```
+
+The nearest `yl.json` selects the entry and project-relative file globs. The source must match that configuration. The CLI compiles the entry in memory; there is no intermediate artifact file to manage. `check` runs parsing, syntax checks and authored semantic queries, with the same diagnostics as the editor. A clean check is silent, JSON checks emit a diagnostic array, and errors exit nonzero. `ast` prints the parsed AST as JSON and emits any parse diagnostics as JSON to stderr. Project discovery, malformed configuration and missing language entry errors follow the requested JSON/human format. See [project configuration](/guide/editor#programs-in-a-language-project).

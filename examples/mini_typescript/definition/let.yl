@@ -4,8 +4,14 @@ import { Name } from "./lexical"
 import { Annotation } from "./types"
 import { Expression } from "./expression"
 
+pattern LetKeyword = "let" {
+    ide {
+        highlightAs "keyword"
+    }
+}
+
 export node LetDeclaration =
-    "let"
+    LetKeyword
     name: Name
     annotation: Annotation?
     "="

@@ -1,14 +1,18 @@
 # Syntax examples
 
-Representative examples let language authors preview matched source without running meaning operations. Nodes and parameterless patterns accept one optional `example` declaration:
+Representative examples let language authors preview matched source without running meaning operations. Nodes and parameterless patterns accept one optional `example` property inside an `ide` block:
 
 ```yl
 node Number = /[0-9]+/ {
-    example "42"
+    ide {
+        example "42"
+    }
 }
 
 pattern Argument = Number {
-    example "7"
+    ide {
+        example "7"
+    }
 }
 
 entry Argument

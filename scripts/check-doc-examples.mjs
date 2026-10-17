@@ -46,3 +46,13 @@ if (!previews.some(preview => preview.text === 'let name = 42 ;')) {
   throw new Error('Expected the documented whitespace-aware Program preview')
 }
 console.log('All documentation syntax, inference and example-preview flows passed.')
+
+for (const [source, success] of [
+  ['examples/mini_typescript/programs/program.txt', true],
+  ['examples/compound-types/programs/valid.txt', true],
+  ['examples/compound-types/programs/invalid-scattered.txt', false],
+]) {
+  const checked = run(['project', 'check', source, '--json'], success)
+  if (!Array.isArray(JSON.parse(checked.stdout))) throw new Error('Expected project diagnostic array')
+}
+JSON.parse(run(['project', 'ast', 'examples/mini_typescript/programs/program.txt']).stdout)
