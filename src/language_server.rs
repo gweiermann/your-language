@@ -5,6 +5,7 @@ use crate::{
     frontend::parse_yl,
     semantics::SemanticEngine,
     syntax::DeclKind,
+    CompiledLanguage,
 };
 use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
 use serde_json::{json, Value};
@@ -32,7 +33,15 @@ struct Workspace {
     hints: BTreeMap<String, Vec<Value>>,
     lenses: BTreeMap<String, Vec<Value>>,
     display: ExampleDisplay,
+    tokens: BTreeMap<String, Value>,
+    compiled: BTreeMap<String, CachedLanguage>,
 }
+struct CachedLanguage {
+    sources: BTreeMap<String, String>,
+    result: Result<Arc<CompiledLanguage>, Vec<Diagnostic>>,
+}
+// Standard LSP categories; themes own their colors.
+const TOKEN_TYPES: &[&str] = crate::syntax::HIGHLIGHT_TYPES;
 #[derive(Default, PartialEq)]
 enum ExampleDisplay {
     #[default]
@@ -66,11 +75,14 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let params: Value = serde_json::from_value(params)?;
     let refresh_hints = params["capabilities"]["workspace"]["inlayHint"]["refreshSupport"] == true;
     let refresh_lenses = params["capabilities"]["workspace"]["codeLens"]["refreshSupport"] == true;
+    let refresh_tokens =
+        params["capabilities"]["workspace"]["semanticTokens"]["refreshSupport"] == true;
     connection.initialize_finish(
         id,
         json!({"capabilities": {
         "positionEncoding":"utf-16", "textDocumentSync":{"openClose":true,"change":1},
-        "documentFormattingProvider":true, "inlayHintProvider":true, "codeLensProvider":{"resolveProvider":false}
+        "documentFormattingProvider":true, "inlayHintProvider":true, "codeLensProvider":{"resolveProvider":false},
+        "semanticTokensProvider":{"legend":{"tokenTypes":TOKEN_TYPES,"tokenModifiers":[]},"full":true}
     },"serverInfo":{"name":"Your Language","version":env!("CARGO_PKG_VERSION")}}),
     )?;
     let mut workspace = Workspace {
@@ -146,10 +158,18 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                                     Value::Null,
                                 )))?;
                             }
+                            if refresh_tokens {
+                                protocol_sender.send(Message::Request(Request::new(
+                                    RequestId::from(format!("yl-tokens-{epoch}")),
+                                    "workspace/semanticTokens/refresh".into(),
+                                    Value::Null,
+                                )))?;
+                            }
                         } else {
                             workspace.published = published;
                             workspace.hints.clear();
                             workspace.lenses.clear();
+                            workspace.tokens.clear();
                         }
                     }
                 }
@@ -266,6 +286,61 @@ fn position(source: &str, offset: usize) -> Value {
 fn range(source: &str, start: usize, end: usize) -> Value {
     json!({"start":position(source,start),"end":position(source,end)})
 }
+fn is_yl(uri: &str) -> bool {
+    uri.starts_with("untitled:")
+        || file_path(uri)
+            .is_some_and(|path| path.extension().is_some_and(|extension| extension == "yl"))
+}
+fn semantic_tokens(source: &str, spans: Vec<crate::HighlightSpan>) -> Value {
+    let mut tokens = Vec::new();
+    for highlight in spans {
+        let Some(kind) = TOKEN_TYPES
+            .iter()
+            .position(|kind| *kind == highlight.token_type)
+        else {
+            continue;
+        };
+        if source
+            .get(highlight.span.start..highlight.span.end)
+            .is_none()
+        {
+            continue;
+        }
+        let mut start = highlight.span.start;
+        for line in source[highlight.span.start..highlight.span.end].split_inclusive('\n') {
+            let text = line.trim_end_matches(['\r', '\n']);
+            if !text.is_empty() {
+                let position = position(source, start);
+                tokens.push((
+                    position["line"].as_u64().unwrap_or(0),
+                    position["character"].as_u64().unwrap_or(0),
+                    text.encode_utf16().count() as u64,
+                    kind,
+                ));
+            }
+            start += line.len();
+        }
+    }
+    tokens.sort_unstable();
+    let mut data = Vec::new();
+    let (mut previous_line, mut previous_character) = (0, 0);
+    for (line, character, length, kind) in tokens {
+        data.extend([
+            line - previous_line,
+            if line == previous_line {
+                character - previous_character
+            } else {
+                character
+            },
+            length,
+            kind as u64,
+            0,
+        ]);
+        previous_line = line;
+        previous_character = character;
+    }
+    json!({"data":data})
+}
 fn notification(method: &str, params: Value) -> Notification {
     Notification::new(method.into(), params)
 }
@@ -325,6 +400,7 @@ impl Workspace {
         }
         self.hints.clear();
         self.lenses.clear();
+        self.tokens.clear();
         true
     }
     fn source(&self, uri: &str) -> Option<String> {
@@ -341,6 +417,7 @@ impl Workspace {
     fn analyze(&mut self) -> Vec<Notification> {
         self.hints.clear();
         self.lenses.clear();
+        self.tokens.clear();
         let mut sources: BTreeMap<String, String> = self
             .documents
             .iter()
@@ -349,10 +426,37 @@ impl Workspace {
         let mut diagnostics: BTreeMap<String, Vec<Value>> =
             self.documents.keys().map(|u| (u.clone(), vec![])).collect();
         let mut roots = BTreeSet::new();
+        let mut programs: BTreeMap<String, Vec<String>> = BTreeMap::new();
         if let Some(entry) = &self.entry {
             roots.insert(entry.clone());
         }
         for (uri, doc) in &self.documents {
+            if file_path(uri).is_some_and(|p| p.file_name().is_some_and(|n| n == "yl.json")) {
+                let path = file_path(uri).expect("file URI");
+                if let Err(errors) = crate::project::Project::parse(&path, &doc.text) {
+                    self.add_path_diagnostics(&errors, &mut sources, &mut diagnostics);
+                }
+                continue;
+            }
+            if !is_yl(uri) {
+                if let Some(path) = file_path(uri) {
+                    match crate::project::Project::discover_with(&path, |path| {
+                        self.uri_for_path(path).and_then(|uri| self.source(&uri))
+                    }) {
+                        Ok(Some(project)) if project.matches(&path) => {
+                            if let Some(entry) = self.uri_for_path(&project.entry) {
+                                roots.insert(entry.clone());
+                                programs.entry(entry).or_default().push(uri.clone());
+                            }
+                        }
+                        Err(errors) => {
+                            self.add_path_diagnostics(&errors, &mut sources, &mut diagnostics)
+                        }
+                        _ => {}
+                    }
+                }
+                continue;
+            }
             match parse_yl(uri, &doc.text) {
                 Ok(module) => {
                     if module
@@ -366,6 +470,7 @@ impl Workspace {
                 Err(errors) => self.add_diagnostics(&errors, &sources, &mut diagnostics),
             }
         }
+        self.compiled.retain(|entry, _| roots.contains(entry));
         for entry_uri in roots {
             if self.source(&entry_uri).is_none() {
                 diagnostics
@@ -416,7 +521,24 @@ impl Workspace {
                 graph.insert(id, text);
             }
             let entry_id = relative(&entry_path, root);
-            match SemanticEngine::default().compile(&entry_id, &graph) {
+            let needs_compile = self
+                .compiled
+                .get(&entry_uri)
+                .is_none_or(|cached| cached.sources != graph);
+            if needs_compile {
+                let result = SemanticEngine::default()
+                    .compile(&entry_id, &graph)
+                    .map(Arc::new);
+                self.compiled.insert(
+                    entry_uri.clone(),
+                    CachedLanguage {
+                        sources: graph,
+                        result,
+                    },
+                );
+            }
+            let result = self.compiled[&entry_uri].result.clone();
+            match result {
                 Ok(language) => {
                     let errors = language
                         .diagnostics
@@ -424,6 +546,22 @@ impl Workspace {
                         .map(|d| remap(d, &paths))
                         .collect::<Vec<_>>();
                     self.add_diagnostics(&errors, &sources, &mut diagnostics);
+                    for uri in programs.get(&entry_uri).into_iter().flatten() {
+                        let Some(source) = sources.get(uri) else {
+                            continue;
+                        };
+                        let analysis = SemanticEngine::default().analyze(&language, uri, source);
+                        let errors = analysis
+                            .diagnostics
+                            .iter()
+                            .map(|diagnostic| remap(diagnostic, &paths))
+                            .collect::<Vec<_>>();
+                        self.add_diagnostics(&errors, &sources, &mut diagnostics);
+                        self.tokens.insert(
+                            uri.clone(),
+                            semantic_tokens(source, language.highlight_named(uri, source)),
+                        );
+                    }
                     for Preview {
                         definition,
                         span,
@@ -502,10 +640,56 @@ impl Workspace {
             }
         }
     }
+    fn add_path_diagnostics(
+        &self,
+        errors: &[Diagnostic],
+        sources: &mut BTreeMap<String, String>,
+        output: &mut BTreeMap<String, Vec<Value>>,
+    ) {
+        let paths: BTreeMap<_, _> = errors
+            .iter()
+            .filter_map(|error| {
+                self.uri_for_path(Path::new(&error.primary.file))
+                    .map(|uri| (error.primary.file.clone(), uri))
+            })
+            .collect();
+        for uri in paths.values() {
+            if let Some(text) = self.source(uri) {
+                sources.insert(uri.clone(), text);
+            }
+        }
+        self.add_diagnostics(
+            &errors
+                .iter()
+                .map(|error| remap(error, &paths))
+                .collect::<Vec<_>>(),
+            sources,
+            output,
+        );
+    }
     fn request(&self, method: &str, params: &Value) -> Result<Value, (i32, String)> {
         let uri = params["textDocument"]["uri"].as_str().unwrap_or("");
         match method {
+            "yl/project" => {
+                let project = file_path(uri).and_then(|path| {
+                    crate::project::Project::discover_with(&path, |path| {
+                        self.uri_for_path(path).and_then(|uri| self.source(&uri))
+                    })
+                    .ok()
+                    .flatten()
+                    .filter(|project| project.matches(&path))
+                });
+                Ok(json!({"matches":project.is_some()}))
+            }
+            "textDocument/semanticTokens/full" => Ok(self
+                .tokens
+                .get(uri)
+                .cloned()
+                .unwrap_or_else(|| json!({"data":[]}))),
             "textDocument/formatting" => {
+                if !is_yl(uri) {
+                    return Ok(Value::Null);
+                }
                 let source = self
                     .source(uri)
                     .ok_or((-32602, "Unknown document".into()))?;
@@ -652,5 +836,40 @@ mod tests {
         ));
         w.update(&notification("textDocument/didChange",json!({"textDocument":{"uri":"untitled:a","version":2},"contentChanges":[{"text":"bad"}]})));
         assert_eq!(w.documents["untitled:a"].text, "x");
+    }
+    #[test]
+    fn program_edits_reuse_compiled_graph_but_definition_edits_invalidate_it() {
+        let directory = std::env::temp_dir().join("yl-cache-unit-test");
+        let entry = file_uri(&directory.join("language.yl")).unwrap();
+        let config = file_uri(&directory.join("yl.json")).unwrap();
+        let program = file_uri(&directory.join("program.txt")).unwrap();
+        let mut workspace = Workspace::default();
+        for (uri, text) in [
+            (&entry, "node Root = /[0-9]+/ entry Root"),
+            (&config, r#"{"entry":"language.yl","files":["*.txt"]}"#),
+            (&program, "42"),
+        ] {
+            workspace.update(&notification(
+                "textDocument/didOpen",
+                json!({"textDocument":{"uri":uri,"text":text,"version":1}}),
+            ));
+        }
+        workspace.analyze();
+        let first = workspace.compiled[&entry].result.as_ref().unwrap().clone();
+        workspace.update(&notification(
+            "textDocument/didChange",
+            json!({"textDocument":{"uri":program,"version":2},"contentChanges":[{"text":"43"}]}),
+        ));
+        workspace.analyze();
+        assert!(Arc::ptr_eq(
+            &first,
+            workspace.compiled[&entry].result.as_ref().unwrap()
+        ));
+        workspace.update(&notification("textDocument/didChange",json!({"textDocument":{"uri":entry,"version":2},"contentChanges":[{"text":"node Root = /[a-z]+/ entry Root"}]})));
+        workspace.analyze();
+        assert!(!Arc::ptr_eq(
+            &first,
+            workspace.compiled[&entry].result.as_ref().unwrap()
+        ));
     }
 }

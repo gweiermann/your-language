@@ -5,7 +5,7 @@ pub mod diagnostic_render;
 pub mod frontend;
 pub mod ir;
 pub use compiler::{compile_language, compile_sources};
-pub use ir::CompiledLanguage;
+pub use ir::{CompiledLanguage, HighlightSpan};
 mod artifact;
 pub mod image;
 mod runtime;
@@ -20,3 +20,4 @@ pub use formatting::{format_yl, format_yl_with_options, FormatOptions};
 
 pub mod examples;
 pub mod language_server;
+pub mod project;

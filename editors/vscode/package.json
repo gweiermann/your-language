@@ -2,7 +2,7 @@
   "name": "your-language",
   "displayName": "Your Language",
   "description": "YL syntax highlighting, live diagnostics, formatting and example hints.",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "publisher": "gweiermann",
   "license": "UNLICENSED",
   "repository": {
@@ -18,6 +18,7 @@
     "Formatters"
   ],
   "main": "./out/extension.js",
+  "activationEvents": ["workspaceContains:**/yl.json"],
   "extensionKind": [
     "workspace"
   ],
@@ -29,7 +30,14 @@
     "virtualWorkspaces": false
   },
   "contributes": {
+    "configurationDefaults": {
+      "[yl-program]": { "editor.semanticHighlighting.enabled": true }
+    },
     "languages": [
+      {
+        "id": "yl-program",
+        "aliases": ["Your Language Program"]
+      },
       {
         "id": "yl",
         "aliases": [
