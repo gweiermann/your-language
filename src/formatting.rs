@@ -243,6 +243,7 @@ impl Layout {
                 meanings,
                 example,
                 ide,
+                backend,
                 ..
             } => {
                 self.containers.push(DeclarationContainer {
@@ -270,12 +271,16 @@ impl Layout {
                 if let Some(meanings) = meanings {
                     self.meanings(meanings);
                 }
+                if let Some(backend) = backend {
+                    self.backend(backend);
+                }
             }
             DeclKind::Pattern {
                 grammar,
                 meanings,
                 example,
                 ide,
+                backend,
                 ..
             } => {
                 self.grammar(grammar);
@@ -288,6 +293,9 @@ impl Layout {
                 }
                 if let Some(meanings) = meanings {
                     self.meanings(meanings);
+                }
+                if let Some(backend) = backend {
+                    self.backend(backend);
                 }
             }
             DeclKind::Pipe { arms, .. } => {
@@ -332,7 +340,13 @@ impl Layout {
                 }
                 OperationBody::Query(value) => self.semantic_value(value),
             },
-            DeclKind::Entry { .. } | DeclKind::Symbol { .. } => {}
+            DeclKind::Entry { .. } | DeclKind::Symbol { .. } | DeclKind::Hook { .. } => {}
+        }
+    }
+    fn backend(&mut self, backend: &Backend) {
+        self.line(&backend.span, false);
+        for argument in &backend.arguments {
+            self.semantic_value(argument);
         }
     }
     fn meanings(&mut self, meanings: &Meanings) {
@@ -547,7 +561,7 @@ impl Layout {
                         if depth == 1
                             && matches!(
                                 word.as_str(),
-                                "semantics" | "precedence" | "checks" | "ide"
+                                "semantics" | "precedence" | "checks" | "ide" | "backend"
                             )
                             && !container.members.iter().any(|member| {
                                 member.start <= token.span.start && token.span.end <= member.end

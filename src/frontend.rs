@@ -180,6 +180,7 @@ impl Parser {
             "constraint",
             "symbol",
             "operation",
+            "hook",
         ]
         .iter()
         .any(|s| self.is(s))
@@ -233,6 +234,35 @@ impl Parser {
             } else {
                 DeclKind::Import { names, path }
             }
+        } else if self.take("hook") {
+            let name = self.word()?;
+            self.expect("(")?;
+            let mut parameters = vec![];
+            let mut names = BTreeSet::new();
+            while !self.is(")") {
+                let span = self.token().span.clone();
+                let name = self.word()?;
+                if !names.insert(name.clone()) {
+                    return Err(self.error("yl.hook_parameter", "Duplicate hook parameter"));
+                }
+                parameters.push(Parameter {
+                    name,
+                    ty: None,
+                    default: None,
+                    span: self.span_from(&span),
+                });
+                if self.is(":") || self.is("=") {
+                    return Err(self.error(
+                        "yl.hook_parameter",
+                        "Hook parameters are names only; types and defaults are not supported",
+                    ));
+                }
+                if !self.take(",") {
+                    break;
+                }
+            }
+            self.expect(")")?;
+            DeclKind::Hook { name, parameters }
         } else if self.take("operation") {
             let name = self.word()?;
             let parameters = self.semantic_parameters()?;
@@ -305,12 +335,20 @@ impl Parser {
             let mut meanings = None;
             let mut example = None;
             let mut ide = None;
+            let mut backend = None;
             if self.take("=") {
                 grammar = Some(self.expression()?);
             }
             if self.take("{") {
                 while !self.is("}") {
-                    if self.take("ide") {
+                    if self.is("backend") {
+                        if backend.is_some() {
+                            return Err(
+                                self.error("yl.duplicate_member", "Duplicate backend section")
+                            );
+                        }
+                        backend = Some(self.backend()?);
+                    } else if self.take("ide") {
                         if ide.is_some() {
                             return Err(self.error("yl.duplicate_member", "Duplicate ide section"));
                         }
@@ -377,6 +415,7 @@ impl Parser {
                 meanings,
                 example,
                 ide,
+                backend,
             }
         } else if self.take("pattern") {
             let name = self.word()?;
@@ -386,9 +425,17 @@ impl Parser {
             let mut meanings = None;
             let mut example = None;
             let mut ide = None;
+            let mut backend = None;
             if self.take("{") {
                 while !self.is("}") {
-                    if self.take("ide") {
+                    if self.is("backend") {
+                        if backend.is_some() {
+                            return Err(
+                                self.error("yl.duplicate_member", "Duplicate backend section")
+                            );
+                        }
+                        backend = Some(self.backend()?);
+                    } else if self.take("ide") {
                         if ide.is_some() {
                             return Err(self.error("yl.duplicate_member", "Duplicate ide section"));
                         }
@@ -419,6 +466,7 @@ impl Parser {
                 meanings,
                 example,
                 ide,
+                backend,
             }
         } else if self.take("pipe") {
             let name = self.word()?;
@@ -530,6 +578,40 @@ impl Parser {
             export,
             kind,
             span: self.span_from(&start),
+        })
+    }
+    fn backend(&mut self) -> Result<Backend> {
+        let span = self.token().span.clone();
+        self.expect("backend")?;
+        self.expect("{")?;
+        if self.is("return") || self.is("}") {
+            return Err(self.error(
+                "yl.backend_call",
+                "A backend section must contain exactly one hook invocation",
+            ));
+        }
+        let hook = self.path()?;
+        let arguments = self.semantic_arguments()?;
+        if arguments.iter().any(|argument| argument.name.is_some()) {
+            return Err(self.error(
+                "yl.backend_call",
+                "Backend hook arguments must be positional",
+            ));
+        }
+        if !self.is("}") {
+            return Err(self.error(
+                "yl.backend_call",
+                "A backend section must contain exactly one hook invocation",
+            ));
+        }
+        self.expect("}")?;
+        Ok(Backend {
+            hook,
+            arguments: arguments
+                .into_iter()
+                .map(|argument| argument.value)
+                .collect(),
+            span: self.span_from(&span),
         })
     }
     fn selector(&mut self) -> Result<Expr> {
@@ -1786,5 +1868,76 @@ mod rewrite_diagnostic_import_tests {
         };
         assert!(cases[0].diagnostics.is_empty());
         assert!(cases[0].replacement.is_some());
+    }
+
+    #[test]
+    fn hooks_and_backend_bindings_preserve_unevaluated_capture_expressions() {
+        let source = "export hook add(left, right)\nnode Sum = left: Number right: Number { backend { runtime::add(left, right) } }\npattern Wrapper = Number { backend { wrap(self) } }";
+        let module = parse_yl("hooks.yl", source).unwrap();
+        let DeclKind::Hook { name, parameters } = &module.declarations[0].kind else {
+            panic!("Expected hook declaration");
+        };
+        assert!(module.declarations[0].export);
+        assert_eq!(name, "add");
+        assert_eq!(
+            parameters
+                .iter()
+                .map(|parameter| parameter.name.as_str())
+                .collect::<Vec<_>>(),
+            ["left", "right"]
+        );
+        let DeclKind::Node {
+            backend: Some(backend),
+            ..
+        } = &module.declarations[1].kind
+        else {
+            panic!("Expected backend binding");
+        };
+        assert_eq!(backend.hook, "runtime::add");
+        assert!(matches!(&backend.arguments[0].kind, ExprKind::Ref(name) if name == "left"));
+        assert_eq!(
+            &source[backend.span.start..backend.span.end],
+            "backend { runtime::add(left, right) }"
+        );
+        assert!(matches!(
+            &module.declarations[2].kind,
+            DeclKind::Pattern {
+                backend: Some(_),
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn malformed_hook_contracts_and_backend_blocks_have_diagnostics() {
+        for (source, code) in [
+            ("hook add(left = true)", "yl.hook_parameter"),
+            ("hook add(left: Value)", "yl.hook_parameter"),
+            ("hook add(left, left)", "yl.hook_parameter"),
+            ("node N = \"n\" { backend {} }", "yl.backend_call"),
+            (
+                "node N = \"n\" { backend { return add(self) } }",
+                "yl.backend_call",
+            ),
+            (
+                "node N = \"n\" { backend { add(self) add(self) } }",
+                "yl.backend_call",
+            ),
+            (
+                "node N = \"n\" { backend { add(value=self) } }",
+                "yl.backend_call",
+            ),
+            (
+                "node N = \"n\" { backend { add(self) } backend { add(self) } }",
+                "yl.duplicate_member",
+            ),
+            (
+                "pattern N = \"n\" { backend { add(self) } backend { add(self) } }",
+                "yl.duplicate_member",
+            ),
+        ] {
+            let errors = parse_yl("invalid.yl", source).unwrap_err();
+            assert_eq!(errors[0].code, code, "{source}");
+        }
     }
 }

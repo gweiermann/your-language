@@ -88,6 +88,10 @@ pub struct Declaration {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum DeclKind {
+    Hook {
+        name: String,
+        parameters: Vec<Parameter>,
+    },
     Symbol {
         name: String,
     },
@@ -117,6 +121,8 @@ pub enum DeclKind {
         example: Option<Example>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         ide: Option<Ide>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        backend: Option<Backend>,
     },
     Pattern {
         name: String,
@@ -128,6 +134,8 @@ pub enum DeclKind {
         example: Option<Example>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         ide: Option<Ide>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        backend: Option<Backend>,
     },
     Pipe {
         name: String,
@@ -151,6 +159,13 @@ pub enum DeclKind {
         node: Expr,
         trivia: Vec<Expr>,
     },
+}
+/// A syntax occurrence dispatches to one host hook with unevaluated captures.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Backend {
+    pub hook: String,
+    pub arguments: Vec<Expr>,
+    pub span: Span,
 }
 /// Editor metadata belongs to its syntax definition, never to project configuration.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

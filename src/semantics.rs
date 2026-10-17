@@ -235,7 +235,7 @@ impl Occurrence {
         }
     }
     /// Follow captured occurrence roots rather than reconstructed AST wrappers.
-    fn capture_path(&self, path: &str) -> Result<SourceCapture, Diagnostic> {
+    pub(crate) fn capture_path(&self, path: &str) -> Result<SourceCapture, Diagnostic> {
         let mut parts = path.split('.');
         let root = parts.next().unwrap_or(path);
         let mut capture = self.captures.get(root).cloned().ok_or_else(|| {

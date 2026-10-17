@@ -107,6 +107,7 @@ pub fn load_compiled_language(bytes: &[u8]) -> CompileResult<CompiledLanguage> {
     image.validate_previews().map_err(|error| vec![error])?;
     Ok(CompiledLanguage {
         version: FORMAT_VERSION,
+        backend: image.backend.clone(),
         entry: image.parser.rules[image.parser.entry as usize]
             .definition
             .clone(),
