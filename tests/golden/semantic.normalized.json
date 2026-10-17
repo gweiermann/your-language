@@ -1,11 +1,13 @@
 {
-  "version": 7,
+  "version": 8,
   "capabilities": [
     "indexed-parser",
     "indexed-checks",
     "indexed-queries",
     "semantic-scheduling",
-    "positional-index"
+    "positional-index",
+    "recursive-query-functions",
+    "value-match"
   ],
   "parser": {
     "entry": 8,
@@ -706,7 +708,7 @@
         }
       },
       {
-        "Local": "ancestor@std/references:515"
+        "Local": "lambda@0"
       },
       {
         "Symbol": "std/references#scope"
@@ -753,7 +755,7 @@
       },
       {
         "Lambda": {
-          "parameter": "ancestor@std/references:515",
+          "parameter": "lambda@0",
           "body": 9
         }
       },
@@ -866,26 +868,9 @@
         }
       },
       {
-        "Local": "ancestor@std/references:423"
-      },
-      {
-        "Tuple": [
-          28,
-          3
-        ]
-      },
-      {
-        "Call": {
-          "opcode": "Get",
-          "args": [
-            29
-          ]
-        }
-      },
-      {
         "Lambda": {
-          "parameter": "ancestor@std/references:423",
-          "body": 30
+          "parameter": "lambda@0",
+          "body": 5
         }
       },
       {
@@ -893,13 +878,13 @@
           "opcode": "Find",
           "args": [
             1,
-            31
+            28
           ]
         }
       },
       {
         "Tuple": [
-          32,
+          29,
           6,
           7
         ]
@@ -908,7 +893,7 @@
         "Call": {
           "opcode": "Contribute",
           "args": [
-            33,
+            30,
             19
           ]
         }
@@ -937,14 +922,14 @@
       {
         "Tuple": [
           19,
-          37
+          34
         ]
       },
       {
         "Call": {
           "opcode": "Contribute",
           "args": [
-            38,
+            35,
             7
           ]
         }
@@ -955,7 +940,7 @@
       {
         "Tuple": [
           19,
-          40
+          37
         ]
       },
       {
@@ -965,8 +950,8 @@
         "Call": {
           "opcode": "Contribute",
           "args": [
-            41,
-            42
+            38,
+            39
           ]
         }
       },
@@ -974,7 +959,7 @@
         "Call": {
           "opcode": "IsPresent",
           "args": [
-            32
+            29
           ]
         }
       },
@@ -982,7 +967,7 @@
         "Call": {
           "opcode": "GetAll",
           "args": [
-            33
+            30
           ]
         }
       },
@@ -990,7 +975,7 @@
         "Call": {
           "opcode": "HasMultiple",
           "args": [
-            45
+            42
           ]
         }
       },
@@ -1001,8 +986,8 @@
         "Call": {
           "opcode": "Contribute",
           "args": [
-            41,
-            47
+            38,
+            44
           ]
         }
       }
@@ -1097,7 +1082,7 @@
       },
       {
         "Call": {
-          "expression": 34,
+          "expression": 31,
           "span": {
             "file": "std/references",
             "start": 662,
@@ -1107,7 +1092,7 @@
       },
       {
         "Call": {
-          "expression": 35,
+          "expression": 32,
           "span": {
             "file": "std/references",
             "start": 735,
@@ -1117,7 +1102,7 @@
       },
       {
         "Call": {
-          "expression": 36,
+          "expression": 33,
           "span": {
             "file": "std/references",
             "start": 785,
@@ -1127,7 +1112,7 @@
       },
       {
         "Call": {
-          "expression": 39,
+          "expression": 36,
           "span": {
             "file": "std/references",
             "start": 837,
@@ -1137,7 +1122,7 @@
       },
       {
         "Call": {
-          "expression": 43,
+          "expression": 40,
           "span": {
             "file": "std/references",
             "start": 886,
@@ -1170,7 +1155,7 @@
       },
       {
         "If": {
-          "condition": 46,
+          "condition": 43,
           "then_actions": [
             12
           ],
@@ -1201,7 +1186,7 @@
       },
       {
         "If": {
-          "condition": 44,
+          "condition": 41,
           "then_actions": [
             13
           ],
@@ -1217,7 +1202,7 @@
       },
       {
         "Call": {
-          "expression": 48,
+          "expression": 45,
           "span": {
             "file": "std/references",
             "start": 886,

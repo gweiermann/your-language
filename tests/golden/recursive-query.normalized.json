@@ -1,0 +1,264 @@
+{
+  "version": 8,
+  "capabilities": [
+    "indexed-parser",
+    "indexed-checks",
+    "indexed-queries",
+    "semantic-scheduling",
+    "positional-index",
+    "recursive-query-functions",
+    "value-match"
+  ],
+  "parser": {
+    "entry": 0,
+    "rules": [
+      {
+        "definition": "recursive.yl#Program",
+        "name": "Program",
+        "trivia": false,
+        "body": {
+          "Concrete": 1
+        },
+        "constraints": [],
+        "span": {
+          "file": "recursive.yl",
+          "start": 249,
+          "end": 359
+        }
+      }
+    ],
+    "instructions": [
+      {
+        "Regex": "[a-z]+"
+      },
+      {
+        "Capture": [
+          "name",
+          0
+        ]
+      },
+      {
+        "Ref": 0
+      }
+    ],
+    "trivia": [],
+    "checks": [],
+    "preview_roots": {
+      "recursive.yl#Program": 2
+    }
+  },
+  "queries": {
+    "expressions": [
+      "SelfValue",
+      {
+        "Text": "joined"
+      },
+      {
+        "Tuple": [
+          0,
+          1
+        ]
+      },
+      {
+        "Text": "a"
+      },
+      {
+        "Text": "b"
+      },
+      {
+        "List": [
+          3,
+          4
+        ]
+      },
+      {
+        "Invoke": {
+          "name": "recursive.yl#join",
+          "args": [
+            5
+          ]
+        }
+      },
+      {
+        "Call": {
+          "opcode": "Contribute",
+          "args": [
+            2,
+            6
+          ]
+        }
+      },
+      {
+        "Local": "parts"
+      },
+      {
+        "Index": {
+          "value": 8,
+          "index": 0
+        }
+      },
+      {
+        "Call": {
+          "opcode": "IsPresent",
+          "args": [
+            9
+          ]
+        }
+      },
+      {
+        "Index": {
+          "value": 8,
+          "index": 1
+        }
+      },
+      {
+        "Call": {
+          "opcode": "IsPresent",
+          "args": [
+            11
+          ]
+        }
+      },
+      {
+        "Bool": false
+      },
+      {
+        "Text": ""
+      },
+      {
+        "Bool": true
+      },
+      {
+        "Call": {
+          "opcode": "Tail",
+          "args": [
+            8
+          ]
+        }
+      },
+      {
+        "Invoke": {
+          "name": "recursive.yl#join",
+          "args": [
+            16
+          ]
+        }
+      },
+      {
+        "List": [
+          9,
+          17
+        ]
+      },
+      {
+        "Call": {
+          "opcode": "Concat",
+          "args": [
+            18
+          ]
+        }
+      },
+      {
+        "Match": {
+          "inputs": [
+            10,
+            12
+          ],
+          "cases": [
+            {
+              "alternatives": [
+                [
+                  13,
+                  null
+                ]
+              ],
+              "value": 14
+            },
+            {
+              "alternatives": [
+                [
+                  15,
+                  13
+                ]
+              ],
+              "value": 9
+            },
+            {
+              "alternatives": [
+                [
+                  15,
+                  15
+                ]
+              ],
+              "value": 19
+            }
+          ]
+        }
+      }
+    ],
+    "actions": [
+      {
+        "Call": {
+          "expression": 7,
+          "span": {
+            "file": "recursive.yl",
+            "start": 305,
+            "end": 351
+          }
+        }
+      }
+    ],
+    "groups": {
+      "recursive.yl#Program": [
+        {
+          "name": null,
+          "actions": [
+            0
+          ],
+          "span": {
+            "file": "recursive.yl",
+            "start": 305,
+            "end": 351
+          }
+        }
+      ]
+    },
+    "functions": {
+      "recursive.yl#join": {
+        "parameters": [
+          "parts"
+        ],
+        "body": 20
+      }
+    }
+  },
+  "semantics": {
+    "recursive.yl#Program": {
+      "boundary": false,
+      "groups": [
+        {
+          "name": null,
+          "calls": [],
+          "span": {
+            "file": "recursive.yl",
+            "start": 305,
+            "end": 351
+          }
+        }
+      ],
+      "precedence": []
+    }
+  },
+  "previews": [
+    {
+      "definition": "recursive.yl#Program",
+      "span": {
+        "file": "recursive.yl",
+        "start": 249,
+        "end": 359
+      },
+      "text": "a",
+      "reason": null
+    }
+  ]
+}

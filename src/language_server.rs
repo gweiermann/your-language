@@ -481,6 +481,15 @@ impl Workspace {
         output: &mut BTreeMap<String, Vec<Value>>,
     ) {
         for error in errors {
+            if !error.annotations.is_empty() {
+                for (uri, item) in grouped_diagnostic_publications(error, sources) {
+                    let items = output.entry(uri).or_default();
+                    if !items.contains(&item) {
+                        items.push(item);
+                    }
+                }
+                continue;
+            }
             let uri = &error.primary.file;
             let Some(source) = sources.get(uri) else {
                 continue;
@@ -543,6 +552,34 @@ impl Workspace {
         }
     }
 }
+/// LSP has one range per diagnostic. Publish linked entries so every annotation
+/// gets a squiggle, retaining the single engine diagnostic's identity in `data`.
+fn grouped_diagnostic_publications(
+    error: &Diagnostic,
+    sources: &BTreeMap<String, String>,
+) -> Vec<(String, Value)> {
+    use std::hash::{Hash, Hasher};
+    let mut hash = std::collections::hash_map::DefaultHasher::new();
+    error.code.hash(&mut hash);
+    error.message.hash(&mut hash);
+    for annotation in error.annotations.iter() {
+        annotation.span.file.hash(&mut hash);
+        annotation.span.start.hash(&mut hash);
+        annotation.span.end.hash(&mut hash);
+        annotation.label.hash(&mut hash);
+    }
+    let group = format!("{:016x}", hash.finish());
+    error.annotations.iter().enumerate().filter_map(|(index, annotation)| {
+        let source = sources.get(&annotation.span.file)?;
+        let related_annotations = if index == 0 { &error.annotations[1..] } else { &error.annotations[..1] };
+        let related: Vec<_> = related_annotations.iter().filter_map(|other| {
+            let source = sources.get(&other.span.file)?;
+            Some(json!({"location":{"uri":other.span.file,"range":range(source,other.span.start,other.span.end)},"message":other.label.as_deref().unwrap_or(&error.message)}))
+        }).collect();
+        let message = annotation.label.as_ref().map_or_else(||error.message.clone(), |label|format!("{}\n{label}",error.message));
+        Some((annotation.span.file.clone(), json!({"range":range(source,annotation.span.start,annotation.span.end),"severity":match error.severity{Severity::Error=>1,Severity::Warning=>2,Severity::Help=>3},"code":error.code,"source":"YL","message":message,"relatedInformation":related,"data":{"group":group,"primary":index == 0}})))
+    }).collect()
+}
 fn remap(diagnostic: &Diagnostic, paths: &BTreeMap<String, String>) -> Diagnostic {
     let mut d = diagnostic.clone();
     if let Some(uri) = paths.get(&d.primary.file) {
@@ -553,11 +590,54 @@ fn remap(diagnostic: &Diagnostic, paths: &BTreeMap<String, String>) -> Diagnosti
             span.file = uri.clone();
         }
     }
+    for annotation in d.annotations.iter_mut() {
+        if let Some(uri) = paths.get(&annotation.span.file) {
+            annotation.span.file = uri.clone();
+        }
+    }
     d
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn grouped_diagnostics_publish_each_highlight_with_shared_identity() {
+        use crate::diagnostic::{DiagnosticAnnotation, Span};
+        let mut diagnostic = Diagnostic::error(
+            "types.mismatch",
+            "Incompatible types",
+            Span::new("file:///a", 0, 2),
+        );
+        diagnostic.annotations = Box::new(vec![
+            DiagnosticAnnotation {
+                span: Span::new("file:///a", 0, 2),
+                label: Some("value".into()),
+            },
+            DiagnosticAnnotation {
+                span: Span::new("file:///b", 3, 4),
+                label: None,
+            },
+        ]);
+        let sources = BTreeMap::from([
+            ("file:///a".into(), "éx".into()),
+            ("file:///b".into(), "let x".into()),
+        ]);
+        let publications = grouped_diagnostic_publications(&diagnostic, &sources);
+        assert_eq!(publications.len(), 2);
+        assert_eq!(publications[0].1["range"]["end"]["character"], 1);
+        assert_eq!(publications[1].1["range"]["start"]["character"], 3);
+        assert_eq!(
+            publications[0].1["data"]["group"],
+            publications[1].1["data"]["group"]
+        );
+        assert_eq!(publications[0].1["data"]["primary"], true);
+        assert_eq!(publications[1].1["data"]["primary"], false);
+        assert_eq!(
+            publications[0].1["relatedInformation"][0]["location"]["uri"],
+            "file:///b"
+        );
+        assert_eq!(publications[1].1["message"], "Incompatible types");
+    }
     #[test]
     fn unicode_positions() {
         assert_eq!(position("a😀\r\nx", 5), json!({"line":0,"character":3}));

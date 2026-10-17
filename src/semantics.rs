@@ -335,6 +335,7 @@ pub enum SemanticValue {
     Bool(bool),
     Symbol(String),
     Record(usize),
+    Integer(u64),
     Source(SourceCapture),
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

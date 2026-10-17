@@ -28,6 +28,7 @@ pub fn register(registry: &mut OperationRegistry) -> Result<(), String> {
         ("last", vec!["value"]),
         ("tail", vec!["value"]),
         ("isList", vec!["value"]),
+        ("length", vec!["value"]),
         ("hypotheticalAll", vec!["key", "assumptions"]),
         ("hypotheticalChecked", vec!["key", "assumptions"]),
         ("every", vec!["values", "callback"]),
@@ -97,6 +98,7 @@ pub enum QueryKey {
     Text(String),
     Symbol(String),
     Bool(bool),
+    Integer(u64),
     Tuple(Vec<QueryKey>),
 }
 
@@ -283,6 +285,11 @@ struct Engine<'a> {
     hypothetical_depth: usize,
     source: &'a str,
     hypothetical_cache: Rc<RefCell<HypotheticalMemo>>,
+    function_cache: RefCell<BTreeMap<String, (Outcome, Trace)>>,
+    function_active: RefCell<BTreeSet<String>>,
+    evaluation_depth: std::cell::Cell<usize>,
+    function_work: std::cell::Cell<usize>,
+    function_cache_bytes: std::cell::Cell<usize>,
 }
 
 fn source_identity(source: &SourceCapture) -> Option<SemanticIdentity> {
@@ -349,6 +356,7 @@ fn address(value: &SemanticValue, span: &Span) -> Result<Option<QueryKey>, Diagn
         SemanticValue::Text(value) => Some(QueryKey::Text(value.clone())),
         SemanticValue::Symbol(value) => Some(QueryKey::Symbol(value.clone())),
         SemanticValue::Bool(value) => Some(QueryKey::Bool(*value)),
+        SemanticValue::Integer(value) => Some(QueryKey::Integer(*value)),
         SemanticValue::Tuple(values) => {
             let mut key = vec![];
             for value in values {
@@ -377,6 +385,136 @@ fn primitive(name: &str) -> &str {
 
 const VALUE_NODE_LIMIT: usize = 16_384;
 const VALUE_BYTE_LIMIT: usize = 1024 * 1024;
+const DIAGNOSTIC_ANNOTATION_LIMIT: usize = 128;
+const FUNCTION_ALLOCATION_LIMIT: usize = 16 * 1024 * 1024;
+
+fn charge_function_allocation(
+    used: &std::cell::Cell<usize>,
+    bytes: usize,
+    span: &Span,
+) -> Result<(), Diagnostic> {
+    let total = used.get().saturating_add(bytes);
+    if total > FUNCTION_ALLOCATION_LIMIT {
+        return Err(Diagnostic::error(
+            "query.resource",
+            "Recursive query allocation exceeds its memory budget",
+            span.clone(),
+        ));
+    }
+    used.set(total);
+    Ok(())
+}
+
+/// Measure serialized string/metadata payloads without allocating their encoding.
+/// The writer stops immediately once the remaining allocation budget is exceeded.
+fn function_serialized_cost(
+    value: &impl Serialize,
+    remaining: usize,
+    span: &Span,
+) -> Result<usize, Diagnostic> {
+    struct Counter {
+        bytes: usize,
+        limit: usize,
+    }
+    impl std::io::Write for Counter {
+        fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+            if buffer.len() > self.limit.saturating_sub(self.bytes) {
+                return Err(std::io::Error::other(
+                    "Recursive query allocation exceeds its memory budget",
+                ));
+            }
+            self.bytes += buffer.len();
+            Ok(buffer.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut counter = Counter {
+        bytes: 0,
+        limit: remaining,
+    };
+    serde_json::to_writer(&mut counter, value)
+        .map_err(|error| Diagnostic::error("query.resource", error.to_string(), span.clone()))?;
+    Ok(counter.bytes)
+}
+
+fn charge_function_value(
+    used: &std::cell::Cell<usize>,
+    value: &SemanticValue,
+    span: &Span,
+) -> Result<(), Diagnostic> {
+    let (nodes, _) = value_cost(value)
+        .map_err(|message| Diagnostic::error("query.resource", message, span.clone()))?;
+    let bytes = function_serialized_cost(
+        value,
+        FUNCTION_ALLOCATION_LIMIT.saturating_sub(used.get()),
+        span,
+    )?;
+    charge_function_allocation(
+        used,
+        nodes
+            .saturating_mul(128)
+            .saturating_add(bytes.saturating_mul(2)),
+        span,
+    )
+}
+
+fn charge_function_trace(
+    used: &std::cell::Cell<usize>,
+    trace: &Trace,
+    span: &Span,
+) -> Result<(), Diagnostic> {
+    charge_function_allocation(
+        used,
+        128usize.saturating_mul(
+            trace
+                .reads
+                .len()
+                .saturating_add(trace.waits.len())
+                .saturating_add(trace.producers.len()),
+        ),
+        span,
+    )?;
+    for key in &trace.reads {
+        let bytes = function_serialized_cost(
+            key,
+            FUNCTION_ALLOCATION_LIMIT.saturating_sub(used.get()),
+            span,
+        )?;
+        charge_function_allocation(used, bytes.saturating_mul(2), span)?;
+    }
+    for (_, value) in &trace.branch_values {
+        charge_function_value(used, value, span)?;
+    }
+    for diagnostic in &trace.diagnostics {
+        let bytes = function_serialized_cost(
+            diagnostic,
+            FUNCTION_ALLOCATION_LIMIT.saturating_sub(used.get()),
+            span,
+        )?;
+        charge_function_allocation(used, bytes.saturating_mul(2).saturating_add(128), span)?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod function_allocation_tests {
+    use super::*;
+
+    #[test]
+    fn memoized_dependency_reads_share_the_function_allocation_budget() {
+        let payload = "x".repeat(16 * 1024);
+        let mut trace = Trace::default();
+        trace
+            .reads
+            .extend((0..600).map(|index| QueryKey::Text(format!("{index}:{payload}"))));
+        let used = std::cell::Cell::new(0);
+        let error = charge_function_trace(&used, &trace, &Span::default()).unwrap_err();
+        assert_eq!(error.code, "query.resource");
+        assert!(used.get() <= FUNCTION_ALLOCATION_LIMIT);
+    }
+}
 
 /// Bound owned compound values before another propagation round can clone them.
 fn value_cost(value: &SemanticValue) -> Result<(usize, usize), &'static str> {
@@ -485,6 +623,7 @@ impl<'a> Engine<'a> {
                 .collect::<Vec<_>>()
                 .join(" | "),
             SemanticValue::Bool(value) => value.to_string(),
+            SemanticValue::Integer(value) => value.to_string(),
             SemanticValue::Absent => "absent".into(),
             SemanticValue::Identity(SemanticIdentity::Occurrence(id)) => self
                 .occurrences
@@ -621,6 +760,11 @@ impl<'a> Engine<'a> {
             hypothetical_depth: 0,
             source,
             hypothetical_cache: Rc::default(),
+            function_cache: RefCell::default(),
+            function_active: RefCell::default(),
+            evaluation_depth: std::cell::Cell::new(0),
+            function_work: std::cell::Cell::new(0),
+            function_cache_bytes: std::cell::Cell::new(0),
         };
         for owner in occurrences {
             visit(owner, None, &mut engine.occurrences, &mut engine.parents);
@@ -706,7 +850,32 @@ impl<'a> Engine<'a> {
                     self.discover_expression(owner, value, &nested, rank);
                 }
             }
-            Expr::Call { args: values, .. } | Expr::Tuple(values) | Expr::List(values) => {
+            Expr::Match { inputs, cases } => {
+                for input in inputs {
+                    self.discover_expression(owner, input, guards, rank);
+                }
+                let selectors = cases
+                    .iter()
+                    .map(|case| Case {
+                        alternatives: case.alternatives.clone(),
+                        actions: vec![],
+                        span: owner.span.clone(),
+                    })
+                    .collect::<Vec<_>>();
+                for (selected, case) in cases.iter().enumerate() {
+                    let mut nested = guards.to_vec();
+                    nested.push(Guard::Case {
+                        inputs: inputs.clone(),
+                        cases: selectors.clone(),
+                        selected,
+                    });
+                    self.discover_expression(owner, &case.value, &nested, rank);
+                }
+            }
+            Expr::Call { args: values, .. }
+            | Expr::Invoke { args: values, .. }
+            | Expr::Tuple(values)
+            | Expr::List(values) => {
                 for value in values {
                     self.discover_expression(owner, value, guards, rank);
                 }
@@ -967,9 +1136,26 @@ impl<'a> Engine<'a> {
         locals: &Locals,
         trace: &mut Trace,
     ) -> Result<Outcome, Diagnostic> {
+        let depth = self.evaluation_depth.get();
+        if depth == 0 {
+            self.function_cache.borrow_mut().clear();
+            self.function_active.borrow_mut().clear();
+            self.function_work.set(0);
+            self.function_cache_bytes.set(0);
+        }
+        if depth >= 2048 {
+            return Err(Diagnostic::error(
+                "query.resource",
+                "Query evaluation exceeds the nesting limit",
+                owner.span.clone(),
+            ));
+        }
+        self.evaluation_depth.set(depth + 1);
         let result = stacker::maybe_grow(512 * 1024, 2 * 1024 * 1024, || {
             self.eval_inner(expression, owner, locals, trace)
-        })?;
+        });
+        self.evaluation_depth.set(depth);
+        let result = result?;
         if let Outcome::Ready(value) = &result {
             value_cost(value).map_err(|message| {
                 Diagnostic::error("query.resource", message, owner.span.clone())
@@ -1083,11 +1269,235 @@ impl<'a> Engine<'a> {
                 owner.span.clone(),
             )),
             Expr::Call { opcode, args } => self.call(*opcode, args, owner, locals, trace),
+            Expr::Invoke { name, args } => {
+                let mut values = vec![];
+                for arg in args {
+                    match self.eval(arg, owner, locals, trace)? {
+                        Outcome::Ready(value) => {
+                            charge_function_value(&self.function_cache_bytes, &value, &owner.span)?;
+                            values.push(value)
+                        }
+                        pending => return Ok(pending),
+                    }
+                }
+                let key_value = &(name, owner.id, trace.order, &trace.branch_values, &values);
+                let key_bytes = function_serialized_cost(
+                    key_value,
+                    FUNCTION_ALLOCATION_LIMIT.saturating_sub(self.function_cache_bytes.get()),
+                    &owner.span,
+                )?;
+                charge_function_allocation(
+                    &self.function_cache_bytes,
+                    key_bytes.saturating_mul(2),
+                    &owner.span,
+                )?;
+                let key = serde_json::to_string(&(
+                    name,
+                    owner.id,
+                    trace.order,
+                    &trace.branch_values,
+                    &values,
+                ))
+                .map_err(|error| {
+                    Diagnostic::error("query.resource", error.to_string(), owner.span.clone())
+                })?;
+                if let Some((value, observation)) = self.function_cache.borrow().get(&key) {
+                    charge_function_trace(&self.function_cache_bytes, observation, &owner.span)?;
+                    if let Outcome::Ready(value) = value {
+                        charge_function_value(&self.function_cache_bytes, value, &owner.span)?;
+                    }
+                    trace.absorb(observation);
+                    return Ok(value.clone());
+                }
+                if self.function_active.borrow().len() >= 256 || self.function_work.get() >= 100_000
+                {
+                    return Err(Diagnostic::error(
+                        "query.resource",
+                        "Recursive query computation exceeds its work/depth limit",
+                        owner.span.clone(),
+                    ));
+                }
+                if !self.function_active.borrow_mut().insert(key.clone()) {
+                    return Err(Diagnostic::error(
+                        "query.recursion",
+                        "Recursive query revisits the same arguments without progress",
+                        owner.span.clone(),
+                    ));
+                }
+                self.function_work.set(self.function_work.get() + 1);
+                let function = &self.image.functions[name];
+                let bindings = function.parameters.iter().cloned().zip(values).collect();
+                charge_function_trace(&self.function_cache_bytes, trace, &owner.span)?;
+                let mut observation = Trace {
+                    order: trace.order,
+                    branch_values: trace
+                        .branch_values
+                        .iter()
+                        .filter(|(expression, _)| !self.uses_local(*expression))
+                        .cloned()
+                        .collect(),
+                    ..Trace::default()
+                };
+                let result = self.eval(&function.body, owner, &bindings, &mut observation);
+                self.function_active.borrow_mut().remove(&key);
+                if let Ok(value) = &result {
+                    match value {
+                        Outcome::Ready(value) => {
+                            charge_function_value(&self.function_cache_bytes, value, &owner.span)?
+                        }
+                        Outcome::Conflict(ids) => charge_function_allocation(
+                            &self.function_cache_bytes,
+                            ids.len().saturating_mul(128),
+                            &owner.span,
+                        )?,
+                        Outcome::Pending => {}
+                    }
+                    charge_function_trace(&self.function_cache_bytes, &observation, &owner.span)?;
+                    trace.absorb(&observation);
+                    self.function_cache
+                        .borrow_mut()
+                        .insert(key, (value.clone(), observation));
+                } else {
+                    trace.absorb(&observation);
+                }
+                result
+            }
+            Expr::Match { inputs, cases } => {
+                let mut rows = vec![(Vec::new(), trace.clone())];
+                let mut distributed = false;
+                for input in inputs {
+                    let mut next = vec![];
+                    for (prefix, mut context) in rows {
+                        let (candidates, narrowed) =
+                            match self.eval(input, owner, locals, &mut context)? {
+                                Outcome::Ready(SemanticValue::Alternatives { values, .. }) => {
+                                    distributed = true;
+                                    (values, true)
+                                }
+                                Outcome::Ready(value) => (vec![value], false),
+                                pending => {
+                                    trace.absorb(&context);
+                                    return Ok(pending);
+                                }
+                            };
+                        if next.len().saturating_add(candidates.len()) > 4096 {
+                            return Err(Diagnostic::error(
+                                "query.resource",
+                                "Value match alternatives exceed the evaluation limit",
+                                owner.span.clone(),
+                            ));
+                        }
+                        for candidate in candidates {
+                            let mut values = prefix.clone();
+                            values.push(candidate.clone());
+                            let mut branch = context.clone();
+                            if narrowed {
+                                branch.branch_values.push((*input, candidate));
+                            }
+                            next.push((values, branch));
+                        }
+                    }
+                    rows = next;
+                }
+                let mut results = vec![];
+                let mut cost = (1, 0);
+                for (values, mut context) in rows {
+                    let mut selected = None;
+                    'cases: for case in cases {
+                        for alternative in &case.alternatives {
+                            let mut matches = alternative.len() == values.len();
+                            for (pattern, value) in alternative.iter().zip(&values) {
+                                if let Some(pattern) = pattern {
+                                    match self.eval(pattern, owner, locals, &mut context)? {
+                                        Outcome::Ready(pattern) => {
+                                            matches &= equal_values(&pattern, value)
+                                        }
+                                        pending => {
+                                            trace.absorb(&context);
+                                            return Ok(pending);
+                                        }
+                                    }
+                                }
+                            }
+                            if matches {
+                                selected = Some(case.value);
+                                break 'cases;
+                            }
+                        }
+                    }
+                    let selected = selected.ok_or_else(|| {
+                        Diagnostic::error(
+                            "query.match",
+                            "No value match case accepts these selectors",
+                            owner.span.clone(),
+                        )
+                    })?;
+                    let outcome = self.eval(&selected, owner, locals, &mut context)?;
+                    trace.absorb(&context);
+                    match outcome {
+                        Outcome::Ready(value) => {
+                            add_value_cost(&mut cost, &value, &owner.span)?;
+                            if !results
+                                .iter()
+                                .any(|previous| equal_values(previous, &value))
+                            {
+                                results.push(value);
+                            }
+                        }
+                        pending => return Ok(pending),
+                    }
+                }
+                ready(if distributed {
+                    SemanticValue::Alternatives {
+                        service: MODULE.into(),
+                        values: results,
+                    }
+                } else {
+                    results.into_iter().next().unwrap_or(SemanticValue::Absent)
+                })
+            }
         }
     }
 
     // Address evaluation can rule out a path even when another component is
     // pending. Ordinary data tuples still preserve absent fields and shapes.
+    fn uses_local(&self, expression: ExprId) -> bool {
+        let mut pending = vec![(expression, BTreeSet::<String>::new())];
+        let mut seen = BTreeSet::new();
+        while let Some((id, bound)) = pending.pop() {
+            if !seen.insert((id, bound.clone())) {
+                continue;
+            }
+            let mut next = vec![];
+            match &self.image.expressions[id as usize] {
+                Expr::Local(name) if !bound.contains(name) => return true,
+                Expr::Tuple(values)
+                | Expr::List(values)
+                | Expr::Invoke { args: values, .. }
+                | Expr::Call { args: values, .. } => next.extend(values),
+                Expr::Index { value, .. }
+                | Expr::Not(value)
+                | Expr::BindingValue { result: value, .. }
+                | Expr::Block { result: value, .. } => next.push(*value),
+                Expr::Lambda { parameter, body } => {
+                    let mut nested = bound.clone();
+                    nested.insert(parameter.clone());
+                    pending.push((*body, nested));
+                }
+                Expr::Match { inputs, cases } => {
+                    next.extend(inputs);
+                    for case in cases {
+                        next.push(case.value);
+                        next.extend(case.alternatives.iter().flatten().flatten());
+                    }
+                }
+                _ => {}
+            }
+            pending.extend(next.into_iter().map(|id| (id, bound.clone())));
+        }
+        false
+    }
+
     fn eval_key(
         &self,
         expression: &ExprId,
@@ -1268,6 +1678,9 @@ impl<'a> Engine<'a> {
                 SemanticValue::Text(source.text.clone())
             }
             (Opcode::Text, [SemanticValue::Text(text)]) => SemanticValue::Text(text.clone()),
+            (Opcode::Text, [SemanticValue::Integer(value)]) => {
+                SemanticValue::Text(value.to_string())
+            }
             (Opcode::Text, [SemanticValue::Identity(SemanticIdentity::Occurrence(id))]) => {
                 let owner = self.occurrences.get(id).ok_or_else(bad)?;
                 SemanticValue::Text(
@@ -1281,6 +1694,9 @@ impl<'a> Engine<'a> {
                 SemanticValue::Bool(!matches!(value, SemanticValue::Absent))
             }
             (Opcode::Equal, [left, right]) => SemanticValue::Bool(equal_values(left, right)),
+            (Opcode::Length, [SemanticValue::List(values) | SemanticValue::Tuple(values)]) => {
+                SemanticValue::Integer(values.len() as u64)
+            }
             (Opcode::HasMultiple, [SemanticValue::List(values)]) => {
                 SemanticValue::Bool(values.len() > 1)
             }
@@ -1691,8 +2107,41 @@ impl<'a> Engine<'a> {
                     }
                 }
                 ProducerState::Diagnostic(diagnostic) => {
-                    cost.0 += 1;
-                    cost.1 = cost.1.saturating_add(diagnostic.message.len());
+                    cost.0 = cost.0.saturating_add(
+                        1 + diagnostic.annotations.len() + diagnostic.secondary.len(),
+                    );
+                    // Linked editor diagnostics repeat the group message. Account for
+                    // that amplification as well as retained labels and file names.
+                    let message_copies = if diagnostic.annotations.is_empty() {
+                        1
+                    } else {
+                        diagnostic.annotations.len().saturating_mul(2)
+                    };
+                    cost.1 = cost
+                        .1
+                        .saturating_add(diagnostic.message.len().saturating_mul(message_copies));
+                    cost.1 = cost.1.saturating_add(
+                        diagnostic
+                            .primary
+                            .file
+                            .len()
+                            .saturating_mul(diagnostic.annotations.len().max(1)),
+                    );
+                    for annotation in diagnostic.annotations.iter() {
+                        cost.1 = cost
+                            .1
+                            .saturating_add(annotation.span.file.len().saturating_mul(2));
+                        cost.1 = cost.1.saturating_add(
+                            annotation
+                                .label
+                                .as_ref()
+                                .map_or(0, String::len)
+                                .saturating_mul(2),
+                        );
+                    }
+                    for span in &diagnostic.secondary {
+                        cost.1 = cost.1.saturating_add(span.file.len());
+                    }
                     if cost.0 > VALUE_NODE_LIMIT || cost.1 > VALUE_BYTE_LIMIT {
                         return Err(Diagnostic::error(
                             "query.resource",
@@ -1774,8 +2223,63 @@ impl<'a> Engine<'a> {
                 target,
                 related,
             } => {
+                let mut annotations = vec![];
                 let span = if let Some(target) = target {
                     match self.eval(target, producer.owner, &Locals::new(), trace)? {
+                        Outcome::Ready(SemanticValue::List(values)) => {
+                            if values.len() > DIAGNOSTIC_ANNOTATION_LIMIT {
+                                return Err(Diagnostic::error(
+                                    "query.resource",
+                                    "Diagnostic annotation count exceeds the limit of 128",
+                                    producer.span.clone(),
+                                ));
+                            }
+                            for value in values {
+                                let SemanticValue::Tuple(pair) = value else {
+                                    return Err(Diagnostic::error(
+                                        "query.diagnostic_target",
+                                        "Diagnostic annotations must be (syntax, label) tuples",
+                                        producer.span.clone(),
+                                    ));
+                                };
+                                let [syntax, label] = pair.as_slice() else {
+                                    return Err(Diagnostic::error("query.diagnostic_target", "Diagnostic annotations must contain exactly syntax and label", producer.span.clone()));
+                                };
+                                let label =
+                                    match label {
+                                        SemanticValue::Text(text) => Some(text.clone()),
+                                        SemanticValue::Absent => None,
+                                        _ => return Err(Diagnostic::error(
+                                            "query.diagnostic_target",
+                                            "Diagnostic annotation label must be text or absent",
+                                            producer.span.clone(),
+                                        )),
+                                    };
+                                if matches!(syntax, SemanticValue::Absent) {
+                                    continue;
+                                }
+                                let span = match syntax {
+                                    SemanticValue::Source(source) => Some(source.span.clone()),
+                                    SemanticValue::Identity(SemanticIdentity::Occurrence(id)) => {
+                                        self.occurrences.get(id).map(|owner| owner.span.clone())
+                                    }
+                                    _ => None,
+                                }
+                                .ok_or_else(|| {
+                                    Diagnostic::error(
+                                        "query.diagnostic_target",
+                                        "Diagnostic annotation location must be syntax or absent",
+                                        producer.span.clone(),
+                                    )
+                                })?;
+                                annotations
+                                    .push(crate::diagnostic::DiagnosticAnnotation { span, label });
+                            }
+                            let Some(first) = annotations.first() else {
+                                return Ok(ProducerState::Absent);
+                            };
+                            first.span.clone()
+                        }
                         Outcome::Ready(SemanticValue::Source(source)) => source.span,
                         Outcome::Ready(SemanticValue::Identity(SemanticIdentity::Occurrence(
                             id,
@@ -1814,16 +2318,42 @@ impl<'a> Engine<'a> {
                 }
                 let mut diagnostic = Diagnostic::error("query.diagnostic", text, span);
                 diagnostic.severity = severity.clone();
-                diagnostic.secondary.push(producer.span.clone());
+                if annotations.is_empty() {
+                    diagnostic.secondary.push(producer.span.clone());
+                } else {
+                    diagnostic.secondary.extend(
+                        annotations
+                            .iter()
+                            .skip(1)
+                            .map(|annotation| annotation.span.clone()),
+                    );
+                    diagnostic.annotations = Box::new(annotations);
+                }
                 for related in related {
                     match self.eval(related, producer.owner, &Locals::new(), trace)? {
                         Outcome::Ready(SemanticValue::Source(source)) => {
+                            if !diagnostic.annotations.is_empty() {
+                                diagnostic.annotations.push(
+                                    crate::diagnostic::DiagnosticAnnotation {
+                                        span: source.span.clone(),
+                                        label: None,
+                                    },
+                                );
+                            }
                             diagnostic.secondary.push(source.span)
                         }
                         Outcome::Ready(SemanticValue::Identity(SemanticIdentity::Occurrence(
                             id,
                         ))) => {
                             if let Some(owner) = self.occurrences.get(&id) {
+                                if !diagnostic.annotations.is_empty() {
+                                    diagnostic.annotations.push(
+                                        crate::diagnostic::DiagnosticAnnotation {
+                                            span: owner.span.clone(),
+                                            label: None,
+                                        },
+                                    );
+                                }
                                 diagnostic.secondary.push(owner.span.clone());
                             }
                         }
@@ -1936,6 +2466,11 @@ impl<'a> Engine<'a> {
             hypothetical_depth: self.hypothetical_depth + 1,
             source: self.source,
             hypothetical_cache: self.hypothetical_cache.clone(),
+            function_cache: RefCell::default(),
+            function_active: RefCell::default(),
+            evaluation_depth: std::cell::Cell::new(0),
+            function_work: std::cell::Cell::new(0),
+            function_cache_bytes: std::cell::Cell::new(0),
         };
         let mut explicit = BTreeSet::new();
         for assumption in assumptions {
@@ -2354,8 +2889,24 @@ pub(crate) fn action_node_count(actions: &[QueryAction], limit: usize) -> Option
                     pending.extend(actions.iter().map(Node::Action));
                     pending.push(Node::Expression(result));
                 }
-                QueryExpr::Call { args, .. } | QueryExpr::Tuple(args) | QueryExpr::List(args) => {
+                QueryExpr::Call { args, .. }
+                | QueryExpr::Invoke { args, .. }
+                | QueryExpr::Tuple(args)
+                | QueryExpr::List(args) => {
                     pending.extend(args.iter().map(Node::Expression));
+                }
+                QueryExpr::Match { inputs, cases } => {
+                    pending.extend(inputs.iter().map(Node::Expression));
+                    for case in cases {
+                        pending.push(Node::Expression(&case.value));
+                        pending.extend(
+                            case.alternatives
+                                .iter()
+                                .flatten()
+                                .flatten()
+                                .map(Node::Expression),
+                        );
+                    }
                 }
                 QueryExpr::Not(value)
                 | QueryExpr::Index { value, .. }
@@ -2390,7 +2941,7 @@ pub(crate) fn validate_groups(
         match primitive(name) {
             "get" | "getEarlier" | "getAll" | "ancestors" | "children" | "text" | "isPresent"
             | "hasMultiple" | "first" | "last" | "tail" | "facts" | "concat" | "unique"
-            | "keys" | "values" | "alternatives" | "flatten" | "isList" => Some(1),
+            | "keys" | "values" | "alternatives" | "flatten" | "isList" | "length" => Some(1),
             "contribute"
             | "contributeAll"
             | "find"
@@ -2520,6 +3071,38 @@ pub(crate) fn validate_groups(
                     span,
                     format!("Unbound query callback parameter {name}"),
                 )),
+                QueryExpr::Invoke { args, .. } => {
+                    for arg in args {
+                        self.expr(arg, locals, span, depth + 1)?;
+                    }
+                    Ok(())
+                }
+                QueryExpr::Match { inputs, cases } => {
+                    if inputs.is_empty() || cases.is_empty() {
+                        return Err(Self::bad(span, "A value match needs inputs and cases"));
+                    }
+                    for input in inputs {
+                        self.expr(input, locals, span, depth + 1)?;
+                    }
+                    for case in cases {
+                        if case.alternatives.is_empty() {
+                            return Err(Self::bad(span, "A value match case needs patterns"));
+                        }
+                        for patterns in &case.alternatives {
+                            if patterns.len() != inputs.len() {
+                                return Err(Self::bad(
+                                    span,
+                                    "Match tuple arity differs from its inputs",
+                                ));
+                            }
+                            for pattern in patterns.iter().flatten() {
+                                self.expr(pattern, locals, span, depth + 1)?;
+                            }
+                        }
+                        self.expr(&case.value, locals, span, depth + 1)?;
+                    }
+                    Ok(())
+                }
                 QueryExpr::Call { name, args } => {
                     self.primitive(name, args.len(), span)?;
                     if matches!(primitive(name), "contribute" | "contributeAll") {
@@ -2695,6 +3278,14 @@ pub enum QueryExpr {
         value: Box<QueryExpr>,
         index: usize,
     },
+    Invoke {
+        name: String,
+        args: Vec<QueryExpr>,
+    },
+    Match {
+        inputs: Vec<QueryExpr>,
+        cases: Vec<QueryValueCase>,
+    },
     BindingValue {
         invocation: String,
         result: Box<QueryExpr>,
@@ -2717,6 +3308,18 @@ pub enum QueryExpr {
     Symbol(String),
     Absent,
     Not(Box<QueryExpr>),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct QueryValueCase {
+    pub alternatives: Vec<Vec<Option<QueryExpr>>>,
+    pub value: QueryExpr,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct QueryFunction {
+    pub parameters: Vec<String>,
+    pub body: QueryExpr,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

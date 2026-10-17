@@ -25,7 +25,7 @@ struct DiagnosticLine {
     file: String,
     line: usize,
     text: String,
-    ranges: Vec<(usize, usize)>,
+    ranges: Vec<(usize, usize, Option<String>)>,
 }
 /// Format diagnostics with UTF-8 byte spans converted to source columns.
 pub fn render_diagnostics(
@@ -44,7 +44,19 @@ pub fn render_diagnostics(
         )
         .expect("writing to String cannot fail");
         let mut lines: Vec<DiagnosticLine> = vec![];
-        for span in std::iter::once(diagnostic.primary.as_ref()).chain(&diagnostic.secondary) {
+        let annotations: Vec<_> = if diagnostic.annotations.is_empty() {
+            std::iter::once(diagnostic.primary.as_ref())
+                .chain(&diagnostic.secondary)
+                .map(|span| (span, None))
+                .collect()
+        } else {
+            diagnostic
+                .annotations
+                .iter()
+                .map(|annotation| (&annotation.span, annotation.label.clone()))
+                .collect()
+        };
+        for (span, label) in annotations {
             let Some(source) = source_for(span) else {
                 continue;
             };
@@ -69,13 +81,13 @@ pub fn render_diagnostics(
                 .iter_mut()
                 .find(|record| record.file == span.file && record.line == line)
             {
-                record.ranges.push((column, length));
+                record.ranges.push((column, length, label));
             } else {
                 lines.push(DiagnosticLine {
                     file: span.file.clone(),
                     line,
                     text: source[line_start..line_end].trim_end_matches('\r').into(),
-                    ranges: vec![(column, length)],
+                    ranges: vec![(column, length, label)],
                 });
             }
         }
@@ -93,8 +105,8 @@ pub fn render_diagnostics(
             writeln!(output, "  --> {file}:{line}").expect("writing to String cannot fail");
             writeln!(output, "  {line} | {text}").expect("writing to String cannot fail");
             let mut markers = vec![' '; text.chars().count() + 1];
-            for (start, length) in spans {
-                for column in start..start.saturating_add(length).min(markers.len()) {
+            for (start, length, _) in &spans {
+                for column in *start..start.saturating_add(*length).min(markers.len()) {
                     markers[column] = '^';
                 }
             }
@@ -115,6 +127,12 @@ pub fn render_diagnostics(
             } else {
                 writeln!(output, "{gutter} | {}", underline.trim_end())
                     .expect("writing to String cannot fail");
+            }
+            for (column, _, label) in spans {
+                if let Some(label) = label {
+                    writeln!(output, "{gutter} | {}{label}", " ".repeat(column))
+                        .expect("writing to String cannot fail");
+                }
             }
         }
         if let Some(help) = &diagnostic.help {

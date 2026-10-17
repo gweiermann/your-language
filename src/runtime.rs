@@ -547,6 +547,7 @@ impl Runtime<'_> {
                         message: emission.message.clone(),
                         primary: Box::new(Span::new(self.file, start, matched.end)),
                         secondary: vec![emission.span.clone()],
+                        annotations: Box::default(),
                         help: None,
                     });
                 }

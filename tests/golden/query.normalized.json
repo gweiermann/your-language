@@ -1,11 +1,13 @@
 {
-  "version": 7,
+  "version": 8,
   "capabilities": [
     "indexed-parser",
     "indexed-checks",
     "indexed-queries",
     "semantic-scheduling",
-    "positional-index"
+    "positional-index",
+    "recursive-query-functions",
+    "value-match"
   ],
   "parser": {
     "entry": 1,
@@ -105,7 +107,7 @@
         }
       },
       {
-        "Local": "ancestor@golden.yl:261"
+        "Local": "lambda@0"
       },
       {
         "Tuple": [
@@ -123,7 +125,7 @@
       },
       {
         "Lambda": {
-          "parameter": "ancestor@golden.yl:261",
+          "parameter": "lambda@0",
           "body": 8
         }
       },
@@ -154,43 +156,11 @@
         ]
       },
       {
-        "Local": "ancestor@golden.yl:361"
-      },
-      {
-        "Tuple": [
-          14,
-          1
-        ]
-      },
-      {
-        "Call": {
-          "opcode": "Get",
-          "args": [
-            15
-          ]
-        }
-      },
-      {
-        "Lambda": {
-          "parameter": "ancestor@golden.yl:361",
-          "body": 16
-        }
-      },
-      {
-        "Call": {
-          "opcode": "Find",
-          "args": [
-            5,
-            17
-          ]
-        }
-      },
-      {
         "Call": {
           "opcode": "Contribute",
           "args": [
             13,
-            18
+            10
           ]
         }
       }
@@ -208,7 +178,7 @@
       },
       {
         "Call": {
-          "expression": 19,
+          "expression": 14,
           "span": {
             "file": "golden.yl",
             "start": 312,

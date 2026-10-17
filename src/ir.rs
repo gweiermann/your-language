@@ -14,6 +14,7 @@ pub struct CompiledLanguage {
     pub(crate) trivia: Vec<String>,
     pub(crate) meanings: BTreeMap<String, crate::semantics::MeaningDefinition>,
     pub(crate) query_meanings: BTreeMap<String, Vec<crate::semantics::queries::QueryGroup>>,
+    pub(crate) query_functions: BTreeMap<String, crate::semantics::queries::QueryFunction>,
     pub(crate) examples: BTreeMap<String, crate::examples::ExampleDefinition>,
     pub(crate) diagnostics: Vec<crate::diagnostic::Diagnostic>,
     pub(crate) image: Option<Box<crate::image::LanguageImage>>,

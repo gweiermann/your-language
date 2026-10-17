@@ -1,0 +1,588 @@
+{
+  "declarations": [
+    {
+      "export": false,
+      "kind": {
+        "Import": {
+          "names": [
+            [
+              "contribute",
+              "contribute"
+            ],
+            [
+              "isPresent",
+              "isPresent"
+            ],
+            [
+              "concat",
+              "concat"
+            ],
+            [
+              "tail",
+              "tail"
+            ]
+          ],
+          "path": "core/query"
+        }
+      },
+      "span": {
+        "file": "recursive.yl",
+        "start": 0,
+        "end": 64
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Operation": {
+          "name": "join",
+          "parameters": [
+            {
+              "name": "parts",
+              "ty": null,
+              "default": null,
+              "span": {
+                "file": "recursive.yl",
+                "start": 81,
+                "end": 86
+              }
+            }
+          ],
+          "body": {
+            "Query": {
+              "kind": {
+                "Match": {
+                  "inputs": [
+                    {
+                      "kind": {
+                        "Call": [
+                          "isPresent",
+                          [
+                            {
+                              "name": null,
+                              "value": {
+                                "kind": {
+                                  "Index": [
+                                    {
+                                      "kind": {
+                                        "Ref": "parts"
+                                      },
+                                      "span": {
+                                        "file": "recursive.yl",
+                                        "start": 107,
+                                        "end": 112
+                                      }
+                                    },
+                                    0
+                                  ]
+                                },
+                                "span": {
+                                  "file": "recursive.yl",
+                                  "start": 107,
+                                  "end": 115
+                                }
+                              },
+                              "span": {
+                                "file": "recursive.yl",
+                                "start": 107,
+                                "end": 115
+                              }
+                            }
+                          ]
+                        ]
+                      },
+                      "span": {
+                        "file": "recursive.yl",
+                        "start": 97,
+                        "end": 116
+                      }
+                    },
+                    {
+                      "kind": {
+                        "Call": [
+                          "isPresent",
+                          [
+                            {
+                              "name": null,
+                              "value": {
+                                "kind": {
+                                  "Index": [
+                                    {
+                                      "kind": {
+                                        "Ref": "parts"
+                                      },
+                                      "span": {
+                                        "file": "recursive.yl",
+                                        "start": 128,
+                                        "end": 133
+                                      }
+                                    },
+                                    1
+                                  ]
+                                },
+                                "span": {
+                                  "file": "recursive.yl",
+                                  "start": 128,
+                                  "end": 136
+                                }
+                              },
+                              "span": {
+                                "file": "recursive.yl",
+                                "start": 128,
+                                "end": 136
+                              }
+                            }
+                          ]
+                        ]
+                      },
+                      "span": {
+                        "file": "recursive.yl",
+                        "start": 118,
+                        "end": 137
+                      }
+                    }
+                  ],
+                  "cases": [
+                    {
+                      "alternatives": [
+                        [
+                          {
+                            "kind": {
+                              "Ref": "false"
+                            },
+                            "span": {
+                              "file": "recursive.yl",
+                              "start": 145,
+                              "end": 150
+                            }
+                          },
+                          null
+                        ]
+                      ],
+                      "value": {
+                        "kind": {
+                          "Literal": ""
+                        },
+                        "span": {
+                          "file": "recursive.yl",
+                          "start": 157,
+                          "end": 159
+                        }
+                      },
+                      "span": {
+                        "file": "recursive.yl",
+                        "start": 145,
+                        "end": 159
+                      }
+                    },
+                    {
+                      "alternatives": [
+                        [
+                          {
+                            "kind": {
+                              "Ref": "true"
+                            },
+                            "span": {
+                              "file": "recursive.yl",
+                              "start": 165,
+                              "end": 169
+                            }
+                          },
+                          {
+                            "kind": {
+                              "Ref": "false"
+                            },
+                            "span": {
+                              "file": "recursive.yl",
+                              "start": 171,
+                              "end": 176
+                            }
+                          }
+                        ]
+                      ],
+                      "value": {
+                        "kind": {
+                          "Index": [
+                            {
+                              "kind": {
+                                "Ref": "parts"
+                              },
+                              "span": {
+                                "file": "recursive.yl",
+                                "start": 180,
+                                "end": 185
+                              }
+                            },
+                            0
+                          ]
+                        },
+                        "span": {
+                          "file": "recursive.yl",
+                          "start": 180,
+                          "end": 188
+                        }
+                      },
+                      "span": {
+                        "file": "recursive.yl",
+                        "start": 165,
+                        "end": 188
+                      }
+                    },
+                    {
+                      "alternatives": [
+                        [
+                          {
+                            "kind": {
+                              "Ref": "true"
+                            },
+                            "span": {
+                              "file": "recursive.yl",
+                              "start": 194,
+                              "end": 198
+                            }
+                          },
+                          {
+                            "kind": {
+                              "Ref": "true"
+                            },
+                            "span": {
+                              "file": "recursive.yl",
+                              "start": 200,
+                              "end": 204
+                            }
+                          }
+                        ]
+                      ],
+                      "value": {
+                        "kind": {
+                          "Call": [
+                            "concat",
+                            [
+                              {
+                                "name": null,
+                                "value": {
+                                  "kind": {
+                                    "List": [
+                                      {
+                                        "kind": {
+                                          "Index": [
+                                            {
+                                              "kind": {
+                                                "Ref": "parts"
+                                              },
+                                              "span": {
+                                                "file": "recursive.yl",
+                                                "start": 216,
+                                                "end": 221
+                                              }
+                                            },
+                                            0
+                                          ]
+                                        },
+                                        "span": {
+                                          "file": "recursive.yl",
+                                          "start": 216,
+                                          "end": 224
+                                        }
+                                      },
+                                      {
+                                        "kind": {
+                                          "Call": [
+                                            "join",
+                                            [
+                                              {
+                                                "name": null,
+                                                "value": {
+                                                  "kind": {
+                                                    "Call": [
+                                                      "tail",
+                                                      [
+                                                        {
+                                                          "name": null,
+                                                          "value": {
+                                                            "kind": {
+                                                              "Ref": "parts"
+                                                            },
+                                                            "span": {
+                                                              "file": "recursive.yl",
+                                                              "start": 236,
+                                                              "end": 241
+                                                            }
+                                                          },
+                                                          "span": {
+                                                            "file": "recursive.yl",
+                                                            "start": 236,
+                                                            "end": 241
+                                                          }
+                                                        }
+                                                      ]
+                                                    ]
+                                                  },
+                                                  "span": {
+                                                    "file": "recursive.yl",
+                                                    "start": 231,
+                                                    "end": 242
+                                                  }
+                                                },
+                                                "span": {
+                                                  "file": "recursive.yl",
+                                                  "start": 231,
+                                                  "end": 242
+                                                }
+                                              }
+                                            ]
+                                          ]
+                                        },
+                                        "span": {
+                                          "file": "recursive.yl",
+                                          "start": 226,
+                                          "end": 243
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "span": {
+                                    "file": "recursive.yl",
+                                    "start": 215,
+                                    "end": 244
+                                  }
+                                },
+                                "span": {
+                                  "file": "recursive.yl",
+                                  "start": 215,
+                                  "end": 244
+                                }
+                              }
+                            ]
+                          ]
+                        },
+                        "span": {
+                          "file": "recursive.yl",
+                          "start": 208,
+                          "end": 245
+                        }
+                      },
+                      "span": {
+                        "file": "recursive.yl",
+                        "start": 194,
+                        "end": 245
+                      }
+                    }
+                  ]
+                }
+              },
+              "span": {
+                "file": "recursive.yl",
+                "start": 90,
+                "end": 247
+              }
+            }
+          }
+        }
+      },
+      "span": {
+        "file": "recursive.yl",
+        "start": 66,
+        "end": 247
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Node": {
+          "name": "Program",
+          "trivia": false,
+          "grammar": {
+            "kind": {
+              "Capture": [
+                "name",
+                {
+                  "kind": {
+                    "Regex": "[a-z]+"
+                  },
+                  "span": {
+                    "file": "recursive.yl",
+                    "start": 270,
+                    "end": 278
+                  }
+                }
+              ]
+            },
+            "span": {
+              "file": "recursive.yl",
+              "start": 264,
+              "end": 278
+            }
+          },
+          "members": [],
+          "precedence": [],
+          "constraints": [],
+          "meanings": {
+            "boundary": false,
+            "groups": [
+              {
+                "name": null,
+                "calls": [
+                  {
+                    "name": "contribute",
+                    "arguments": [
+                      {
+                        "name": null,
+                        "value": {
+                          "kind": {
+                            "Tuple": [
+                              {
+                                "kind": {
+                                  "Ref": "self"
+                                },
+                                "span": {
+                                  "file": "recursive.yl",
+                                  "start": 317,
+                                  "end": 321
+                                }
+                              },
+                              {
+                                "kind": {
+                                  "Literal": "joined"
+                                },
+                                "span": {
+                                  "file": "recursive.yl",
+                                  "start": 323,
+                                  "end": 331
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "file": "recursive.yl",
+                            "start": 316,
+                            "end": 332
+                          }
+                        },
+                        "span": {
+                          "file": "recursive.yl",
+                          "start": 316,
+                          "end": 332
+                        }
+                      },
+                      {
+                        "name": null,
+                        "value": {
+                          "kind": {
+                            "Call": [
+                              "join",
+                              [
+                                {
+                                  "name": null,
+                                  "value": {
+                                    "kind": {
+                                      "List": [
+                                        {
+                                          "kind": {
+                                            "Literal": "a"
+                                          },
+                                          "span": {
+                                            "file": "recursive.yl",
+                                            "start": 340,
+                                            "end": 343
+                                          }
+                                        },
+                                        {
+                                          "kind": {
+                                            "Literal": "b"
+                                          },
+                                          "span": {
+                                            "file": "recursive.yl",
+                                            "start": 345,
+                                            "end": 348
+                                          }
+                                        }
+                                      ]
+                                    },
+                                    "span": {
+                                      "file": "recursive.yl",
+                                      "start": 339,
+                                      "end": 349
+                                    }
+                                  },
+                                  "span": {
+                                    "file": "recursive.yl",
+                                    "start": 339,
+                                    "end": 349
+                                  }
+                                }
+                              ]
+                            ]
+                          },
+                          "span": {
+                            "file": "recursive.yl",
+                            "start": 334,
+                            "end": 350
+                          }
+                        },
+                        "span": {
+                          "file": "recursive.yl",
+                          "start": 334,
+                          "end": 350
+                        }
+                      }
+                    ],
+                    "span": {
+                      "file": "recursive.yl",
+                      "start": 305,
+                      "end": 351
+                    }
+                  }
+                ],
+                "span": {
+                  "file": "recursive.yl",
+                  "start": 305,
+                  "end": 351
+                }
+              }
+            ],
+            "precedence": [],
+            "span": {
+              "file": "recursive.yl",
+              "start": 295,
+              "end": 357
+            }
+          }
+        }
+      },
+      "span": {
+        "file": "recursive.yl",
+        "start": 249,
+        "end": 359
+      }
+    },
+    {
+      "export": false,
+      "kind": {
+        "Entry": {
+          "node": {
+            "kind": {
+              "Ref": "Program"
+            },
+            "span": {
+              "file": "recursive.yl",
+              "start": 367,
+              "end": 374
+            }
+          },
+          "trivia": []
+        }
+      },
+      "span": {
+        "file": "recursive.yl",
+        "start": 361,
+        "end": 374
+      }
+    }
+  ],
+  "span": {
+    "file": "recursive.yl",
+    "start": 0,
+    "end": 375
+  }
+}
