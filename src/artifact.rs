@@ -114,6 +114,7 @@ pub fn load_compiled_language(bytes: &[u8]) -> CompileResult<CompiledLanguage> {
         trivia: vec![],
         query_meanings: BTreeMap::new(),
         query_functions: BTreeMap::new(),
+        highlights: BTreeMap::new(),
         examples: BTreeMap::new(),
         meanings: image.semantics.clone(),
         diagnostics: vec![],

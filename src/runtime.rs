@@ -5,7 +5,7 @@ use crate::{
     image::parser::{
         CheckExpression, ImageBody, ImageOperator, ImageRule, Instruction, ParserImage,
     },
-    ir::CompiledLanguage,
+    ir::{CompiledLanguage, HighlightSpan},
     syntax::{Associativity, Quantifier},
 };
 use serde::{Deserialize, Serialize};
@@ -62,6 +62,7 @@ struct Match {
     marked: BTreeMap<u32, Vec<MarkedValue>>,
     value_depth: usize,
     occurrences: Vec<crate::semantics::Occurrence>,
+    highlights: Vec<HighlightSpan>,
 }
 #[derive(Clone)]
 struct MarkedValue {
@@ -92,6 +93,7 @@ impl Match {
             marked: BTreeMap::new(),
             value_depth: 0,
             occurrences: vec![],
+            highlights: vec![],
         }
     }
 }
@@ -106,6 +108,26 @@ pub(crate) fn parse_occurrences(
     file: &str,
     source: &str,
 ) -> (ParseResult, Vec<crate::semantics::Occurrence>) {
+    let (result, occurrences, _) = parse_session(language, file, source, false);
+    (result, occurrences)
+}
+impl CompiledLanguage {
+    /// Highlight successful target-language tokens. Failed alternatives, trivia and
+    /// lookaround never leak tokens. Wrapper metadata overrides its inner grammar.
+    pub fn highlight_named(&self, file: &str, source: &str) -> Vec<HighlightSpan> {
+        parse_session(self, file, source, true).2
+    }
+}
+fn parse_session(
+    language: &CompiledLanguage,
+    file: &str,
+    source: &str,
+    highlighting: bool,
+) -> (
+    ParseResult,
+    Vec<crate::semantics::Occurrence>,
+    Vec<HighlightSpan>,
+) {
     let transient;
     let image = if let Some(image) = &language.image {
         &image.parser
@@ -118,6 +140,7 @@ pub(crate) fn parse_occurrences(
                         ast: None,
                         diagnostics: vec![diagnostic],
                     },
+                    vec![],
                     vec![],
                 )
             }
@@ -136,6 +159,8 @@ pub(crate) fn parse_occurrences(
         resource_limit: false,
         steps: 0,
         limit: source.len(),
+        highlighting,
+        partial_highlights: vec![],
         trace: !language.meanings.is_empty(),
         next_occurrence: 0,
     };
@@ -285,19 +310,31 @@ pub(crate) fn parse_occurrences(
                 for occurrence in &mut matched.occurrences {
                     identify_terminals(occurrence, &mut next_terminal, &mut terminal_addresses);
                 }
+                parser.highlight_trivia(&mut matched.highlights);
                 return (
                     ParseResult {
                         ast: Some(*node),
                         diagnostics: matched.diagnostics,
                     },
                     matched.occurrences,
+                    matched
+                        .highlights
+                        .into_iter()
+                        .filter(|token| !token.token_type.is_empty())
+                        .collect(),
                 );
             }
         } else {
             parser.failure(end, "end of input");
         }
+        if highlighting {
+            parser.partial_highlights = matched.highlights;
+        }
         matched.diagnostics.clear();
     }
+    let mut highlights = std::mem::take(&mut parser.partial_highlights);
+    parser.highlight_trivia(&mut highlights);
+    highlights.retain(|token| !token.token_type.is_empty());
     let start = parser.farthest.min(source.len());
     let end = source
         .get(start..)
@@ -327,6 +364,7 @@ pub(crate) fn parse_occurrences(
             )],
         },
         vec![],
+        highlights,
     )
 }
 /// Validate representative text by borrowing executable tables, without a compiler workspace.
@@ -343,6 +381,8 @@ pub(crate) fn accepts_preview(image: &ParserImage, root: u32, source: &str) -> b
         resource_limit: false,
         steps: 0,
         limit: source.len(),
+        highlighting: false,
+        partial_highlights: vec![],
         trace: true,
         next_occurrence: 0,
     };
@@ -394,6 +434,8 @@ pub(crate) fn accepts_preview(image: &ParserImage, root: u32, source: &str) -> b
 struct Runtime<'a> {
     image: &'a ParserImage,
     trace: bool,
+    highlighting: bool,
+    partial_highlights: Vec<HighlightSpan>,
     next_occurrence: usize,
     source: &'a str,
     file: &'a str,
@@ -486,7 +528,13 @@ impl Runtime<'_> {
             }
         }
     }
-    fn skip(&mut self, mut position: usize) -> usize {
+    fn skip(&mut self, position: usize) -> usize {
+        let saved = std::mem::take(&mut self.partial_highlights);
+        let end = self.skip_inner(position);
+        self.partial_highlights = saved;
+        end
+    }
+    fn skip_inner(&mut self, mut position: usize) -> usize {
         let farthest = self.farthest;
         let expected = self.expected.clone();
         loop {
@@ -505,6 +553,7 @@ impl Runtime<'_> {
         }
     }
     fn rule(&mut self, id: u32, position: usize, raw: bool, min_power: usize) -> Option<Match> {
+        self.partial_highlights.clear();
         self.steps += 1;
         if self.depth >= 256 || self.steps > 1_000_000 {
             self.resource_limit = true;
@@ -519,7 +568,7 @@ impl Runtime<'_> {
             return None;
         }
         self.depth += 1;
-        let result = match &rule.body {
+        let mut result = match &rule.body {
             ImageBody::Concrete(term) => self
                 .term(*term, start, raw)
                 .and_then(|m| self.construct(&rule.definition, rule, start, m)),
@@ -531,9 +580,62 @@ impl Runtime<'_> {
                     m
                 }),
         };
+        if let Some(matched) = &mut result {
+            self.highlight(&rule.definition, matched);
+        } else if let Some(category) = image.highlights.get(&rule.definition) {
+            for token in &mut self.partial_highlights {
+                token.token_type.clone_from(category);
+            }
+        }
         self.depth -= 1;
         self.active.remove(&key);
         result
+    }
+    fn highlight(&self, definition: &str, matched: &mut Match) {
+        if let Some(category) = self.image.highlights.get(definition) {
+            for token in &mut matched.highlights {
+                token.token_type.clone_from(category);
+            }
+        }
+    }
+    fn terminal_highlight(&self, matched: &mut Match, start: usize) {
+        if self.highlighting && start < matched.end {
+            matched.highlights.push(HighlightSpan {
+                span: Span::new(self.file, start, matched.end),
+                token_type: String::new(),
+            });
+        }
+    }
+    fn highlight_trivia(&mut self, tokens: &mut Vec<HighlightSpan>) {
+        if !self.highlighting {
+            return;
+        }
+        // Classify trivia only in gaps of the retained parse, so speculative
+        // branches and lookaround cannot leak tokens or duplicate comments.
+        let mut cursor = 0;
+        let mut gaps = Vec::new();
+        for token in tokens.iter() {
+            if cursor < token.span.start {
+                gaps.push((cursor, token.span.start));
+            }
+            cursor = cursor.max(token.span.end);
+        }
+        if cursor < self.source.len() {
+            gaps.push((cursor, self.source.len()));
+        }
+        for (start, end) in gaps {
+            let mut cursor = start;
+            while cursor < end {
+                let found = self.image.trivia.iter().find_map(|id| {
+                    self.rule(*id, cursor, true, 0)
+                        .filter(|matched| cursor < matched.end && matched.end <= end)
+                });
+                let Some(matched) = found else { break };
+                cursor = matched.end;
+                tokens.extend(matched.highlights);
+            }
+        }
+        tokens.sort_by_key(|token| (token.span.start, token.span.end));
     }
     fn checks(&mut self, rule: &ImageRule, start: usize, mut matched: Match) -> Match {
         for check in &rule.constraints {
@@ -707,6 +809,7 @@ impl Runtime<'_> {
             matched.end,
         )?;
         self.trace_occurrence(id, start, &mut matched);
+        self.highlight(id, &mut matched);
         let fields = matched
             .fields
             .clone()
@@ -829,6 +932,25 @@ impl Runtime<'_> {
         raw: bool,
         context: Option<&OperatorContext<'_>>,
     ) -> Option<Match> {
+        self.partial_highlights.clear();
+        // Parser recursion is bounded below, but debug frames hold transactional
+        // matches and can exceed a Windows host thread's one-MiB stack first.
+        // Grow only the native stack; grammar depth/work limits remain unchanged.
+        let matched = stacker::maybe_grow(512 * 1024, 2 * 1024 * 1024, || {
+            self.term_inner(term_id, position, raw, context)
+        });
+        if matched.is_some() {
+            self.partial_highlights.clear();
+        }
+        matched
+    }
+    fn term_inner(
+        &mut self,
+        term_id: u32,
+        position: usize,
+        raw: bool,
+        context: Option<&OperatorContext<'_>>,
+    ) -> Option<Match> {
         self.steps += 1;
         if self.steps > 1_000_000 {
             self.resource_limit = true;
@@ -861,7 +983,18 @@ impl Runtime<'_> {
             }
         }
         match term {
-            Instruction::Example { term, .. } => self.term_with(*term, start, raw, context),
+            Instruction::Example { definition, term } => {
+                let Some(mut matched) = self.term_with(*term, start, raw, context) else {
+                    if let Some(category) = image.highlights.get(definition) {
+                        for token in &mut self.partial_highlights {
+                            token.token_type.clone_from(category);
+                        }
+                    }
+                    return None;
+                };
+                self.highlight(definition, &mut matched);
+                Some(matched)
+            }
             Instruction::Meaning { definition, term } => {
                 let mut matched = self.term_with(*term, start, raw, context)?;
                 self.trace_occurrence(definition, start, &mut matched);
@@ -872,6 +1005,7 @@ impl Runtime<'_> {
                     let mut matched = Match::empty(start + text.len());
                     matched.value = Some(AstValue::Text(text.clone()));
                     matched.origin = Some(Span::new(self.file, start, matched.end));
+                    self.terminal_highlight(&mut matched, start);
                     Some(matched)
                 } else {
                     self.failure(start, &format!("{text:?}"));
@@ -883,6 +1017,7 @@ impl Runtime<'_> {
                     let mut result = Match::empty(end);
                     result.value = Some(AstValue::Text(value));
                     result.origin = Some(Span::new(self.file, start, end));
+                    self.terminal_highlight(&mut result, start);
                     Some(result)
                 } else {
                     self.failure(start, &format!("/{pattern}/"));
@@ -899,7 +1034,13 @@ impl Runtime<'_> {
                 let mut origins = vec![];
                 let mut depth = 0;
                 for term in terms {
-                    let m = self.term_with(*term, result.end, raw, context)?;
+                    let Some(m) = self.term_with(*term, result.end, raw, context) else {
+                        if self.highlighting {
+                            result.highlights.append(&mut self.partial_highlights);
+                            self.partial_highlights = result.highlights;
+                        }
+                        return None;
+                    };
                     result.end = m.end;
                     if let Some(value) = m.value {
                         depth = depth.max(m.value_depth);
@@ -910,6 +1051,7 @@ impl Runtime<'_> {
                     merge_marked(&mut result.marked, m.marked);
                     result.diagnostics.extend(m.diagnostics);
                     result.occurrences.extend(m.occurrences);
+                    result.highlights.extend(m.highlights);
                 }
                 result.value_depth =
                     self.check_value_depth(depth + usize::from(values.len() > 1), result.end)?;
@@ -922,11 +1064,18 @@ impl Runtime<'_> {
                 Some(result)
             }
             Instruction::Choice(terms) => {
+                let mut best = Vec::new();
                 for term in terms {
                     if let Some(m) = self.term_with(*term, start, raw, context) {
                         return Some(m);
                     }
+                    if self.partial_highlights.last().map(|token| token.span.end)
+                        > best.last().map(|token: &HighlightSpan| token.span.end)
+                    {
+                        best = std::mem::take(&mut self.partial_highlights);
+                    }
                 }
+                self.partial_highlights = best;
                 None
             }
             Instruction::Repeat(term, q) => {
@@ -961,6 +1110,7 @@ impl Runtime<'_> {
                     merge_marked(&mut result.marked, m.marked);
                     result.diagnostics.extend(m.diagnostics);
                     result.occurrences.extend(m.occurrences);
+                    result.highlights.extend(m.highlights);
                     if *q == Quantifier::Optional {
                         break;
                     }
@@ -1175,5 +1325,40 @@ impl ParseResult {
         self.diagnostics
             .iter()
             .any(|d| d.severity == Severity::Error)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parsing_and_highlighting_respect_bounds_on_a_one_mib_host_stack() {
+        let language = crate::compile_sources(
+            "language.yl",
+            &BTreeMap::from([(
+                "language.yl".into(),
+                r#"node Program = "(" child:Program ")" | value:"x" {
+                    ide { highlightAs "type" }
+                }
+                entry Program"#
+                    .into(),
+            )]),
+        )
+        .unwrap();
+        std::thread::Builder::new()
+            .stack_size(1024 * 1024)
+            .spawn(move || {
+                let source = format!("{}x{}", "(".repeat(30), ")".repeat(30));
+                assert!(!parse_named(&language, "program", &source).has_errors());
+                assert_eq!(language.highlight_named("program", &source).len(), 61);
+                let oversized = format!("{}x{}", "(".repeat(300), ")".repeat(300));
+                let rejected = parse_named(&language, "program", &oversized);
+                assert!(rejected.ast.is_none());
+                assert_eq!(rejected.diagnostics[0].code, "parse.resource_limit");
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }

@@ -16,6 +16,7 @@ pub struct ParserImage {
     pub instructions: Vec<Instruction>,
     pub trivia: Vec<u32>,
     pub checks: Vec<CheckExpression>,
+    pub highlights: BTreeMap<String, String>,
     pub preview_roots: BTreeMap<String, u32>,
     #[serde(skip)]
     pub(crate) regexes: BTreeMap<String, regex::Regex>,
@@ -28,6 +29,7 @@ impl PartialEq for ParserImage {
             && self.trivia == other.trivia
             && self.checks == other.checks
             && self.preview_roots == other.preview_roots
+            && self.highlights == other.highlights
     }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -330,6 +332,7 @@ impl ParserImage {
             instructions,
             checks,
             preview_roots,
+            highlights: language.highlights.clone(),
             regexes: BTreeMap::new(),
             trivia: language
                 .trivia

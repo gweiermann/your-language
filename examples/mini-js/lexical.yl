@@ -3,6 +3,9 @@ import { boundedBy } from "std/parser"
 export trivia Whitespace = /[ \t\r\n]+/
 
 export trivia Comment {
+    ide {
+        highlightAs "comment"
+    }
     trivia Line = /\/\/[^\n]*/
 
     trivia Block = /\/\*[\s\S]*?\*\//
@@ -10,6 +13,14 @@ export trivia Comment {
 
 pattern IdentifierPart = /[_a-zA-Z0-9]/
 
-export pattern keyword(value) = value |> boundedBy(IdentifierPart)
+export pattern keyword(value) = value |> boundedBy(IdentifierPart) {
+    ide {
+        highlightAs "keyword"
+    }
+}
 
-export node Name = value: /[_a-zA-Z][_a-zA-Z0-9]*/
+export node Name = value: /[_a-zA-Z][_a-zA-Z0-9]*/ {
+    ide {
+        highlightAs "variable"
+    }
+}

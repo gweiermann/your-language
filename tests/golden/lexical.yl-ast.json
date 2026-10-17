@@ -66,8 +66,8 @@
                     },
                     "span": {
                       "file": "examples/mini-js/lexical.yl",
-                      "start": 123,
-                      "end": 135
+                      "start": 169,
+                      "end": 181
                     }
                   },
                   "members": [],
@@ -77,8 +77,8 @@
               },
               "span": {
                 "file": "examples/mini-js/lexical.yl",
-                "start": 109,
-                "end": 135
+                "start": 155,
+                "end": 181
               }
             },
             {
@@ -93,8 +93,8 @@
                     },
                     "span": {
                       "file": "examples/mini-js/lexical.yl",
-                      "start": 156,
-                      "end": 174
+                      "start": 202,
+                      "end": 220
                     }
                   },
                   "members": [],
@@ -104,19 +104,27 @@
               },
               "span": {
                 "file": "examples/mini-js/lexical.yl",
-                "start": 141,
-                "end": 174
+                "start": 187,
+                "end": 220
               }
             }
           ],
           "precedence": [],
-          "constraints": []
+          "constraints": [],
+          "ide": {
+            "highlight_as": "comment",
+            "span": {
+              "file": "examples/mini-js/lexical.yl",
+              "start": 109,
+              "end": 150
+            }
+          }
         }
       },
       "span": {
         "file": "examples/mini-js/lexical.yl",
         "start": 81,
-        "end": 176
+        "end": 222
       }
     },
     {
@@ -131,16 +139,16 @@
             },
             "span": {
               "file": "examples/mini-js/lexical.yl",
-              "start": 203,
-              "end": 217
+              "start": 249,
+              "end": 263
             }
           }
         }
       },
       "span": {
         "file": "examples/mini-js/lexical.yl",
-        "start": 178,
-        "end": 217
+        "start": 224,
+        "end": 263
       }
     },
     {
@@ -155,8 +163,8 @@
               "default": null,
               "span": {
                 "file": "examples/mini-js/lexical.yl",
-                "start": 242,
-                "end": 247
+                "start": 288,
+                "end": 293
               }
             }
           ],
@@ -169,8 +177,8 @@
                   },
                   "span": {
                     "file": "examples/mini-js/lexical.yl",
-                    "start": 251,
-                    "end": 256
+                    "start": 297,
+                    "end": 302
                   }
                 },
                 "boundedBy",
@@ -183,14 +191,14 @@
                       },
                       "span": {
                         "file": "examples/mini-js/lexical.yl",
-                        "start": 270,
-                        "end": 284
+                        "start": 316,
+                        "end": 330
                       }
                     },
                     "span": {
                       "file": "examples/mini-js/lexical.yl",
-                      "start": 270,
-                      "end": 284
+                      "start": 316,
+                      "end": 330
                     }
                   }
                 ]
@@ -198,16 +206,24 @@
             },
             "span": {
               "file": "examples/mini-js/lexical.yl",
-              "start": 251,
-              "end": 285
+              "start": 297,
+              "end": 331
+            }
+          },
+          "ide": {
+            "highlight_as": "keyword",
+            "span": {
+              "file": "examples/mini-js/lexical.yl",
+              "start": 338,
+              "end": 379
             }
           }
         }
       },
       "span": {
         "file": "examples/mini-js/lexical.yl",
-        "start": 219,
-        "end": 285
+        "start": 265,
+        "end": 381
       }
     },
     {
@@ -226,33 +242,41 @@
                   },
                   "span": {
                     "file": "examples/mini-js/lexical.yl",
-                    "start": 313,
-                    "end": 337
+                    "start": 409,
+                    "end": 433
                   }
                 }
               ]
             },
             "span": {
               "file": "examples/mini-js/lexical.yl",
-              "start": 306,
-              "end": 337
+              "start": 402,
+              "end": 433
             }
           },
           "members": [],
           "precedence": [],
-          "constraints": []
+          "constraints": [],
+          "ide": {
+            "highlight_as": "variable",
+            "span": {
+              "file": "examples/mini-js/lexical.yl",
+              "start": 440,
+              "end": 482
+            }
+          }
         }
       },
       "span": {
         "file": "examples/mini-js/lexical.yl",
-        "start": 287,
-        "end": 337
+        "start": 383,
+        "end": 484
       }
     }
   ],
   "span": {
     "file": "examples/mini-js/lexical.yl",
     "start": 0,
-    "end": 338
+    "end": 485
   }
 }

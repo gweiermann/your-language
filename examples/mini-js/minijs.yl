@@ -2,9 +2,17 @@ import { separatedBy } from "std/parser"
 import { Name, keyword, Whitespace, Comment } from "./lexical"
 
 export node Expression {
-    node String = value: /"(?:\\.|[^"])*"/
+    node String = value: /"(?:\\.|[^"])*"/ {
+        ide {
+            highlightAs "string"
+        }
+    }
 
-    node Number = value: /\d+(?:\.\d+)?/
+    node Number = value: /\d+(?:\.\d+)?/ {
+        ide {
+            highlightAs "number"
+        }
+    }
 
     node NameExpression = name: Name
 

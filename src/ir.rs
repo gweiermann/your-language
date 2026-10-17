@@ -6,6 +6,12 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+/// A non-overlapping successful target-language token, using UTF-8 byte offsets.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HighlightSpan {
+    pub span: Span,
+    pub token_type: String,
+}
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompiledLanguage {
     pub(crate) version: u32,
@@ -15,6 +21,7 @@ pub struct CompiledLanguage {
     pub(crate) meanings: BTreeMap<String, crate::semantics::MeaningDefinition>,
     pub(crate) query_meanings: BTreeMap<String, Vec<crate::semantics::queries::QueryGroup>>,
     pub(crate) query_functions: BTreeMap<String, crate::semantics::queries::QueryFunction>,
+    pub(crate) highlights: BTreeMap<String, String>,
     pub(crate) examples: BTreeMap<String, crate::examples::ExampleDefinition>,
     pub(crate) diagnostics: Vec<crate::diagnostic::Diagnostic>,
     pub(crate) image: Option<Box<crate::image::LanguageImage>>,

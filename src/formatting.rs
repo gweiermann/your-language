@@ -173,6 +173,7 @@ struct DeclarationContainer {
 }
 #[derive(Default)]
 struct Layout {
+    ide_spans: Vec<Span>,
     breaks: BTreeMap<usize, bool>,
     grammar: Vec<Span>,
     inline: Vec<Span>,
@@ -241,6 +242,7 @@ impl Layout {
                 constraints,
                 meanings,
                 example,
+                ide,
                 ..
             } => {
                 self.containers.push(DeclarationContainer {
@@ -249,6 +251,10 @@ impl Layout {
                 });
                 if let Some(grammar) = grammar {
                     self.grammar(grammar);
+                }
+                if let Some(ide) = ide {
+                    self.line(&ide.span, false);
+                    self.ide_spans.push(ide.span.clone());
                 }
                 if let Some(example) = example {
                     self.line(&example.span, false);
@@ -269,9 +275,14 @@ impl Layout {
                 grammar,
                 meanings,
                 example,
+                ide,
                 ..
             } => {
                 self.grammar(grammar);
+                if let Some(ide) = ide {
+                    self.line(&ide.span, false);
+                    self.ide_spans.push(ide.span.clone());
+                }
                 if let Some(example) = example {
                     self.line(&example.span, false);
                 }
@@ -514,6 +525,16 @@ impl Layout {
         tokens
     }
     fn prepare_container_sections(&mut self, tokens: &[Token]) {
+        for token in tokens {
+            if matches!(&token.kind, TokenKind::Word(word) if word == "highlightAs")
+                && self
+                    .ide_spans
+                    .iter()
+                    .any(|span| span.start <= token.span.start && token.span.end <= span.end)
+            {
+                self.breaks.insert(token.span.start, false);
+            }
+        }
         for container in &self.containers {
             let mut depth = 0usize;
             for token in tokens.iter().filter(|token| {
@@ -524,7 +545,10 @@ impl Layout {
                     TokenKind::Symbol(symbol) if symbol == "}" => depth = depth.saturating_sub(1),
                     TokenKind::Word(word)
                         if depth == 1
-                            && matches!(word.as_str(), "semantics" | "precedence" | "checks")
+                            && matches!(
+                                word.as_str(),
+                                "semantics" | "precedence" | "checks" | "ide"
+                            )
                             && !container.members.iter().any(|member| {
                                 member.start <= token.span.start && token.span.end <= member.end
                             }) =>
