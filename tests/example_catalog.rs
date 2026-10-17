@@ -45,6 +45,19 @@ fn every_project_has_both_numbered_and_friendly_cargo_entrypoints() {
         .find(|p| p["name"] == "your-language")
         .unwrap();
     let targets = package["targets"].as_array().unwrap();
+    // Cargo 1.85 normalizes '-' to '_' in example output filenames.
+    // Keep the specialized API hosts distinct from the friendly project aliases.
+    let mut output_names = std::collections::BTreeSet::new();
+    for target in targets
+        .iter()
+        .filter(|target| target["kind"][0] == "example")
+    {
+        let name = target["name"].as_str().unwrap();
+        assert!(
+            output_names.insert(name.replace('-', "_")),
+            "Colliding Cargo example output: {name}"
+        );
+    }
     for project in Project::list(&root.join("examples")).unwrap() {
         let name = project
             .config_path

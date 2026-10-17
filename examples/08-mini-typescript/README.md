@@ -3,12 +3,12 @@
 This example defines a small expression language with type annotations, inferred bindings, functions, aliases, higher-order parameters and addition. Its reference and type rules are YL operations. Rust loads the definition, runs the generic query evaluator and prints the result; there is no Mini TypeScript native adapter.
 
 ```sh
-cargo run --example mini_typescript -- program
-cargo run --example mini_typescript -- generics
-cargo run --example mini_typescript -- higher-order
-cargo run --example mini_typescript -- addition
-cargo run --example mini_typescript -- errors
-cargo run --example mini_typescript -- errors --json
+cargo run --example mini_typescript_host -- program
+cargo run --example mini_typescript_host -- generics
+cargo run --example mini_typescript_host -- higher-order
+cargo run --example mini_typescript_host -- addition
+cargo run --example mini_typescript_host -- errors
+cargo run --example mini_typescript_host -- errors --json
 ```
 
 The same definition works through the standard CLI and serialized artifact:

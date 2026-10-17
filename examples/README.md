@@ -57,8 +57,8 @@ runnable through the common project commands above.
 ```powershell
 cargo run --example compiled_image
 cargo run --example semantic_analysis
-cargo run --example mini_typescript
-cargo run --example type_instantiation
+cargo run --example mini_typescript_host
+cargo run --example type_instantiation_host
 cargo run --example backend_interpret
 cargo run --example backend_javascript -- examples/14-backend-hooks/programs/control-flow.txt > target/backend.js
 node target/backend.js

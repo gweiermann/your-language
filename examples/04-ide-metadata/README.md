@@ -50,7 +50,7 @@ cannot be lowered by the compiler.
 ```sh
 cargo run -- examples examples/04-ide-metadata/language.yl
 cargo run -- examples examples/03-mini-js/minijs.yl
-cargo run --example mini_typescript -- examples
+cargo run --example mini_typescript_host -- examples
 ```
 
 The first command generates `let name = 42 ;` for `Program` and `42` for `List`.

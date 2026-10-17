@@ -171,24 +171,24 @@ Hypothetical queries retain authored error and warning provenance. They do not r
 From the repository root:
 
 ```shell
-cargo run --example mini_typescript -- program
-cargo run --example mini_typescript -- addition
-cargo run --example mini_typescript -- higher-order
-cargo run --example mini_typescript -- errors
-cargo run --example mini_typescript -- errors --json
+cargo run --example mini_typescript_host -- program
+cargo run --example mini_typescript_host -- addition
+cargo run --example mini_typescript_host -- higher-order
+cargo run --example mini_typescript_host -- errors
+cargo run --example mini_typescript_host -- errors --json
 ```
 
 The first three fixtures succeed and print inferred bindings. The `errors` fixture exits with status `1` and displays source diagnostics; `--json` returns the full analysis result and structured diagnostics instead. The `generics` fixture can be edited directly to compare valid and invalid annotations:
 
 ```shell
-cargo run --example mini_typescript -- generics
+cargo run --example mini_typescript_host -- generics
 ```
 
 The separate `generics-errors` fixture changes `let count: number` to `let count: string`:
 
 ```shell
-cargo run --example mini_typescript -- generics-errors
-cargo run --example mini_typescript -- generics-errors --json
+cargo run --example mini_typescript_host -- generics-errors
+cargo run --example mini_typescript_host -- generics-errors --json
 ```
 
 It exits with status `1` and reports `Type Type::number does not match Type::string`, with `identity(42)` as the primary location and the type word `string` as the related location. The incompatible call is still a number, regardless of the separate string call to `identity`. An annotation is a restriction, not type contributions that changes the inferred result.

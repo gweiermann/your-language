@@ -34,7 +34,7 @@ for (const [mode, success, expected] of [
   ['higher-order', true, 'result: Type::number'],
   ['errors', false, 'Error[query.diagnostic]'],
 ]) {
-  const result = spawnSync(cargo, ['run', '--quiet', '--locked', '--example', 'mini_typescript', '--', mode], { encoding: 'utf8' })
+  const result = spawnSync(cargo, ['run', '--quiet', '--locked', '--example', 'mini_typescript_host', '--', mode], { encoding: 'utf8' })
   if (result.error || result.status === null || (result.status === 0) !== success ||
       !(result.stdout + result.stderr).includes(expected)) {
     throw new Error(`Unexpected Mini TypeScript ${mode} result\n${result.error || ''}\n${result.stdout}\n${result.stderr}`)

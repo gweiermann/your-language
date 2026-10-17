@@ -132,7 +132,7 @@ fn semantic_example_defaults_to_human_output_and_json_is_explicit() {
 #[test]
 fn mini_typescript_consumer_renders_initializer_origin_and_json_uses_same_span() {
     let build = Command::new(env!("CARGO"))
-        .args(["build", "--quiet", "--example", "mini_typescript"])
+        .args(["build", "--quiet", "--example", "mini_typescript_host"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
         .unwrap();
@@ -145,7 +145,10 @@ fn mini_typescript_consumer_renders_initializer_origin_and_json_uses_same_span()
         .parent()
         .unwrap()
         .join("examples")
-        .join(format!("mini_typescript{}", std::env::consts::EXE_SUFFIX));
+        .join(format!(
+            "mini_typescript_host{}",
+            std::env::consts::EXE_SUFFIX
+        ));
     let human = Command::new(&executable)
         .arg("errors")
         .env_remove("NO_COLOR")

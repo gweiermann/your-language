@@ -67,7 +67,7 @@ node Number = value: /[0-9]+/ {
 The language owns its primitive type symbols and operator rules; the engine supplies generic identity-keyed queries. Run the complete example from the repository root:
 
 ```sh
-cargo run --example mini_typescript -- addition
+cargo run --example mini_typescript_host -- addition
 ```
 
 It reports `numberSum: number`, `stringSum: string` and the types of the other bindings. The authored `std/types` library tracks type contributions and restrictions through generic queries. Function calls infer independent results under temporary parameter assignments. See the [std/types tutorial](https://gweiermann.github.io/your-language/tutorials/std-types) for the full workflow and limits.
