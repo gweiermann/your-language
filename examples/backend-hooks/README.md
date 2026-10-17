@@ -42,7 +42,11 @@ The final command deliberately fails and underlines `missing`. The consumers com
 - `definition/expression.yl`: literals, references, arithmetic, and precedence.
 - `definition/statement.yl`: declarations, assignments, blocks, and control flow.
 - `definition/language.yl`: the entry program.
-- `hosts/mod.rs`: all three host implementations, shared by the example binaries and tests.
+- `hosts/mod.rs`: module exports shared by the example binaries and tests.
+- `hosts/common.rs`: load the project entry from `yl.json` and render diagnostics.
+- `hosts/interpreter.rs`: runtime values, lexical environments, branch selection, and loops.
+- `hosts/javascript.rs`: JavaScript generation and stable binding names.
+- `hosts/webassembly.rs`: WebAssembly instructions, locals, and binary module construction.
 - `programs/`: control flow, shadowing, initializer shadowing, arithmetic, overflow, and a runtime error.
 
 ## Language policies and limits
