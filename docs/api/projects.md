@@ -12,6 +12,8 @@ A `yl.json` file is the shared project description for the CLI and editor. Paths
 
 `entry` selects the language definition. `files` selects programs written in that language. `expectErrors` is optional and defaults to an empty list; it marks negative fixtures for batch checks. The editor still displays their diagnostics normally.
 
+Standard-library imports such as `std/parser` and `std/types` are built into the compiler. They need no alias or search-path configuration here; see [module imports](/reference/modules#named-imports).
+
 Globs support `*`, `**`, and `?`, with `/` separators. Parent traversal and absolute paths are rejected. Source ownership belongs to the nearest `yl.json`, including when that configuration is invalid. Nested projects therefore do not run twice in a parent's batch.
 
 ## Discover projects

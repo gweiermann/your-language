@@ -38,7 +38,16 @@ Relative paths resolve from the importing file. Local module paths may omit the 
 import { Name } from "../lexical"
 ```
 
-Built-in module names such as `core/parser` and `std/parser` are distinct from relative file paths.
+Built-in module names such as `core/parser` and `std/parser` are distinct from relative file paths. The compiler includes the standard library: `std/...` imports work from any entry file, including projects outside this repository. They require no `yl.json` alias, relative path to `stdlib/`, or working-directory configuration:
+
+```yl
+import { separatedBy } from "std/parser"
+import { createLexicalScope } from "std/references"
+import { annotateWithType } from "std/types"
+import { additionType } from "std/types/arithmetic"
+```
+
+Availability does not import names automatically. Each module still explicitly imports the exports it uses. See [core and standard libraries](./standard-library) for the available module IDs and opt-in policies. Compiled `.ylc` artifacts contain the resolved implementation and do not require standard-library source files when loaded.
 
 Importing a private or nonexistent declaration is a definition error. Importing a trivia declaration does not activate automatic skipping; the [entry block](./trivia#entry-configuration) selects active trivia explicitly.
 
