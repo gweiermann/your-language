@@ -6,7 +6,7 @@ import { separatedBy } from "std/parser"
 import { Name } from "./lexical"
 import { inheritType, checkUniqueFields } from "./types"
 import { compareTypes, reportDifference } from "./typing"
-import { Type, Comparison, numberType, stringType, booleanType } from "../../11-compound-types/definition/typing"
+import { Type, Comparison, numberType, stringType, booleanType } from "std/types/structural"
 
 node Number = value: /[0-9]+/ {
     ide {

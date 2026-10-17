@@ -5,7 +5,8 @@ Type correctness does not need origin tracking. Origin tracking answers a separa
 question: **which source expression contributed the incompatible type?**
 
 The plain constructors, generic substitution, type tags, and renderers are imported
-from the preceding example through ordinary YL imports. This example adds a small
+from the opt-in `std/types/structural` preset. The preceding example implements
+that policy locally so its mechanisms can be studied first. This example adds a small
 source record and a comparison worker that carries the matching source along.
 
 ```yl

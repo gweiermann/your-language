@@ -1,0 +1,7 @@
+identity(1 + 2);
+identity("answer: " + 42);
+identity(42 + " is the answer");
+
+function identity(value) {
+    return value;
+}

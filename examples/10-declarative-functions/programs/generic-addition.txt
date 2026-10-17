@@ -1,0 +1,6 @@
+increment(41);
+increment("answer: ");
+
+function increment(value) {
+    return value + 1;
+}

@@ -1,5 +1,5 @@
 import { contribute, get, facts, map, choose, isPresent, equal } from "core/query"
-import { Type, unknownType, unionType, tupleType, listType, structType } from "../../11-compound-types/definition/typing"
+import { Type, unknownType, unionType, tupleType, listType, structType } from "std/types/structural"
 
 // A type source is (descriptor, originating syntax, child sources).
 // Keep it separate from the plain descriptor model used by compound types.

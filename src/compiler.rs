@@ -87,7 +87,14 @@ pub fn compile_sources_with_registry(
     sources: &BTreeMap<String, String>,
     registry: &OperationRegistry,
 ) -> CompileResult<CompiledLanguage> {
-    for module in ["std/references", "std/variables", "std/types"] {
+    for module in [
+        "std/references",
+        "std/variables",
+        "std/types",
+        "std/types/structural",
+        "std/types/arithmetic",
+        "std/backend/integer",
+    ] {
         if registry.contains_module(module) {
             return Err(vec![Diagnostic::error(
                 "yl.reserved_module",
@@ -136,6 +143,9 @@ fn standard_module(path: &str) -> Option<&'static str> {
         "std/parser" => Some("std/parser"),
         "std/references" | "std/variables" => Some("std/references"),
         "std/types" => Some("std/types"),
+        "std/types/structural" => Some("std/types/structural"),
+        "std/types/arithmetic" => Some("std/types/arithmetic"),
+        "std/backend/integer" => Some("std/backend/integer"),
         _ => None,
     }
 }
@@ -144,6 +154,9 @@ fn standard_source(id: &str) -> Option<&'static str> {
         "std/parser" => Some(include_str!("../stdlib/parser.yl")),
         "std/references" => Some(include_str!("../stdlib/references.yl")),
         "std/types" => Some(include_str!("../stdlib/types.yl")),
+        "std/types/structural" => Some(include_str!("../stdlib/types/structural.yl")),
+        "std/types/arithmetic" => Some(include_str!("../stdlib/types/arithmetic.yl")),
+        "std/backend/integer" => Some(include_str!("../stdlib/backend/integer.yl")),
         _ => None,
     }
 }
@@ -6946,7 +6959,14 @@ import * as types from "std/types"
 
     #[test]
     fn supplied_native_registry_cannot_replace_authored_standard_modules() {
-        for module in ["std/references", "std/variables", "std/types"] {
+        for module in [
+            "std/references",
+            "std/variables",
+            "std/types",
+            "std/types/structural",
+            "std/types/arithmetic",
+            "std/backend/integer",
+        ] {
             let mut registry = OperationRegistry::new();
             registry.export_symbol(module, "replacement").unwrap();
             let errors = compile_sources_with_registry(

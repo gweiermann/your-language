@@ -1,4 +1,4 @@
-import { createLexicalScope } from "../../../stdlib/references"
+import { createLexicalScope } from "std/references"
 import { Whitespace } from "./lexical"
 import { FunctionDeclaration } from "./function"
 import { Expression } from "./expression"

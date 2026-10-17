@@ -1,0 +1,199 @@
+// Opt-in structural type policy, authored entirely in YL.
+// This preset owns its primitive catalog and structural descriptor representation.
+// Mutable lists are invariant; interfaces allow additional fields on assignment.
+// Import std/types instead when the language should own those policy decisions.
+import { contribute, get, facts, map, filter, flatten, unique, lookup, equal, every, isPresent, choose, tail, concat, zip, length, text } from "core/query"
+import { error } from "core/diagnostics"
+import { unknown } from "std/types"
+
+export enum Type {
+    number
+    string
+    boolean
+    tuple
+    list
+    union
+    struct
+    parameter
+}
+
+export enum Comparison {
+    identical
+    assignable
+}
+
+export enum Difference {
+    incompatibleType
+    missingField
+    extraField
+    tupleLength
+    invariantList
+    unresolvedParameter
+}
+
+export operation numberType() =(Type::number, [])
+
+export operation stringType() =(Type::string, [])
+
+export operation booleanType() =(Type::boolean, [])
+
+export operation unknownType() =(unknown, [])
+
+export operation tupleType(elements) =(Type::tuple, elements)
+
+export operation listType(element) =(Type::list, element)
+
+export operation structType(fields) =(Type::struct, fields)
+
+export operation parameterType(identity) =(Type::parameter, identity)
+
+operation unionMembers(value) = match (value[0]) {
+    Type::union => value[1],
+    _           => [value]
+}
+
+export operation unionType(members) {
+    distinct := unique(flatten(map(members, member => unionMembers(member))))
+    return match (isPresent(distinct[0]), isPresent(distinct[1])) {
+        false, _    => unknownType(),
+        true, false => distinct[0],
+        true, true  => (Type::union, distinct)
+    }
+}
+
+export symbol typeAnnotations
+
+export symbol writeRestriction
+
+export operation annotateWithType(target, value) {
+    contribute((target, typeAnnotations), value)
+}
+
+export operation typeOf(target) = choose(isPresent(target), unionType(facts((target, typeAnnotations))), absent)
+
+// A declared write contract does not widen the inferred initializer type.
+export operation restrictWritesTo(target, value) {
+    contribute((target, writeRestriction), value)
+}
+
+export operation writeTypeOf(target) {
+    restriction := get((target, writeRestriction))
+    return choose(isPresent(restriction), restriction, typeOf(target))
+}
+
+operation sameLength(left, right) = equal(length(left), length(right))
+
+operation appendPath(path, segment) = flatten([path, [segment]])
+
+operation problem(path, actual, expected, reason) = [(path, actual, expected, reason)]
+
+// Descriptors contain only types. Source locations are supplied by the reporter.
+export operation compareTypes(actual, expected, mode) = compareAt(actual, expected, mode, [])
+
+operation compareAt(actual, expected, mode, path) = match (equal(actual, expected), equal(actual[0], unknown), equal(expected[0], unknown)) {
+    true, _, _ | _, true, _ | _, _, true => [],
+    _                                    => compareDifferent(actual, expected, mode, path)
+}
+
+operation compareDifferent(actual, expected, mode, path) = match (actual[0], expected[0]) {
+    Type::parameter, _ | _, Type::parameter => problem(path, actual, expected, Difference::unresolvedParameter),
+    Type::union, _                          => compareActualUnion(actual, expected, mode, path),
+    _, Type::union                          => compareExpectedUnion(actual, expected, mode, path),
+    Type::struct, Type::struct              => compareFields(actual, expected, mode, path),
+    Type::tuple, Type::tuple                => compareTuple(actual, expected, mode, path),
+    Type::list, Type::list                  => choose(isIdenticalTo(actual[1], expected[1]), [], problem(path, actual, expected, Difference::invariantList)),
+    _                                       => problem(path, actual, expected, Difference::incompatibleType)
+}
+
+operation compareActualUnion(actual, expected, mode, path) = match (mode) {
+    Comparison::identical => choose(equal(expected[0], Type::union) && everyMemberHasEqual(actual[1], expected[1]) && everyMemberHasEqual(expected[1], actual[1]), [], problem(path, actual, expected, Difference::incompatibleType)),
+    _                     => flatten(map(actual[1], member => compareAt(member, expected, mode, path)))
+}
+
+operation compareExpectedUnion(actual, expected, mode, path) = match (mode) {
+    Comparison::identical => problem(path, actual, expected, Difference::incompatibleType),
+    _                     => choose(isPresent(filter(expected[1], member => noDifferences(compareAt(actual, member, mode, path)))[0]), [], problem(path, actual, expected, Difference::incompatibleType))
+}
+
+operation everyMemberHasEqual(left, right) = every(left, member => isPresent(filter(right, other => isIdenticalTo(member, other))[0]))
+
+operation compareFields(actual, expected, mode, path) {
+    required := flatten(map(expected[1], field => compareField(actual, field, mode, appendPath(path, field[0]))))
+    extras := match (mode) {
+        Comparison::identical => flatten(map(filter(actual[1], field => !isPresent(lookup(expected[1], field[0]))), field => problem(appendPath(path, field[0]), field[1], expected, Difference::extraField))),
+        _                     => []
+    }
+    return flatten([required, extras])
+}
+
+operation compareField(actual, field, mode, path) = match (isPresent(lookup(actual[1], field[0]))) {
+    false => problem(path, actual, field[1], Difference::missingField),
+    true  => compareAt(lookup(actual[1], field[0]), field[1], mode, path)
+}
+
+operation compareTuple(actual, expected, mode, path) = match (sameLength(actual[1], expected[1])) {
+    false => problem(path, actual, expected, Difference::tupleLength),
+    true  => compareTupleElements(actual[1], expected[1], mode, path)
+}
+
+operation compareTupleElements(actual, expected, mode, path, preceding = []) = match (isPresent(actual[0])) {
+    false => [],
+    true  => flatten([compareAt(actual[0], expected[0], mode, appendPath(path, concat(["[", text(length(preceding)), "]"]))), compareTupleElements(tail(actual), tail(expected), mode, path, flatten([preceding, [true]]))])
+}
+
+operation noDifferences(differences) = !isPresent(differences[0])
+
+export operation isIdenticalTo(left, right) = noDifferences(compareTypes(left, right, Comparison::identical))
+
+export operation isAssignableTo(left, right) = noDifferences(compareTypes(left, right, Comparison::assignable))
+
+// Explicit generic descriptors: (parameter identity list, body descriptor).
+export operation genericType(parameters, body) =(parameters, body)
+
+export operation instantiateType(generic, arguments) = choose(sameLength(generic[0], arguments), substituteType(generic[1], zip(generic[0], arguments)), absent)
+
+operation substituteType(value, substitutions) = match (value[0]) {
+    Type::parameter => choose(isPresent(lookup(substitutions, value[1])), lookup(substitutions, value[1]), value),
+    Type::tuple     => tupleType(map(value[1], item => substituteType(item, substitutions))),
+    Type::list      => listType(substituteType(value[1], substitutions)),
+    Type::union     => unionType(map(value[1], item => substituteType(item, substitutions))),
+    Type::struct    => structType(map(value[1], field => (field[0], substituteType(field[1], substitutions)))),
+    _               => value
+}
+
+// Renderers are ordinary authored functions as well.
+operation joinStrings(parts, separator) = match (isPresent(parts[0]), isPresent(parts[1])) {
+    false, _    => "",
+    true, false => parts[0],
+    true, true  => concat([parts[0], separator, joinStrings(tail(parts), separator)])
+}
+
+export operation describeType(value) = match (value[0]) {
+    Type::number    => "number",
+    Type::string    => "string",
+    Type::boolean   => "boolean",
+    unknown         => "unknown",
+    Type::parameter => "unresolved type parameter",
+    Type::tuple     => concat(["(", joinStrings(map(value[1], item => describeType(item)), ", "), ")"]),
+    Type::list      => concat(["List<", describeType(value[1]), ">"]),
+    Type::union     => joinStrings(map(value[1], item => describeType(item)), " | "),
+    Type::struct    => concat(["{ ", joinStrings(map(value[1], field => concat([field[0], ": ", describeType(field[1])])), ", "), " }"]),
+    _               => "<invalid type descriptor>"
+}
+
+export operation describeDifference(item) {
+    location := choose(isPresent(item[0][0]), joinStrings(item[0], "."), "value")
+    return match (item[3]) {
+        Difference::invariantList       => concat(["Mutable list element types must be identical: ", describeType(item[1]), " is not assignable to ", describeType(item[2]), " at ", location]),
+        Difference::missingField        => concat(["Missing required field ", location]),
+        Difference::extraField          => concat(["Unexpected field ", location]),
+        Difference::tupleLength         => concat(["Tuple length differs at ", location]),
+        Difference::unresolvedParameter => concat(["Unresolved type parameter at ", location]),
+        _                               => concat([describeType(item[1]), " is not assignable to ", describeType(item[2]), " at ", location])
+    }
+}
+
+// Point to the checked expression; advanced source tracing is a separate example.
+export operation reportDifference(item, target) {
+    error(describeDifference(item), [(target, absent)])
+}
