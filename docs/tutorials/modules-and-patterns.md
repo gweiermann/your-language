@@ -11,12 +11,21 @@ pattern IdentifierPart = /[_a-zA-Z0-9]/
 
 export pattern keyword(value) =
     value |> boundedBy(IdentifierPart)
+{
+    ide {
+        highlightAs "keyword"
+    }
+}
 
 export node Name =
     value: /[_a-zA-Z][_a-zA-Z0-9]*/
 ```
 
 `boundedBy` rejects identifier-part matches immediately before and after the wrapped grammar. `keyword("let")` therefore recognizes `let` without accepting the prefix of `letter`. The helper is ordinary YL; the runtime has no built-in list of keywords.
+
+Every instantiation also carries keyword highlighting. There is no need for a
+separate `LetKeyword` or `FunctionKeyword` declaration. `IdentifierPart` belongs
+to this language: another language can choose a different identifier alphabet.
 
 `IdentifierPart` stays private. `keyword` and `Name` are explicitly exported so another module can import them. Resolution still includes private dependencies needed by the exported definitions.
 
@@ -59,3 +68,6 @@ entry Program {
 The entry module chooses the active trivia explicitly. Selecting the abstract `Comment` matcher includes its alternatives. Exporting or importing comments alone never enables them.
 
 Explore the complete definition in the [MiniJS walkthrough](/tutorials/mini-js).
+
+For the same organization applied to semantic rules and backend hooks, continue
+with [composable language definitions](/tutorials/composable-definitions).

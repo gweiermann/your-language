@@ -6,6 +6,7 @@ The declarative-query example implements lexical scopes and references in YL. Ru
 examples/07-declarative-queries/
 ├── definition/
 │   ├── lexical.yl
+│   ├── references.yl
 │   ├── statements.yl
 │   └── language.yl
 └── programs/
@@ -13,7 +14,11 @@ examples/07-declarative-queries/
     └── errors.txt
 ```
 
-The authored library is `stdlib/references.yl`, available through the canonical `std/references` import. It compiles to generic attachment queries. The separate declarative-query example uses an authored variation that makes declarations visible throughout a scope; the canonical library preserves meaning-schedule visibility. Neither uses a native reference adapter or a mutable current-scope stack.
+The complete teaching library lives in the example's `definition/references.yl`
+and imports only `core/query` and `core/diagnostics`. It makes declarations
+visible throughout a scope. The canonical `std/references` library preserves
+semantic-schedule visibility and is reused in examples 06 and 08. Neither uses a
+native reference adapter or a mutable current-scope stack.
 
 ## Give each scope an identity
 
@@ -35,11 +40,10 @@ import { error } from "core/diagnostics"
 export operation enclosingScope(value) =
     find(ancestors(value), ancestor => get((ancestor, scope)))
 
-export operation declareName(target, name, reassignable = true) {
+export operation declareName(target, name) {
     contribute((enclosingScope(name), declarations, text(name)), target)
-    contribute((name, referenceIdentity), target)
-    contribute((target, referenceIdentity), target)
-    contribute((target, reassignableSymbol), reassignable)
+    contribute((name, reference), target)
+    contribute((target, reference), target)
 
     when hasMultiple(getAll((enclosingScope(name), declarations, text(name)))) {
         error("Duplicate declaration '${name}'", name)

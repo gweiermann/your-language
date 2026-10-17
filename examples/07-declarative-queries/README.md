@@ -1,6 +1,25 @@
 # Declarative queries
 
-Dependency discovery and nearest-scope lookup.
+Dependency discovery and nearest-scope lookup, implemented locally on
+`core/query` rather than imported from `std/references`.
+
+- `definition/references.yl` defines the scope, declaration, and reference keys
+  and the operations that read and contribute to them.
+- `definition/statements.yl` keeps captures beside explicit calls such as
+  `declareName(self, name)` and `connectReference(self, name)`.
+- `definition/language.yl` selects the entry, trivia, and declaration ordering.
+
+An inner scope's declaration wins over an outer declaration of the same name,
+including when the inner declaration comes after its reference. This example
+uses `get` for whole-scope lookup. The canonical `std/references` library used
+in 06 and 08 uses `getEarlier` for schedule-sensitive visibility and also
+provides binding metadata needed by those examples. Neither policy is native
+engine behavior.
+
+Start with the small local library here to understand the mechanism; use the
+standard library when its policy fits your language. The
+[authored scopes tutorial](../../docs/tutorials/declarative-scopes.md) explains
+each query and the missing-name and duplicate-name diagnostics.
 
 ```powershell
 cargo run -- project check examples/07-declarative-queries

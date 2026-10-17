@@ -1,8 +1,6 @@
-import { error } from "core/diagnostics"
 import { connectReference } from "std/references"
-import { call, inheritType } from "./typing"
+import { call, checkAddition, inheritType } from "./typing"
 import { annotateWithType, typeOf } from "std/types"
-import { unknown } from "std/types"
 import { separatedBy } from "std/parser"
 import { Name } from "./lexical"
 import { Type } from "./types"
@@ -59,12 +57,7 @@ node Addition =
     right: Expression
 {
     semantics {
-        match (typeOf(left), typeOf(right)) {
-            Type::string, Type::string | Type::string, Type::number | Type::number, Type::string => annotateWithType(self, Type::string),
-            Type::number, Type::number                                                           => annotateWithType(self, Type::number),
-            unknown, _ | _, unknown                                                              => annotateWithType(self, unknown),
-            _                                                                                    => error("${left} + ${right} is not possible")
-        }
+        checkAddition(self, left, right)
     }
 }
 

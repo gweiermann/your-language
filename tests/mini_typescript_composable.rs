@@ -5,8 +5,12 @@ mod inference;
 use your_language::semantics::AnalysisResult;
 
 fn analyze_with(source: &str, edit: impl FnOnce(&mut String)) -> AnalysisResult {
+    analyze_module(source, "definition/typing.yl", edit)
+}
+
+fn analyze_module(source: &str, module: &str, edit: impl FnOnce(&mut String)) -> AnalysisResult {
     let mut sources = definition::sources();
-    edit(sources.get_mut("definition/expression.yl").unwrap());
+    edit(sources.get_mut(module).unwrap());
     let engine = inference::engine();
     let compiled = engine.compile(definition::ENTRY, &sources).unwrap();
     let loaded = engine.load(&compiled.to_bytes().unwrap()).unwrap();
@@ -37,7 +41,7 @@ fn replace_action(grammar: &mut String, pattern: &str, action: &str) {
 }
 
 #[test]
-fn addition_policy_lives_in_authored_meanings() {
+fn addition_policy_lives_in_an_explicit_authored_operation() {
     let result = analyze(include_str!(
         "../examples/08-mini-typescript/programs/addition.txt"
     ));
@@ -54,7 +58,7 @@ fn addition_policy_lives_in_authored_meanings() {
         replace_action(
             grammar,
             "Type::number, Type::number",
-            "annotateWithType(self, Type::string),",
+            "annotateWithType(target, Type::string),",
         )
     });
     assert!(changed.diagnostics.is_empty(), "{:?}", changed.diagnostics);
@@ -63,14 +67,21 @@ fn addition_policy_lives_in_authored_meanings() {
 
 #[test]
 fn unsupported_additions_emit_authored_diagnostics() {
-    let result = analyze(include_str!(
-        "../examples/08-mini-typescript/programs/addition-errors.txt"
-    ));
+    let source = include_str!("../examples/08-mini-typescript/programs/addition-errors.txt");
+    let result = analyze(source);
     assert_eq!(result.diagnostics.len(), 2, "{:?}", result.diagnostics);
     assert!(result
         .diagnostics
         .iter()
         .all(|diagnostic| diagnostic.message.contains("is not possible")));
+    assert_eq!(
+        result
+            .diagnostics
+            .iter()
+            .map(|diagnostic| { &source[diagnostic.primary.start..diagnostic.primary.end] })
+            .collect::<Vec<_>>(),
+        vec!["true + false", "\"value\" + true"]
+    );
 }
 
 #[test]
@@ -96,7 +107,7 @@ fn explicit_unknown_propagates_to_the_next_match() {
         replace_action(
             grammar,
             "Type::number, Type::number",
-            "annotateWithType(self, unknown),",
+            "annotateWithType(target, unknown),",
         )
     });
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
@@ -113,7 +124,7 @@ fn warning_and_annotation_actions_can_share_a_branch() {
             replace_action(
                 grammar,
                 "_",
-                "{ warn(\"${left} + ${right} is experimental\") annotateWithType(self, unknown) }",
+                "{ warn(\"${left} + ${right} is experimental\") annotateWithType(target, unknown) }",
             )
         },
     );
@@ -167,13 +178,17 @@ fn function_slot_names_can_be_changed_in_the_language() {
 
 #[test]
 fn union_candidates_keep_each_valid_addition_result() {
-    let result = analyze_with("let value = 1; let result = value + 1;", |grammar| {
-        *grammar = grammar.replacen(
+    let result = analyze_module(
+        "let value = 1; let result = value + 1;",
+        "definition/expression.yl",
+        |grammar| {
+            *grammar = grammar.replacen(
             "annotateWithType(self, Type::number)",
             "annotateWithType(self, Type::number)\n        annotateWithType(self, Type::string)",
             1,
         );
-    });
+        },
+    );
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(binding(&result, "result"), "Type::number | Type::string");
 }
