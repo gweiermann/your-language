@@ -43,3 +43,33 @@ yl project ast examples/01-getting-started/programs/program.txt
 ```
 
 An individual check always reflects that program's actual diagnostics, independent of fixture expectations. Its JSON output remains the diagnostic array. AST output is JSON and requires an explicit source file. These commands use the same compilation and analysis path as batch checking.
+
+## Cargo examples and Rust consumers
+
+Every numbered example also has a Cargo entrypoint and an equivalent friendly name:
+
+```sh
+cargo run --example 01-getting-started
+cargo run --example getting-started
+```
+
+Both thin launchers pass their `yl.json` to the same in-process project runner
+used by the CLI. They print original diagnostics, each fixture's result, and a
+summary; expected negative fixtures do not make the example fail. The complete
+[example catalog](../../examples/README.md) lists both names for every project.
+
+Rust consumers can inspect the report without printing or invoking a subprocess:
+
+```rust
+use your_language::project::Project;
+use std::path::Path;
+
+let project = Project::load(Path::new("examples/01-getting-started/yl.json"))?;
+let report = project.check()?;
+assert!(report.success);
+```
+
+`Project::compile()` and `Project::analyze_file()` also support compiling once
+and inspecting individual programs through the same analysis pipeline. None of
+these checks invoke runtime backend hooks; the backend host examples demonstrate
+execution separately.

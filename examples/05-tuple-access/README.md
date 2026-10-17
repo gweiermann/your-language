@@ -9,3 +9,15 @@ cargo run -- language target/tuple-access.ylc check examples/05-tuple-access/pro
 ```
 
 The valid program succeeds. The invalid program reports `Unexpected wrong` and underlines `wrong`. Add `--json` to the final command for structured diagnostic data. Empty collections and missing positions return `absent`; indexes are zero-based nonnegative integer literals.
+
+## Run this example
+
+```powershell
+cargo run --example 05-tuple-access
+# Equivalent friendly name:
+cargo run --example tuple-access
+```
+
+Both entrypoints load `yl.json` and check all configured programs in process.
+Intentional negative fixtures print their diagnostics and count as a passing
+example only when an error is found. Host execution commands remain separate.

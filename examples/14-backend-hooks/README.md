@@ -70,3 +70,15 @@ These commands parse and check every configured program without executing host
 hooks. Runtime-error and overflow fixtures are exercised by the interpreter and
 backend integration tests. The Rust consumers load their language entry from the
 same `yl.json`; each backend lives in its own module for independent reading.
+
+## Run this example
+
+```powershell
+cargo run --example 14-backend-hooks
+# Equivalent friendly name:
+cargo run --example backend-hooks
+```
+
+Both entrypoints load `yl.json` and check all configured programs in process.
+Intentional negative fixtures print their diagnostics and count as a passing
+example only when an error is found. Host execution commands remain separate.

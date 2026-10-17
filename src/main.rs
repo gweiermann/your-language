@@ -105,23 +105,6 @@ fn run(args: &[String]) -> Result<bool, Vec<Diagnostic>> {
         _ => Err(usage()),
     }
 }
-fn project_diagnostic_paths(diagnostics: &mut [Diagnostic], root: &Path, source: Option<&str>) {
-    for diagnostic in diagnostics {
-        for span in std::iter::once(diagnostic.primary.as_mut())
-            .chain(diagnostic.secondary.iter_mut())
-            .chain(
-                diagnostic
-                    .annotations
-                    .iter_mut()
-                    .map(|annotation| &mut annotation.span),
-            )
-        {
-            if source != Some(span.file.as_str()) && Path::new(&span.file).is_relative() {
-                span.file = root.join(&span.file).to_string_lossy().into();
-            }
-        }
-    }
-}
 fn json(value: &impl serde::Serialize) -> Result<String, Vec<Diagnostic>> {
     serde_json::to_string_pretty(value)
         .map_err(|e| vec![Diagnostic::error("yl.json", e.to_string(), Span::default())])

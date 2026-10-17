@@ -45,3 +45,15 @@ Equal descriptors can have different origins: origins belong to contributions,
 not globally to `number` or `string`. The example preserves field and tuple
 origins; a list index access currently highlights the access site. Full expected-
 type derivation chains and flow-sensitive provenance remain deferred.
+
+## Run this example
+
+```powershell
+cargo run --example 12-diagnostic-origins
+# Equivalent friendly name:
+cargo run --example diagnostic-origins
+```
+
+Both entrypoints load `yl.json` and check all configured programs in process.
+Intentional negative fixtures print their diagnostics and count as a passing
+example only when an error is found. Host execution commands remain separate.

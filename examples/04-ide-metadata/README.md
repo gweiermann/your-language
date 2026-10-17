@@ -108,3 +108,15 @@ trivia (including comments-only trivia), fragments concatenate. Explicit example
 keep their authored text. Every composed candidate is validated; adjacency constraints
 can force an unspaced fallback within the same generation budget. Representatives
 are short and readable, not a proof of globally shortest accepted source.
+
+## Run this example
+
+```powershell
+cargo run --example 04-ide-metadata
+# Equivalent friendly name:
+cargo run --example ide-metadata
+```
+
+Both entrypoints load `yl.json` and check all configured programs in process.
+Intentional negative fixtures print their diagnostics and count as a passing
+example only when an error is found. Host execution commands remain separate.

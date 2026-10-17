@@ -11,3 +11,15 @@ cargo run --example type_instantiation -- errors --json
 ```
 
 The successful program prints independent `number` and `string` results. The error program underlines the string argument that cannot satisfy the required number type and exits with status 1. JSON output contains structured diagnostics and query contributions.
+
+## Run this example
+
+```powershell
+cargo run --example 09-type-instantiation
+# Equivalent friendly name:
+cargo run --example type-instantiation
+```
+
+Both entrypoints load `yl.json` and check all configured programs in process.
+Intentional negative fixtures print their diagnostics and count as a passing
+example only when an error is found. Host execution commands remain separate.

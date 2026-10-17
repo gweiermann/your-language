@@ -26,3 +26,115 @@ unicode-width = { version = "0.2", default-features = false }
 
 [dev-dependencies]
 wasm-encoder = { version = "=0.225.0", default-features = false }
+
+[[example]]
+name = "01-getting-started"
+path = "examples/01-getting-started/hosts/main.rs"
+
+[[example]]
+name = "getting-started"
+path = "examples/01-getting-started/hosts/alias.rs"
+
+[[example]]
+name = "02-constraints"
+path = "examples/02-constraints/hosts/main.rs"
+
+[[example]]
+name = "constraints"
+path = "examples/02-constraints/hosts/alias.rs"
+
+[[example]]
+name = "03-mini-js"
+path = "examples/03-mini-js/hosts/main.rs"
+
+[[example]]
+name = "mini-js"
+path = "examples/03-mini-js/hosts/alias.rs"
+
+[[example]]
+name = "04-ide-metadata"
+path = "examples/04-ide-metadata/hosts/main.rs"
+
+[[example]]
+name = "ide-metadata"
+path = "examples/04-ide-metadata/hosts/alias.rs"
+
+[[example]]
+name = "05-tuple-access"
+path = "examples/05-tuple-access/hosts/main.rs"
+
+[[example]]
+name = "tuple-access"
+path = "examples/05-tuple-access/hosts/alias.rs"
+
+[[example]]
+name = "06-references"
+path = "examples/06-references/hosts/main.rs"
+
+[[example]]
+name = "references"
+path = "examples/06-references/hosts/alias.rs"
+
+[[example]]
+name = "07-declarative-queries"
+path = "examples/07-declarative-queries/hosts/main.rs"
+
+[[example]]
+name = "declarative-queries"
+path = "examples/07-declarative-queries/hosts/alias.rs"
+
+[[example]]
+name = "08-mini-typescript"
+path = "examples/08-mini-typescript/hosts/main.rs"
+
+[[example]]
+name = "mini-typescript"
+path = "examples/08-mini-typescript/hosts/alias.rs"
+
+[[example]]
+name = "09-type-instantiation"
+path = "examples/09-type-instantiation/hosts/main.rs"
+
+[[example]]
+name = "type-instantiation"
+path = "examples/09-type-instantiation/hosts/alias.rs"
+
+[[example]]
+name = "10-declarative-functions"
+path = "examples/10-declarative-functions/hosts/main.rs"
+
+[[example]]
+name = "declarative-functions"
+path = "examples/10-declarative-functions/hosts/alias.rs"
+
+[[example]]
+name = "11-compound-types"
+path = "examples/11-compound-types/hosts/main.rs"
+
+[[example]]
+name = "compound-types"
+path = "examples/11-compound-types/hosts/alias.rs"
+
+[[example]]
+name = "12-diagnostic-origins"
+path = "examples/12-diagnostic-origins/hosts/main.rs"
+
+[[example]]
+name = "diagnostic-origins"
+path = "examples/12-diagnostic-origins/hosts/alias.rs"
+
+[[example]]
+name = "13-formatting"
+path = "examples/13-formatting/hosts/main.rs"
+
+[[example]]
+name = "formatting"
+path = "examples/13-formatting/hosts/alias.rs"
+
+[[example]]
+name = "14-backend-hooks"
+path = "examples/14-backend-hooks/hosts/main.rs"
+
+[[example]]
+name = "backend-hooks"
+path = "examples/14-backend-hooks/hosts/alias.rs"

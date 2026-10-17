@@ -94,3 +94,15 @@ match (typeOf(left), typeOf(right)) {
 Candidate unions distribute through the cases. Supported combinations contribute their result types; unsupported combinations emit diagnostics. The standard type library contains no addition policy.
 
 This is an inference example, not a TypeScript implementation. Control-flow narrowing, structural subtyping, overload resolution and target execution remain separate concerns.
+
+## Run this example
+
+```powershell
+cargo run --example 08-mini-typescript
+# Equivalent friendly name:
+cargo run --example mini-typescript
+```
+
+Both entrypoints load `yl.json` and check all configured programs in process.
+Intentional negative fixtures print their diagnostics and count as a passing
+example only when an error is found. Host execution commands remain separate.

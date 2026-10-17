@@ -1,6 +1,8 @@
 //! Shared project discovery for the CLI and editor. Paths are relative to `yl.json`.
+mod runner;
 use crate::diagnostic::{CompileResult, Diagnostic, Span};
 use regex::{Regex, RegexBuilder};
+pub use runner::{run_example, ProjectReport, SourceReport};
 use serde::{Deserialize, Serialize};
 use std::path::{Component, Path, PathBuf};
 

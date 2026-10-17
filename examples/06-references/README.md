@@ -50,3 +50,15 @@ name their input under `programs/`, matching the files in this example directory
 Program and `FunctionBody` declare explicit `boundary` markers. Program selects declarations and function bodies through all expression wrappers, but does not search inside a body for outer declarations. Once deferred bodies become ready, their contents are analyzed with their own attached scope identities. Let declarations order initializer analysis before registration and defer lambda bodies until their binding is available. The examples cover forward functions, later outer bindings in closures, self-recursive function values, parameter/local shadowing, and rejected self-initializers.
 
 This is static name analysis; it does not check execution-time initialization, assignment, target-language types, flow, or ownership. See [the runtime operation interface](../../docs/api/native-semantics.md) for library registration, lifecycle hooks, and optional artifacts.
+
+## Run this example
+
+```powershell
+cargo run --example 06-references
+# Equivalent friendly name:
+cargo run --example references
+```
+
+Both entrypoints load `yl.json` and check all configured programs in process.
+Intentional negative fixtures print their diagnostics and count as a passing
+example only when an error is found. Host execution commands remain separate.

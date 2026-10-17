@@ -8,6 +8,8 @@ extensions do not select a different language.
 Run commands from the repository root:
 
 ```powershell
+cargo run --example getting-started
+cargo run --example 01-getting-started
 cargo run -- project list examples
 cargo run -- project list examples --json
 cargo run -- project check examples/11-compound-types
@@ -21,24 +23,29 @@ intentional negative fixtures: the aggregate command succeeds only when valid
 programs pass and these fixtures fail. Checking a negative source directly still
 exits with status 1 and displays the error. Add `--json` to either check form for
 structured output. The project runner uses the same language/compiler APIs as the
-editor; no per-language launcher is required.
+editor; the Cargo entrypoints below are thin wrappers around that same in-process runner.
 
-| Project | What it teaches |
-| --- | --- |
-| [01-getting-started](./01-getting-started/README.md) | Captures, trivia, and JSON ASTs |
-| [02-constraints](./02-constraints/README.md) | Optional syntax, warnings, and errors |
-| [03-mini-js](./03-mini-js/README.md) | Modules, recursive grammar, precedence, and pipes |
-| [04-ide-metadata](./04-ide-metadata/README.md) | Composed examples and contextual highlighting |
-| [05-tuple-access](./05-tuple-access/README.md) | Positional tuple and list queries |
-| [06-references](./06-references/README.md) | Authored lexical scopes and name connections |
-| [07-declarative-queries](./07-declarative-queries/README.md) | Dependency discovery and nearest-scope lookup |
-| [08-mini-typescript](./08-mini-typescript/README.md) | Inference, functions, and isolated generic calls |
-| [09-type-instantiation](./09-type-instantiation/README.md) | Hypothetical parameter assignments |
-| [10-declarative-functions](./10-declarative-functions/README.md) | Function typing through authored queries |
-| [11-compound-types](./11-compound-types/README.md) | Interfaces, tuples, lists, generics, and assignments |
-| [12-diagnostic-origins](./12-diagnostic-origins/README.md) | Optional source tracing and grouped diagnostics |
-| [13-formatting](./13-formatting/README.md) | Runnable match-arm alignment demonstration |
-| [14-backend-hooks](./14-backend-hooks/README.md) | Interpret, transpile to JavaScript, and compile to WebAssembly |
+| Project / numbered Cargo name | Friendly Cargo name | What it teaches |
+| --- | --- | --- |
+| [01-getting-started](./01-getting-started/README.md) | `getting-started` | Captures, trivia, and JSON ASTs |
+| [02-constraints](./02-constraints/README.md) | `constraints` | Optional syntax, warnings, and errors |
+| [03-mini-js](./03-mini-js/README.md) | `mini-js` | Modules, recursive grammar, precedence, and pipes |
+| [04-ide-metadata](./04-ide-metadata/README.md) | `ide-metadata` | Composed examples and contextual highlighting |
+| [05-tuple-access](./05-tuple-access/README.md) | `tuple-access` | Positional tuple and list queries |
+| [06-references](./06-references/README.md) | `references` | Authored lexical scopes and name connections |
+| [07-declarative-queries](./07-declarative-queries/README.md) | `declarative-queries` | Dependency discovery and nearest-scope lookup |
+| [08-mini-typescript](./08-mini-typescript/README.md) | `mini-typescript` | Inference, functions, and isolated generic calls |
+| [09-type-instantiation](./09-type-instantiation/README.md) | `type-instantiation` | Hypothetical parameter assignments |
+| [10-declarative-functions](./10-declarative-functions/README.md) | `declarative-functions` | Function typing through authored queries |
+| [11-compound-types](./11-compound-types/README.md) | `compound-types` | Interfaces, tuples, lists, generics, and assignments |
+| [12-diagnostic-origins](./12-diagnostic-origins/README.md) | `diagnostic-origins` | Optional source tracing and grouped diagnostics |
+| [13-formatting](./13-formatting/README.md) | `formatting` | Runnable match-arm alignment demonstration |
+| [14-backend-hooks](./14-backend-hooks/README.md) | `backend-hooks` | Interpret, transpile to JavaScript, and compile to WebAssembly |
+
+Use `cargo run --example <name>` with either name in the table. Each launcher
+checks valid programs and expected errors; it does not execute backend hooks.
+For the formatting example, the README also shows `yl fmt` to inspect or change
+formatting.
 
 ## Host API examples
 

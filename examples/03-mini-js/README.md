@@ -19,3 +19,15 @@ The grammar includes variables, functions, return statements, calls, member acce
 Read the [walkthrough](../../docs/tutorials/mini-js.md) for a guided explanation.
 
 The common runner verifies valid and negative fixtures: `cargo run -- project check examples/03-mini-js`.
+
+## Run this example
+
+```powershell
+cargo run --example 03-mini-js
+# Equivalent friendly name:
+cargo run --example mini-js
+```
+
+Both entrypoints load `yl.json` and check all configured programs in process.
+Intentional negative fixtures print their diagnostics and count as a passing
+example only when an error is found. Host execution commands remain separate.

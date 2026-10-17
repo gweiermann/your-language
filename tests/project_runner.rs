@@ -103,3 +103,16 @@ fn expectation_globs_use_the_same_validation_and_nested_projects_own_their_sourc
     fs::write(dir.join("programs/nested/other.txt"), "x").unwrap();
     assert_eq!(Project::load(&dir).unwrap().sources().unwrap().len(), 2);
 }
+
+#[test]
+fn library_runner_returns_the_same_report_as_the_cli_without_spawning_it() {
+    let fixture = Fixture::new();
+    let directory = fixture.project("library");
+    let report = Project::load(&directory).unwrap().check().unwrap();
+    assert!(report.success);
+    assert_eq!(report.sources.len(), 2);
+    assert!(report.sources[0].expect_errors);
+    let output = run("check", &directory);
+    let actual: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(actual, serde_json::to_value(&report).unwrap());
+}

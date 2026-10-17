@@ -42,3 +42,15 @@ invariant; generic arguments are explicit. Duplicate fields are rejected. Only
 the first structural difference is reported per check. Recursive named types,
 inferred generic arguments, tuple indexing, flow-sensitive mutation, list bounds,
 and methods such as `push` are not implemented by this example.
+
+## Run this example
+
+```powershell
+cargo run --example 11-compound-types
+# Equivalent friendly name:
+cargo run --example compound-types
+```
+
+Both entrypoints load `yl.json` and check all configured programs in process.
+Intentional negative fixtures print their diagnostics and count as a passing
+example only when an error is found. Host execution commands remain separate.
