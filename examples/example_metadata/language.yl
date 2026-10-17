@@ -4,11 +4,17 @@ import { separatedBy } from "std/parser"
 trivia Whitespace = /\s+/
 
 pattern Name = /[a-z]+/ {
-    example "name"
+    ide {
+        example "name"
+        highlightAs "variable"
+    }
 }
 
 node Number = /[0-9]+/ {
-    example "42"
+    ide {
+        example "42"
+        highlightAs "number"
+    }
 }
 
 node Program =

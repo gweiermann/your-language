@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "capabilities": [
     "indexed-parser",
     "indexed-checks",
@@ -7,7 +7,8 @@
     "semantic-scheduling",
     "positional-index",
     "recursive-query-functions",
-    "value-match"
+    "value-match",
+    "ide-highlighting"
   ],
   "parser": {
     "entry": 1,
@@ -69,6 +70,7 @@
     ],
     "trivia": [],
     "checks": [],
+    "highlights": {},
     "preview_roots": {
       "golden.yl#Name": 4,
       "golden.yl#Program": 5

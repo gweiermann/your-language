@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "capabilities": [
     "indexed-parser",
     "indexed-checks",
@@ -7,7 +7,8 @@
     "semantic-scheduling",
     "positional-index",
     "recursive-query-functions",
-    "value-match"
+    "value-match",
+    "ide-highlighting"
   ],
   "parser": {
     "entry": 10,
@@ -597,6 +598,7 @@
       11
     ],
     "checks": [],
+    "highlights": {},
     "preview_roots": {
       "language.yl#Declaration": 62,
       "language.yl#Expression": 63,

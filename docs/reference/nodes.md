@@ -133,7 +133,9 @@ Nodes and parameterless patterns can provide parser-validated examples:
 
 ```yl
 node Number = /[0-9]+/ {
-    example "42"
+    ide {
+        example "42"
+    }
 }
 ```
 

@@ -74,6 +74,20 @@ It reports `numberSum: number`, `stringSum: string` and the types of the other b
 
 The [compound-types example](./examples/compound-types/) adds structural interfaces, tuples, lists, and explicit generic arguments. Its recursive comparison and source-evidence tracking are implemented in YL. A mismatch discovered through several declarations can underline the original incompatible literal and the final requirement together; see the [structural types tutorial](https://gweiermann.github.io/your-language/tutorials/compound-types).
 
+## Editor support
+
+The VS Code extension provides live diagnostics, formatting and composed syntax examples for YL definitions. A project-local `yl.json` also enables diagnostics and highlighting for programs written in your language. Visual roles stay beside the grammar:
+
+```yl
+pattern FunctionName = Name {
+    ide {
+        highlightAs "function"
+    }
+}
+```
+
+See the [editor guide](https://gweiermann.github.io/your-language/guide/editor) and [IDE metadata reference](https://gweiermann.github.io/your-language/reference/ide).
+
 ## Run a language
 
 Install the CLI from the repository:

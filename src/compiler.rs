@@ -970,6 +970,7 @@ impl Compiler {
             meanings: BTreeMap::new(),
             query_meanings: BTreeMap::new(),
             query_functions: BTreeMap::new(),
+            highlights: BTreeMap::new(),
             examples: BTreeMap::new(),
             diagnostics: vec![],
             image: None,
@@ -1199,6 +1200,15 @@ impl Compiler {
                 "Entrypoint must be a node",
                 Span::default(),
             ));
+        }
+        for (id, symbol) in &self.symbols {
+            if let DeclKind::Node { ide: Some(ide), .. }
+            | DeclKind::Pattern { ide: Some(ide), .. } = &symbol.declaration.kind
+            {
+                if let Some(category) = &ide.highlight_as {
+                    language.highlights.insert(id.clone(), category.clone());
+                }
+            }
         }
         // Pattern surface sugar is retained only as tooling templates, never runtime rules.
         for (id, symbol) in self.symbols.clone() {
@@ -1927,6 +1937,12 @@ impl Compiler {
                 &symbol.declaration.kind,
                 DeclKind::Pattern {
                     example: Some(_),
+                    ..
+                } | DeclKind::Pattern {
+                    ide: Some(crate::syntax::Ide {
+                        highlight_as: Some(_),
+                        ..
+                    }),
                     ..
                 }
             ) {
@@ -5240,7 +5256,9 @@ pub(crate) fn validate_language(language: &CompiledLanguage) -> Result<()> {
                 definition,
                 term: inner,
             } => {
-                if !language.examples.contains_key(definition) {
+                if !language.examples.contains_key(definition)
+                    && !language.highlights.contains_key(definition)
+                {
                     return Err(Diagnostic::error(
                         "yl.artifact",
                         "Unknown example metadata reference",

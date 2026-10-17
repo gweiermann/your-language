@@ -4,15 +4,21 @@ import { returnType, Annotation } from "./types"
 import { functionSignature } from "./typing"
 import { typeOf } from "std/types"
 import { separatedBy } from "std/parser"
-import { Name } from "./lexical"
+import { Name, FunctionKeyword, FunctionName } from "./lexical"
 import { Parameter } from "./parameter"
 import { Expression } from "./expression"
 import { LetDeclaration } from "./let"
 
+pattern ReturnKeyword = "return" {
+    ide {
+        highlightAs "keyword"
+    }
+}
+
 export node FunctionBody =
     "{"
     locals: LetDeclaration*
-    "return"
+    ReturnKeyword
     result: Expression
     ";"
     "}"
@@ -36,8 +42,8 @@ pattern FunctionContents =
 }
 
 export node FunctionDeclaration =
-    "function"
-    name: Name
+    FunctionKeyword
+    name: FunctionName
     contents: FunctionContents
 {
     semantics {

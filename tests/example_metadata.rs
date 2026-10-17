@@ -17,8 +17,8 @@ fn preview(source: &str, name: &str) -> Option<String> {
 }
 #[test]
 fn explicit_examples_override_and_compose_nodes_and_patterns() {
-    let source = r#"pattern Name = /[a-z]+/ { example "hello" }
-node Number = /[0-9]+/ { example "42" }
+    let source = r#"pattern Name = /[a-z]+/ { ide { example "hello" } }
+node Number = /[0-9]+/ { ide { example "42" } }
 node Program = Name "=" Number
 entry Program"#;
     assert_eq!(preview(source, "Program").as_deref(), Some("hello=42"));
@@ -33,7 +33,7 @@ fn invalid_explicit_examples_are_spanned_errors() {
         "entry.yl",
         &BTreeMap::from([(
             "entry.yl".into(),
-            "node Number = /[0-9]+/ { example \"abc\" } entry Number".into(),
+            "node Number = /[0-9]+/ { ide { example \"abc\" } } entry Number".into(),
         )]),
     )
     .unwrap_err();
@@ -97,7 +97,7 @@ entry Program"#;
 fn imports_trivia_and_constraints_are_parser_validated() {
     let sources = BTreeMap::from([
         ("entry.yl".into(), "import { Item } from \"./item\" trivia Space = / +/ node Program = \"let\" Item entry Program { trivia Space }".into()),
-        ("item.yl".into(), "export node Item = /[a-z]+/ { example \"name\" }".into()),
+        ("item.yl".into(), "export node Item = /[a-z]+/ { ide { example \"name\" } }".into()),
     ]);
     let language = compile_sources("entry.yl", &sources).unwrap();
     let text = language
@@ -114,7 +114,7 @@ node Program = value: "x" { checks { when true { error("Invalid") } } } entry Pr
 }
 #[test]
 fn formatting_metadata_is_idempotent() {
-    let source = "node Program = \"x\" { example \"x\" } entry Program";
+    let source = "node Program = \"x\" { ide { example \"x\" } } entry Program";
     let once = your_language::format_yl("entry.yl", source).unwrap();
     assert_eq!(once, your_language::format_yl("entry.yl", &once).unwrap());
     assert!(once.contains("example \"x\""));
@@ -123,8 +123,9 @@ fn formatting_metadata_is_idempotent() {
 #[test]
 fn metadata_has_no_effect_on_target_ast_or_syntax_diagnostics() {
     let plain = language("pattern Item = /[0-9]+/ node Program = Item entry Program");
-    let metadata =
-        language(r#"pattern Item = /[0-9]+/ { example "42" } node Program = Item entry Program"#);
+    let metadata = language(
+        r#"pattern Item = /[0-9]+/ { ide { example "42" } } node Program = Item entry Program"#,
+    );
     assert_eq!(parse(&plain, "7"), parse(&metadata, "7"));
     assert_eq!(parse(&plain, "bad"), parse(&metadata, "bad"));
 }
@@ -132,13 +133,13 @@ fn metadata_has_no_effect_on_target_ast_or_syntax_diagnostics() {
 #[test]
 fn pattern_examples_preserve_scalar_constraint_typing() {
     let source = r#"import { error, warn, hint } from "core/diagnostics"
-pattern Name = /[a-z]+/ { example "x" }
+pattern Name = /[a-z]+/ { ide { example "x" } }
 node Root = name: Name {
     checks { when name == "x" { warn("ok") } }
 }
 entry Root"#;
     let annotated = language(source);
-    let metadata = r#" { example "x" }"#;
+    let metadata = r#" { ide { example "x" } }"#;
     let plain = language(&source.replace(metadata, &" ".repeat(metadata.len())));
     assert_eq!(parse(&annotated, "x"), parse(&plain, "x"));
     assert_eq!(parse(&annotated, "other"), parse(&plain, "other"));
@@ -177,7 +178,7 @@ fn generated_literals_have_the_same_byte_budget_as_compositions() {
 
 #[test]
 fn loaded_node_examples_cannot_substitute_the_nodes_actual_grammar() {
-    let compiled = language(r#"node Root = "x" { example "x" } entry Root"#);
+    let compiled = language(r#"node Root = "x" { ide { example "x" } } entry Root"#);
     let mut artifact: serde_json::Value =
         serde_json::from_slice(&compiled.to_bytes().unwrap()).unwrap();
     let index = artifact["parser"]["instructions"].as_array().unwrap().len();
@@ -209,8 +210,9 @@ pipe wrapped() {{ rewrite value* => {body} }} node Item = "x" node Root = Item* 
 #[test]
 fn authored_large_examples_do_not_bypass_generated_parent_budget() {
     let example = "x".repeat(5000);
-    let source =
-        format!("pattern Alias = Child node Child = /x+/ {{ example \"{example}\" }} entry Child");
+    let source = format!(
+        "pattern Alias = Child node Child = /x+/ {{ ide {{ example \"{example}\" }} }} entry Child"
+    );
     let language = language(&source);
     let previews = language.example_previews();
     assert_eq!(
@@ -236,14 +238,14 @@ fn authored_large_examples_do_not_bypass_generated_parent_budget() {
 fn recursive_operator_examples_use_their_pratt_family_context() {
     let source = r#"node Expression {
         node Number = /[0-9]+/
-        node Sum = left: Expression "+" right: Expression { example "1+2" }
+        node Sum = left: Expression "+" right: Expression { ide { example "1+2" } }
         precedence { Sum }
     }
     entry Expression"#;
     assert_eq!(preview(source, "Expression::Sum").as_deref(), Some("1+2"));
     assert_eq!(
         preview(
-            &source.replace(r#" { example "1+2" }"#, ""),
+            &source.replace(r#" { ide { example "1+2" } }"#, ""),
             "Expression::Sum"
         )
         .as_deref(),
@@ -268,8 +270,8 @@ fn nullable_star_does_not_silently_preview_zero_occurrences() {
 #[test]
 fn readable_spacing_uses_only_selected_single_space_trivia() {
     let spaced = r#"trivia Space = / +/
-pattern Name = /[a-z]+/ { example "name" }
-node Number = /[0-9]+/ { example "42" }
+pattern Name = /[a-z]+/ { ide { example "name" } }
+node Number = /[0-9]+/ { ide { example "42" } }
 node Program = "let" Name "=" Number ";"
 entry Program { trivia Space }"#;
     assert_eq!(
@@ -378,8 +380,8 @@ entry Chain { trivia Space }"#;
 fn imported_child_previews_share_the_entries_selected_trivia() {
     let sources=BTreeMap::from([
         ("main.yl".into(),r#"import { Let } from "./let" import { Whitespace } from "./lexical" node Program = Let entry Program { trivia Whitespace }"#.into()),
-        ("let.yl".into(),r#"import { Name } from "./lexical" node Number = /[0-9]+/ { example "42" } export node Let = "let" Name "=" Number ";""#.into()),
-        ("lexical.yl".into(),r#"export trivia Whitespace = / +/ export pattern Name = /[a-z]+/ { example "name" }"#.into()),
+        ("let.yl".into(),r#"import { Name } from "./lexical" node Number = /[0-9]+/ { ide { example "42" } } export node Let = "let" Name "=" Number ";""#.into()),
+        ("lexical.yl".into(),r#"export trivia Whitespace = / +/ export pattern Name = /[a-z]+/ { ide { example "name" } }"#.into()),
     ]);
     let compiled = compile_sources("main.yl", &sources).unwrap();
     for id in ["main.yl#Program", "let.yl#Let"] {

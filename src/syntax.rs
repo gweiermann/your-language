@@ -115,6 +115,8 @@ pub enum DeclKind {
         meanings: Option<Meanings>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         example: Option<Example>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ide: Option<Ide>,
     },
     Pattern {
         name: String,
@@ -124,6 +126,8 @@ pub enum DeclKind {
         meanings: Option<Meanings>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         example: Option<Example>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ide: Option<Ide>,
     },
     Pipe {
         name: String,
@@ -148,6 +152,38 @@ pub enum DeclKind {
         trivia: Vec<Expr>,
     },
 }
+/// Editor metadata belongs to its syntax definition, never to project configuration.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Ide {
+    pub highlight_as: Option<String>,
+    pub span: Span,
+}
+/// Standard semantic token types understood by LSP clients.
+pub const HIGHLIGHT_TYPES: &[&str] = &[
+    "namespace",
+    "type",
+    "class",
+    "enum",
+    "interface",
+    "struct",
+    "typeParameter",
+    "parameter",
+    "variable",
+    "property",
+    "enumMember",
+    "event",
+    "function",
+    "method",
+    "macro",
+    "keyword",
+    "modifier",
+    "comment",
+    "string",
+    "number",
+    "regexp",
+    "operator",
+    "decorator",
+];
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Meanings {
     #[serde(default)]

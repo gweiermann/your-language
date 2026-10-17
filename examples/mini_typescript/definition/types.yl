@@ -21,18 +21,27 @@ export symbol functionIdentity
 
 export node TypeName {
     node NumberType = "number" {
+        ide {
+            highlightAs "type"
+        }
         semantics {
             annotateWithType(self, Type::number)
         }
     }
 
     node StringType = "string" {
+        ide {
+            highlightAs "type"
+        }
         semantics {
             annotateWithType(self, Type::string)
         }
     }
 
     node BooleanType = "boolean" {
+        ide {
+            highlightAs "type"
+        }
         semantics {
             annotateWithType(self, Type::boolean)
         }

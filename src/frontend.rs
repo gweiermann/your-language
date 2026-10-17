@@ -304,18 +304,24 @@ impl Parser {
             let mut constraints = vec![];
             let mut meanings = None;
             let mut example = None;
+            let mut ide = None;
             if self.take("=") {
                 grammar = Some(self.expression()?);
             }
             if self.take("{") {
                 while !self.is("}") {
-                    if self.take("example") {
-                        if example.is_some() {
-                            return Err(
-                                self.error("yl.duplicate_example", "Only one example is allowed")
-                            );
+                    if self.take("ide") {
+                        if ide.is_some() {
+                            return Err(self.error("yl.duplicate_member", "Duplicate ide section"));
                         }
-                        example = Some(self.example()?);
+                        let (metadata, explicit) = self.ide()?;
+                        ide = Some(metadata);
+                        example = explicit;
+                    } else if self.is("example") {
+                        return Err(self.error(
+                            "yl.ide_migration",
+                            "Move example metadata into ide { example \"...\" }",
+                        ));
                     } else if self.take("semantics") {
                         if meanings.is_some() {
                             return Err(
@@ -370,6 +376,7 @@ impl Parser {
                 constraints,
                 meanings,
                 example,
+                ide,
             }
         } else if self.take("pattern") {
             let name = self.word()?;
@@ -378,15 +385,21 @@ impl Parser {
             let grammar = self.expression()?;
             let mut meanings = None;
             let mut example = None;
+            let mut ide = None;
             if self.take("{") {
                 while !self.is("}") {
-                    if self.take("example") {
-                        if example.is_some() {
-                            return Err(
-                                self.error("yl.duplicate_example", "Only one example is allowed")
-                            );
+                    if self.take("ide") {
+                        if ide.is_some() {
+                            return Err(self.error("yl.duplicate_member", "Duplicate ide section"));
                         }
-                        example = Some(self.example()?);
+                        let (metadata, explicit) = self.ide()?;
+                        ide = Some(metadata);
+                        example = explicit;
+                    } else if self.is("example") {
+                        return Err(self.error(
+                            "yl.ide_migration",
+                            "Move example metadata into ide { example \"...\" }",
+                        ));
                     } else {
                         self.expect("semantics")?;
                         if meanings.is_some() {
@@ -405,6 +418,7 @@ impl Parser {
                 grammar,
                 meanings,
                 example,
+                ide,
             }
         } else if self.take("pipe") {
             let name = self.word()?;
@@ -920,6 +934,47 @@ impl Parser {
             }
         }
         Ok(alternatives)
+    }
+    fn ide(&mut self) -> Result<(Ide, Option<Example>)> {
+        let start = self.tokens[self.position.saturating_sub(1)].span.clone();
+        self.expect("{")?;
+        let mut example = None;
+        let mut highlight_as = None;
+        while !self.is("}") {
+            if self.take("example") {
+                if example.is_some() {
+                    return Err(self.error("yl.duplicate_example", "Only one example is allowed"));
+                }
+                example = Some(self.example()?);
+            } else if self.take("highlightAs") {
+                if highlight_as.is_some() {
+                    return Err(
+                        self.error("yl.duplicate_highlight", "Only one highlightAs is allowed")
+                    );
+                }
+                let token = self.bump();
+                let TokenKind::String(category) = token.kind else {
+                    return Err(self.error(
+                        "yl.highlight",
+                        "Expected a standard highlighting category string",
+                    ));
+                };
+                if !HIGHLIGHT_TYPES.contains(&category.as_str()) {
+                    return Err(Diagnostic::error("yl.highlight", format!("Unknown highlighting category {category:?}; expected a standard LSP token type"), token.span));
+                }
+                highlight_as = Some(category);
+            } else {
+                return Err(self.error("yl.ide", "Expected example or highlightAs inside ide"));
+            }
+        }
+        self.expect("}")?;
+        Ok((
+            Ide {
+                highlight_as,
+                span: self.span_from(&start),
+            },
+            example,
+        ))
     }
     fn example(&mut self) -> Result<Example> {
         let start = self.tokens[self.position.saturating_sub(1)].span.clone();

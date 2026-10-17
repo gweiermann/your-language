@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "capabilities": [
     "indexed-parser",
     "indexed-checks",
@@ -7,7 +7,8 @@
     "semantic-scheduling",
     "positional-index",
     "recursive-query-functions",
-    "value-match"
+    "value-match",
+    "ide-highlighting"
   ],
   "parser": {
     "entry": 18,
@@ -29,7 +30,7 @@
         "span": {
           "file": "lexical.yl",
           "start": 81,
-          "end": 176
+          "end": 222
         }
       },
       {
@@ -42,8 +43,8 @@
         "constraints": [],
         "span": {
           "file": "lexical.yl",
-          "start": 141,
-          "end": 174
+          "start": 187,
+          "end": 220
         }
       },
       {
@@ -56,8 +57,8 @@
         "constraints": [],
         "span": {
           "file": "lexical.yl",
-          "start": 109,
-          "end": 135
+          "start": 155,
+          "end": 181
         }
       },
       {
@@ -70,8 +71,8 @@
         "constraints": [],
         "span": {
           "file": "lexical.yl",
-          "start": 287,
-          "end": 337
+          "start": 383,
+          "end": 484
         }
       },
       {
@@ -98,8 +99,8 @@
         "constraints": [],
         "span": {
           "file": "minijs.yl",
-          "start": 1551,
-          "end": 1606
+          "start": 1681,
+          "end": 1736
         }
       },
       {
@@ -176,7 +177,7 @@
         "span": {
           "file": "minijs.yl",
           "start": 105,
-          "end": 1006
+          "end": 1136
         }
       },
       {
@@ -189,8 +190,8 @@
         "constraints": [],
         "span": {
           "file": "minijs.yl",
-          "start": 407,
-          "end": 542
+          "start": 537,
+          "end": 672
         }
       },
       {
@@ -203,8 +204,8 @@
         "constraints": [],
         "span": {
           "file": "minijs.yl",
-          "start": 258,
-          "end": 320
+          "start": 388,
+          "end": 450
         }
       },
       {
@@ -217,8 +218,8 @@
         "constraints": [],
         "span": {
           "file": "minijs.yl",
-          "start": 326,
-          "end": 401
+          "start": 456,
+          "end": 531
         }
       },
       {
@@ -231,8 +232,8 @@
         "constraints": [],
         "span": {
           "file": "minijs.yl",
-          "start": 220,
-          "end": 252
+          "start": 350,
+          "end": 382
         }
       },
       {
@@ -245,8 +246,8 @@
         "constraints": [],
         "span": {
           "file": "minijs.yl",
-          "start": 178,
-          "end": 214
+          "start": 243,
+          "end": 344
         }
       },
       {
@@ -259,8 +260,8 @@
         "constraints": [],
         "span": {
           "file": "minijs.yl",
-          "start": 631,
-          "end": 717
+          "start": 761,
+          "end": 847
         }
       },
       {
@@ -273,8 +274,8 @@
         "constraints": [],
         "span": {
           "file": "minijs.yl",
-          "start": 723,
-          "end": 824
+          "start": 853,
+          "end": 954
         }
       },
       {
@@ -288,7 +289,7 @@
         "span": {
           "file": "minijs.yl",
           "start": 134,
-          "end": 172
+          "end": 237
         }
       },
       {
@@ -301,8 +302,8 @@
         "constraints": [],
         "span": {
           "file": "minijs.yl",
-          "start": 830,
-          "end": 921
+          "start": 960,
+          "end": 1051
         }
       },
       {
@@ -315,8 +316,8 @@
         "constraints": [],
         "span": {
           "file": "minijs.yl",
-          "start": 548,
-          "end": 625
+          "start": 678,
+          "end": 755
         }
       },
       {
@@ -329,8 +330,8 @@
         "constraints": [],
         "span": {
           "file": "minijs.yl",
-          "start": 1008,
-          "end": 1061
+          "start": 1138,
+          "end": 1191
         }
       },
       {
@@ -343,8 +344,8 @@
         "constraints": [],
         "span": {
           "file": "minijs.yl",
-          "start": 1608,
-          "end": 1652
+          "start": 1738,
+          "end": 1782
         }
       },
       {
@@ -365,8 +366,8 @@
         "constraints": [],
         "span": {
           "file": "minijs.yl",
-          "start": 1138,
-          "end": 1549
+          "start": 1268,
+          "end": 1679
         }
       },
       {
@@ -374,13 +375,13 @@
         "name": "Statement::FunctionDeclaration",
         "trivia": false,
         "body": {
-          "Concrete": 120
+          "Concrete": 121
         },
         "constraints": [],
         "span": {
           "file": "minijs.yl",
-          "start": 1378,
-          "end": 1526
+          "start": 1508,
+          "end": 1656
         }
       },
       {
@@ -388,13 +389,13 @@
         "name": "Statement::ReturnStatement",
         "trivia": false,
         "body": {
-          "Concrete": 132
+          "Concrete": 134
         },
         "constraints": [],
         "span": {
           "file": "minijs.yl",
-          "start": 1297,
-          "end": 1372
+          "start": 1427,
+          "end": 1502
         }
       },
       {
@@ -402,13 +403,13 @@
         "name": "Statement::VariableDeclaration",
         "trivia": false,
         "body": {
-          "Concrete": 159
+          "Concrete": 163
         },
         "constraints": [],
         "span": {
           "file": "minijs.yl",
-          "start": 1166,
-          "end": 1291
+          "start": 1296,
+          "end": 1421
         }
       }
     ],
@@ -885,12 +886,18 @@
         }
       },
       {
+        "Example": {
+          "definition": "lexical.yl#keyword",
+          "term": 99
+        }
+      },
+      {
         "Ref": 3
       },
       {
         "Capture": [
           "name",
-          100
+          101
         ]
       },
       {
@@ -902,7 +909,7 @@
       {
         "Mark": {
           "id": 3,
-          "term": 103
+          "term": 104
         }
       },
       {
@@ -914,25 +921,25 @@
       {
         "Mark": {
           "id": 3,
-          "term": 106
+          "term": 107
         }
       },
       {
         "Sequence": [
-          105,
-          107
+          106,
+          108
         ]
       },
       {
         "Repeat": [
-          108,
+          109,
           "Star"
         ]
       },
       {
         "Sequence": [
-          104,
-          109
+          105,
+          110
         ]
       },
       {
@@ -940,26 +947,26 @@
       },
       {
         "Repeat": [
-          111,
+          112,
           "Optional"
         ]
       },
       {
         "Sequence": [
-          110,
-          112
+          111,
+          113
         ]
       },
       {
         "Repeat": [
-          113,
+          114,
           "Optional"
         ]
       },
       {
         "Project": {
           "id": 3,
-          "term": 114,
+          "term": 115,
           "quantifier": "Star",
           "collect_lists": false
         }
@@ -967,7 +974,7 @@
       {
         "Capture": [
           "parameters",
-          115
+          116
         ]
       },
       {
@@ -979,24 +986,24 @@
       {
         "Capture": [
           "body",
-          118
+          119
         ]
       },
       {
         "Sequence": [
-          99,
-          101,
+          100,
           102,
-          116,
+          103,
           117,
-          119
+          118,
+          120
         ]
       },
       {
         "Regex": "[_a-zA-Z0-9]"
       },
       {
-        "NotBehind": 121
+        "NotBehind": 122
       },
       {
         "Literal": "return"
@@ -1004,28 +1011,34 @@
       {
         "Mark": {
           "id": 4,
-          "term": 123
+          "term": 124
         }
       },
       {
         "Regex": "[_a-zA-Z0-9]"
       },
       {
-        "NotAhead": 125
+        "NotAhead": 126
       },
       {
         "Sequence": [
-          122,
-          124,
-          126
+          123,
+          125,
+          127
         ]
       },
       {
         "Project": {
           "id": 4,
-          "term": 127,
+          "term": 128,
           "quantifier": null,
           "collect_lists": false
+        }
+      },
+      {
+        "Example": {
+          "definition": "lexical.yl#keyword",
+          "term": 129
         }
       },
       {
@@ -1033,27 +1046,27 @@
       },
       {
         "Repeat": [
-          129,
+          131,
           "Optional"
         ]
       },
       {
         "Capture": [
           "value",
-          130
+          132
         ]
       },
       {
         "Sequence": [
-          128,
-          131
+          130,
+          133
         ]
       },
       {
         "Regex": "[_a-zA-Z0-9]"
       },
       {
-        "NotBehind": 133
+        "NotBehind": 135
       },
       {
         "Literal": "let"
@@ -1061,35 +1074,41 @@
       {
         "Mark": {
           "id": 5,
-          "term": 135
+          "term": 137
         }
       },
       {
         "Regex": "[_a-zA-Z0-9]"
       },
       {
-        "NotAhead": 137
+        "NotAhead": 139
       },
       {
         "Sequence": [
-          134,
           136,
-          138
+          138,
+          140
         ]
       },
       {
         "Project": {
           "id": 5,
-          "term": 139,
+          "term": 141,
           "quantifier": null,
           "collect_lists": false
+        }
+      },
+      {
+        "Example": {
+          "definition": "lexical.yl#keyword",
+          "term": 142
         }
       },
       {
         "Regex": "[_a-zA-Z0-9]"
       },
       {
-        "NotBehind": 141
+        "NotBehind": 144
       },
       {
         "Literal": "const"
@@ -1097,40 +1116,46 @@
       {
         "Mark": {
           "id": 6,
-          "term": 143
+          "term": 146
         }
       },
       {
         "Regex": "[_a-zA-Z0-9]"
       },
       {
-        "NotAhead": 145
+        "NotAhead": 148
       },
       {
         "Sequence": [
-          142,
-          144,
-          146
+          145,
+          147,
+          149
         ]
       },
       {
         "Project": {
           "id": 6,
-          "term": 147,
+          "term": 150,
           "quantifier": null,
           "collect_lists": false
         }
       },
       {
+        "Example": {
+          "definition": "lexical.yl#keyword",
+          "term": 151
+        }
+      },
+      {
         "Choice": [
-          140,
-          148
+          143,
+          152
         ]
       },
       {
         "Capture": [
           "kind",
-          149
+          153
         ]
       },
       {
@@ -1139,7 +1164,7 @@
       {
         "Capture": [
           "name",
-          151
+          155
         ]
       },
       {
@@ -1151,31 +1176,31 @@
       {
         "Capture": [
           "initializer",
-          154
+          158
         ]
       },
       {
         "Sequence": [
-          153,
-          155
+          157,
+          159
         ]
       },
       {
         "Repeat": [
-          156,
+          160,
           "Optional"
         ]
       },
       {
         "Sequence": [
-          152,
-          157
+          156,
+          161
         ]
       },
       {
         "Sequence": [
-          150,
-          158
+          154,
+          162
         ]
       },
       {
@@ -1244,7 +1269,7 @@
       {
         "Mark": {
           "id": 7,
-          "term": 180
+          "term": 184
         }
       },
       {
@@ -1256,25 +1281,25 @@
       {
         "Mark": {
           "id": 7,
-          "term": 183
+          "term": 187
         }
       },
       {
         "Sequence": [
-          182,
-          184
+          186,
+          188
         ]
       },
       {
         "Repeat": [
-          185,
+          189,
           "Star"
         ]
       },
       {
         "Sequence": [
-          181,
-          186
+          185,
+          190
         ]
       },
       {
@@ -1282,26 +1307,26 @@
       },
       {
         "Repeat": [
-          188,
+          192,
           "Optional"
         ]
       },
       {
         "Sequence": [
-          187,
-          189
+          191,
+          193
         ]
       },
       {
         "Repeat": [
-          190,
+          194,
           "Optional"
         ]
       },
       {
         "Project": {
           "id": 7,
-          "term": 191,
+          "term": 195,
           "quantifier": "Star",
           "collect_lists": false
         }
@@ -1312,28 +1337,35 @@
       0
     ],
     "checks": [],
+    "highlights": {
+      "lexical.yl#Comment": "comment",
+      "lexical.yl#Name": "variable",
+      "lexical.yl#keyword": "keyword",
+      "minijs.yl#Expression::Number": "number",
+      "minijs.yl#Expression::String": "string"
+    },
     "preview_roots": {
-      "lexical.yl#IdentifierPart": 179,
-      "lexical.yl#Name": 160,
-      "minijs.yl#Block": 161,
-      "minijs.yl#Expression": 162,
-      "minijs.yl#Expression::Call": 163,
-      "minijs.yl#Expression::Group": 164,
-      "minijs.yl#Expression::Member": 165,
-      "minijs.yl#Expression::NameExpression": 166,
-      "minijs.yl#Expression::Number": 167,
-      "minijs.yl#Expression::Power": 168,
-      "minijs.yl#Expression::Product": 169,
-      "minijs.yl#Expression::String": 170,
-      "minijs.yl#Expression::Sum": 171,
-      "minijs.yl#Expression::Unary": 172,
-      "minijs.yl#Parameter": 173,
-      "minijs.yl#Parameters": 192,
-      "minijs.yl#Program": 174,
-      "minijs.yl#Statement": 175,
-      "minijs.yl#Statement::FunctionDeclaration": 176,
-      "minijs.yl#Statement::ReturnStatement": 177,
-      "minijs.yl#Statement::VariableDeclaration": 178
+      "lexical.yl#IdentifierPart": 183,
+      "lexical.yl#Name": 164,
+      "minijs.yl#Block": 165,
+      "minijs.yl#Expression": 166,
+      "minijs.yl#Expression::Call": 167,
+      "minijs.yl#Expression::Group": 168,
+      "minijs.yl#Expression::Member": 169,
+      "minijs.yl#Expression::NameExpression": 170,
+      "minijs.yl#Expression::Number": 171,
+      "minijs.yl#Expression::Power": 172,
+      "minijs.yl#Expression::Product": 173,
+      "minijs.yl#Expression::String": 174,
+      "minijs.yl#Expression::Sum": 175,
+      "minijs.yl#Expression::Unary": 176,
+      "minijs.yl#Parameter": 177,
+      "minijs.yl#Parameters": 196,
+      "minijs.yl#Program": 178,
+      "minijs.yl#Statement": 179,
+      "minijs.yl#Statement::FunctionDeclaration": 180,
+      "minijs.yl#Statement::ReturnStatement": 181,
+      "minijs.yl#Statement::VariableDeclaration": 182
     }
   },
   "queries": {
@@ -1347,8 +1379,8 @@
       "definition": "lexical.yl#IdentifierPart",
       "span": {
         "file": "lexical.yl",
-        "start": 178,
-        "end": 217
+        "start": 224,
+        "end": 263
       },
       "text": "0",
       "reason": null
@@ -1357,8 +1389,8 @@
       "definition": "lexical.yl#Name",
       "span": {
         "file": "lexical.yl",
-        "start": 287,
-        "end": 337
+        "start": 383,
+        "end": 484
       },
       "text": "A",
       "reason": null
@@ -1367,8 +1399,8 @@
       "definition": "minijs.yl#Block",
       "span": {
         "file": "minijs.yl",
-        "start": 1551,
-        "end": 1606
+        "start": 1681,
+        "end": 1736
       },
       "text": "{ 0 }",
       "reason": null
@@ -1378,7 +1410,7 @@
       "span": {
         "file": "minijs.yl",
         "start": 105,
-        "end": 1006
+        "end": 1136
       },
       "text": "0",
       "reason": null
@@ -1387,8 +1419,8 @@
       "definition": "minijs.yl#Expression::Call",
       "span": {
         "file": "minijs.yl",
-        "start": 407,
-        "end": 542
+        "start": 537,
+        "end": 672
       },
       "text": "0 ( 0 )",
       "reason": null
@@ -1397,8 +1429,8 @@
       "definition": "minijs.yl#Expression::Group",
       "span": {
         "file": "minijs.yl",
-        "start": 258,
-        "end": 320
+        "start": 388,
+        "end": 450
       },
       "text": "( 0 )",
       "reason": null
@@ -1407,8 +1439,8 @@
       "definition": "minijs.yl#Expression::Member",
       "span": {
         "file": "minijs.yl",
-        "start": 326,
-        "end": 401
+        "start": 456,
+        "end": 531
       },
       "text": "0 . A",
       "reason": null
@@ -1417,8 +1449,8 @@
       "definition": "minijs.yl#Expression::NameExpression",
       "span": {
         "file": "minijs.yl",
-        "start": 220,
-        "end": 252
+        "start": 350,
+        "end": 382
       },
       "text": "A",
       "reason": null
@@ -1427,8 +1459,8 @@
       "definition": "minijs.yl#Expression::Number",
       "span": {
         "file": "minijs.yl",
-        "start": 178,
-        "end": 214
+        "start": 243,
+        "end": 344
       },
       "text": "0",
       "reason": null
@@ -1437,8 +1469,8 @@
       "definition": "minijs.yl#Expression::Power",
       "span": {
         "file": "minijs.yl",
-        "start": 631,
-        "end": 717
+        "start": 761,
+        "end": 847
       },
       "text": "0 ** 0",
       "reason": null
@@ -1447,8 +1479,8 @@
       "definition": "minijs.yl#Expression::Product",
       "span": {
         "file": "minijs.yl",
-        "start": 723,
-        "end": 824
+        "start": 853,
+        "end": 954
       },
       "text": "0 * 0",
       "reason": null
@@ -1458,7 +1490,7 @@
       "span": {
         "file": "minijs.yl",
         "start": 134,
-        "end": 172
+        "end": 237
       },
       "text": "\"\"",
       "reason": null
@@ -1467,8 +1499,8 @@
       "definition": "minijs.yl#Expression::Sum",
       "span": {
         "file": "minijs.yl",
-        "start": 830,
-        "end": 921
+        "start": 960,
+        "end": 1051
       },
       "text": "0 + 0",
       "reason": null
@@ -1477,8 +1509,8 @@
       "definition": "minijs.yl#Expression::Unary",
       "span": {
         "file": "minijs.yl",
-        "start": 548,
-        "end": 625
+        "start": 678,
+        "end": 755
       },
       "text": "+ 0",
       "reason": null
@@ -1487,8 +1519,8 @@
       "definition": "minijs.yl#Parameter",
       "span": {
         "file": "minijs.yl",
-        "start": 1008,
-        "end": 1061
+        "start": 1138,
+        "end": 1191
       },
       "text": "A",
       "reason": null
@@ -1497,8 +1529,8 @@
       "definition": "minijs.yl#Parameters",
       "span": {
         "file": "minijs.yl",
-        "start": 1063,
-        "end": 1136
+        "start": 1193,
+        "end": 1266
       },
       "text": "A",
       "reason": null
@@ -1507,8 +1539,8 @@
       "definition": "minijs.yl#Program",
       "span": {
         "file": "minijs.yl",
-        "start": 1608,
-        "end": 1652
+        "start": 1738,
+        "end": 1782
       },
       "text": "0",
       "reason": null
@@ -1517,8 +1549,8 @@
       "definition": "minijs.yl#Statement",
       "span": {
         "file": "minijs.yl",
-        "start": 1138,
-        "end": 1549
+        "start": 1268,
+        "end": 1679
       },
       "text": "0",
       "reason": null
@@ -1527,8 +1559,8 @@
       "definition": "minijs.yl#Statement::FunctionDeclaration",
       "span": {
         "file": "minijs.yl",
-        "start": 1378,
-        "end": 1526
+        "start": 1508,
+        "end": 1656
       },
       "text": "function A ( A ) { 0 }",
       "reason": null
@@ -1537,8 +1569,8 @@
       "definition": "minijs.yl#Statement::ReturnStatement",
       "span": {
         "file": "minijs.yl",
-        "start": 1297,
-        "end": 1372
+        "start": 1427,
+        "end": 1502
       },
       "text": "return",
       "reason": null
@@ -1547,8 +1579,8 @@
       "definition": "minijs.yl#Statement::VariableDeclaration",
       "span": {
         "file": "minijs.yl",
-        "start": 1166,
-        "end": 1291
+        "start": 1296,
+        "end": 1421
       },
       "text": "let A",
       "reason": null

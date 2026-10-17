@@ -27,18 +27,27 @@ node Call =
 }
 
 node Number = value: /[0-9]+/ {
+    ide {
+        highlightAs "number"
+    }
     semantics {
         annotateWithType(self, Type::number)
     }
 }
 
 node String = value: /"[^"\n]*"/ {
+    ide {
+        highlightAs "string"
+    }
     semantics {
         annotateWithType(self, Type::string)
     }
 }
 
 node Boolean = value: /true|false/ {
+    ide {
+        highlightAs "keyword"
+    }
     semantics {
         annotateWithType(self, Type::boolean)
     }

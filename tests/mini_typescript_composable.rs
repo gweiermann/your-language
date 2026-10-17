@@ -129,7 +129,11 @@ fn warning_and_annotation_actions_can_share_a_branch() {
 fn target_type_symbols_can_be_renamed_without_rust_changes() {
     let mut sources = definition::sources();
     for source in sources.values_mut() {
-        *source = source.replace("number", "decimal");
+        // Target type names are independent from standard editor categories.
+        *source = source
+            .replace("Type::number", "Type::decimal")
+            .replace("\n    number\n", "\n    decimal\n")
+            .replace("= \"number\"", "= \"decimal\"");
     }
     let engine = inference::engine();
     let compiled = engine.compile(definition::ENTRY, &sources).unwrap();

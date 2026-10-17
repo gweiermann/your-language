@@ -4,7 +4,7 @@ const {spawn} = require('node:child_process');
 const {mkdtemp, writeFile, rm} = require('node:fs/promises');
 const {tmpdir} = require('node:os');
 const {join, resolve} = require('node:path');
-const {pathToFileURL} = require('node:url');
+const {pathToFileURL, fileURLToPath} = require('node:url');
 const rpc = require('vscode-jsonrpc/node');
 const executable = process.env.YL_TEST_CLI || resolve(__dirname, '../../../target/debug/yl' + (process.platform === 'win32' ? '.exe' : ''));
 async function session(t, entry, exampleDisplay = "inline") {
@@ -175,7 +175,7 @@ test('imported child CodeLens uses entry trivia and buffer changes preserve spac
     const dir=await mkdtemp(join(tmpdir(),'yl-child-trivia-'));t.after(()=>rm(dir,{recursive:true,force:true}));
     const entry=join(dir,'language.yl'),child=join(dir,'let.yl');
     await writeFile(entry,'import { Let } from "./let"\ntrivia Space = / +/\nnode Root = Let\nentry Root { trivia Space }');
-    const text='pattern Name=/[a-z]+/ { example "name" }\nexport node Let = "let" Name "=" "42" ";"';
+    const text='pattern Name=/[a-z]+/ { ide { example "name" } }\nexport node Let = "let" Name "=" "42" ";"';
     await writeFile(child,text);
     const uri=pathToFileURL(child).href,s=await session(t,entry,null);
     s.open(uri,text);await s.diagnostic(uri,1);
@@ -193,4 +193,40 @@ test('LSP buffer formatting aligns match arrows by default',async t=> {
     const [edit]=await s.connection.sendRequest('textDocument/formatting',{textDocument:{uri},options:{tabSize:4,insertSpaces:true}});
     const lines=edit.newText.split('\n').filter(line=>line.includes('=>'));
     assert.equal(lines.length,3);assert.equal(new Set(lines.map(line=>line.indexOf('=>'))).size,1);
+});
+
+
+test('project discovery analyzes matching programs, applies contextual tokens and reloads unsaved definitions/config',async t=> {
+    const dir=await mkdtemp(join(tmpdir(),'yl-project~lsp-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+    const entry=join(dir,'language.yl'),config=join(dir,'yl.json'),program=join(dir,'program.ts');
+    const definition=`import { error } from "core/diagnostics"
+pattern Name = /[a-z]+/ { ide { highlightAs "variable" } }
+pattern FunctionName = Name { ide { highlightAs "function" } }
+pattern FunctionKeyword = "function" { ide { highlightAs "keyword" } }
+node Number = /[0-9]+/ { ide { example "42" highlightAs "number" } }
+node Root = FunctionKeyword name:FunctionName value:Number { checks { when name == "bad" { error("Reserved name") } } }
+trivia Space = / +/
+entry Root { trivia Space }`;
+    await writeFile(entry,definition);await writeFile(config,JSON.stringify({entry:'./language.yl',files:['*.ts']}));
+    const uri=pathToFileURL(program).href,entryUri=pathToFileURL(entry).href,configUri=pathToFileURL(config).href;
+    const s=await session(t);
+    assert.deepEqual(await s.connection.sendRequest('yl/project',{textDocument:{uri}}),{matches:true});
+    assert.deepEqual(await s.connection.sendRequest('yl/project',{textDocument:{uri:pathToFileURL(join(dir,'outside.js')).href}}),{matches:false});
+    s.open(uri,'function foo 42');assert.deepEqual((await s.diagnostic(uri,1)).diagnostics,[]);
+    const tokens=()=>s.connection.sendRequest('textDocument/semanticTokens/full',{textDocument:{uri}});
+    assert.deepEqual((await tokens()).data,[0,0,8,15,0,0,9,3,12,0,0,4,2,19,0]);
+    assert.equal(await s.connection.sendRequest('textDocument/formatting',{textDocument:{uri},options:{tabSize:4,insertSpaces:true}}),null);
+    s.change(uri,'function foo ?',2);assert.ok((await s.diagnostic(uri,2)).diagnostics.some(d=>d.code.startsWith('parse.')));
+    s.change(uri,'function foo 42',3);assert.deepEqual((await s.diagnostic(uri,3)).diagnostics,[]);
+    s.change(uri,'function bad 42',4);const reserved=(await s.diagnostic(uri,4)).diagnostics.find(d=>d.code==='parse.constraint');assert.equal(fileURLToPath(reserved.relatedInformation[0].location.uri),entry);
+    s.change(uri,'function foo 42',5);assert.deepEqual((await s.diagnostic(uri,5)).diagnostics,[]);
+    s.open(entryUri,definition.replace('highlightAs "function"','highlightAs "property"'));await s.diagnostic(entryUri,1);
+    assert.equal((await tokens()).data[8],9);
+    s.open(configUri,JSON.stringify({entry:'./missing.yl',files:['*.ts']}));
+    await s.diagnostic(configUri,1);
+    assert.ok(s.notices.some(n=>n.diagnostics.some(d=>d.code==='yl.io')));
+    s.change(configUri,JSON.stringify({entry:'./language.yl',files:['*.js']}),2);await s.diagnostic(configUri,2);
+    assert.deepEqual(await s.connection.sendRequest('yl/project',{textDocument:{uri}}),{matches:false});
+    assert.deepEqual((await tokens()).data,[]);
+    s.change(configUri,'broken',3);assert.ok((await s.diagnostic(configUri,3)).diagnostics.some(d=>d.code==='yl.project'));
 });

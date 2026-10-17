@@ -11,7 +11,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const FORMAT_VERSION: u32 = 8;
+pub const FORMAT_VERSION: u32 = 9;
 const CAPABILITIES: &[&str] = &[
     "indexed-parser",
     "indexed-checks",
@@ -20,6 +20,7 @@ const CAPABILITIES: &[&str] = &[
     "positional-index",
     "recursive-query-functions",
     "value-match",
+    "ide-highlighting",
 ];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -62,6 +63,12 @@ impl LanguageImage {
                 "Unsupported or missing executable image capability",
             ));
         }
+        for (definition, category) in &self.parser.highlights {
+            if definition.is_empty() || !crate::syntax::HIGHLIGHT_TYPES.contains(&category.as_str())
+            {
+                return Err(invalid("Invalid IDE highlighting metadata"));
+            }
+        }
         self.parser.validate()?;
         self.queries.validate()?;
         let captures = self.parser.capture_sets();
@@ -92,7 +99,9 @@ impl LanguageImage {
         }
         for instruction in &self.parser.instructions {
             if let parser::Instruction::Example { definition, .. } = instruction {
-                if !self.parser.preview_roots.contains_key(definition) {
+                if !self.parser.preview_roots.contains_key(definition)
+                    && !self.parser.highlights.contains_key(definition)
+                {
                     return Err(invalid("Unknown example metadata reference"));
                 }
             }
