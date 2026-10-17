@@ -1,0 +1,1 @@
+let values: (number | string)[] = [1];

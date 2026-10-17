@@ -38,6 +38,7 @@ export enum Difference {
     missingField
     extraField
     tupleLength
+    invariantList
     unresolvedParameter
 }
 
@@ -178,7 +179,7 @@ operation compareTupleElements(actualTypes, expectedTypes, children, parent, mod
 operation compareList(actual, expected, path) {
     incompatibleElements := flatten(map(actual[2], item => compareAt(item, expected[1], Comparison::assignable, appendPath(path, "[element]"))))
     invariant := compareAt(evidence(actual[0][1], actual[1]), expected[1], Comparison::identical, appendPath(path, "[element type]"))
-    return choose(noDifferences(incompatibleElements), invariant, incompatibleElements)
+    return choose(noDifferences(incompatibleElements), choose(noDifferences(invariant), [], problem(path, actual, expected, Difference::invariantList)), incompatibleElements)
 }
 
 operation noDifferences(differences) = !isPresent(differences[0])
@@ -224,6 +225,7 @@ export operation describeType(value) = match (value[0]) {
 export operation describeDifference(item) {
     location := choose(isPresent(item[0][0]), joinStrings(item[0], "."), "value")
     return match (item[3]) {
+        Difference::invariantList       => concat(["Mutable list element types must be identical: ", describeType(item[1]), " is not assignable to ", describeType(item[2]), " at ", location]),
         Difference::missingField        => concat(["Missing required field ", location]),
         Difference::extraField          => concat(["Unexpected field ", location]),
         Difference::tupleLength         => concat(["Tuple length differs at ", location]),

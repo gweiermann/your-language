@@ -188,6 +188,7 @@ fn missing_fields_tuple_lengths_list_elements_arity_and_index_errors_are_precise
             "Wrong number of type arguments",
             "Box",
         ),
+        ("invalid-list-invariance.txt", "Mutable list element types must be identical: List<number> is not assignable to List<number | string>", "[1]"),
         ("invalid-index.txt", "Only homogeneous list types", "0"),
     ] {
         let (source, result) = analyze(file);
