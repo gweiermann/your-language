@@ -70,6 +70,45 @@ fn expanded_parameterized_patterns_can_highlight_their_terminals() {
     let loaded = load_compiled_language(&language.to_bytes().unwrap()).unwrap();
     assert_eq!(tokens(&loaded, "42"), tokens(&language, "42"));
 }
+
+#[test]
+fn reusable_keyword_policy_keeps_boundaries_and_contextual_roles_after_reload() {
+    let language = compile(
+        r#"
+        import { boundedBy } from "std/parser"
+        trivia Space = /\s+/
+        pattern IdentifierPart = /[a-z]/
+        pattern keyword(value) = value |> boundedBy(IdentifierPart) {
+            ide { highlightAs "keyword" }
+        }
+        pattern Name = /[a-z]+/ { ide { highlightAs "variable" } }
+        pattern FunctionName = Name { ide { highlightAs "function" } }
+        node Program = keyword("let") Name ";" keyword("function") FunctionName "(" ")"
+        entry Program { trivia Space }
+    "#,
+    );
+    let loaded = load_compiled_language(&language.to_bytes().unwrap()).unwrap();
+    let source = "let value; function next()";
+    for language in [&language, &loaded] {
+        assert!(parse_named(language, "program", source)
+            .diagnostics
+            .is_empty());
+        assert_eq!(
+            tokens(language, source),
+            vec![
+                ("let".into(), "keyword".into()),
+                ("value".into(), "variable".into()),
+                ("function".into(), "keyword".into()),
+                ("next".into(), "function".into())
+            ]
+        );
+        for invalid in ["letvalue; function next()", "let value; functionnext()"] {
+            assert!(!parse_named(language, "program", invalid)
+                .diagnostics
+                .is_empty());
+        }
+    }
+}
 #[test]
 fn failed_choices_and_lookaround_do_not_leak_highlights() {
     let language = compile(

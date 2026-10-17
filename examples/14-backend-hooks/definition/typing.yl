@@ -1,0 +1,59 @@
+import { children, first } from "core/query"
+import { annotateWithType, typeOf, restrictTypeTo } from "std/types"
+
+// This language owns its type names; the engine and hook contract do not.
+export enum Type {
+    integer
+    string
+}
+
+export operation inheritType(target) {
+    annotateWithType(target, typeOf(first(children(target))))
+}
+
+export operation checkInteger(target) {
+    restrictTypeTo(target, Type::integer)
+}
+
+export operation integerBinary(target, left, right) {
+    checkInteger(left)
+    checkInteger(right)
+    annotateWithType(target, Type::integer)
+}
+
+node IntegerAnnotation = "i32" {
+    ide {
+        highlightAs "type"
+    }
+    semantics {
+        annotateWithType(self, Type::integer)
+    }
+}
+
+node StringAnnotation = "string" {
+    ide {
+        highlightAs "type"
+    }
+    semantics {
+        annotateWithType(self, Type::string)
+    }
+}
+
+export node Annotation =
+    ":"
+    value: AnnotationType
+{
+    semantics {
+        annotateWithType(self, typeOf(value))
+    }
+}
+
+node AnnotationType {
+    node IntegerAnnotation
+
+    node StringAnnotation
+
+    semantics {
+        inheritType(self)
+    }
+}

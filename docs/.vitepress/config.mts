@@ -39,8 +39,10 @@ export default defineConfig({
         { text: 'VS Code extension', link: '/guide/editor' },
       ] },
       { text: 'Tutorials', items: [
+        { text: 'Learning path', link: '/tutorials/language-curriculum' },
         { text: 'Build a first language', link: '/tutorials/first-language' },
         { text: 'Modules and patterns', link: '/tutorials/modules-and-patterns' },
+        { text: 'Composable definitions', link: '/tutorials/composable-definitions' },
         { text: 'Syntax diagnostics', link: '/tutorials/diagnostics' },
         { text: 'MiniJS walkthrough', link: '/tutorials/mini-js' },
         { text: 'Embed in Rust', link: '/tutorials/embedding' },

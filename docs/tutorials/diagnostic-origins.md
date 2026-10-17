@@ -5,6 +5,12 @@ from. For deeper diagnostics, the [diagnostic-origins example](https://github.co
 adds source information beside each contribution. This is optional authored YL,
 not a special type feature built into the engine.
 
+The example reuses constructors, tags, generic substitution, and renderers from
+the opt-in `std/types/structural` preset. [Compound types](/tutorials/compound-types)
+teaches the same policy through a complete local implementation first. Origin
+records and source-aware comparison remain local here; the plain descriptor
+model needs no provenance machinery.
+
 ## Attach an origin
 
 ```yl

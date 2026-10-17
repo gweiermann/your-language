@@ -1,0 +1,41 @@
+// Opt-in addition policy. Primitive type identities belong to the caller.
+// The core std/types module remains unaware of number and string catalogs.
+import { typeOf, annotateWithType, unknown } from "std/types"
+import { equal, isPresent } from "core/query"
+import { error } from "core/diagnostics"
+
+// Pure policy for a single candidate pair, using caller-owned annotation storage.
+// Use checkAddition for std/types unions; it distributes candidate combinations.
+// Unsupported operands return absent so the language controls the diagnostic.
+export operation additionType(left, right, numberType, stringType) {
+    unresolved := equal(left, unknown) || equal(right, unknown)
+    bothNumbers := equal(left, numberType) && equal(right, numberType)
+    bothAddable := isAddable(left, numberType, stringType) && isAddable(right, numberType, stringType)
+    return match (unresolved, bothNumbers, bothAddable) {
+        true, _, _         => unknown,
+        false, true, _     => numberType,
+        false, false, true => stringType,
+        _                  => absent
+    }
+}
+
+operation isAddable(value, numberType, stringType) = equal(value, numberType) || equal(value, stringType)
+
+// Convenience adapter for the generic std/types annotation channel. Matching
+// first keeps each candidate combination separate when inputs contain unions.
+export operation checkAddition(target, left, right, numberType, stringType) {
+    match (typeOf(left), typeOf(right)) {
+        unknown, _ | _, unknown => annotateWithType(target, unknown),
+        _ => checkKnownAddition(target, left, right, numberType, stringType)
+    }
+}
+
+operation checkKnownAddition(target, left, right, numberType, stringType) {
+    result := additionType(typeOf(left), typeOf(right), numberType, stringType)
+    when isPresent(result) {
+        annotateWithType(target, result)
+    }
+    else {
+        error("${left} + ${right} is not possible", target)
+    }
+}

@@ -1,6 +1,8 @@
+import { additionType } from "std/types/arithmetic"
+import { error } from "core/diagnostics"
 import { separatedBy } from "std/parser"
-import { contribute, children, first } from "core/query"
-import { connectReference, referenceOf } from "../../../stdlib/references"
+import { contribute, children, first, isPresent } from "core/query"
+import { connectReference, referenceOf } from "std/references"
 import { number, string, type } from "./types"
 import { annotateWithType, typeOf, callType } from "./typing"
 import { Name } from "./lexical"
@@ -9,6 +11,22 @@ export node Expression {
     semantics {
         contribute((self, type), typeOf(first(children(self))))
     }
+    node Addition =
+        left: Expression
+        "+"
+        right: Expression
+    {
+        semantics {
+            result := additionType(typeOf(left), typeOf(right), number, string)
+            when isPresent(result) {
+                annotateWithType(self, result)
+            }
+            else {
+                error("${left} + ${right} is not possible", self)
+            }
+        }
+    }
+
     node Number = /[0-9]+/ {
         semantics {
             annotateWithType(self, number)

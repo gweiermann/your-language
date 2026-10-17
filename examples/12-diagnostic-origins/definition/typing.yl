@@ -1,8 +1,8 @@
 import { facts, map, filter, flatten, unique, lookup, equal, every, isPresent, choose, tail, concat, length, text } from "core/query"
 import { error } from "core/diagnostics"
 import { unknown } from "std/types"
-// Reuse the source-independent type model and policies from the previous example.
-import { Type, Comparison, Difference, describeDifference } from "../../11-compound-types/definition/typing"
+// Opt into the reusable structural policy; source tracking remains local.
+import { Type, Comparison, Difference, describeDifference } from "std/types/structural"
 import { typeSources, typeSource, childTypeSource } from "./origins"
 
 operation appendPath(path, segment) = flatten([path, [segment]])

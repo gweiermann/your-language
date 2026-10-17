@@ -4,6 +4,7 @@
     "programs/**/*.txt"
   ],
   "expectErrors": [
-    "programs/errors.txt"
+    "programs/errors.txt",
+    "programs/invalid-*.txt"
   ]
 }

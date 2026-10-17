@@ -1,6 +1,6 @@
 import { error } from "core/diagnostics"
 import { get, contribute, equal, hypothetical, isPresent, lookup, map, text, zip } from "core/query"
-import { enclosingScope, referenceOf } from "../../../stdlib/references"
+import { enclosingScope, referenceOf } from "std/references"
 import { type, parameterNames, parameterTypes, returnType, functionIdentity } from "./types"
 
 export operation typeOf(value) = get((value, type))

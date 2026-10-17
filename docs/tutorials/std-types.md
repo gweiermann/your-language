@@ -75,20 +75,33 @@ For `let count: number = "wrong";`, the check reports incompatible type contribu
 
 ## Define operator rules in YL
 
-The type library accepts the supplied occurrence or declaration identity directly. Operations have no implicit `self`; their callers pass it explicitly. Mini TypeScript's addition node then spells out its own type policy:
+The type library accepts the supplied occurrence or declaration identity directly.
+Operations have no implicit `self`; their callers pass it explicitly. Mini
+TypeScript's addition node calls `checkAddition(self, left, right)` beside the
+grammar captures. The supporting `typing.yl` spells out the policy:
 
 ```yl
 import { error } from "core/diagnostics"
+import { annotateWithType, typeOf, unknown } from "std/types"
+import { Type } from "./types"
 
-match (typeOf(left), typeOf(right)) {
-    Type::string, Type::string | Type::string, Type::number | Type::number, Type::string => annotateWithType(self, Type::string),
-    Type::number, Type::number                                  => annotateWithType(self, Type::number),
-    unknown, _ | _, unknown                         => annotateWithType(self, unknown),
-    _                                               => error("${left} + ${right} is not possible")
+export operation checkAddition(target, left, right) {
+    match (typeOf(left), typeOf(right)) {
+        Type::string, Type::string | Type::string, Type::number | Type::number, Type::string => annotateWithType(target, Type::string),
+        Type::number, Type::number => annotateWithType(target, Type::number),
+        unknown, _ | _, unknown => annotateWithType(target, unknown),
+        _ => error("${left} + ${right} is not possible")
+    }
 }
 ```
 
-`typeOf`, `annotateWithType`, and the type enum here are imports from the example's `typing.yl` and `types.yl`. The engine evaluates relevant combinations of alternatives. The selected case sees the selected operand candidates, so rereading a selected operand does not reintroduce unrelated alternatives. An unsupported known combination contributes a diagnostic; valid combinations still contribute their results.
+The example owns the `Type` enum and the addition policy. The engine evaluates
+relevant combinations of alternatives. The selected case sees the selected
+operand candidates, so rereading a selected operand does not reintroduce
+unrelated alternatives. An unsupported known combination contributes a
+diagnostic; valid combinations still contribute their results. See
+[composable definitions](/tutorials/composable-definitions) for the grammar and
+helper together.
 
 There is no special native addition operation and no explicit `solve()` call. The query engine tracks dependencies and propagates type contributions. Guards and diagnostics wait for the information needed to determine their result.
 

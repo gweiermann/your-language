@@ -1,4 +1,4 @@
-import { declareName, createLexicalScope, connectReference } from "../../../stdlib/references"
+import { declareName, createLexicalScope, connectReference } from "./references"
 import { Name } from "./lexical"
 
 export node Statement {

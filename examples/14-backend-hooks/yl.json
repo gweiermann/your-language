@@ -1,6 +1,5 @@
 {
   "entry": "./definition/language.yl",
-  "files": [
-    "programs/**/*.txt"
-  ]
+  "files": ["programs/**/*.txt"],
+  "expectErrors": ["programs/runtime-error.txt", "programs/type-error.txt"]
 }

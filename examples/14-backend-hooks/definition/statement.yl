@@ -1,14 +1,23 @@
-import { declare, assign, block, conditional, repeat } from "./hooks"
+import { annotateWithType, typeOf, restrictTypeTo } from "std/types"
+import { createLexicalScope, declareName, connectReference } from "std/references"
+import { Annotation, checkInteger } from "./typing"
+import { declare, assign, block, conditional, repeat } from "std/backend/integer"
 import { Name, keyword } from "./lexical"
 import { Expression } from "./expression"
 
 node Declaration =
     keyword("let")
     name: Name
+    annotation: Annotation?
     "="
     initializer: Expression
     ";"
 {
+    semantics {
+        declareName(self, name)
+        annotateWithType(self, typeOf(initializer))
+        restrictTypeTo(initializer, typeOf(annotation), initializer, annotation.value)
+    }
     backend {
         declare(name, initializer)
     }
@@ -20,6 +29,10 @@ node Assignment =
     value: Expression
     ";"
 {
+    semantics {
+        ref := connectReference(self, name)
+        restrictTypeTo(value, typeOf(ref))
+    }
     backend {
         assign(name, value)
     }
@@ -30,6 +43,10 @@ node Block =
     statements: Statement*
     "}"
 {
+    semantics {
+        boundary
+        createLexicalScope(self)
+    }
     backend {
         block(statements)
     }
@@ -44,6 +61,9 @@ node Conditional =
     keyword("else")
     no: Block
 {
+    semantics {
+        checkInteger(condition)
+    }
     backend {
         conditional(condition, yes, no)
     }
@@ -56,6 +76,9 @@ node Repeat =
     ")"
     body: Block
 {
+    semantics {
+        checkInteger(condition)
+    }
     backend {
         repeat(condition, body)
     }

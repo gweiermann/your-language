@@ -128,6 +128,102 @@ export pipe separatedBy(separator, trailing: Trailing = .none) {
 }
 ```
 
+## Opt-in type policies
+
+The generic `std/types` API remains independent of a target language's type
+catalog and operators. These separately imported, authored YL modules provide
+more opinionated policies. They compile into `.ylc` like any other YL module;
+loading an artifact does not require their source files or native adapters.
+
+### `std/types/arithmetic`
+
+```yl
+import { additionType, checkAddition } from "std/types/arithmetic"
+```
+
+Both operations receive the caller's numeric and string type identities. The
+module exports no primitive type catalog.
+
+| Operation | Behavior |
+| --- | --- |
+| `additionType(left, right, numberType, stringType)` | Pure policy for one candidate pair: two numbers produce number; string/string and string/number in either order produce string; `unknown` propagates; unsupported pairs produce `absent`. |
+| `checkAddition(target, left, right, numberType, stringType)` | Reads syntax types through generic `std/types`, distributes candidate combinations, annotates valid results, and reports unsupported combinations at `target`. |
+
+Use the pure operation when your language owns its annotation storage and
+reporter. Use the adapter when sharing the generic `std/types` channel. These
+rules are deliberately narrower than full JavaScript coercion: booleans,
+objects, and user-defined conversion are unsupported.
+
+Example 08 implements the matrix locally. Example 10 imports this preset,
+retaining local function queries and hypothetical argument resolution.
+
+### `std/types/structural`
+
+```yl
+import { structType, listType, numberType, isAssignableTo } from "std/types/structural"
+
+operation acceptsScores(actual) =
+    isAssignableTo(actual, structType([("scores", listType(numberType()))]))
+```
+
+This preset owns a complete descriptor model and its own annotation channel:
+
+| Exports | Purpose |
+| --- | --- |
+| `Type`, `Comparison`, `Difference` | Tags, comparison modes, and difference reasons. |
+| `numberType()`, `stringType()`, `booleanType()`, `unknownType()` | Primitive descriptors. |
+| `tupleType(elements)`, `listType(element)`, `structType(fields)`, `unionType(members)`, `parameterType(identity)` | Compound and parameter descriptors. |
+| `annotateWithType(target, value)`, `typeOf(target)` | Contribute and collect descriptors using this model. |
+| `restrictWritesTo(target, value)`, `writeTypeOf(target)` | Keep the declared write contract separate from inferred initializer types. |
+| `compareTypes(actual, expected, mode)`, `isIdenticalTo(left, right)`, `isAssignableTo(left, right)` | Recursive comparison; the worker returns structural differences. |
+| `genericType(parameters, body)`, `instantiateType(generic, arguments)` | Explicit parameter identities and isolated descriptor substitution. |
+| `describeType(value)`, `describeDifference(item)`, `reportDifference(item, target)` | Pure descriptions and optional source-linked reporting. |
+
+Objects are structural: assignment permits additional fields; identity requires
+the same field names regardless of order. Tuple positions and lengths matter.
+Mutable list element types are invariant. Unions are flattened and deduplicated;
+an empty union becomes unknown and a single member collapses to that member.
+Unknown is permissive. Generic arguments are explicit; recursive named types
+and flow-sensitive inference are outside this preset.
+
+Import this preset's `typeOf` together with its `annotateWithType`: its compound
+descriptor channel differs from generic `std/types`. A language may instead
+reuse only the pure constructors and comparisons, as the origin-aware example
+does with its own annotation records.
+
+Example 11 teaches the full local implementation. Example 12 reuses this preset
+and adds [diagnostic origins](/tutorials/diagnostic-origins).
+
+## Opt-in backend contract
+
+### `std/backend/integer`
+
+This module declares the following host hooks:
+
+```yl
+export hook number(value)
+export hook reference(name)
+export hook add(left, right)
+export hook multiply(left, right)
+export hook less(left, right)
+export hook declare(name, initializer)
+export hook assign(name, value)
+export hook block(statements)
+export hook conditional(condition, yes, no)
+export hook repeat(condition, body)
+export hook program(statements, result)
+```
+
+Qualified identities use `std/backend/integer#`, so all consumers of this module
+can implement the same stable manifest. The demonstration hosts agree on signed
+`i32` values, wrapping addition/multiplication, `0`/`1` comparison results, and
+nonzero conditions. The module provides declarations only; host implementations
+own values, scopes, traversal, and interpretation or code generation.
+
+The [checked backend capstone](/tutorials/backends) composes this contract with
+static references and type checking, then executes the same `.ylc` using three
+independent hosts.
+
 Projection collects only the bound `item` values. An empty star list becomes `[]`. Tuple-valued or list-valued items preserve their boundaries as individual elements.
 
 ## Defining language-specific helpers

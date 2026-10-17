@@ -4,7 +4,7 @@ import { separatedBy } from "std/parser"
 import { Name } from "./lexical"
 import { TypeExpression, StructType, definition } from "./types"
 import { annotateWithType, typeOf } from "./origins"
-import { parameterType, genericType } from "../../11-compound-types/definition/typing"
+import { parameterType, genericType } from "std/types/structural"
 
 export node TypeParameter = name: Name {
     semantics {

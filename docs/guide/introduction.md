@@ -29,6 +29,18 @@ These rules keep grammar composition predictable: adding an import does not sile
 
 ## Scope
 
-The compiler and runtime provide syntax recognition, precedence, AST construction and syntax-local validation. The experimental [native semantic API](/api/native-semantics) additionally executes language-authored semantics with registered libraries for lexical scopes, resolved bindings and identity-keyed type constraints. The [inference tutorial](/tutorials/semantic-inference) demonstrates this layer. Parsing and semantic analysis do not execute the target program. Flow analysis, ownership and broader inference remain [roadmap](/roadmap) directions.
+The compiler and runtime provide syntax recognition, precedence, AST construction,
+and syntax-local validation. Authored YL libraries add references, scopes, and
+type inference over the [query engine](/api/declarative-queries). Generic
+libraries remain target-neutral; explicit [standard presets](/reference/standard-library#opt-in-type-policies)
+provide reusable arithmetic and structural type policies.
 
-Continue with [installation](/guide/installation), the [first-language tutorial](/tutorials/first-language), or the [language reference](/reference/lexical-syntax).
+Parsing and static analysis do not execute target programs. [Backend hooks](/reference/backends)
+connect checked syntax to a consumer that interprets, transpiles, or compiles it.
+The host owns runtime values and control flow. Flow analysis, ownership, and
+broader inference remain [roadmap](/roadmap) directions.
+
+Continue with [installation](/guide/installation), the
+[learning path](/tutorials/language-curriculum), the
+[first-language tutorial](/tutorials/first-language), or the
+[language reference](/reference/lexical-syntax).

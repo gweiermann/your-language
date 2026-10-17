@@ -2,7 +2,16 @@ import { error } from "core/diagnostics"
 import { annotateWithType, typeOf, restrictTypeTo, resolveTypeWith, compatible, unknown } from "std/types"
 import { referenceOf, enclosingScope } from "std/references"
 import { get, contribute, children, first, last, find, map, zip, lookup, text, equal, isPresent, choose, every, values, filter, flatten, alternatives } from "core/query"
-import { parameters, parameterNames, parameterAnnotations, parameterSources, returnType, declaredReturnType, functionIdentity } from "./types"
+import { Type, parameters, parameterNames, parameterAnnotations, parameterSources, returnType, declaredReturnType, functionIdentity } from "./types"
+
+export operation checkAddition(target, left, right) {
+    match (typeOf(left), typeOf(right)) {
+        Type::string, Type::string | Type::string, Type::number | Type::number, Type::string => annotateWithType(target, Type::string),
+        Type::number, Type::number => annotateWithType(target, Type::number),
+        unknown, _ | _, unknown => annotateWithType(target, unknown),
+        _ => error("${left} + ${right} is not possible")
+    }
+}
 
 export operation inheritType(target) {
     annotateWithType(target, typeOf(first(children(target))))

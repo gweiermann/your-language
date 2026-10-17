@@ -28,7 +28,7 @@ Definitions live in `definition/`; inputs live in `programs/`.
 - `language.yl` selects the entry, trivia and statement grammar.
 - `lexical.yl` defines identifiers and whitespace.
 - `types.yl` declares this language's `number`, `string` and `boolean` symbols, type syntax and function-signature slots.
-- `typing.yl` composes the standard reference and type operations into language-specific rules.
+- `typing.yl` composes the standard reference and type operations into language-specific rules, including the explicit addition matrix.
 - `parameter.yl`, `function.yl`, `expression.yl` and `let.yl` attach those rules to syntax.
 
 `std/references` resolves names through scope identifiers attached to syntax ancestors. `std/types` accumulates candidate facts, checks restrictions and resolves hypothetical inputs. Both are authored standard YL modules over the generic `core/query` primitives. Concrete target-language types belong to this example; only `unknown` belongs to the standard type module.
@@ -40,24 +40,25 @@ A number publishes its type directly:
 ```yl
 node Number = value: /[0-9]+/ {
     semantics {
-        annotateWithType(self, number)
+        annotateWithType(self, Type::number)
     }
 }
 ```
 
-A reference resolves its name and shares the resolved declaration's type. A let declaration transfers initializer evidence into that binding and checks an explicit annotation without retyping the initializer:
+A reference resolves its name and shares the resolved declaration's type. A let declaration transfers initializer types into that binding and checks an explicit annotation without retyping the initializer:
 
 ```yl
 export operation bindingType(name, value, annotation = absent) {
     annotateWithType(referenceOf(name), typeOf(value))
-    when isPresent(annotation) {
-        annotateWithType(referenceOf(name), typeOf(annotation))
-        restrictTypeTo(referenceOf(name), typeOf(annotation), value, annotation.value)
-    }
+    restrictTypeTo(referenceOf(name), typeOf(annotation), value, annotation.value)
+    annotateWithType(name, typeOf(referenceOf(name)))
 }
 ```
 
-For `let count: number = "wrong";`, the binding retains both candidate types, while the diagnostic points to `"wrong"` and relates the exact `number` annotation.
+For `let count: number = "wrong";`, the binding retains its actual string type,
+while the diagnostic points to `"wrong"` and relates the exact `number`
+annotation. The annotation restricts the type rather than contributing a
+second candidate. An absent annotation ends the restriction query naturally.
 
 Reference visibility follows the declared meaning order. A let initializer cannot use its own declaration or a later let declaration. Program precedence registers functions before lets and analyzes function bodies afterward, so a hoisted function can read an outer let that is initialized before the deferred body analysis.
 
@@ -78,20 +79,31 @@ The optional third assumption member preserves the argument source for diagnosti
 
 ## Language-specific addition
 
-The language chooses supported operand combinations:
+The grammar keeps both captures and their connection visible:
 
 ```yl
-import { error } from "core/diagnostics"
-
-match (typeOf(left), typeOf(right)) {
-    string, string | string, number | number, string => annotateWithType(self, string),
-    number, number                                  => annotateWithType(self, number),
-    unknown, _ | _, unknown                         => annotateWithType(self, unknown),
-    _                                               => error("${left} + ${right} is not possible")
+node Addition =
+    left: Expression
+    "+"
+    right: Expression
+{
+    semantics {
+        checkAddition(self, left, right)
+    }
 }
 ```
 
-Candidate unions distribute through the cases. Supported combinations contribute their result types; unsupported combinations emit diagnostics. The standard type library contains no addition policy.
+`checkAddition` is imported from `./typing`; that file contains the entire
+language-specific matrix. Number plus number produces number, combinations
+of number and string produce string, unknown operands propagate unknown, and
+other combinations report an error. Its arguments are explicit: operations
+cannot read a distant node's captures or an implicit `self`.
+
+Candidate unions distribute through the cases. Supported combinations contribute
+their result types; unsupported combinations emit diagnostics. The standard type
+library contains no addition policy. See
+[composable definitions](../../docs/tutorials/composable-definitions.md) for the
+complete helper and how this organization scales to backend hooks.
 
 This is an inference example, not a TypeScript implementation. Control-flow narrowing, structural subtyping, overload resolution and target execution remain separate concerns.
 

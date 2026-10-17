@@ -4,7 +4,7 @@ import { children, first, get, choose, isPresent, map, text, equal, length, zip,
 import { connectReference } from "std/references"
 import { separatedBy } from "std/parser"
 import { Name } from "./lexical"
-import { numberType, stringType, booleanType, tupleType, listType, unionType, structType, instantiateType } from "../../11-compound-types/definition/typing"
+import { numberType, stringType, booleanType, tupleType, listType, unionType, structType, instantiateType } from "std/types/structural"
 
 export symbol definition
 

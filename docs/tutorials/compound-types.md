@@ -99,3 +99,13 @@ structured diagnostics, or use `project ast <source>` for JSON AST output.
 
 Recursive named types, inferred generic arguments, tuple indexing, flow-sensitive
 mutation, list bounds checks, and `push` are outside this example.
+
+## Reuse the policy in a larger language
+
+After studying the local implementation, import `std/types/structural` to reuse
+its descriptor constructors, type channel, comparison, generic substitution, and
+renderers. It is an explicit preset with the policies taught here, rather than
+a change to the generic `std/types` API. The later diagnostic-origins example
+uses that preset and supplies its own origin-aware annotation and comparison
+operations. This keeps the source-independent model reusable without making
+every type checker implement source tracing.

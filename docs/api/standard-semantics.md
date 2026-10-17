@@ -4,6 +4,13 @@ For a step-by-step introduction with runnable examples, follow [Build type infer
 
 The compiler bundles `std/references` and `std/types` as ordinary YL modules. Their operations lower to generic attachment actions and compiled pure query functions during compilation. Reloaded `.ylc` files execute indexed query instructions and need no library source, native lexical stack or native type solver.
 
+For opt-in higher-level policies, see
+[`std/types/arithmetic` and `std/types/structural`](/reference/standard-library#opt-in-type-policies).
+The generic APIs below remain target-neutral; the structural preset owns a
+separate descriptor channel and explicit catalog. The
+[`std/backend/integer` contract](/reference/standard-library#opt-in-backend-contract)
+shares hook signatures without implementing host execution.
+
 ## Reference identities and scopes
 
 ```yl

@@ -1,0 +1,35 @@
+import { error } from "core/diagnostics"
+import { ancestors, contribute, find, get, getAll, hasMultiple, isPresent, text } from "core/query"
+
+symbol scope
+
+symbol declarations
+
+symbol reference
+
+export operation createLexicalScope(target) {
+    contribute((target, scope), target)
+}
+
+operation enclosingScope(value) = find(ancestors(value), ancestor => get((ancestor, scope)))
+
+operation resolve(name) = find(ancestors(name), ancestor => get((get((ancestor, scope)), declarations, text(name))))
+
+export operation declareName(target, name) {
+    contribute((enclosingScope(name), declarations, text(name)), target)
+    contribute((name, reference), target)
+    contribute((target, reference), target)
+    when hasMultiple(getAll((enclosingScope(name), declarations, text(name)))) {
+        error("Duplicate declaration '${name}'", name)
+    }
+}
+
+export operation connectReference(target, name) {
+    declaration := resolve(name)
+    contribute((name, reference), declaration)
+    contribute((target, reference), declaration)
+    when !isPresent(declaration) {
+        error("Unknown name '${name}'", name)
+    }
+    return declaration
+}

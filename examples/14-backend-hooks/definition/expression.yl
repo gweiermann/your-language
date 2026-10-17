@@ -1,13 +1,26 @@
-import { number, reference, add, multiply, less } from "./hooks"
+import { number, reference, add, multiply, less } from "std/backend/integer"
+import { annotateWithType, typeOf } from "std/types"
+import { connectReference } from "std/references"
+import { Type, inheritType, integerBinary } from "./typing"
 import { Name } from "./lexical"
 
 node Number = value: /[0-9]+/ {
+    ide {
+        highlightAs "number"
+    }
+    semantics {
+        annotateWithType(self, Type::integer)
+    }
     backend {
         number(value)
     }
 }
 
 node Reference = name: Name {
+    semantics {
+        ref := connectReference(self, name)
+        annotateWithType(self, typeOf(ref))
+    }
     backend {
         reference(name)
     }
@@ -18,6 +31,9 @@ node Addition =
     "+"
     right: Expression
 {
+    semantics {
+        integerBinary(self, left, right)
+    }
     backend {
         add(left, right)
     }
@@ -28,6 +44,9 @@ node Multiplication =
     "*"
     right: Expression
 {
+    semantics {
+        integerBinary(self, left, right)
+    }
     backend {
         multiply(left, right)
     }
@@ -38,12 +57,18 @@ node Less =
     "<"
     right: Expression
 {
+    semantics {
+        integerBinary(self, left, right)
+    }
     backend {
         less(left, right)
     }
 }
 
 export node Expression {
+    semantics {
+        inheritType(self)
+    }
     node Number
 
     node Reference

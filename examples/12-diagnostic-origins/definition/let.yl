@@ -5,7 +5,7 @@ import { Name } from "./lexical"
 import { Annotation } from "./types"
 import { Expression } from "./expression"
 import { compareTypes, reportDifference } from "./typing"
-import { Comparison } from "../../11-compound-types/definition/typing"
+import { Comparison } from "std/types/structural"
 
 export node LetDeclaration =
     "let"
