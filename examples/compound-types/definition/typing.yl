@@ -1,4 +1,4 @@
-import { contribute, facts, map, filter, flatten, unique, lookup, equal, every, isPresent, choose, tail, concat, zip, length, text } from "core/query"
+import { contribute, get, facts, map, filter, flatten, unique, lookup, equal, every, isPresent, choose, tail, concat, zip, length, text } from "core/query"
 import { error } from "core/diagnostics"
 import { unknown } from "std/types"
 
@@ -28,6 +28,19 @@ export enum Difference {
 }
 
 export symbol typeEvidence
+
+export symbol writeRestriction
+
+// Write contracts are separate from inferred evidence: a union annotation may
+// accept later writes without claiming that the initializer had every union type.
+export operation restrictWritesTo(target, value) {
+    contribute((target, writeRestriction), value)
+}
+
+export operation writeTypeOf(target) {
+    restriction := get((target, writeRestriction))
+    return choose(isPresent(restriction), restriction, typeOf(target))
+}
 
 export operation numberType() =(Type::number, [])
 

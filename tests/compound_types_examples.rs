@@ -165,6 +165,41 @@ fn member_assignment_mismatch_highlights_the_right_hand_value() {
 }
 
 #[test]
+fn assignment_uses_declared_contracts_without_widening_initializer_evidence() {
+    let language = compile_language(directory().join("definition/language.yl")).unwrap();
+    let reloaded = load_compiled_language(&language.to_bytes().unwrap()).unwrap();
+    let engine = SemanticEngine::default();
+    for source in [
+        "let value: number | string = 1; value = \"ok\";",
+        "interface User { name: number | string; } let user: User = { name: 1 }; user.name = \"ok\";",
+        "interface User { scores: (number | string)[]; } let user: User = { scores: [1, \"old\"] }; user.scores[0] = \"ok\"; user.scores[1] = 2;",
+    ] {
+        let result = engine.analyze(&reloaded, "assignment", source);
+        assert!(result.diagnostics.is_empty(), "{source}: {:#?}", result.diagnostics);
+    }
+    let result = engine.analyze(
+        &reloaded,
+        "evidence",
+        "let value: number | string = 1; let copy = value;",
+    );
+    assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+    assert_eq!(tag(declaration_type(&result, "copy")), "number");
+
+    for source in [
+        "let value: number | string = 1; value = true;",
+        "interface User { name: number | string; } let user: User = { name: 1 }; user.name = true;",
+        "interface User { scores: (number | string)[]; } let user: User = { scores: [1, \"old\"] }; user.scores[0] = true;",
+        "let value = 1; value = true;",
+    ] {
+        let result = engine.analyze(&reloaded, "assignment", source);
+        assert_eq!(result.diagnostics.len(), 1, "{source}: {:#?}", result.diagnostics);
+        let diagnostic = &result.diagnostics[0];
+        assert!(diagnostic.message.contains("boolean is not assignable"), "{diagnostic:?}");
+        assert_eq!(&source[diagnostic.primary.start..diagnostic.primary.end], "true");
+    }
+}
+
+#[test]
 fn missing_fields_tuple_lengths_list_elements_arity_and_index_errors_are_precise() {
     for (file, message, highlighted) in [
         (

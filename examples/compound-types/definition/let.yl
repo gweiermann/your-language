@@ -3,7 +3,7 @@ import { declareName } from "std/references"
 import { Name } from "./lexical"
 import { Annotation } from "./types"
 import { Expression } from "./expression"
-import { annotateWithType, evidenceOf, typeOf, compareTypes, Comparison, reportDifference } from "./typing"
+import { annotateWithType, evidenceOf, typeOf, restrictWritesTo, compareTypes, Comparison, reportDifference } from "./typing"
 
 export node LetDeclaration =
     "let"
@@ -18,6 +18,7 @@ export node LetDeclaration =
         item := evidenceOf(initializer)
         annotateWithType(self, item[0], item[1], item[2])
         when isPresent(annotation) {
+            restrictWritesTo(self, typeOf(annotation))
             differences := compareTypes(item, typeOf(annotation), Comparison::assignable)
             when isPresent(differences[0]) {
                 reportDifference(differences[0], [annotation.value, initializer])

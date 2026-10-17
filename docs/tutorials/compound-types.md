@@ -4,6 +4,13 @@ The compound-types example implements tuples, lists, structural interfaces, expl
 
 This is an experimental language, with its complete implementation in `examples/compound-types/definition/`. It is intended to make the design inspectable rather than to implement TypeScript completely.
 
+Declared write contracts are separate from inferred initializer evidence. In
+`let value: number | string = 1; value = "ok";`, the annotation permits either
+type on writes while the original initializer still contributes only number
+evidence. The contract also propagates through member and list-index targets.
+Assignments are checked without updating inferred read types or performing flow
+analysis.
+
 ## Run the example
 
 From the repository root:

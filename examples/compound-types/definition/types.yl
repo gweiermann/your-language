@@ -3,13 +3,14 @@ import { children, first, get, choose, isPresent, map, text, equal, length, zip,
 import { connectReference } from "std/references"
 import { separatedBy } from "std/parser"
 import { Name } from "./lexical"
-import { annotateWithType, typeOf, evidenceOf, numberType, stringType, booleanType, tupleType, listType, unionType, structType, instantiateType } from "./typing"
+import { annotateWithType, typeOf, evidenceOf, restrictWritesTo, writeTypeOf, numberType, stringType, booleanType, tupleType, listType, unionType, structType, instantiateType } from "./typing"
 
 export symbol definition
 
 export operation inheritType(target) {
     item := evidenceOf(first(children(target)))
     annotateWithType(target, item[0], item[1], item[2])
+    restrictWritesTo(target, writeTypeOf(first(children(target))))
 }
 
 export operation checkUniqueFields(names) {

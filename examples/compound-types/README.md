@@ -62,6 +62,12 @@ and list methods such as `push` are outside this example. List index expressions
 use nonnegative integer literals and return the list's element type; they do not
 perform bounds checking.
 
+Explicit annotations also establish a separate write contract. For example,
+`let value: number | string = 1; value = "ok";` is valid, while assigning a boolean
+is rejected. Member and list-index assignments preserve the containing contract.
+The initializer's inferred type and original source evidence remain unchanged;
+this example does not update read types after assignments or perform flow analysis.
+
 Interface names become available to subsequent declarations. A recursive
 `interface Loop { next: Loop; }` is rejected with an unknown-name diagnostic at
 the inner `Loop`, rather than treated as an unconstrained type.
