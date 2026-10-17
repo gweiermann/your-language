@@ -23,3 +23,6 @@ regex-syntax = "0.8"
 lsp-server = "0.7"
 url = "=2.5.2"
 unicode-width = { version = "0.2", default-features = false }
+
+[dev-dependencies]
+wasm-encoder = { version = "=0.225.0", default-features = false }

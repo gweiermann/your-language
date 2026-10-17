@@ -1,0 +1,6 @@
+let value = 42;
+{
+    let value = 100;
+    value = value + 1;
+}
+result value;

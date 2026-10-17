@@ -1,0 +1,60 @@
+import { number, reference, add, multiply, less } from "./hooks"
+import { Name } from "./lexical"
+
+node Number = value: /[0-9]+/ {
+    backend {
+        number(value)
+    }
+}
+
+node Reference = name: Name {
+    backend {
+        reference(name)
+    }
+}
+
+node Addition =
+    left: Expression
+    "+"
+    right: Expression
+{
+    backend {
+        add(left, right)
+    }
+}
+
+node Multiplication =
+    left: Expression
+    "*"
+    right: Expression
+{
+    backend {
+        multiply(left, right)
+    }
+}
+
+node Less =
+    left: Expression
+    "<"
+    right: Expression
+{
+    backend {
+        less(left, right)
+    }
+}
+
+export node Expression {
+    node Number
+
+    node Reference
+
+    node Addition
+
+    node Multiplication
+
+    node Less
+
+    precedence {
+        Multiplication > Addition > Less
+    }
+}
