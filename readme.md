@@ -165,6 +165,11 @@ npm run docs:dev
 
 ## Explore the examples
 
+Follow the [learning path](https://gweiermann.github.io/your-language/tutorials/language-curriculum)
+from core queries and local YL implementations to reusable type policies and a
+checked language with three backends. The opt-in standard presets keep those
+policies separate from the generic engine and libraries.
+
 The [numbered example projects](examples/README.md) progress from syntax and
 references to type inference, compound types, source diagnostics, and host
 backends. Each has a `yl.json` entrypoint and `.txt` programs with project-specific

@@ -47,6 +47,52 @@ checks valid programs and expected errors; it does not execute backend hooks.
 For the formatting example, the README also shows `yl fmt` to inspect or change
 formatting.
 
+## Follow the implementation, then reuse it
+
+Start with 01–05 for syntax, diagnostics, IDE roles, and query values. These
+examples expose the mechanism being taught. MiniJS deliberately reuses
+`std/parser` for list separators and boundaries; its local `keyword(value)`
+pattern supplies the language's identifier policy and keyword highlighting.
+
+For the mechanism-first reference lesson, read 07 and then 06: 07 builds a small
+reference library directly on `core/query`; 06 connects a larger grammar to
+`std/references`. The existing catalog numbers and commands remain stable.
+Read 07's `definition/references.yl` to see scope identities,
+declaration keys, nearest-scope lookup, and diagnostics without a hidden native
+adapter. Its whole-scope visibility is an explicit teaching policy; 06 uses the
+standard library's schedule-sensitive visibility.
+
+Then 08 builds function inference with `std/references` and `std/types`, while
+its own `typing.yl` teaches addition rules. After isolated instantiation in 09,
+10 demonstrates the lower-level function queries and reuses the explicit
+`std/types/arithmetic` policy instead of reimplementing its addition matrix.
+Example 11 builds structural comparison and generic type policies locally.
+Example 12 reuses that descriptor model through `std/types/structural` and adds
+diagnostic origins separately. Finally, 14 composes static references and type
+checks with `std/backend/integer`, implemented by three independent hosts.
+
+Keep each construct's grammar and its short `semantics`, `backend`, and `ide`
+connections together. Put substantial reusable operations in a supporting
+module and pass captures explicitly. Files are grouped by construct, rather
+than augmenting grammar declarations from distant metadata files.
+
+The opinionated modules are opt-ins: the generic reference and type libraries
+do not assume a target language's primitive types or operators. Mini TypeScript
+demonstrates selected features rather than full TypeScript. The checked backend
+language is a separate all-`i32` subset, not a runtime for the structural type
+example. Follow [the curriculum](../docs/tutorials/language-curriculum.md) for
+the full mechanism-to-capstone route.
+
+## Extend the curriculum
+
+Improve the existing lesson that owns a concept before adding another project.
+Each lesson should name its objective, prerequisites, locally implemented rules,
+and imported abstractions. A new numbered project needs a distinct learning
+objective; preserve the common `yl.json` runner and both Cargo names. Keep
+target programs as `.txt`, include intentional errors where relevant, and give
+commands with expected results. More advanced lessons should compose earlier
+mechanisms rather than duplicate them or hide the entire analysis in one call.
+
 ## Host API examples
 
 Root `.rs` files are Cargo consumers, not target-language programs, so they keep
@@ -65,6 +111,8 @@ node target/backend.js
 cargo run --example backend_wasm -- examples/14-backend-hooks/programs/control-flow.txt target/backend.wasm
 ```
 
-See the backend project's README for WebAssembly execution and runtime-error
-fixtures. Static project checks do not invoke host hooks: `runtime-error.txt` and
-`overflow.txt` intentionally test runtime behavior in those hosts.
+See the backend project's README for WebAssembly execution and error fixtures.
+Static project checks do not invoke host hooks: `overflow.txt` tests wrapping
+behavior, and `host-error.txt` tests a host range failure. The earlier
+`runtime-error.txt` fixture now demonstrates unknown-name rejection during
+static analysis.
