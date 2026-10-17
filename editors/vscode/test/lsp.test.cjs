@@ -4,7 +4,7 @@ const {spawn} = require('node:child_process');
 const {mkdtemp, writeFile, rm} = require('node:fs/promises');
 const {tmpdir} = require('node:os');
 const {join, resolve} = require('node:path');
-const {pathToFileURL} = require('node:url');
+const {pathToFileURL, fileURLToPath} = require('node:url');
 const rpc = require('vscode-jsonrpc/node');
 const executable = process.env.YL_TEST_CLI || resolve(__dirname, '../../../target/debug/yl' + (process.platform === 'win32' ? '.exe' : ''));
 async function session(t, entry, exampleDisplay = "inline") {
@@ -197,7 +197,7 @@ test('LSP buffer formatting aligns match arrows by default',async t=> {
 
 
 test('project discovery analyzes matching programs, applies contextual tokens and reloads unsaved definitions/config',async t=> {
-    const dir=await mkdtemp(join(tmpdir(),'yl-project-lsp-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+    const dir=await mkdtemp(join(tmpdir(),'yl-project~lsp-'));t.after(()=>rm(dir,{recursive:true,force:true}));
     const entry=join(dir,'language.yl'),config=join(dir,'yl.json'),program=join(dir,'program.ts');
     const definition=`import { error } from "core/diagnostics"
 pattern Name = /[a-z]+/ { ide { highlightAs "variable" } }
@@ -218,7 +218,7 @@ entry Root { trivia Space }`;
     assert.equal(await s.connection.sendRequest('textDocument/formatting',{textDocument:{uri},options:{tabSize:4,insertSpaces:true}}),null);
     s.change(uri,'function foo ?',2);assert.ok((await s.diagnostic(uri,2)).diagnostics.some(d=>d.code.startsWith('parse.')));
     s.change(uri,'function foo 42',3);assert.deepEqual((await s.diagnostic(uri,3)).diagnostics,[]);
-    s.change(uri,'function bad 42',4);const reserved=(await s.diagnostic(uri,4)).diagnostics.find(d=>d.code==='parse.constraint');assert.equal(reserved.relatedInformation[0].location.uri,entryUri);
+    s.change(uri,'function bad 42',4);const reserved=(await s.diagnostic(uri,4)).diagnostics.find(d=>d.code==='parse.constraint');assert.equal(fileURLToPath(reserved.relatedInformation[0].location.uri),entry);
     s.change(uri,'function foo 42',5);assert.deepEqual((await s.diagnostic(uri,5)).diagnostics,[]);
     s.open(entryUri,definition.replace('highlightAs "function"','highlightAs "property"'));await s.diagnostic(entryUri,1);
     assert.equal((await tokens()).data[8],9);
