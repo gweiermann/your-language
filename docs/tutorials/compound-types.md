@@ -71,7 +71,7 @@ export operation annotateWithType(target, value, origin = target, children = [])
 }
 ```
 
-Each contribution retains its own origin. `evidenceOf(target)` reads those contributions with `facts`, combines their descriptors, and retains the individual evidence for union members. Equal type descriptors can originate at different source locations; there is no global source location attached to `number`.
+An absent target returns `absent`; a present syntax identity with no type evidence returns the unknown descriptor. Each contribution retains its own origin. `evidenceOf(target)` reads those contributions with `facts`, combines their descriptors, and retains the individual evidence for union members. Equal type descriptors can originate at different source locations; there is no global source location attached to `number`.
 
 Container constructors also retain the association between each child and its evidence. `structEvidence` keeps field-name/evidence pairs; `listEvidence` and `tupleEvidence` keep element evidence in source order. Without that association, a later comparison could underline the container but could not identify its incompatible child.
 

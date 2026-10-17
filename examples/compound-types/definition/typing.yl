@@ -69,11 +69,11 @@ export operation annotateWithType(target, value, origin = target, children = [])
 export operation evidenceOf(target) {
     contributions := facts((target, typeEvidence))
     combined := unionType(map(contributions, item => item[0]))
-    return match (isPresent(contributions[0]), isPresent(contributions[1])) {
+    return choose(isPresent(target), match (isPresent(contributions[0]), isPresent(contributions[1])) {
         false, _    => evidence(unknownType(), target),
         true, false => contributions[0],
         true, true  => choose(equal(combined[0], Type::union), evidence(combined, target, contributions), evidence(combined, contributions[0][1], contributions[0][2]))
-    }
+    }, absent)
 }
 
 export operation typeOf(target) = evidenceOf(target)[0]

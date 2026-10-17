@@ -4,9 +4,9 @@ use your_language::semantics::{queries::QueryKey, AnalysisResult, SemanticEngine
 fn evaluate(actions: &str) -> AnalysisResult {
     let source = format!(
         r#"
-import {{ contribute, isPresent }} from "core/query"
+import {{ contribute, isPresent, equal }} from "core/query"
 import {{ numberType, stringType, tupleType, listType, unionType, structType,
-          parameterType, genericType, instantiateType, isIdenticalTo, isAssignableTo }} from "./typing"
+          parameterType, genericType, instantiateType, isIdenticalTo, isAssignableTo, typeOf, evidenceOf, unknownType }} from "./typing"
 symbol first
 symbol second
 node Program = "x" {{ semantics {{ {actions} }} }}
@@ -103,4 +103,18 @@ fn generic_substitution_is_nested_explicit_and_keeps_template_parameters_indepen
     ] {
         assert_eq!(boolean(&result, key), expected, "{key}");
     }
+}
+
+#[test]
+fn absent_targets_end_queries_but_present_untyped_targets_remain_unknown() {
+    let result = evaluate(
+        r#"
+        contribute("absentType", isPresent(typeOf(absent)))
+        contribute("absentEvidence", isPresent(evidenceOf(absent)))
+        contribute("presentUnknown", equal(typeOf(self), unknownType()))
+    "#,
+    );
+    assert!(!boolean(&result, "absentType"));
+    assert!(!boolean(&result, "absentEvidence"));
+    assert!(boolean(&result, "presentUnknown"));
 }
