@@ -51,6 +51,9 @@ test('packaged grammar equals docs source and tokenizes representative YL syntax
   scope('return ref', 'return', 'keyword.control.yl');
   scope('checks {}', 'checks', 'keyword.control.yl');
   scope('semantics {}', 'semantics', 'keyword.control.yl');
+  scope('export hook add(left, right)', 'hook', 'keyword.control.yl');
+  scope('export hook add(left, right)', 'add', 'entity.name.type.yl');
+  scope('backend { add(left, right) }', 'backend', 'keyword.control.yl');
   scope('// node fake', 'node', 'comment.line.double-slash.yl');
   scope('"node \\"literal\\""', 'node', 'string.quoted.double.yl');
   registry.dispose();

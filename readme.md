@@ -74,6 +74,31 @@ It reports `numberSum: number`, `stringSum: string` and the types of the other b
 
 The [compound-types example](./examples/compound-types/) adds structural interfaces, tuples, lists, and explicit generic arguments. Its recursive comparison and source-evidence tracking are implemented in YL. A mismatch discovered through several declarations can underline the original incompatible literal and the final requirement together; see the [structural types tutorial](https://gweiermann.github.io/your-language/tutorials/compound-types).
 
+## Interpret, transpile, and compile
+
+Map syntax to host hooks without choosing a runtime value representation:
+
+```yl
+export hook add(left, right)
+
+node Addition = left: Expression "+" right: Expression {
+    backend {
+        add(left, right)
+    }
+}
+```
+
+Hooks receive unevaluated syntax. A Rust consumer decides what to visit and what to produce: runtime values, generated source, or compiled instructions. The [backend example](./examples/backend-hooks/) uses one reloaded `.ylc` for an interpreter, JavaScript transpiler, and WebAssembly binary compiler.
+
+```sh
+cargo run --example backend_interpret
+cargo run --example backend_javascript > target/backend.js
+node target/backend.js
+cargo run --example backend_wasm -- examples/backend-hooks/programs/control-flow.txt target/backend.wasm
+```
+
+The interpreter and executed JavaScript print `42`; the Wasm compiler writes a module exporting `run() -> i32`. See the [backend tutorial](https://gweiermann.github.io/your-language/tutorials/backends) for executing the module and implementing a consumer.
+
 ## Editor support
 
 The VS Code extension provides live diagnostics, formatting and composed syntax examples for YL definitions. A project-local `yl.json` also enables diagnostics and highlighting for programs written in your language. Visual roles stay beside the grammar:

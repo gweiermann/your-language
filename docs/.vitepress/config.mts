@@ -16,6 +16,7 @@ const reference = [
   ['Semantic libraries', 'meaning-libraries'],
   ['Syntax examples', 'examples'],
   ['IDE metadata', 'ide'],
+  ['Backend hooks', 'backends'],
 ].map(([text, slug]) => ({ text, link: `/reference/${slug}` }))
 
 export default defineConfig({
@@ -43,6 +44,7 @@ export default defineConfig({
         { text: 'Syntax diagnostics', link: '/tutorials/diagnostics' },
         { text: 'MiniJS walkthrough', link: '/tutorials/mini-js' },
         { text: 'Embed in Rust', link: '/tutorials/embedding' },
+        { text: 'Interpret, transpile, and compile', link: '/tutorials/backends' },
         { text: 'Authored lexical scopes', link: '/tutorials/declarative-scopes' },
         { text: 'Build type inference with std/types', link: '/tutorials/std-types' },
         { text: 'Structural types and evidence', link: '/tutorials/compound-types' },
@@ -52,6 +54,7 @@ export default defineConfig({
       { text: 'API reference', items: [
         { text: 'CLI commands', link: '/api/cli' },
         { text: 'Rust API', link: '/api/rust' },
+        { text: 'Backend dispatch', link: '/api/backends' },
         { text: 'Rust runtime operations', link: '/api/native-semantics' },
         { text: 'Authored semantic libraries', link: '/api/standard-semantics' },
         { text: 'Declarative attachment queries', link: '/api/declarative-queries' },

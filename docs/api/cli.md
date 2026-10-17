@@ -151,3 +151,12 @@ yl project ast examples/mini_typescript/programs/program.txt
 ```
 
 The nearest `yl.json` selects the entry and project-relative file globs. The source must match that configuration. The CLI compiles the entry in memory; there is no intermediate artifact file to manage. `check` runs parsing, syntax checks and authored semantic queries, with the same diagnostics as the editor. A clean check is silent, JSON checks emit a diagnostic array, and errors exit nonzero. `ast` prints the parsed AST as JSON and emits any parse diagnostics as JSON to stderr. Project discovery, malformed configuration and missing language entry errors follow the requested JSON/human format. See [project configuration](/guide/editor#programs-in-a-language-project).
+
+## Inspect backend hooks
+
+```sh
+cargo run -- language target/backend.ylc hooks
+cargo run -- language target/backend.ylc hooks --json
+```
+
+Lists the artifact's module-qualified hook names and positional parameter contracts. JSON output includes the declaration spans. No hook is bound or executed. The command works with a checked `.ylc` independently of its original YL source files. See [backend hooks](/reference/backends) for consumer binding and execution.
