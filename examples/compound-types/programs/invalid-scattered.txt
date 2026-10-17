@@ -1,0 +1,17 @@
+interface Box<T> {
+    value: T;
+}
+
+interface Envelope<T> {
+    payload: {
+        details: {
+            record: Box<T>;
+        };
+    };
+}
+
+let wrong = "wrong";
+let record = { value: wrong };
+let details = { record: record };
+let payload = { details: details };
+let result: Envelope<number> = { payload: payload };

@@ -51,7 +51,7 @@ Syntax-local constraints can also add errors, warnings, and help messages to a l
 
 ## Compose meaning
 
-Language-authored semantics connect syntax to reusable native analysis libraries. The [Mini TypeScript example](./examples/mini_typescript/) demonstrates scopes, resolved bindings and inferred types through ordinary imported operations:
+Language-authored semantics connect syntax to reusable libraries for scopes, references, and type inference. The [Mini TypeScript example](./examples/mini_typescript/) demonstrates scopes, resolved bindings and inferred types through ordinary imported operations:
 
 ```yl
 import { annotateWithType } from "./typing"
@@ -64,13 +64,15 @@ node Number = value: /[0-9]+/ {
 }
 ```
 
-The language owns its primitive type symbols and operator rules; the Rust libraries supply identity-keyed constraints. Run the complete example from the repository root:
+The language owns its primitive type symbols and operator rules; the engine supplies generic identity-keyed queries. Run the complete example from the repository root:
 
 ```sh
 cargo run --example mini_typescript -- addition
 ```
 
 It reports `numberSum: number`, `stringSum: string` and the types of the other bindings. The authored `std/types` library tracks type evidence and restrictions through generic queries. Function calls infer independent results under temporary parameter assignments. See the [std/types tutorial](https://gweiermann.github.io/your-language/tutorials/std-types) for the full workflow and limits.
+
+The [compound-types example](./examples/compound-types/) adds structural interfaces, tuples, lists, and explicit generic arguments. Its recursive comparison and source-evidence tracking are implemented in YL. A mismatch discovered through several declarations can underline the original incompatible literal and the final requirement together; see the [structural types tutorial](https://gweiermann.github.io/your-language/tutorials/compound-types).
 
 ## Run a language
 

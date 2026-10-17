@@ -1,0 +1,297 @@
+// Compound-type reference module. All comparison, generic substitution and
+// evidence helpers below are authored YL and run on the compiled query machine.
+// The runnable multi-file language is examples/compound-types/definition/language.yl.
+// This module itself does not select an entry node.
+//
+// Scope: finite, acyclic structural types and explicitly supplied generic arguments.
+// Recursive named types need a separate cycle policy. No implicit generic inference.
+// Example policy: unknown accepts either side; mutable lists are invariant;
+// structural assignment allows extra fields; identity requires the same fields.
+// These are language policies, not engine rules.
+//
+// Descriptor: (tag, payload).
+// Evidence: (descriptor, sourceSyntax, children), retaining field/element associations.
+// Difference: (path, actualDescriptor, expectedDescriptor, reason, offendingSyntax).
+// Full expected-type derivation/provenance is intentionally deferred.
+import { contribute, facts, map, filter, flatten, unique, lookup, equal, every, isPresent, choose, tail, concat, zip, length, text } from "core/query"
+import { error } from "core/diagnostics"
+import { unknown } from "std/types"
+
+export enum Type {
+    number
+    string
+    boolean
+    tuple
+    list
+    union
+    struct
+    parameter
+}
+
+export enum Comparison {
+    identical
+    assignable
+}
+
+export enum Difference {
+    incompatibleType
+    missingField
+    extraField
+    tupleLength
+    unresolvedParameter
+}
+
+export symbol typeEvidence
+
+export operation numberType() =(Type::number, [])
+
+export operation stringType() =(Type::string, [])
+
+export operation booleanType() =(Type::boolean, [])
+
+export operation unknownType() =(unknown, [])
+
+export operation tupleType(elements) =(Type::tuple, elements)
+
+export operation listType(element) =(Type::list, element)
+
+export operation structType(fields) =(Type::struct, fields)
+
+export operation parameterType(identity) =(Type::parameter, identity)
+
+operation unionMembers(value) = match (value[0]) {
+    Type::union => value[1],
+    _           => [value]
+}
+
+export operation unionType(members) {
+    distinct := unique(flatten(map(members, member => unionMembers(member))))
+    return match (isPresent(distinct[0]), isPresent(distinct[1])) {
+        false, _    => unknownType(),
+        true, false => distinct[0],
+        true, true  => (Type::union, distinct)
+    }
+}
+
+export operation evidence(value, origin, children = []) =(value, origin, children)
+
+// Each contribution keeps its OWN origin, even if several contributions have the
+// same type. No source location is stored globally on number/string/etc.
+export operation annotateWithType(target, value, origin = target, children = []) {
+    contribute((target, typeEvidence), evidence(value, origin, children))
+}
+
+export operation evidenceOf(target) {
+    contributions := facts((target, typeEvidence))
+    combined := unionType(map(contributions, item => item[0]))
+    return match (isPresent(contributions[0]), isPresent(contributions[1])) {
+        false, _    => evidence(unknownType(), target),
+        true, false => contributions[0],
+        true, true  => choose(equal(combined[0], Type::union), evidence(combined, target, contributions), evidence(combined, contributions[0][1], contributions[0][2]))
+    }
+}
+
+export operation typeOf(target) = evidenceOf(target)[0]
+
+export operation tupleEvidence(elements, origin) = evidence(tupleType(map(elements, item => item[0])), origin, elements)
+
+export operation listEvidence(elements, origin) = evidence(listType(unionType(map(elements, item => item[0]))), origin, elements)
+
+export operation structEvidence(fields, origin) = evidence(structType(map(fields, field => (field[0], field[1][0]))), origin, fields)
+
+operation childEvidence(parent, childType, retained) = choose(isPresent(retained), retained, evidence(childType, parent[1]))
+
+operation appendPath(path, segment) = flatten([path, [segment]])
+
+operation sameLength(left, right) = equal(length(left), length(right))
+
+operation problem(path, actual, expected, reason) = [(path, actual[0], expected, reason, actual[1])]
+
+// Public comparison returns ALL discovered differences, each with its actual
+// offending syntax. Empty means success. Diagnostic emission is kept outside
+// this pure recursive worker.
+export operation compareTypes(actualEvidence, expected, mode) = compareAt(actualEvidence, expected, mode, [])
+
+operation compareAt(actual, expected, mode, path) = match (equal(actual[0], expected), equal(actual[0][0], unknown), equal(expected[0], unknown)) {
+    true, _, _ | _, true, _ | _, _, true => [],
+    _                                    => compareDifferent(actual, expected, mode, path)
+}
+
+operation compareDifferent(actual, expected, mode, path) = match (actual[0][0], expected[0]) {
+    Type::parameter, _ | _, Type::parameter => problem(path, actual, expected, Difference::unresolvedParameter),
+    Type::union, _                          => compareActualUnion(actual, expected, mode, path),
+    _, Type::union                          => compareExpectedUnion(actual, expected, mode, path),
+    Type::struct, Type::struct              => compareFields(actual, expected, mode, path),
+    Type::tuple, Type::tuple                => compareTuple(actual, expected, mode, path),
+    Type::list, Type::list                  => compareList(actual, expected, path),
+    _                                       => problem(path, actual, expected, Difference::incompatibleType)
+}
+
+operation compareActualUnion(actual, expected, mode, path) = match (mode) {
+    Comparison::identical => compareUnionIdentity(actual, expected, path),
+    _                     => flatten(map(unionEvidenceMembers(actual), member => compareAt(member, expected, mode, path)))
+}
+
+operation unionEvidenceMembers(actual) = choose(isPresent(actual[2][0]), actual[2], map(actual[0][1], member => evidence(member, actual[1])))
+
+operation compareExpectedUnion(actual, expected, mode, path) = match (mode) {
+    Comparison::identical => problem(path, actual, expected, Difference::incompatibleType),
+    _                     => choose(isPresent(filter(expected[1], member => noDifferences(compareAt(actual, member, mode, path)))[0]), [], problem(path, actual, expected, Difference::incompatibleType))
+}
+
+operation compareUnionIdentity(actual, expected, path) = match (expected[0]) {
+    Type::union => choose(every(actual[0][1], member => everyMemberHasEqual([member], expected[1])) && everyMemberHasEqual(expected[1], actual[0][1]), [], problem(path, actual, expected, Difference::incompatibleType)),
+    _           => problem(path, actual, expected, Difference::incompatibleType)
+}
+
+operation everyMemberHasEqual(left, right) = every(left, member => isPresent(filter(right, other => isIdenticalTo(member, other))[0]))
+
+operation compareFields(actual, expected, mode, path) {
+    actualFields := actual[0][1]
+    expectedFields := expected[1]
+    required := flatten(map(expectedFields, field => compareField(actual, field, mode, appendPath(path, field[0]))))
+    extras := match (mode) {
+        Comparison::identical => flatten(map(filter(actualFields, field => !isPresent(lookup(expectedFields, field[0]))), field => problem(appendPath(path, field[0]), childEvidence(actual, field[1], lookup(actual[2], field[0])), expected, Difference::extraField))),
+        _                     => []
+    }
+    return flatten([required, extras])
+}
+
+operation compareField(actual, field, mode, path) = match (isPresent(lookup(actual[0][1], field[0]))) {
+    false => problem(path, actual, field[1], Difference::missingField),
+    true  => compareAt(childEvidence(actual, lookup(actual[0][1], field[0]), lookup(actual[2], field[0])), field[1], mode, path)
+}
+
+operation compareTuple(actual, expected, mode, path) = match (sameLength(actual[0][1], expected[1])) {
+    false => problem(path, actual, expected, Difference::tupleLength),
+    true  => compareTupleElements(actual[0][1], expected[1], actual[2], actual, mode, path)
+}
+
+operation compareTupleElements(actualTypes, expectedTypes, children, parent, mode, path, preceding = []) = match (isPresent(actualTypes[0])) {
+    false => [],
+    true  => flatten([compareAt(childEvidence(parent, actualTypes[0], children[0]), expectedTypes[0], mode, appendPath(path, concat(["[", text(length(preceding)), "]"]))), compareTupleElements(tail(actualTypes), tail(expectedTypes), tail(children), parent, mode, path, flatten([preceding, [true]]))])
+}
+
+// Invariance is checked on the complete element descriptor. If a source element
+// itself is incompatible, use its narrower span; otherwise highlight the list.
+// Example: List<number> -> List<number | string> is rejected at the list span.
+operation compareList(actual, expected, path) {
+    incompatibleElements := flatten(map(actual[2], item => compareAt(item, expected[1], Comparison::assignable, appendPath(path, "[element]"))))
+    invariant := compareAt(evidence(actual[0][1], actual[1]), expected[1], Comparison::identical, appendPath(path, "[element type]"))
+    return choose(noDifferences(incompatibleElements), invariant, incompatibleElements)
+}
+
+operation noDifferences(differences) = !isPresent(differences[0])
+
+export operation isIdenticalTo(left, right) = noDifferences(compareTypes(evidence(left, absent), right, Comparison::identical))
+
+export operation isAssignableTo(left, right) = noDifferences(compareTypes(evidence(left, absent), right, Comparison::assignable))
+
+// Explicit generic descriptors: (parameter identity list, body descriptor).
+export operation genericType(parameters, body) =(parameters, body)
+
+export operation instantiateType(generic, arguments) = choose(sameLength(generic[0], arguments), substituteType(generic[1], zip(generic[0], arguments)), absent)
+
+operation substituteType(value, substitutions) = match (value[0]) {
+    Type::parameter => choose(isPresent(lookup(substitutions, value[1])), lookup(substitutions, value[1]), value),
+    Type::tuple     => tupleType(map(value[1], item => substituteType(item, substitutions))),
+    Type::list      => listType(substituteType(value[1], substitutions)),
+    Type::union     => unionType(map(value[1], item => substituteType(item, substitutions))),
+    Type::struct    => structType(map(value[1], field => (field[0], substituteType(field[1], substitutions)))),
+    _               => value
+}
+
+// Renderers are ordinary authored functions as well.
+operation joinStrings(parts, separator) = match (isPresent(parts[0]), isPresent(parts[1])) {
+    false, _    => "",
+    true, false => parts[0],
+    true, true  => concat([parts[0], separator, joinStrings(tail(parts), separator)])
+}
+
+export operation describeType(value) = match (value[0]) {
+    Type::number    => "number",
+    Type::string    => "string",
+    Type::boolean   => "boolean",
+    unknown         => "unknown",
+    Type::parameter => "unresolved type parameter",
+    Type::tuple     => concat(["(", joinStrings(map(value[1], item => describeType(item)), ", "), ")"]),
+    Type::list      => concat(["List<", describeType(value[1]), ">"]),
+    Type::union     => joinStrings(map(value[1], item => describeType(item)), " | "),
+    Type::struct    => concat(["{ ", joinStrings(map(value[1], field => concat([field[0], ": ", describeType(field[1])])), ", "), " }"]),
+    _               => "<invalid type descriptor>"
+}
+
+export operation describeDifference(item) {
+    location := choose(isPresent(item[0][0]), joinStrings(item[0], "."), "value")
+    return match (item[3]) {
+        Difference::missingField        => concat(["Missing required field ", location]),
+        Difference::extraField          => concat(["Unexpected field ", location]),
+        Difference::tupleLength         => concat(["Tuple length differs at ", location]),
+        Difference::unresolvedParameter => concat(["Unresolved type parameter at ", location]),
+        _                               => concat([describeType(item[1]), " is not assignable to ", describeType(item[2]), " at ", location])
+    }
+}
+
+export operation contributionOrigins(target) = unique(map(facts((target, typeEvidence)), item => item[1]))
+
+operation diagnosticAnnotations(item, contributors) = flatten([[(item[4], absent)], map(filter(unique(contributors), node => isPresent(node) && !equal(node, item[4])), node => (node, absent))])
+
+export operation reportDifference(item, contributors = []) {
+    error(describeDifference(item), diagnosticAnnotations(item, contributors))
+}
+
+// The example reports the first difference only; compareTypes retains all of them.
+// An eventual diagnostic batch API may report the entire list. No effectful map
+// callback or hidden native report-all helper is assumed here.
+export symbol boxParameter
+
+export symbol envelopeParameter
+
+operation boxDefinition() = genericType([boxParameter], structType([("value", parameterType(boxParameter))]))
+
+operation envelopeDefinition() = genericType([envelopeParameter], structType([("payload", structType([("details", structType([("record", instantiateType(boxDefinition(), [parameterType(envelopeParameter)]))]))]))]))
+
+// Read this as the semantic rule for:
+// let result: Envelope<number> = { payload: { details: { record: { value: "wrong" } } } };
+// Its caller passes the ACTUAL captures. They are identities with real source spans,
+// not strings manufactured by the type library. The outer parser is deliberately
+// omitted; this proposal does not introduce another complete Mini TypeScript grammar.
+export operation checkEnvelope(initializer, payload, details, record, wrong) {
+    actual := structEvidence([("payload", structEvidence([("details", structEvidence([("record", structEvidence([("value", evidence(stringType(), wrong))], record))], details))], payload))], initializer)
+    expected := instantiateType(envelopeDefinition(), [numberType()])
+    differences := compareTypes(actual, expected, Comparison::assignable)
+    when isPresent(differences[0]) {
+        reportDifference(differences[0])
+    }
+}
+
+// Result: one difference whose path is payload.details.record.value, whose actual
+// type is string, whose expected type is number, and whose node is `wrong`.
+// error() highlights the "wrong" literal, not the whole initializer/type annotation.
+// A missing `value` instead highlights the record object: no missing token has a span.
+// Annotated contribution origins can later be mapped to additional grouped labels;
+// tracing why Envelope<number> -> Box<number> -> number is explicitly deferred.
+// Concrete syntax-to-evidence connection; no implicit self inside operations.
+export node NumberLiteral = value: /[0-9]+/ {
+    semantics {
+        annotateWithType(self, numberType(), value)
+    }
+}
+
+export node StringLiteral = value: /"[^"\n]*"/ {
+    semantics {
+        annotateWithType(self, stringType(), value)
+    }
+}
+
+// Construction from real captures (e.g. three child captures from a tuple/list).
+// Pair: (number, string). Homogeneous: List<number>. Mixed: List<number | string>.
+// Each element retains its own source; nested struct/list constructors compose.
+export operation demonstrateContainers(pairNode, listNode, mixedNode, first, second, third) {
+    pair := tupleEvidence([evidenceOf(first), evidenceOf(second)], pairNode)
+    numbers := listEvidence([evidenceOf(first), evidenceOf(third)], listNode)
+    mixed := listEvidence([evidenceOf(first), evidenceOf(second)], mixedNode)
+    annotateWithType(pairNode, pair[0], pair[1], pair[2])
+    annotateWithType(listNode, numbers[0], numbers[1], numbers[2])
+    annotateWithType(mixedNode, mixed[0], mixed[1], mixed[2])
+}
