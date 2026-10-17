@@ -1,4 +1,6 @@
-import { program } from "./hooks"
+import { createLexicalScope } from "std/references"
+import { checkInteger } from "./typing"
+import { program } from "std/backend/integer"
 import { Whitespace, Comment, keyword } from "./lexical"
 import { Expression } from "./expression"
 import { Statement } from "./statement"
@@ -9,6 +11,11 @@ node Program =
     result: Expression
     ";"
 {
+    semantics {
+        boundary
+        createLexicalScope(self)
+        checkInteger(result)
+    }
     backend {
         program(statements, result)
     }

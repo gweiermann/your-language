@@ -32,7 +32,7 @@ pub(super) fn signatures() -> Vec<HookBinding> {
         ("program", &["statements", "result"][..]),
     ]
     .into_iter()
-    .map(|(name, args)| HookBinding::new(format!("hooks.yl#{name}"), args))
+    .map(|(name, args)| HookBinding::new(format!("std/backend/integer#{name}"), args))
     .collect()
 }
 pub(super) fn backend_error(message: impl Into<String>) -> Diagnostic {

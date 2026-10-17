@@ -28,6 +28,7 @@ fn same_reloaded_language_interprets_transpiles_and_compiles_real_wasm() {
     let language = hosts::load().unwrap();
     for (name, expected) in [
         ("valid.txt", 42),
+        ("typed.txt", 42),
         ("control-flow.txt", 42),
         ("shadowing.txt", 42),
         ("initializer-shadowing.txt", 42),
@@ -72,30 +73,66 @@ fn same_reloaded_language_interprets_transpiles_and_compiles_real_wasm() {
 #[test]
 fn interpreter_does_not_dispatch_unchosen_branch() {
     let language = hosts::load().unwrap();
-    let program = language.prepare_backend("untaken", "let answer = 42; if (0) { answer = missing; } else { answer = answer; } result answer;").unwrap();
+    let program = language
+        .prepare_backend(
+            "untaken",
+            "let answer = 42; if (0) { answer = 999; } else { answer = answer; } result answer;",
+        )
+        .unwrap();
     assert_eq!(program.run(&mut hosts::Interpreter::default()).unwrap(), 42);
 }
 #[test]
-fn undefined_variable_has_source_location_and_hosts_validate_fixed_bindings() {
+fn checked_language_rejects_unknown_references_before_running_hosts() {
     let language = hosts::load().unwrap();
-    let program = language
-        .prepare_backend("undefined", "result missing;")
+    let errors = match language.prepare_backend("undefined", "result missing;") {
+        Ok(_) => panic!("an unknown reference must prevent host dispatch"),
+        Err(errors) => errors,
+    };
+    let error = errors
+        .iter()
+        .find(|error| error.message.contains("Unknown name"))
         .unwrap();
-    let error = program.run(&mut hosts::Interpreter::default()).unwrap_err();
-    assert_eq!(error.code, "example.undefined");
     assert_eq!(error.primary.start, 7);
     assert_eq!(error.primary.end, 14);
     assert_eq!(hosts::Interpreter::default().bindings().len(), 11);
+    assert!(language
+        .required_hooks()
+        .iter()
+        .all(|hook| hook.id.starts_with("std/backend/integer#")));
+}
+
+#[test]
+fn incompatible_annotation_underlines_initializer() {
+    let language = hosts::load().unwrap();
+    let source = "let answer: string = 42; result answer;";
+    let errors = match language.prepare_backend("annotation", source) {
+        Ok(_) => panic!("an incompatible annotation must prevent host dispatch"),
+        Err(errors) => errors,
+    };
+    let error = errors
+        .iter()
+        .find(|error| error.message.contains("does not match"))
+        .unwrap();
+    assert_eq!(&source[error.primary.start..error.primary.end], "42");
+}
+
+#[test]
+fn checked_programs_can_still_fail_in_host_specific_execution() {
+    let language = hosts::load().unwrap();
+    let program = language
+        .prepare_backend("range", &source("host-error.txt"))
+        .unwrap();
+    let error = program.run(&mut hosts::Interpreter::default()).unwrap_err();
+    assert!(error.message.contains("outside signed i32 range"));
 }
 
 #[test]
 fn bounded_keywords_do_not_split_identifier_prefixes() {
     let language = hosts::load().unwrap();
     // This is an assignment to the identifier `letanswer`, not a declaration of `answer`.
-    let invalid = language
+    assert!(language
         .prepare_backend("bad-keyword", "letanswer = 42; result answer;")
-        .unwrap();
-    assert!(invalid.run(&mut hosts::Interpreter::default()).is_err());
+        .is_err());
     let program = language
         .prepare_backend("identifier", "let resultValue = 42; result resultValue;")
         .unwrap();
