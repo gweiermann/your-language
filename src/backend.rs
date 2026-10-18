@@ -43,6 +43,26 @@ pub struct BackendImage {
     pub calls: BTreeMap<String, CallPlan>,
 }
 impl BackendImage {
+    /// Keep only entry-reachable mappings, preserving canonical hook order and
+    /// updating every retained call's table index. All mappings must be validated
+    /// first so malformed unused declarations remain compile errors.
+    pub(crate) fn retain_reachable(&mut self, owners: &BTreeSet<String>) {
+        self.calls.retain(|owner, _| owners.contains(owner));
+        let used: BTreeSet<_> = self.calls.values().map(|call| call.hook).collect();
+        let mut remap = BTreeMap::new();
+        let mut hooks = Vec::with_capacity(used.len());
+        for (index, hook) in std::mem::take(&mut self.hooks).into_iter().enumerate() {
+            if used.contains(&(index as u32)) {
+                remap.insert(index as u32, hooks.len() as u32);
+                hooks.push(hook);
+            }
+        }
+        self.hooks = hooks;
+        for call in self.calls.values_mut() {
+            call.hook = remap[&call.hook];
+        }
+    }
+
     pub(crate) fn validate(
         &self,
         captures: &BTreeMap<String, BTreeSet<String>>,

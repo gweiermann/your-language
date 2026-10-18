@@ -361,3 +361,221 @@ fn cli_inspects_hook_contracts_without_a_host_or_definition_sources() {
     let hooks: Vec<HookContract> = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(hooks, language.required_hooks());
 }
+
+fn hook_ids(language: &your_language::CompiledLanguage) -> Vec<&str> {
+    language
+        .required_hooks()
+        .iter()
+        .map(|hook| hook.id.as_str())
+        .collect()
+}
+
+#[test]
+fn composed_hook_modules_only_require_the_entry_grammar_subset() {
+    let sources = BTreeMap::from([
+        (
+            "main.yl".into(),
+            r#"
+                import * as hooks from "./hooks"
+                node Number = value: /[0-9]+/ { backend { hooks::number(value) } }
+                node String = value: /[a-z]+/ { backend { hooks::string(value) } }
+                node Program = left: Number "+" right: Number {
+                    backend { hooks::add(left, right) }
+                }
+                entry Program
+            "#
+            .into(),
+        ),
+        (
+            "hooks.yl".into(),
+            "export hook aaaUnused() export hook add(left, right) export hook number(value) export hook string(value)"
+                .into(),
+        ),
+    ]);
+    let compiled = compile_sources("main.yl", &sources).unwrap();
+    assert_eq!(hook_ids(&compiled), ["hooks.yl#add", "hooks.yl#number"]);
+    let bytes = compiled.to_bytes().unwrap();
+    let language = load_compiled_language(&bytes).unwrap();
+    assert_eq!(language.to_bytes().unwrap(), bytes);
+    assert_eq!(language.required_hooks(), compiled.required_hooks());
+    let image: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(image["backend"]["calls"].get("main.yl#String").is_none());
+    // Pruning hook requirements must not remove unrelated grammar/tooling data.
+    assert!(image["parser"]["rules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|rule| rule["definition"] == "main.yl#String"));
+
+    struct Integers;
+    impl Backend for Integers {
+        type Value = u32;
+        fn bindings(&self) -> Vec<HookBinding> {
+            vec![
+                HookBinding::new("hooks.yl#number", &["value"]),
+                HookBinding::new("hooks.yl#add", &["left", "right"]),
+            ]
+        }
+        fn invoke(
+            &mut self,
+            cx: &mut BackendContext<'_, '_, Self>,
+            hook: &HookContract,
+            args: &[Capture],
+        ) -> Result<u32, Diagnostic> {
+            match hook.id.as_str() {
+                "hooks.yl#number" => Ok(cx.program().text(args[0].syntax()?)?.parse().unwrap()),
+                "hooks.yl#add" => {
+                    Ok(cx.dispatch(self, args[0].syntax()?)?
+                        + cx.dispatch(self, args[1].syntax()?)?)
+                }
+                _ => unreachable!("Only the integer hook subset is bound"),
+            }
+        }
+    }
+    assert_eq!(
+        language
+            .prepare_backend("input.txt", "12+30")
+            .unwrap()
+            .run(&mut Integers)
+            .unwrap(),
+        42
+    );
+
+    let mut string_sources = sources;
+    let source = string_sources.get_mut("main.yl").unwrap();
+    *source = source.replace("entry Program", "entry String");
+    let strings = compile_sources("main.yl", &string_sources).unwrap();
+    assert_eq!(hook_ids(&strings), ["hooks.yl#string"]);
+}
+
+#[test]
+fn reachable_alternatives_are_required_before_any_host_effects() {
+    let language = language(
+        r#"
+            hook literal(value)
+            hook branch(value)
+            hook unused()
+            node Number = value: /[0-9]+/ { backend { literal(value) } }
+            node Other = value: /[a-z]+/ { backend { branch(value) } }
+            node Expression { node Number node Other }
+            node Unused = "!" { backend { unused() } }
+            entry Expression
+        "#,
+    );
+    assert_eq!(hook_ids(&language), ["main.yl#branch", "main.yl#literal"]);
+    // This source does not select Other. Its hook is nevertheless a requirement
+    // of the language, rather than a source-specific late dispatch error.
+    let program = language.prepare_backend("input", "42").unwrap();
+    let mut host = Host::default();
+    assert_eq!(
+        program.run(&mut host).unwrap_err().code,
+        "yl.backend_binding"
+    );
+    assert_eq!(host.calls, 0);
+}
+
+#[test]
+fn selecting_a_member_alias_does_not_make_its_siblings_reachable() {
+    let language = language(
+        r#"
+            hook literal(value)
+            hook unused()
+            node Number = value: /[0-9]+/ { backend { literal(value) } }
+            node Family {
+                node Number
+                node Other = "!" { backend { unused() } }
+            }
+            node Outer { node Family }
+            entry Outer::Family::Number
+        "#,
+    );
+    assert_eq!(hook_ids(&language), ["main.yl#literal"]);
+    assert_eq!(
+        language
+            .prepare_backend("input", "42")
+            .unwrap()
+            .run(&mut Host::default())
+            .unwrap(),
+        "42"
+    );
+}
+
+#[test]
+fn declarations_without_reachable_mappings_do_not_require_bindings() {
+    let language = language("hook unused() node Program = \"42\" entry Program");
+    assert!(language.required_hooks().is_empty());
+    let image: serde_json::Value = serde_json::from_slice(&language.to_bytes().unwrap()).unwrap();
+    assert_eq!(image["backend"]["hooks"], serde_json::json!([]));
+    assert_eq!(image["backend"]["calls"], serde_json::json!({}));
+}
+
+#[test]
+fn recursive_abstract_operators_and_parameterized_patterns_are_reachable() {
+    let language = language(
+        r#"
+            import { separatedBy } from "std/parser"
+            hook literal(value)
+            hook pair(left, right)
+            hook collect(values)
+            hook unused()
+            pattern Wrapped(item) = value: item { backend { collect([value]) } }
+            node Unused = "unused" { backend { unused() } }
+            node Expression {
+                node Addition = left: Expression "+" right: Expression {
+                    backend { pair(left, right) }
+                }
+                node Number = value: /[0-9]+/ { backend { literal(value) } }
+                node Group = "(" items: Wrapped(Expression)* |> separatedBy(",") ")" {
+                    backend { collect(items) }
+                }
+                precedence { Addition }
+            }
+            entry Expression
+        "#,
+    );
+    assert_eq!(
+        hook_ids(&language),
+        ["main.yl#collect", "main.yl#literal", "main.yl#pair"]
+    );
+    let image: serde_json::Value = serde_json::from_slice(&language.to_bytes().unwrap()).unwrap();
+    assert!(image["backend"]["calls"].get("main.yl#Wrapped").is_some());
+    assert!(image["backend"]["calls"].get("main.yl#Unused").is_none());
+    assert!(!your_language::parse_named(&language, "input", "(1,2+3)").has_errors());
+}
+
+#[test]
+fn preview_only_patterns_and_assertion_probes_do_not_require_hooks() {
+    let language = language(
+        r#"
+            import { notAhead } from "core/parser"
+            hook literal(value)
+            hook unused()
+            pattern PreviewOnly = "preview" { backend { unused() } }
+            node PreviewRoot = PreviewOnly { ide { example "preview" } }
+            node Probe = "!" { backend { unused() } }
+            node Program = notAhead(Probe) value: /[0-9]+/ {
+                backend { literal(value) }
+            }
+            entry Program
+        "#,
+    );
+    assert_eq!(hook_ids(&language), ["main.yl#literal"]);
+    let program = language.prepare_backend("input", "42").unwrap();
+    assert_eq!(program.run(&mut Host::default()).unwrap(), "42");
+}
+
+#[test]
+fn malformed_unreachable_mappings_are_still_compile_errors() {
+    for (mapping, code) in [
+        ("literal()", "yl.backend_arity"),
+        ("literal(missing)", "yl.artifact"),
+    ] {
+        let source = format!(
+            "hook literal(value) node Unused = \"!\" {{ backend {{ {mapping} }} }} \
+             node Program = \"42\" entry Program"
+        );
+        let errors =
+            compile_sources("main.yl", &BTreeMap::from([("main.yl".into(), source)])).unwrap_err();
+        assert_eq!(errors[0].code, code);
+    }
+}

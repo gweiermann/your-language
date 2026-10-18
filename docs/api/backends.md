@@ -37,7 +37,9 @@ pub trait Backend: Sized {
 
 `Value` can be an interpreter value, generated AST, expression string, instruction list, or a consumer-defined handle. The engine does not inspect, annotate, clone, or cache that value.
 
-`HookBinding::new("hooks.yl#add", &["left", "right"])` binds an exact module-qualified signature. A host should declare the signatures it implements, rather than copying arbitrary requirements out of an untrusted artifact. The complete manifest is checked before the first invocation. Hook bodies can return a structured `Diagnostic`; missing source locations default to the dispatched occurrence. Existing grouped annotations are preserved.
+`HookBinding::new("hooks.yl#add", &["left", "right"])` binds an exact module-qualified signature. A host should declare the signatures it implements, rather than copying arbitrary requirements out of an untrusted artifact. `CompiledLanguage::required_hooks()` returns only hooks used by entry-reachable backend mappings, not every declaration in imported modules. A host can implement just this subset or provide additional bindings for a broader preset. The complete required manifest is checked before the first invocation, including hooks in branches absent from the current source or skipped by an interpreter. Hook bodies can return a structured `Diagnostic`; missing source locations default to the dispatched occurrence. Existing grouped annotations are preserved.
+
+`Backend` uses a binding list and one dispatch method; it is not a generated Rust trait with one method per hook. Only required bindings need implementations in that dispatch method. See [reachability and composition](/reference/backends#reachability-and-composition) for the grammar-level contract.
 
 ## Syntax and captures
 

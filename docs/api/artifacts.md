@@ -80,7 +80,7 @@ The image describes what the engine can execute. Each target source gets its own
 
 A language definition cannot precompute the actual scopes or references of a program it has not parsed. The image therefore contains producer templates; the engine discovers their concrete instances and dependencies from committed syntax, then evaluates them to settlement. Scheduling boundaries, guarded actions, pending values, and isolated hypothetical queries retain their normal behavior.
 
-The image also records optional [backend hook mappings](/reference/backends). Parsing and analysis do not invoke these hooks. An external consumer explicitly binds a host backend and dispatches syntax to interpret, transpile, or compile a program; runtime values and execution policy remain host-owned.
+The image also records optional [backend hook mappings](/reference/backends). Compilation retains only mappings reachable from the entry grammar and the hook contracts those mappings reference, with their indexed addresses remapped deterministically. Imported unused hooks do not become host requirements. Grammar and static-analysis tables are retained independently. Parsing and analysis do not invoke these hooks. An external consumer explicitly binds a host backend and dispatches syntax to interpret, transpile, or compile a program; runtime values and execution policy remain host-owned.
 
 ## Validation on reload
 
