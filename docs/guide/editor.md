@@ -17,6 +17,8 @@ npm run package
 code --install-extension your-language.vsix --force
 ```
 
+For a development build, use `cargo build --release --bin yl` and point `yourLanguage.cliPath` at `target/release/yl` (`yl.exe` on Windows). Debug builds perform the same checks but can be substantially slower on languages with extensive semantic queries.
+
 You can also select **Extensions: Install from VSIXÃ¢â‚¬Â¦**. Reload the window after upgrading. The extension is packaged locally, without a Marketplace release.
 
 ## Configure
@@ -71,7 +73,7 @@ Open a matching program in a trusted workspace. The extension discovers the near
 
 The entry and globs are relative to `yl.json`. `*` matches characters within a directory, `**` crosses directories, and `?` matches one character. `programs/**/*.ts` includes both direct and nested children. Parent traversal and bracket/brace glob alternatives are rejected. A nearer configuration always takes precedence; an invalid nearer file does not silently select an outer project.
 
-Changing an open YL module or configuration invalidates dependent programs. Open buffers override disk; closing them returns to disk contents. The server caches each compiled module graph while the graph's source texts remain unchanged. Program diagnostics execute authored YL semantic queries; definition example previews continue to validate parsing only. Missing entries and invalid configuration files produce structured diagnostics. Syntax errors in programs retain highlighting for the consistent parsed prefix.
+Changing an open YL module or configuration invalidates dependent programs. Open buffers override disk; closing them returns to disk contents. The server retains up to 16 recently used compiled module graphs while their source texts remain unchanged, including across file close/reopen. It also retains up to 16 completed program results (diagnostics and tokens, without the semantic graph). A result is reused only when the program text and exact compiled language are unchanged; opening or editing another program does not repeat its analysis. Imported definitions, unsaved buffers, configuration changes, and watched-file changes are checked before reuse. Closing a buffer restores disk contents. These are in-memory session caches; actual source changes still require complete program analysis. Program diagnostics execute authored YL semantic queries; definition example previews continue to validate parsing only. Missing entries and invalid configuration files produce structured diagnostics. Syntax errors in programs retain highlighting for the consistent parsed prefix.
 
 For example, open `examples/08-mini-typescript/programs/program.txt`. The function declaration's name uses the `function` category through a contextual pattern, while ordinary references use `variable`. Another runnable project is `examples/12-diagnostic-origins/programs/invalid-scattered.txt`, whose grouped diagnostic points at the original incompatible value and the requirement. The CLI discovers the same project:
 
@@ -82,3 +84,15 @@ cargo run --quiet -- project ast examples/08-mini-typescript/programs/program.tx
 ```
 
 A clean check is silent (or `[]` with `--json`). An invalid program exits nonzero; `ast` prints only the AST JSON and writes diagnostics as JSON to stderr. The target language's formatter is not inferred from its grammar: Format Document remains available for `.yl` definitions only.
+
+## Measure program analysis
+
+The protocol benchmark opens real example programs, requests semantic tokens, closes and reopens each program, edits source, and opens a second buffer. It reports time until diagnostics and highlighting are ready, including an unchanged update with both buffers open. Run it from the repository root:
+
+```sh
+npm --prefix editors/vscode ci
+cargo build --release --bin yl
+node scripts/benchmark-lsp.cjs target/release/yl 11-compound-types 12-diagnostic-origins
+```
+
+On Windows, use `target/release/yl.exe`. Omit project names to also measure the getting-started, Mini TypeScript, and backend projects. An optional `--max-warm-open-ms=250` makes the command fail if a cached reopen exceeds that limit; this is a local investigation aid, not a timing assertion in CI. Compare the same build profile on the same machine. Cold opens still compile and analyze the project; this does not provide incremental parsing or semantic analysis.
