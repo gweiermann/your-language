@@ -608,6 +608,29 @@ impl Layout {
                 self.breaks.insert(tokens[first].span.start, true);
             }
         }
+        // Blank lines terminate documentation attachment. Keep them even when
+        // ordinary leading-comment layout would move the declaration boundary.
+        for pair in tokens.windows(2) {
+            let [comment, next] = pair else {
+                unreachable!()
+            };
+            if matches!(comment.kind, TokenKind::Comment)
+                && source[comment.span.start..comment.span.end].starts_with("///")
+                && (source[comment.span.end..next.span.start]
+                    .bytes()
+                    .filter(|&byte| byte == b'\n')
+                    .count()
+                    > 1
+                    || !source[source[..comment.span.start]
+                        .rfind('\n')
+                        .map_or(0, |index| index + 1)
+                        ..comment.span.start]
+                        .trim()
+                        .is_empty())
+            {
+                self.breaks.insert(next.span.start, true);
+            }
+        }
     }
     fn render(&self, tokens: &[Token], source: &str) -> String {
         let mut output = Writer::default();

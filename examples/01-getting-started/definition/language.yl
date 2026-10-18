@@ -1,7 +1,9 @@
+/// Captures the name introduced by a declaration.
 node Name = value: /[A-Za-z_][A-Za-z_0-9]*/
 
 node Number = value: /[0-9]+/
 
+/// Recognizes one variable declaration with a numeric initializer.
 node Declaration =
     "let"
     name: Name

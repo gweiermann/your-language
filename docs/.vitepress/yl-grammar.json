@@ -3,6 +3,7 @@
   "displayName": "Your Language",
   "scopeName": "source.yl",
   "patterns": [
+    { "name": "comment.line.documentation.yl", "begin": "///", "end": "$" },
     { "name": "comment.line.double-slash.yl", "begin": "//", "end": "$" },
     { "name": "comment.block.yl", "begin": "/\\*", "end": "\\*/" },
     { "name": "string.quoted.double.yl", "begin": "\"", "end": "\"", "patterns": [{ "name": "constant.character.escape.yl", "match": "\\\\." }] },

@@ -82,8 +82,16 @@ pub struct Module {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Declaration {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub documentation: Option<Documentation>,
     pub export: bool,
     pub kind: DeclKind,
+    pub span: Span,
+}
+/// Authoring documentation; never a target-language AST field or grammar matcher.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Documentation {
+    pub text: String,
     pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

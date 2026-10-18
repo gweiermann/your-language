@@ -56,6 +56,34 @@ Block comments are delimited by `/*` and `*/`. An unterminated comment is a defi
 
 Comments in YL files do not configure comments in target source. Declare target comments using `trivia` or ordinary grammar.
 
+### Documentation comments
+
+Use `///` on its own line immediately before a declaration to document it:
+
+```yl
+/// Matches a decimal integer.
+///
+/// The captured text is retained in the AST.
+export node Number = value: /[0-9]+/
+```
+
+Consecutive documentation lines attach to the following declaration, including
+local or nested nodes, patterns, operations, hooks, symbols, and enums. The
+frontend exposes `Declaration.documentation` with its text and original source
+span. Each line loses its `///` prefix and at most one following space; remaining
+text and paragraph breaks are preserved. Use an empty `///` line for a paragraph.
+
+A blank source line, ordinary comment, or other token breaks attachment. Trailing
+inline or dangling `///` comments remain ordinary unattached comments. They do
+not cause errors or attach to an earlier declaration. `/** ... */` remains an
+ordinary block comment.
+
+The formatter preserves documentation text and attachment. The language server
+shows documentation when hovering the declaration's name in a YL definition.
+Hovering references or imported names is not supported yet. Documentation is
+frontend authoring metadata, not a target AST field, parser rule, or `.ylc`
+execution instruction; existing artifact versions remain unchanged.
+
 ## String literals
 
 Double-quoted strings match exact target text:

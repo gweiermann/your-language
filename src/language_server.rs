@@ -102,7 +102,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         id,
         json!({"capabilities": {
         "positionEncoding":"utf-16", "textDocumentSync":{"openClose":true,"change":1},
-        "documentFormattingProvider":true, "inlayHintProvider":true, "codeLensProvider":{"resolveProvider":false},
+        "documentFormattingProvider":true, "hoverProvider":true, "inlayHintProvider":true, "codeLensProvider":{"resolveProvider":false},
         "semanticTokensProvider":{"legend":{"tokenTypes":TOKEN_TYPES,"tokenModifiers":[]},"full":true}
     },"serverInfo":{"name":"Your Language","version":env!("CARGO_PKG_VERSION")}}),
     )?;
@@ -751,6 +751,15 @@ impl Workspace {
                 });
                 Ok(json!({"matches":project.is_some()}))
             }
+            "textDocument/hover" => {
+                if !is_yl(uri) {
+                    return Ok(Value::Null);
+                }
+                Ok(self
+                    .source(uri)
+                    .and_then(|source| documentation_hover(uri, &source, &params["position"]))
+                    .unwrap_or(Value::Null))
+            }
             "textDocument/semanticTokens/full" => Ok(self
                 .tokens
                 .get(uri)
@@ -806,6 +815,64 @@ impl Workspace {
         }
     }
 }
+/// Declaration-site documentation only: imported names and arbitrary identifier
+/// references require resolution and must not guess based on matching spellings.
+fn documentation_hover(uri: &str, source: &str, point: &Value) -> Option<Value> {
+    fn visit(
+        declarations: &[crate::syntax::Declaration],
+        tokens: &[crate::lexer::Token],
+        source: &str,
+        point: &Value,
+    ) -> Option<Value> {
+        for declaration in declarations {
+            if let DeclKind::Node { members, .. } = &declaration.kind {
+                if let Some(hover) = visit(members, tokens, source, point) {
+                    return Some(hover);
+                }
+            }
+            let Some(docs) = &declaration.documentation else {
+                continue;
+            };
+            let name = match &declaration.kind {
+                DeclKind::Node { name, .. }
+                | DeclKind::Pattern { name, .. }
+                | DeclKind::Operation { name, .. }
+                | DeclKind::Hook { name, .. }
+                | DeclKind::Symbol { name }
+                | DeclKind::Enum { name, .. }
+                | DeclKind::Pipe { name, .. }
+                | DeclKind::Constraint { name, .. }
+                | DeclKind::Extend { name, .. } => name,
+                _ => continue,
+            };
+            let header = tokens.partition_point(|token| token.span.start < declaration.span.start);
+            // Skip the declaration keyword and optional export before finding its name.
+            let skip = usize::from(declaration.export) + 1;
+            let token = tokens.get(header + skip)?;
+            if !matches!(&token.kind, crate::lexer::TokenKind::Word(word) if word == name) {
+                continue;
+            }
+            let start = position(source, token.span.start);
+            let end = position(source, token.span.end);
+            let coordinates = |value: &Value| (value["line"].as_u64(), value["character"].as_u64());
+            if coordinates(&start) <= coordinates(point) && coordinates(point) < coordinates(&end) {
+                let signature = source[declaration.span.start..declaration.span.end]
+                    .lines()
+                    .next()
+                    .unwrap_or("");
+                return Some(
+                    json!({"contents":[{"language":"yl","value":signature}, docs.text],
+                    "range":{"start":start,"end":end}}),
+                );
+            }
+        }
+        None
+    }
+    let module = parse_yl(uri, source).ok()?;
+    let tokens = crate::lexer::lex(uri, source).ok()?;
+    visit(&module.declarations, &tokens, source, point)
+}
+
 /// LSP has one range per diagnostic. Publish linked entries so every annotation
 /// gets a squiggle, retaining the single engine diagnostic's identity in `data`.
 fn grouped_diagnostic_publications(
@@ -854,6 +921,24 @@ fn remap(diagnostic: &Diagnostic, paths: &BTreeMap<String, String>) -> Diagnosti
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn declaration_hover_shows_docs_and_does_not_guess_reference_resolution() {
+        let source = "/// A number.\nexport node Number = /[0-9]+/\npattern Item = Number\n";
+        let hover =
+            documentation_hover("test.yl", source, &json!({"line":1,"character":15})).unwrap();
+        assert_eq!(hover["contents"][1], "A number.");
+        assert_eq!(hover["range"]["start"]["character"], 12);
+        assert!(
+            documentation_hover("test.yl", source, &json!({"line":2,"character":17})).is_none()
+        );
+        assert!(documentation_hover(
+            "test.yl",
+            "/// docs\nnode",
+            &json!({"line":1,"character":1})
+        )
+        .is_none());
+    }
+
     #[test]
     fn grouped_diagnostics_publish_each_highlight_with_shared_identity() {
         use crate::diagnostic::{DiagnosticAnnotation, Span};
