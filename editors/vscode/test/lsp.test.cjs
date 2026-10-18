@@ -230,3 +230,35 @@ entry Root { trivia Space }`;
     assert.deepEqual((await tokens()).data,[]);
     s.change(configUri,'broken',3);assert.ok((await s.diagnostic(configUri,3)).diagnostics.some(d=>d.code==='yl.project'));
 });
+
+test('cached program results survive reopen and invalidate on closed import disk edits', async t => {
+    const dir = await mkdtemp(join(tmpdir(), 'yl-reopen~lsp-'));
+    t.after(() => rm(dir, {recursive: true, force: true}));
+    const entry = join(dir, 'language.yl'), helper = join(dir, 'value.yl');
+    await writeFile(join(dir, 'yl.json'), JSON.stringify({entry: 'language.yl', files: ['*.txt']}));
+    await writeFile(entry, 'import { Value } from "./value"\nnode Root = Value\nentry Root');
+    await writeFile(helper, 'export pattern Value = /[0-9]+/ { ide { highlightAs "number" } }');
+    const uri = pathToFileURL(join(dir, 'program.txt')).href;
+    const dep = pathToFileURL(helper).href;
+    const s = await session(t);
+    const tokens = () => s.connection.sendRequest('textDocument/semanticTokens/full', {textDocument: {uri}});
+    s.open(uri, '42');
+    assert.deepEqual((await s.diagnostic(uri, 1)).diagnostics, []);
+    const initial = await tokens();
+    assert.ok(initial.data.length);
+    await s.connection.sendNotification('textDocument/didClose', {textDocument: {uri}});
+    assert.deepEqual((await tokens()).data, []);
+    s.open(uri, '42', 2);
+    assert.deepEqual((await s.diagnostic(uri, 2)).diagnostics, []);
+    assert.deepEqual(await tokens(), initial);
+    s.open(dep, 'export pattern Value = /[0-9]+/ { ide { highlightAs "string" } }');
+    await s.diagnostic(dep, 1);
+    assert.notDeepEqual(await tokens(), initial);
+    await s.connection.sendNotification('textDocument/didClose', {textDocument: {uri: dep}});
+    assert.deepEqual(await tokens(), initial);
+    await writeFile(helper, 'export pattern Value = /[a-z]+/');
+    await s.connection.sendNotification('workspace/didChangeWatchedFiles', {changes: [{uri: dep, type: 2}]});
+    // The token request is a barrier for watched-file processing.
+    assert.deepEqual((await tokens()).data, []);
+    assert.ok(s.notices.findLast(p => p.uri === uri).diagnostics.some(d => d.code.startsWith('parse.')));
+});

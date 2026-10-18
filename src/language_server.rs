@@ -35,8 +35,29 @@ struct Workspace {
     display: ExampleDisplay,
     tokens: BTreeMap<String, Value>,
     compiled: BTreeMap<String, CachedLanguage>,
+    programs: BTreeMap<String, CachedProgram>,
+    cache_epoch: u64,
+    #[cfg(test)]
+    work: WorkCounts,
+}
+#[cfg(test)]
+#[derive(Default, Debug, PartialEq)]
+struct WorkCounts {
+    compilations: usize,
+    analyses: usize,
+    highlights: usize,
+}
+// Retain a small working set across close/reopen without retaining analysis graphs.
+const CACHE_ENTRIES: usize = 16;
+struct CachedProgram {
+    language: std::sync::Weak<CompiledLanguage>,
+    source: String,
+    diagnostics: Vec<Diagnostic>,
+    tokens: Value,
+    used: u64,
 }
 struct CachedLanguage {
+    used: u64,
     sources: BTreeMap<String, String>,
     result: Result<Arc<CompiledLanguage>, Vec<Diagnostic>>,
 }
@@ -344,6 +365,18 @@ fn semantic_tokens(source: &str, spans: Vec<crate::HighlightSpan>) -> Value {
 fn notification(method: &str, params: Value) -> Notification {
     Notification::new(method.into(), params)
 }
+fn trim_cache<T>(cache: &mut BTreeMap<String, T>, used: impl Fn(&T) -> u64) {
+    while cache.len() > CACHE_ENTRIES {
+        let oldest = cache
+            .iter()
+            .min_by_key(|(_, value)| used(value))
+            .map(|(key, _)| key.clone());
+        if let Some(oldest) = oldest {
+            cache.remove(&oldest);
+        }
+    }
+}
+
 impl Workspace {
     fn uri_for_path(&self, path: &Path) -> Option<String> {
         self.documents
@@ -415,6 +448,7 @@ impl Workspace {
             .or_else(|| std::fs::read_to_string(file_path(uri)?).ok())
     }
     fn analyze(&mut self) -> Vec<Notification> {
+        self.cache_epoch = self.cache_epoch.wrapping_add(1);
         self.hints.clear();
         self.lenses.clear();
         self.tokens.clear();
@@ -470,7 +504,6 @@ impl Workspace {
                 Err(errors) => self.add_diagnostics(&errors, &sources, &mut diagnostics),
             }
         }
-        self.compiled.retain(|entry, _| roots.contains(entry));
         for entry_uri in roots {
             if self.source(&entry_uri).is_none() {
                 diagnostics
@@ -526,18 +559,25 @@ impl Workspace {
                 .get(&entry_uri)
                 .is_none_or(|cached| cached.sources != graph);
             if needs_compile {
+                #[cfg(test)]
+                {
+                    self.work.compilations += 1;
+                }
                 let result = SemanticEngine::default()
                     .compile(&entry_id, &graph)
                     .map(Arc::new);
                 self.compiled.insert(
                     entry_uri.clone(),
                     CachedLanguage {
+                        used: self.cache_epoch,
                         sources: graph,
                         result,
                     },
                 );
             }
-            let result = self.compiled[&entry_uri].result.clone();
+            let cached = self.compiled.get_mut(&entry_uri).expect("compiled entry");
+            cached.used = self.cache_epoch;
+            let result = cached.result.clone();
             match result {
                 Ok(language) => {
                     let errors = language
@@ -550,17 +590,43 @@ impl Workspace {
                         let Some(source) = sources.get(uri) else {
                             continue;
                         };
-                        let analysis = SemanticEngine::default().analyze(&language, uri, source);
-                        let errors = analysis
+                        let reusable = self.programs.get(uri).is_some_and(|cached| {
+                            cached.source == *source
+                                && cached
+                                    .language
+                                    .upgrade()
+                                    .is_some_and(|previous| Arc::ptr_eq(&previous, &language))
+                        });
+                        if !reusable {
+                            #[cfg(test)]
+                            {
+                                self.work.analyses += 1;
+                                self.work.highlights += 1;
+                            }
+                            let analysis =
+                                SemanticEngine::default().analyze(&language, uri, source);
+                            let tokens =
+                                semantic_tokens(source, language.highlight_named(uri, source));
+                            self.programs.insert(
+                                uri.clone(),
+                                CachedProgram {
+                                    language: Arc::downgrade(&language),
+                                    source: source.clone(),
+                                    diagnostics: analysis.diagnostics,
+                                    tokens,
+                                    used: self.cache_epoch,
+                                },
+                            );
+                        }
+                        let cached = self.programs.get_mut(uri).expect("analyzed program");
+                        cached.used = self.cache_epoch;
+                        let errors = cached
                             .diagnostics
                             .iter()
-                            .map(|diagnostic| remap(diagnostic, &paths))
+                            .map(|d| remap(d, &paths))
                             .collect::<Vec<_>>();
+                        self.tokens.insert(uri.clone(), cached.tokens.clone());
                         self.add_diagnostics(&errors, &sources, &mut diagnostics);
-                        self.tokens.insert(
-                            uri.clone(),
-                            semantic_tokens(source, language.highlight_named(uri, source)),
-                        );
                     }
                     for Preview {
                         definition,
@@ -596,6 +662,10 @@ impl Workspace {
                 }
             }
         }
+        // Empty roots are common while switching files. Keep recent immutable
+        // languages and final document results, but cap both retained sets.
+        trim_cache(&mut self.compiled, |cached| cached.used);
+        trim_cache(&mut self.programs, |cached| cached.used);
         let now: BTreeSet<_> = diagnostics.keys().cloned().collect();
         for old in self.published.difference(&now) {
             diagnostics.insert(old.clone(), vec![]);
@@ -836,6 +906,154 @@ mod tests {
         ));
         w.update(&notification("textDocument/didChange",json!({"textDocument":{"uri":"untitled:a","version":2},"contentChanges":[{"text":"bad"}]})));
         assert_eq!(w.documents["untitled:a"].text, "x");
+    }
+    #[test]
+    fn unchanged_programs_share_completed_diagnostics_and_tokens() {
+        let directory = std::env::temp_dir().join("yl-program-cache-unit-test");
+        let entry = file_uri(&directory.join("language.yl")).unwrap();
+        let config = file_uri(&directory.join("yl.json")).unwrap();
+        let first = file_uri(&directory.join("first.txt")).unwrap();
+        let second = file_uri(&directory.join("second.txt")).unwrap();
+        let mut workspace = Workspace::default();
+        for (uri, text) in [
+            (
+                &entry,
+                "node Root = /[0-9]+/ { ide { highlightAs \"number\" } } entry Root",
+            ),
+            (&config, r#"{"entry":"language.yl","files":["*.txt"]}"#),
+            (&first, "42"),
+        ] {
+            workspace.update(&notification(
+                "textDocument/didOpen",
+                json!({"textDocument":{"uri":uri,"text":text,"version":1}}),
+            ));
+        }
+        workspace.analyze();
+        let tokens = workspace.tokens[&first].clone();
+        workspace.update(&notification(
+            "textDocument/didOpen",
+            json!({"textDocument":{"uri":second,"text":"43","version":1}}),
+        ));
+        workspace.analyze();
+        assert_eq!(
+            workspace.work,
+            WorkCounts {
+                compilations: 1,
+                analyses: 2,
+                highlights: 2
+            }
+        );
+        assert_eq!(workspace.tokens[&first], tokens);
+        workspace.update(&notification(
+            "textDocument/didChange",
+            json!({"textDocument":{"uri":first,"version":2},"contentChanges":[{"text":"42"}]}),
+        ));
+        let publications = workspace.analyze();
+        assert_eq!(workspace.work.analyses, 2);
+        assert!(publications
+            .iter()
+            .any(|p| p.params["uri"] == first && p.params["version"] == 2));
+        workspace.update(&notification(
+            "textDocument/didChange",
+            json!({"textDocument":{"uri":first,"version":3},"contentChanges":[{"text":"?"}]}),
+        ));
+        let publications = workspace.analyze();
+        assert_eq!(workspace.work.analyses, 3);
+        assert!(publications
+            .iter()
+            .any(|p| p.params["uri"] == first
+                && !p.params["diagnostics"].as_array().unwrap().is_empty()));
+        workspace.update(&notification("textDocument/didChange",
+            json!({"textDocument":{"uri":entry,"version":2},"contentChanges":[{"text":"node Root = /[a-z]+/ entry Root"}]})));
+        workspace.analyze();
+        assert_eq!(
+            workspace.work,
+            WorkCounts {
+                compilations: 2,
+                analyses: 5,
+                highlights: 5
+            }
+        );
+    }
+    #[test]
+    fn close_reopen_reuses_results_and_disk_import_changes_invalidate_them() {
+        let directory =
+            std::env::temp_dir().join(format!("yl-reopen-cache-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(
+            directory.join("yl.json"),
+            r#"{"entry":"language.yl","files":["*.txt"]}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            directory.join("language.yl"),
+            "import { Item } from \"./item\" node Root = Item entry Root",
+        )
+        .unwrap();
+        std::fs::write(
+            directory.join("item.yl"),
+            "export pattern Item = /[0-9]+/ { ide { highlightAs \"number\" } }",
+        )
+        .unwrap();
+        let uri = file_uri(&directory.join("program.txt")).unwrap();
+        let mut workspace = Workspace::default();
+        let open = |version| {
+            notification(
+                "textDocument/didOpen",
+                json!({"textDocument":{"uri":uri,"text":"42","version":version}}),
+            )
+        };
+        workspace.update(&open(1));
+        workspace.analyze();
+        let initial_tokens = workspace.tokens[&uri].clone();
+        workspace.update(&notification(
+            "textDocument/didClose",
+            json!({"textDocument":{"uri":uri}}),
+        ));
+        workspace.analyze();
+        assert!(workspace.tokens.is_empty());
+        workspace.update(&open(2));
+        workspace.analyze();
+        assert_eq!(
+            workspace.work,
+            WorkCounts {
+                compilations: 1,
+                analyses: 1,
+                highlights: 1
+            }
+        );
+        assert_eq!(workspace.tokens[&uri], initial_tokens);
+        std::fs::write(directory.join("item.yl"), "export pattern Item = /[a-z]+/").unwrap();
+        workspace.update(&notification(
+            "workspace/didChangeWatchedFiles",
+            json!({"changes":[]}),
+        ));
+        let publications = workspace.analyze();
+        assert_eq!(
+            workspace.work,
+            WorkCounts {
+                compilations: 2,
+                analyses: 2,
+                highlights: 2
+            }
+        );
+        assert!(publications
+            .iter()
+            .any(|p| p.params["uri"] == uri
+                && !p.params["diagnostics"].as_array().unwrap().is_empty()));
+        assert_eq!(workspace.tokens[&uri], json!({"data":[]}));
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+    #[test]
+    fn retained_caches_evict_least_recently_used_entries() {
+        let mut cache = (0..CACHE_ENTRIES + 3)
+            .map(|index| (index.to_string(), index as u64))
+            .collect();
+        trim_cache(&mut cache, |used| *used);
+        assert_eq!(cache.len(), CACHE_ENTRIES);
+        assert!(!cache.contains_key("0"));
+        assert!(!cache.contains_key("2"));
+        assert!(cache.contains_key("3"));
     }
     #[test]
     fn program_edits_reuse_compiled_graph_but_definition_edits_invalidate_it() {
