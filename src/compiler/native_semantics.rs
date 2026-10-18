@@ -13,7 +13,7 @@ impl Compiler {
             .map(|call| self.lower_meaning_call(symbol, call))
             .collect()
     }
-    pub(super) fn lower_meaning_call(
+    fn lower_meaning_call(
         &self,
         symbol: &DeclarationSymbol,
         call: &MeaningSyntaxCall,
@@ -152,7 +152,7 @@ impl Compiler {
             span: call.span.clone(),
         })
     }
-    pub(super) fn lower_meaning_query(
+    fn lower_meaning_query(
         &self,
         symbol: &DeclarationSymbol,
         syntax: &MeaningSyntaxCall,
@@ -193,7 +193,7 @@ impl Compiler {
         }
         Ok(call)
     }
-    pub(super) fn lower_meaning_value(
+    fn lower_meaning_value(
         &self,
         symbol: &DeclarationSymbol,
         expr: &Expr,

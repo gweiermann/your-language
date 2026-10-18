@@ -3,7 +3,7 @@
 use super::*;
 
 impl Parser {
-    pub(super) fn condition_expression(&mut self, minimum: u8) -> Result<Expr> {
+    fn condition_expression(&mut self, minimum: u8) -> Result<Expr> {
         self.depth += 1;
         if self.depth > 128 {
             return Err(self.error("yl.depth_limit", "Condition nesting exceeds resource limit"));

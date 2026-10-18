@@ -31,14 +31,17 @@ mod tooling;
 mod validation;
 mod wrappers;
 
-use capture_shapes::*;
+use capture_shapes::{
+    capture_sets, capture_terms, captures, find_marker, marker_value_cardinality, node_term,
+    rule_capture_sets, string_term, valid_cardinality, validate_projections, value_shape,
+};
 pub(crate) use capture_validation::validate_meaning_captures;
 use capture_validation::{
     meaning_value_matches, semantic_has_context_query, semantic_has_query, symbol_has_capture,
 };
-use condition_validation::*;
-use rewrite_diagnostics::*;
-use substitution::*;
+use condition_validation::{validate_condition, ConditionType};
+use rewrite_diagnostics::validate_case_emission;
+use substitution::{bind_constraint, substitute, ungroup};
 use term_edges::edge_ref;
 pub(crate) use validation::{
     reject_retired_standard_operation, validate_language, validate_meaning_definitions,

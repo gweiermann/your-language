@@ -99,7 +99,7 @@ impl Parser {
     pub(super) fn semantic_value(&mut self) -> Result<Expr> {
         self.semantic_binary(0)
     }
-    pub(super) fn semantic_binary(&mut self, minimum: u8) -> Result<Expr> {
+    fn semantic_binary(&mut self, minimum: u8) -> Result<Expr> {
         let mut left = self.semantic_atom()?;
         loop {
             let (operator, precedence) = if self.is("||") {
@@ -123,7 +123,7 @@ impl Parser {
         // Left-associative operator chains also contribute to the AST resource bound.
         self.semantic_indexes(left)
     }
-    pub(super) fn semantic_atom(&mut self) -> Result<Expr> {
+    fn semantic_atom(&mut self) -> Result<Expr> {
         let start = self.token().span.clone();
         self.depth += 1;
         if self.depth > 128 {
@@ -231,7 +231,7 @@ impl Parser {
         self.depth -= 1;
         Ok(value)
     }
-    pub(super) fn semantic_indexes(&mut self, mut value: Expr) -> Result<Expr> {
+    fn semantic_indexes(&mut self, mut value: Expr) -> Result<Expr> {
         // Postfix chains can be combined through groups without increasing parser
         // call depth. Bound the resulting tree before the compiler clones it.
         let mut pending = vec![(&value, 1usize)];

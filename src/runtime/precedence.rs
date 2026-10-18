@@ -61,7 +61,7 @@ impl Runtime<'_> {
         }
         Some(left)
     }
-    pub(super) fn operator(
+    fn operator(
         &mut self,
         family: u32,
         operator: &ImageOperator,

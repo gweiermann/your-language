@@ -142,7 +142,7 @@ impl Compiler {
     ) -> Result<String> {
         self.resolve_depth(module, scope, name, span, 0)
     }
-    pub(super) fn resolve_depth(
+    fn resolve_depth(
         &self,
         module: &str,
         scope: &str,

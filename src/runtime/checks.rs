@@ -23,7 +23,7 @@ impl Runtime<'_> {
         }
         matched
     }
-    pub(super) fn evaluate_condition(
+    fn evaluate_condition(
         &mut self,
         condition: u32,
         fields: &BTreeMap<String, Captured>,

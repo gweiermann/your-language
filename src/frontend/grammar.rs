@@ -85,7 +85,7 @@ impl Parser {
             })
         }
     }
-    pub(super) fn sequence(&mut self) -> Result<Expr> {
+    fn sequence(&mut self) -> Result<Expr> {
         let first = self.capture()?;
         let start = first.span.clone();
         let mut items = vec![first];
@@ -101,7 +101,7 @@ impl Parser {
             })
         }
     }
-    pub(super) fn starts_expression(&self) -> bool {
+    fn starts_expression(&self) -> bool {
         if self.boundary() || self.is("rewrite") || self.is("precedence") || self.is("checks") {
             return false;
         }
@@ -124,7 +124,7 @@ impl Parser {
         ) || self.is("(")
             || self.is(".")
     }
-    pub(super) fn capture(&mut self) -> Result<Expr> {
+    fn capture(&mut self) -> Result<Expr> {
         if matches!(self.peek(0), TokenKind::Word(_))
             && matches!(self.peek(1),TokenKind::Symbol(s) if s==":")
         {
@@ -140,7 +140,7 @@ impl Parser {
             self.pipeline()
         }
     }
-    pub(super) fn pipeline(&mut self) -> Result<Expr> {
+    fn pipeline(&mut self) -> Result<Expr> {
         let mut value = self.atom()?;
         let start = value.span.clone();
         loop {

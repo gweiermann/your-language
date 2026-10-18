@@ -153,7 +153,7 @@ impl Compiler {
         }
         Ok(())
     }
-    pub(super) fn validate_expr(
+    fn validate_expr(
         &self,
         symbol: &DeclarationSymbol,
         expr: &Expr,

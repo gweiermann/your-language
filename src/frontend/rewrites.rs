@@ -56,7 +56,7 @@ impl Parser {
         self.expect("}")?;
         Ok(cases)
     }
-    pub(super) fn is_diagnostic_call(&self) -> bool {
+    fn is_diagnostic_call(&self) -> bool {
         let mut position = self.position;
         let Some(Token {
             kind: TokenKind::Word(first),

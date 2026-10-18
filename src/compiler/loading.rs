@@ -142,7 +142,7 @@ impl Compiler {
     }
 }
 
-pub(super) fn module_id(path: &Path, root: &Path) -> String {
+fn module_id(path: &Path, root: &Path) -> String {
     let target: Vec<_> = path.components().collect();
     let base: Vec<_> = root.components().collect();
     let common = target.iter().zip(&base).take_while(|(a, b)| a == b).count();
@@ -160,7 +160,7 @@ pub(super) fn module_id(path: &Path, root: &Path) -> String {
 }
 /// Reserved standard modules have stable IDs in filesystem and in-memory graphs.
 /// The historical variables spelling denotes the same module, not a second copy.
-pub(super) fn standard_module(path: &str) -> Option<&'static str> {
+fn standard_module(path: &str) -> Option<&'static str> {
     match path {
         "std/parser" => Some("std/parser"),
         "std/references" | "std/variables" => Some("std/references"),
@@ -171,7 +171,7 @@ pub(super) fn standard_module(path: &str) -> Option<&'static str> {
         _ => None,
     }
 }
-pub(super) fn standard_source(id: &str) -> Option<&'static str> {
+fn standard_source(id: &str) -> Option<&'static str> {
     match id {
         "std/parser" => Some(include_str!("../../stdlib/parser.yl")),
         "std/references" => Some(include_str!("../../stdlib/references.yl")),
@@ -182,7 +182,7 @@ pub(super) fn standard_source(id: &str) -> Option<&'static str> {
         _ => None,
     }
 }
-pub(super) fn import_path(module: &str, path: &str) -> String {
+fn import_path(module: &str, path: &str) -> String {
     if let Some(id) = standard_module(path) {
         return id.into();
     }

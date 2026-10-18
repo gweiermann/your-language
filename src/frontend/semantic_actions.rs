@@ -11,7 +11,7 @@ impl Parser {
         self.expect("}")?;
         Ok(actions)
     }
-    pub(super) fn meaning_action(&mut self) -> Result<MeaningSyntaxAction> {
+    fn meaning_action(&mut self) -> Result<MeaningSyntaxAction> {
         let start = self.token().span.clone();
         self.depth += 1;
         if self.depth > 128 {
@@ -62,7 +62,7 @@ impl Parser {
         self.depth -= 1;
         Ok(action)
     }
-    pub(super) fn meaning_call(&mut self) -> Result<MeaningSyntaxCall> {
+    fn meaning_call(&mut self) -> Result<MeaningSyntaxCall> {
         let start = self.token().span.clone();
         let name = self.path()?;
         let arguments = self.semantic_arguments()?;
@@ -72,7 +72,7 @@ impl Parser {
             span: self.span_from(&start),
         })
     }
-    pub(super) fn meaning_match(&mut self, start: Span) -> Result<MeaningSyntaxMatch> {
+    fn meaning_match(&mut self, start: Span) -> Result<MeaningSyntaxMatch> {
         self.expect("(")?;
         let mut inputs = vec![self.semantic_value()?];
         while self.take(",") {
@@ -178,7 +178,7 @@ impl Parser {
             example,
         ))
     }
-    pub(super) fn example(&mut self) -> Result<Example> {
+    fn example(&mut self) -> Result<Example> {
         let start = self.tokens[self.position.saturating_sub(1)].span.clone();
         let token = self.bump();
         if let TokenKind::String(text) = token.kind {

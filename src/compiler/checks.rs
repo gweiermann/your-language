@@ -196,7 +196,7 @@ impl Compiler {
     pub(super) fn condition(&self, module: &str, scope: &str, expr: &Expr) -> Result<Condition> {
         self.condition_depth(module, scope, expr, 0)
     }
-    pub(super) fn condition_depth(
+    fn condition_depth(
         &self,
         module: &str,
         scope: &str,

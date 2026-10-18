@@ -68,6 +68,7 @@ export default defineConfig({
       ] },
       { text: 'Project', items: [
         { text: 'Roadmap', link: '/roadmap' },
+        { text: 'Engine source guide', link: '/guide/engine-architecture' },
         { text: 'Documentation development', link: '/guide/documentation' },
       ] },
     ],

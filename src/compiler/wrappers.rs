@@ -100,7 +100,7 @@ impl Compiler {
     }
     /// Charge every copied expression/action against the per-compilation expansion budget.
     /// Count nested action payloads as well as expression children to bound pathological wrappers.
-    pub(super) fn charge_semantic_copy(&self, expr: &Expr) -> Result<()> {
+    fn charge_semantic_copy(&self, expr: &Expr) -> Result<()> {
         const LIMIT: usize = 1_000_000;
         let mut nodes = vec![expr];
         let mut count = self.expansion_nodes.get();

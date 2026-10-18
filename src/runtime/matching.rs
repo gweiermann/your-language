@@ -87,7 +87,7 @@ impl Runtime<'_> {
         self.partial_highlights = saved;
         end
     }
-    pub(super) fn skip_inner(&mut self, mut position: usize) -> usize {
+    fn skip_inner(&mut self, mut position: usize) -> usize {
         let farthest = self.farthest;
         let expected = self.expected.clone();
         loop {

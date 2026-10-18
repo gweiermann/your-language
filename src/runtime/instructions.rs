@@ -25,7 +25,7 @@ impl Runtime<'_> {
         }
         matched
     }
-    pub(super) fn term_inner(
+    fn term_inner(
         &mut self,
         term_id: u32,
         position: usize,
