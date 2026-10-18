@@ -56,5 +56,9 @@ test('packaged grammar equals docs source and tokenizes representative YL syntax
   scope('backend { add(left, right) }', 'backend', 'keyword.control.yl');
   scope('// node fake', 'node', 'comment.line.double-slash.yl');
   scope('"node \\"literal\\""', 'node', 'string.quoted.double.yl');
+  scope("/// A documented node.", "documented", "comment.line.documentation.yl");
+  scope("/** A documented node. */", "documented", "comment.block.documentation.yl");
+  scope("/**/ node Empty", "node", "keyword.control.yl");
+  scope("/* ordinary */", "ordinary", "comment.block.yl");
   registry.dispose();
 });

@@ -262,3 +262,26 @@ test('cached program results survive reopen and invalidate on closed import disk
     assert.deepEqual((await tokens()).data, []);
     assert.ok(s.notices.findLast(p => p.uri === uri).diagnostics.some(d => d.code.startsWith('parse.')));
 });
+
+
+test('declaration documentation hover uses unsaved buffers and leaves target programs alone', async t => {
+    const s = await session(t);
+    const uri = 'untitled:documented.yl';
+    const source = '/// Matches a decimal number.\n///\n/// Retains its text.\nexport node Number = /[0-9]+/\nentry Number\n';
+    s.open(uri, source);
+    await s.diagnostic(uri, 1);
+    const hover = await s.connection.sendRequest('textDocument/hover', {
+        textDocument: {uri}, position: {line: 3, character: 14},
+    });
+    assert.equal(hover.contents[1], 'Matches a decimal number.\n\nRetains its text.');
+    assert.equal(hover.range.start.character, 12);
+    s.change(uri, '/**\n * A block paragraph.\n *\n * Another paragraph.\n */\nexport node Number = /[0-9]+/\nentry Number\n', 2);
+    await s.diagnostic(uri, 2);
+    const blockHover = await s.connection.sendRequest('textDocument/hover', {
+        textDocument: {uri}, position: {line: 5, character: 14},
+    });
+    assert.equal(blockHover.contents[1], 'A block paragraph.\n\nAnother paragraph.');
+    assert.equal(await s.connection.sendRequest('textDocument/hover', {
+        textDocument: {uri}, position: {line: 4, character: 8},
+    }), null);
+});

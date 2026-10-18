@@ -40,6 +40,14 @@ Run **Format Document** or enable formatting on save:
 
 The server uses the buffer formatter directly. Diagnostics appear as underlines and in Problems. Changes invalidate stale responses; cancellation suppresses responses while in-progress analysis completes.
 
+## Declaration documentation
+
+Write `/** ... */` documentation immediately above a declaration and hover its
+name to read it alongside its definition signature. Conventional leading `*`
+margins and blank paragraph lines are supported. `///` comments also work.
+This works for local, exported, and nested declarations; reference and imported-name
+hover resolution is not implemented. See [documentation comments](../reference/lexical-syntax#documentation-comments).
+
 ## Example hints
 
 Examples appear above each declaration as a CodeLens label, such as `example: let name = 42 ;`. Click the label to copy the complete example. This is an editor overlay and does not insert a comment into the source. Long labels are shortened and line breaks are displayed as `\n`; copying preserves the full original text.

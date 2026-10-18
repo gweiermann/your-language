@@ -17,6 +17,67 @@ pub struct Token {
     pub span: Span,
 }
 
+/// Classify source comments, not regex or string tokens containing these spellings.
+pub(crate) fn is_documentation_comment(raw: &str) -> bool {
+    raw.starts_with("///") || raw.starts_with("/**")
+}
+
+/// Normalize documentation for presentation while the token retains its raw span.
+pub(crate) fn documentation_text(raw: &str) -> Option<String> {
+    if let Some(line) = raw.strip_prefix("///") {
+        return Some(line.strip_prefix(' ').unwrap_or(line).to_owned());
+    }
+    if !raw.starts_with("/**") || !raw.ends_with("*/") {
+        return None;
+    }
+    // In /**/ the opening and closing markers overlap at the second star.
+    if raw.len() <= 5 {
+        return Some(String::new());
+    }
+    let lines: Vec<&str> = raw[3..raw.len() - 2]
+        .lines()
+        .enumerate()
+        .map(|(index, line)| {
+            let line = line.trim_end();
+            if index == 0 {
+                return line.trim_start();
+            }
+            let margin = line.trim_start();
+            if let Some(content) = margin.strip_prefix('*') {
+                content.strip_prefix(' ').unwrap_or(content)
+            } else {
+                line
+            }
+        })
+        .collect();
+    let start = lines
+        .iter()
+        .position(|line| !line.is_empty())
+        .unwrap_or(lines.len());
+    let end = lines
+        .iter()
+        .rposition(|line| !line.is_empty())
+        .map_or(start, |index| index + 1);
+    let lines = &lines[start..end];
+    let indent = lines
+        .iter()
+        .filter(|line| !line.is_empty())
+        .map(|line| line.chars().take_while(|ch| ch.is_whitespace()).count())
+        .min()
+        .unwrap_or(0);
+    Some(
+        lines
+            .iter()
+            .map(|line| {
+                line.char_indices()
+                    .nth(indent)
+                    .map_or("", |(start, _)| &line[start..])
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
+}
+
 pub fn lex(file: &str, source: &str) -> Result<Vec<Token>, Diagnostic> {
     tokenize(file, source, false)
 }
