@@ -1,5 +1,7 @@
 //! Declarative contribution discovery and dependency evaluation over syntax identities.
 use super::*;
+#[path = "queries/memo.rs"]
+mod memo;
 use crate::image::query::{Action, ActionId, Case, Expr, ExprId, MessagePart, Opcode, QueryImage};
 use std::collections::BTreeSet;
 use std::{cell::RefCell, rc::Rc};
@@ -118,7 +120,7 @@ pub struct QueryDependency {
     pub waits_for: Vec<usize>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 enum Outcome {
     Pending,
     Ready(SemanticValue),
@@ -236,7 +238,40 @@ impl Pattern {
     }
 }
 
+/// Exact instantiated keys have a direct index. Partially known families retain
+/// a residual footprint check; an opaque key never suppresses a possible writer.
 #[derive(Clone, Default)]
+struct CandidateIndex {
+    exact: BTreeMap<QueryKey, Vec<usize>>,
+    residual: Vec<usize>,
+}
+impl CandidateIndex {
+    fn new(producers: &[Producer<'_>]) -> Self {
+        let mut index = Self::default();
+        for (id, producer) in producers.iter().enumerate() {
+            if !matches!(
+                producer.effect,
+                Effect::Contribution(..) | Effect::Contributions(..)
+            ) {
+                continue;
+            }
+            match &producer.footprint {
+                Pattern::Exact(key) => index.exact.entry(key.clone()).or_default().push(id),
+                Pattern::Empty => {}
+                _ => index.residual.push(id),
+            }
+        }
+        index
+    }
+    fn candidates(&self, key: &QueryKey) -> Vec<usize> {
+        let mut ids = self.exact.get(key).cloned().unwrap_or_default();
+        ids.extend(&self.residual);
+        ids.sort_unstable();
+        ids
+    }
+}
+
+#[derive(Clone, Default, Serialize)]
 struct Trace {
     reads: BTreeSet<QueryKey>,
     waits: BTreeSet<usize>,
@@ -262,7 +297,13 @@ impl Trace {
 }
 
 type Locals = BTreeMap<String, SemanticValue>;
-type HypotheticalMemo = BTreeMap<String, (Outcome, BTreeSet<QueryKey>, Vec<Diagnostic>)>;
+type HypotheticalMemo = memo::Memo<(Outcome, Trace)>;
+struct FunctionMemo {
+    function: String,
+    snapshot_dependent: bool,
+    outcome: Outcome,
+    trace: Trace,
+}
 
 struct HypotheticalGuard(Rc<RefCell<BTreeSet<String>>>, String);
 impl Drop for HypotheticalGuard {
@@ -285,7 +326,16 @@ struct Engine<'a> {
     hypothetical_depth: usize,
     source: &'a str,
     hypothetical_cache: Rc<RefCell<HypotheticalMemo>>,
-    function_cache: RefCell<BTreeMap<String, (Outcome, Trace)>>,
+    function_cache: RefCell<memo::Memo<FunctionMemo>>,
+    lifetime_plan: crate::image::query::lifetimes::QueryPlan,
+    last_readers: BTreeMap<usize, BTreeSet<String>>,
+    candidate_index: Option<CandidateIndex>,
+    store_free_producers: BTreeSet<usize>,
+    retired_evaluations: BTreeSet<usize>,
+    #[cfg(test)]
+    cache_disabled: bool,
+    #[cfg(test)]
+    lookup_candidates: std::cell::Cell<usize>,
     function_active: RefCell<BTreeSet<String>>,
     evaluation_depth: std::cell::Cell<usize>,
     function_work: std::cell::Cell<usize>,
@@ -734,6 +784,17 @@ impl<'a> Engine<'a> {
         source: &'a str,
         ranks: &BTreeMap<(usize, usize), usize>,
     ) -> Self {
+        Self::new_with_policy(language, image, occurrences, source, ranks, true)
+    }
+
+    fn new_with_policy(
+        language: &CompiledLanguage,
+        image: &'a QueryImage,
+        occurrences: &'a [Occurrence],
+        source: &'a str,
+        ranks: &BTreeMap<(usize, usize), usize>,
+        cache_enabled: bool,
+    ) -> Self {
         fn visit<'a>(
             owner: &'a Occurrence,
             parent: Option<usize>,
@@ -759,8 +820,28 @@ impl<'a> Engine<'a> {
             hypothetical_active: Rc::default(),
             hypothetical_depth: 0,
             source,
-            hypothetical_cache: Rc::default(),
-            function_cache: RefCell::default(),
+            hypothetical_cache: Rc::new(RefCell::new(memo::Memo::new(if cache_enabled {
+                4 * 1024 * 1024
+            } else {
+                0
+            }))),
+            function_cache: RefCell::new(memo::Memo::new(if cache_enabled {
+                4 * 1024 * 1024
+            } else {
+                0
+            })),
+            lifetime_plan: image
+                .lifetimes
+                .clone()
+                .unwrap_or_else(|| crate::image::query::lifetimes::QueryPlan::compile(image)),
+            last_readers: BTreeMap::new(),
+            candidate_index: None,
+            store_free_producers: BTreeSet::new(),
+            retired_evaluations: BTreeSet::new(),
+            #[cfg(test)]
+            cache_disabled: !cache_enabled,
+            #[cfg(test)]
+            lookup_candidates: std::cell::Cell::new(0),
             function_active: RefCell::default(),
             evaluation_depth: std::cell::Cell::new(0),
             function_work: std::cell::Cell::new(0),
@@ -810,6 +891,7 @@ impl<'a> Engine<'a> {
                 }
             }
         }
+        engine.plan_last_readers();
         engine.infer_footprints();
         engine
     }
@@ -1064,7 +1146,16 @@ impl<'a> Engine<'a> {
         let mut values = vec![];
         let mut producers = vec![];
         let mut pending = false;
-        for (id, producer) in self.producers.iter().enumerate() {
+        let candidates = self
+            .candidate_index
+            .as_ref()
+            .map(|index| index.candidates(key))
+            .unwrap_or_else(|| (0..self.producers.len()).collect());
+        #[cfg(test)]
+        self.lookup_candidates
+            .set(self.lookup_candidates.get() + candidates.len());
+        for id in candidates {
+            let producer = &self.producers[id];
             if !matches!(
                 producer.effect,
                 Effect::Contribution(..) | Effect::Contributions(..)
@@ -1138,7 +1229,6 @@ impl<'a> Engine<'a> {
     ) -> Result<Outcome, Diagnostic> {
         let depth = self.evaluation_depth.get();
         if depth == 0 {
-            self.function_cache.borrow_mut().clear();
             self.function_active.borrow_mut().clear();
             self.function_work.set(0);
             self.function_cache_bytes.set(0);
@@ -1301,7 +1391,9 @@ impl<'a> Engine<'a> {
                 .map_err(|error| {
                     Diagnostic::error("query.resource", error.to_string(), owner.span.clone())
                 })?;
-                if let Some((value, observation)) = self.function_cache.borrow().get(&key) {
+                if let Some(entry) = self.function_cache.borrow_mut().get(&key) {
+                    let value = &entry.outcome;
+                    let observation = &entry.trace;
                     charge_function_trace(&self.function_cache_bytes, observation, &owner.span)?;
                     if let Outcome::Ready(value) = value {
                         charge_function_value(&self.function_cache_bytes, value, &owner.span)?;
@@ -1354,9 +1446,33 @@ impl<'a> Engine<'a> {
                     }
                     charge_function_trace(&self.function_cache_bytes, &observation, &owner.span)?;
                     trace.absorb(&observation);
-                    self.function_cache
-                        .borrow_mut()
-                        .insert(key, (value.clone(), observation));
+                    let cost = std::cell::Cell::new(0);
+                    if let Outcome::Ready(value) = value {
+                        charge_function_value(&cost, value, &owner.span)?;
+                    }
+                    charge_function_trace(&cost, &observation, &owner.span)?;
+                    let snapshot_dependent = self
+                        .lifetime_plan
+                        .store_dependent_functions
+                        .get(name)
+                        .copied()
+                        .unwrap_or(true);
+                    #[cfg(test)]
+                    let retain = !self.cache_disabled;
+                    #[cfg(not(test))]
+                    let retain = true;
+                    if retain {
+                        self.function_cache.borrow_mut().insert(
+                            key,
+                            FunctionMemo {
+                                function: name.clone(),
+                                snapshot_dependent,
+                                outcome: value.clone(),
+                                trace: observation,
+                            },
+                            cost.get(),
+                        );
+                    }
                 } else {
                     trace.absorb(&observation);
                 }
@@ -1940,6 +2056,9 @@ impl<'a> Engine<'a> {
     }
 
     fn infer_footprints(&mut self) -> bool {
+        // Refinement itself may read keys whose candidate sets are changing.
+        // Never let yesterday's exact index exclude a newly possible writer.
+        self.candidate_index = None;
         // Start with conservative structural patterns and refine with discovered
         // candidates. A pending tuple component never becomes definite absence.
         let footprints = self
@@ -1957,6 +2076,12 @@ impl<'a> Engine<'a> {
             changed |= producer.footprint != footprint;
             producer.footprint = footprint;
         }
+        self.collect_snapshot_memos();
+        #[cfg(test)]
+        let index_enabled = !self.cache_disabled;
+        #[cfg(not(test))]
+        let index_enabled = true;
+        self.candidate_index = index_enabled.then(|| CandidateIndex::new(&self.producers));
         changed
     }
 
@@ -2381,6 +2506,74 @@ impl<'a> Engine<'a> {
         }
     }
 
+    /// Specialize the compiled call graph to discovered producers. Guards are
+    /// included even when currently false, so a deferred branch is never lost.
+    /// A snapshot memo is collectible after its last potential reader in a pass;
+    /// another propagation pass can recompute it from authored producer state.
+    fn plan_last_readers(&mut self) {
+        let mut last = BTreeMap::new();
+        for (id, producer) in self.producers.iter().enumerate() {
+            let mut roots = vec![];
+            match &producer.effect {
+                Effect::Contribution(key, value) | Effect::Contributions(key, value) => {
+                    roots.extend([*key, *value]);
+                }
+                Effect::Observe(value) => roots.push(*value),
+                Effect::Diagnostic {
+                    message,
+                    target,
+                    related,
+                    ..
+                } => {
+                    roots.extend(target.iter().chain(related).copied());
+                    roots.extend(message.iter().filter_map(|part| match part {
+                        MessagePart::Value(value) => Some(*value),
+                        _ => None,
+                    }));
+                }
+            }
+            for guard in &producer.guards {
+                match guard {
+                    Guard::If(value, _) => roots.push(*value),
+                    Guard::Case { inputs, cases, .. } => {
+                        roots.extend(inputs);
+                        roots.extend(cases.iter().flat_map(|case| {
+                            case.alternatives.iter().flatten().flatten().copied()
+                        }));
+                    }
+                }
+            }
+            if !self.lifetime_plan.reads_store(&roots) {
+                self.store_free_producers.insert(id);
+            }
+            if !self.image.functions.is_empty() {
+                for function in crate::image::query::lifetimes::functions_used(self.image, &roots) {
+                    last.insert(function, id);
+                }
+            }
+        }
+        self.last_readers.clear();
+        for (function, id) in last {
+            self.last_readers.entry(id).or_default().insert(function);
+        }
+    }
+
+    fn collect_after_reader(&self, id: usize) {
+        if let Some(functions) = self.last_readers.get(&id) {
+            self.function_cache
+                .borrow_mut()
+                .collect(|entry| entry.snapshot_dependent && functions.contains(&entry.function));
+        }
+    }
+
+    /// Producer values and refined footprints form an immutable snapshot during
+    /// one pass. Retire every answer which could observe it before changing it.
+    fn collect_snapshot_memos(&self) {
+        self.function_cache
+            .borrow_mut()
+            .collect(|entry| entry.snapshot_dependent);
+    }
+
     fn settle(&mut self) -> Vec<Diagnostic> {
         let mut failures = BTreeMap::new();
         let limit = (self.producers.len() + 1).saturating_mul(8).max(32);
@@ -2390,6 +2583,9 @@ impl<'a> Engine<'a> {
                 .iter()
                 .enumerate()
                 .map(|(id, producer)| {
+                    if self.retired_evaluations.contains(&id) {
+                        return None;
+                    }
                     let mut trace = Trace::default();
                     let state = match self.evaluate_producer(producer, &mut trace) {
                         Ok(state) => {
@@ -2401,11 +2597,26 @@ impl<'a> Engine<'a> {
                             ProducerState::Absent
                         }
                     };
-                    (state, trace)
+                    self.collect_after_reader(id);
+                    Some((state, trace))
                 })
                 .collect::<Vec<_>>();
+            self.collect_snapshot_memos();
             let mut changed = false;
-            for (producer, (state, trace)) in self.producers.iter_mut().zip(states) {
+            for (id, (producer, update)) in self.producers.iter_mut().zip(states).enumerate() {
+                let Some((state, trace)) = update else {
+                    continue;
+                };
+                #[cfg(test)]
+                let retirement_enabled = !self.cache_disabled;
+                #[cfg(not(test))]
+                let retirement_enabled = true;
+                if retirement_enabled
+                    && self.store_free_producers.contains(&id)
+                    && !matches!(state, ProducerState::Pending | ProducerState::Conflict(_))
+                {
+                    self.retired_evaluations.insert(id);
+                }
                 changed |= producer.state != state;
                 producer.state = state;
                 producer.reads = trace.reads;
@@ -2467,6 +2678,15 @@ impl<'a> Engine<'a> {
             source: self.source,
             hypothetical_cache: self.hypothetical_cache.clone(),
             function_cache: RefCell::default(),
+            lifetime_plan: self.lifetime_plan.clone(),
+            last_readers: self.last_readers.clone(),
+            candidate_index: None,
+            store_free_producers: self.store_free_producers.clone(),
+            retired_evaluations: BTreeSet::new(),
+            #[cfg(test)]
+            cache_disabled: self.cache_disabled,
+            #[cfg(test)]
+            lookup_candidates: std::cell::Cell::new(0),
             function_active: RefCell::default(),
             evaluation_depth: std::cell::Cell::new(0),
             function_work: std::cell::Cell::new(0),
@@ -2533,10 +2753,8 @@ impl<'a> Engine<'a> {
             copy.overrides.iter().collect::<Vec<_>>(),
         ))
         .map_err(|error| Diagnostic::error("query.assumption", error.to_string(), span.clone()))?;
-        if let Some((result, reads, diagnostics)) = self.hypothetical_cache.borrow().get(&memo_key)
-        {
-            trace.reads.extend(reads.clone());
-            trace.diagnostics.extend(diagnostics.clone());
+        if let Some((result, observation)) = self.hypothetical_cache.borrow_mut().get(&memo_key) {
+            trace.absorb(observation);
             return Ok(result.clone());
         }
         if !self
@@ -2602,6 +2820,7 @@ impl<'a> Engine<'a> {
                 };
                 updates.push((id, state, reads));
             }
+            copy.collect_snapshot_memos();
             for (id, state, reads) in updates {
                 changed |= copy.producers[id].state != state;
                 let old_count = active.len();
@@ -2630,7 +2849,8 @@ impl<'a> Engine<'a> {
         if let Some(error) = failures.into_values().next() {
             return Err(error);
         }
-        let result = copy.lookup(&key, all, false, trace);
+        let mut answer_trace = Trace::default();
+        let result = copy.lookup(&key, all, false, &mut answer_trace);
         let mut receipts = vec![];
         if checked && matches!(result, Outcome::Ready(_)) {
             for id in &active {
@@ -2690,10 +2910,28 @@ impl<'a> Engine<'a> {
                     .cloned(),
             );
         }
+        answer_trace.reads.extend(shared_reads);
+        answer_trace.diagnostics = receipts;
+        trace.absorb(&answer_trace);
         if matches!(result, Outcome::Ready(_)) {
-            self.hypothetical_cache
-                .borrow_mut()
-                .insert(memo_key, (result.clone(), shared_reads, receipts));
+            // Refusing to retain an oversized memo must not reject a valid query.
+            let cost = function_serialized_cost(
+                &(&result, &answer_trace),
+                FUNCTION_ALLOCATION_LIMIT,
+                span,
+            )
+            .unwrap_or(usize::MAX);
+            #[cfg(test)]
+            let retain = !self.cache_disabled;
+            #[cfg(not(test))]
+            let retain = true;
+            if retain {
+                self.hypothetical_cache.borrow_mut().insert(
+                    memo_key,
+                    (result.clone(), answer_trace),
+                    cost.saturating_mul(4),
+                );
+            }
         }
         Ok(result)
     }
@@ -2731,29 +2969,34 @@ pub(super) fn execute(
     };
     let mut engine = Engine::new(language, image, occurrences, source, &ranks);
     diagnostics.extend(engine.settle());
-    for (id, producer) in engine.producers.iter().enumerate() {
-        if !matches!(
-            producer.state,
-            ProducerState::Pending | ProducerState::Conflict(_)
-        ) {
+    // All engine evaluation has ended. Move exported roots into the public
+    // graph instead of cloning a second full attachment store during teardown.
+    for id in 0..engine.producers.len() {
+        let state = std::mem::replace(&mut engine.producers[id].state, ProducerState::Absent);
+        let producer = &engine.producers[id];
+        if !matches!(state, ProducerState::Pending | ProducerState::Conflict(_)) {
             for diagnostic in &producer.diagnostics {
                 if !diagnostics.contains(diagnostic) {
                     diagnostics.push(diagnostic.clone());
                 }
             }
         }
+        let leaves = match state {
+            ProducerState::Many(states) => states,
+            state => vec![state],
+        };
         let mut state = "absent";
-        for leaf in producer.state.leaves() {
+        for leaf in leaves {
             let leaf_state = match leaf {
                 ProducerState::Contribution(key, value) => {
                     if !graph.query_entries.iter().any(|entry| {
                         entry.producer == id
-                            && entry.key == *key
-                            && equal_values(&entry.value, value)
+                            && entry.key == key
+                            && equal_values(&entry.value, &value)
                     }) {
                         graph.query_entries.push(QueryEntry {
-                            key: key.clone(),
-                            value: value.clone(),
+                            key,
+                            value,
                             producer: id,
                             span: producer.owner.span.clone(),
                         });
@@ -2764,14 +3007,14 @@ pub(super) fn execute(
                     for value in values {
                         if graph.query_entries.iter().any(|entry| {
                             entry.producer == id
-                                && entry.key == *key
-                                && equal_values(&entry.value, value)
+                                && entry.key == key
+                                && equal_values(&entry.value, &value)
                         }) {
                             continue;
                         }
                         graph.query_entries.push(QueryEntry {
                             key: key.clone(),
-                            value: value.clone(),
+                            value,
                             producer: id,
                             span: producer.owner.span.clone(),
                         });
@@ -2779,8 +3022,8 @@ pub(super) fn execute(
                     "present"
                 }
                 ProducerState::Diagnostic(diagnostic) => {
-                    if !diagnostics.contains(diagnostic) {
-                        diagnostics.push(diagnostic.clone());
+                    if !diagnostics.contains(&diagnostic) {
+                        diagnostics.push(diagnostic);
                     }
                     "present"
                 }
@@ -3512,3 +3755,7 @@ mod validation_tests {
         assert!(validate(expression, 5).is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "queries/lifetime_tests.rs"]
+mod lifetime_tests;

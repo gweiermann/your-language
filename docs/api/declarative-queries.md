@@ -249,3 +249,41 @@ A selector that is pending keeps the match pending. Explicit alternative values 
 Recursive computations cannot contribute facts, emit diagnostics, or invoke native lifecycle effects. Unused definitions are checked too. Effectful operations remain separately discovered actions. Pure-call memoization is isolated to an evaluation and its order/hypothetical context, with dependency observations retained. Revisited argument cycles report `query.recursion`; bounded work, depth, value sizes, and a cumulative 16 MiB function-allocation budget report `query.resource`.
 
 See the [structural types tutorial](/tutorials/compound-types) for recursive comparisons and source-aware diagnostic type contributions implemented in YL.
+
+## Query caching and reclamation
+
+Caching changes execution cost, never query visibility. The compiler records the
+read/write key expressions and transitive store-read effects of pure functions
+in the executable image. These summaries include inactive branches, callbacks
+and recursive calls. Loading an image checks the summaries against its code;
+older format `10` images without the optional plan derive the same information.
+
+After discovering concrete syntax occurrences, the engine specializes the plan:
+
+- Contributions with exact keys use a direct producer index. Partially known
+  keys keep conservative candidate checks; discovery still includes pending
+  and guarded producers.
+- Query-free producers finish once. Their results remain available to readers
+  and public output, but later propagation passes do not recompute them.
+- Function results can be reused across expressions. Store-dependent results
+  are collected after their last possible consumer in a pass, and always before
+  the producer snapshot changes. Query-free results may survive those changes.
+- Function and hypothetical-result memo stores each have a 4 MiB accounted
+  payload budget and evict their least recently used answers. An evicted answer
+  is recomputed when needed. Hypothetical assumptions and diagnostic origins
+  are part of the cache key, and cache hits retain dependency receipts.
+
+The budget accounts for retained keys and estimated owned payloads; it is not a
+process-memory limit. Existing evaluation depth, work and allocation limits
+still apply. These caches belong to one analysis; they never share mutable
+values between different documents or hypothetical evaluation contexts.
+
+A finalized fact is not automatically dead: `AnalysisResult.graph.query_entries`
+exposes all authored contributions, and diagnostics and backend consumers may
+read them after analysis. Final results move into that graph without making a
+second attachment-store copy. They remain alive until their owning result is
+released. Temporary memo entries can be reclaimed earlier because they are
+recomputable; deleting authored facts would change the public result contract.
+
+The [lifetime study](/design/query-lifetimes-research) describes the static proofs,
+runtime fallback, authoring conventions, reproducible measurements and limitations.
