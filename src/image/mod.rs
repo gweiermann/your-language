@@ -39,7 +39,7 @@ pub struct LanguageImage {
 }
 impl LanguageImage {
     pub(crate) fn compile(language: &CompiledLanguage) -> Result<Self, Diagnostic> {
-        let image = Self {
+        let mut image = Self {
             version: FORMAT_VERSION,
             backend: language.backend.clone(),
             capabilities: CAPABILITIES.iter().map(|s| (*s).to_owned()).collect(),
@@ -48,6 +48,13 @@ impl LanguageImage {
             semantics: language.meanings.clone(),
             previews: language.example_previews(),
         };
+        // The parser compiler has already validated its tables. Check every
+        // authored mapping before pruning so unreachable code cannot hide an
+        // invalid signature or capture, without revalidating the whole image.
+        image.backend.validate(&image.parser.capture_sets())?;
+        image
+            .backend
+            .retain_reachable(&image.parser.reachable_occurrences());
         image.validate()?;
         Ok(image)
     }

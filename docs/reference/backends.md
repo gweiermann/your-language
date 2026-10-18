@@ -10,7 +10,36 @@ export hook add(left, right)
 
 A hook is declared at module level with distinct parameter names. Parameters are positional; types and defaults are not supported. Hooks use ordinary imports, exports, aliases, and namespace imports. Their compiled identities are module-qualified, such as `hooks.yl#add`; two modules may export hooks with the same short name.
 
-A host supplies bindings for the complete compiled contract before execution starts. Missing bindings, duplicate host bindings, or different parameter names/order are errors before any hook runs. Additional host bindings are allowed. Compiling, loading, parsing, checking, and editor analysis require no host bindings.
+A host supplies bindings for the complete required contract before execution starts. The compiler includes only hooks referenced by backend mappings reachable from `entry`. Importing a module with more hook declarations does not require implementing its unused capabilities. Missing required bindings, duplicate host bindings, or different parameter names/order are errors before any hook runs. Additional host bindings are allowed. Compiling, loading, parsing, checking, and editor analysis require no host bindings.
+
+### Reachability and composition
+
+```yl
+// runtime.yl: an opinionated library can provide several value capabilities.
+export hook number(value)
+export hook string(value)
+export hook add(left, right)
+```
+
+```yl
+import * as runtime from "./runtime"
+
+node Number = value: /[0-9]+/ { backend { runtime::number(value) } }
+
+node String = value: /[a-z]+/ { backend { runtime::string(value) } }
+
+node Sum = left: Number "+" right: Number {
+    backend { runtime::add(left, right) }
+}
+
+entry Sum
+```
+
+This language requires only `runtime.yl#add` and `runtime.yl#number`. Changing the entry to `String` requires only `runtime.yl#string`. Type symbols alone do not require a host value representation; hooks that the language can dispatch determine its host contract.
+
+Reachability follows the normalized entry grammar, including abstract members and operators, aliases, optional and repeated constructs, expanded patterns, and pipe wrappers. It includes both branches of a conditional and function or loop bodies even if a particular interpreter skips them. It does not inspect a particular target program or prove that grammar alternatives are satisfiable: every referenced alternative is conservatively included. Assertion-only lookahead/lookbehind probes and IDE preview roots do not commit dispatchable occurrences and do not add requirements.
+
+Unreachable backend mappings and unused hook contracts are omitted from the executable backend tables; grammar, IDE metadata, and static analysis remain available. Invalid authored mappings still fail compilation before pruning. The required contract and remapped hook addresses are preserved in `.ylc`, so source-free loading and CLI inspection use the same contract as in-memory compilation.
 
 ## Mapping syntax
 

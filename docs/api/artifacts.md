@@ -80,7 +80,7 @@ The image describes what the engine can execute. Each target source gets its own
 
 A language definition cannot precompute the actual scopes or references of a program it has not parsed. The image therefore contains producer templates; the engine discovers their concrete instances and dependencies from committed syntax, then evaluates them to settlement. Scheduling boundaries, guarded actions, pending values, and isolated hypothetical queries retain their normal behavior.
 
-The image also records optional [backend hook mappings](/reference/backends). Parsing and analysis do not invoke these hooks. An external consumer explicitly binds a host backend and dispatches syntax to interpret, transpile, or compile a program; runtime values and execution policy remain host-owned.
+The image also records optional [backend hook mappings](/reference/backends). Compilation retains only mappings reachable from the entry grammar and the hook contracts those mappings reference, with their indexed addresses remapped deterministically. Imported unused hooks do not become host requirements. Grammar and static-analysis tables are retained independently. Parsing and analysis do not invoke these hooks. An external consumer explicitly binds a host backend and dispatches syntax to interpret, transpile, or compile a program; runtime values and execution policy remain host-owned.
 
 ## Validation on reload
 
@@ -97,6 +97,8 @@ Module identities are relative to the entry directory. Relocating the same defin
 All newly compiled languages use format `10`. Formats `1` through `9` are retired: recompile their YL definitions with the current compiler. The loader reports this explicitly instead of rebuilding recursive normalization IR or maintaining a second production executor.
 
 The image format is versioned but experimental. Long-term binary compatibility, a memory-mapped layout, and an ABI are not promised. An eventual binary encoding can represent these same tables without changing YL syntax.
+
+Backend reachability pruning changes table contents, not format `10`. Existing format `10` artifacts remain loadable and retain their stored hook requirements; recompile them to remove requirements emitted by an older compiler for unused declarations.
 
 ## Native semantics
 

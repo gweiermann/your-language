@@ -159,4 +159,4 @@ cargo run -- language target/backend.ylc hooks
 cargo run -- language target/backend.ylc hooks --json
 ```
 
-Lists the artifact's module-qualified hook names and positional parameter contracts. JSON output includes the declaration spans. No hook is bound or executed. The command works with a checked `.ylc` independently of its original YL source files. See [backend hooks](/reference/backends) for consumer binding and execution.
+Lists the artifact's required module-qualified hook names and positional parameter contracts: only hooks referenced by entry-reachable backend mappings. Imported but unused declarations are excluded. JSON output includes the declaration spans. No hook is bound or executed. The command works with a checked `.ylc` independently of its original YL source files. See [backend hooks](/reference/backends) for consumer binding and execution.

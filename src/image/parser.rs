@@ -129,6 +129,65 @@ pub enum Instruction {
     },
 }
 impl ParserImage {
+    /// Occurrences that can be committed by the entry grammar, independently of
+    /// which source a host later parses. Preview roots and assertion probes do
+    /// not produce dispatchable occurrences.
+    pub(crate) fn reachable_occurrences(&self) -> BTreeSet<String> {
+        enum Work {
+            Rule(u32),
+            Instruction(u32),
+        }
+        let mut pending = vec![Work::Rule(self.entry)];
+        let mut rules = vec![false; self.rules.len()];
+        let mut instructions = vec![false; self.instructions.len()];
+        let mut owners = BTreeSet::new();
+        while let Some(work) = pending.pop() {
+            match work {
+                Work::Rule(id) => {
+                    if std::mem::replace(&mut rules[id as usize], true) {
+                        continue;
+                    }
+                    let rule = &self.rules[id as usize];
+                    owners.insert(rule.definition.clone());
+                    match &rule.body {
+                        ImageBody::Concrete(term) => pending.push(Work::Instruction(*term)),
+                        ImageBody::Abstract { bases, operators } => {
+                            pending.extend(bases.iter().copied().map(Work::Rule));
+                            pending.extend(operators.iter().map(|op| Work::Rule(op.rule)));
+                        }
+                    }
+                }
+                Work::Instruction(id) => {
+                    if std::mem::replace(&mut instructions[id as usize], true) {
+                        continue;
+                    }
+                    match &self.instructions[id as usize] {
+                        Instruction::Meaning { definition, term } => {
+                            owners.insert(definition.clone());
+                            pending.push(Work::Instruction(*term));
+                        }
+                        Instruction::Ref(rule) => pending.push(Work::Rule(*rule)),
+                        Instruction::Sequence(items) | Instruction::Choice(items) => {
+                            pending.extend(items.iter().copied().map(Work::Instruction));
+                        }
+                        Instruction::Example { term, .. }
+                        | Instruction::Repeat(term, _)
+                        | Instruction::Capture(_, term)
+                        | Instruction::Mark { term, .. }
+                        | Instruction::Project { term, .. } => {
+                            pending.push(Work::Instruction(*term));
+                        }
+                        Instruction::Literal(_)
+                        | Instruction::Regex(_)
+                        | Instruction::NotAhead(_)
+                        | Instruction::NotBehind(_) => {}
+                    }
+                }
+            }
+        }
+        owners
+    }
+
     pub(crate) fn rule_id(&self, definition: &str) -> Option<u32> {
         self.rules
             .iter()
