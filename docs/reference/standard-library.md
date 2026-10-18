@@ -2,6 +2,8 @@
 
 YL separates parser primitives from helpers written in the language itself. Import callable functionality explicitly, including primitives.
 
+Standard modules are included with the compiler and are always available through `std/...` imports. Projects do not need a local `stdlib/` directory, a relative path into this repository, or an alias in `yl.json`. The source files under the repository's `stdlib/` directory are the implementation of these modules; consumers use their stable module IDs. Explicit imports select which helpers and opinionated policies a language uses.
+
 ```yl
 import { notAhead, notBehind } from "core/parser"
 import { boundedBy, separatedBy, Trailing } from "std/parser"

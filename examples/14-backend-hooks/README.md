@@ -37,7 +37,7 @@ The final command deliberately fails before executing any hooks and underlines `
 
 ## Files
 
-- `../../stdlib/backend/integer.yl`: reusable hook declarations, imported as `std/backend/integer`; all three Rust hosts implement this exact contract.
+- `std/backend/integer`: built-in module ID for reusable hook declarations; all three Rust hosts implement this exact contract. No relative import or project alias configuration is needed. Its implementation lives in the repository's `stdlib/backend/integer.yl`.
 - `definition/typing.yl`: this example's integer type, annotation syntax, and reusable checking operations.
 - `definition/lexical.yl`: names, bounded keywords, and trivia.
 - `definition/expression.yl`: literals, references, arithmetic, and precedence.
