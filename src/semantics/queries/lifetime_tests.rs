@@ -26,6 +26,15 @@ struct Study {
 }
 
 fn run(language: &CompiledLanguage, source: &str, enabled: bool) -> Study {
+    run_with_budget(language, source, enabled, None)
+}
+
+fn run_with_budget(
+    language: &CompiledLanguage,
+    source: &str,
+    enabled: bool,
+    budget: Option<usize>,
+) -> Study {
     let (parsed, occurrences) = crate::runtime::parse_occurrences(language, "study", source);
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
     let ranks = super::super::scheduler::query_group_ranks(language, &occurrences).unwrap();
@@ -33,6 +42,9 @@ fn run(language: &CompiledLanguage, source: &str, enabled: bool) -> Study {
     let started = Instant::now();
     let mut engine =
         Engine::new_with_policy(language, image, &occurrences, source, &ranks, enabled);
+    if let Some(budget) = budget {
+        engine.function_cache = RefCell::new(memo::Memo::new(budget));
+    }
     let diagnostics = engine.settle();
     let elapsed = started.elapsed();
     let index = CandidateIndex::new(&engine.producers);
@@ -254,4 +266,49 @@ fn query_lifetime_study_scale() {
             collected.candidate_checks, collected.static_producers, collected.producers,
             collected.retired, collected.memo.peak_bytes, collected.memo.collected);
     }
+}
+
+#[test]
+#[ignore = "release-mode retention study"]
+fn query_lifetime_study_retention() {
+    let language = compile_text(
+        r#"
+        import { contribute, text, isPresent, tail } from "core/query"
+        symbol slot
+        operation result(parts) = match (isPresent(parts[0])) {
+            true => result(tail(parts)),
+            _ => "ok"
+        }
+        node Item = name: /[a-z]+/ {
+            semantics { contribute((text(name), slot), result([text(name)])) }
+        }
+        node Program = items: Item*
+        trivia Whitespace = /\s+/
+        entry Program { trivia Whitespace }
+    "#,
+    );
+    let source = (0..6000)
+        .map(|index| {
+            let mut number = index;
+            let mut name = "longname".repeat(8);
+            loop {
+                name.push((b'a' + (number % 26) as u8) as char);
+                number /= 26;
+                if number == 0 {
+                    break;
+                }
+            }
+            name
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    let bounded = run(&language, &source, true);
+    let unbounded = run_with_budget(&language, &source, true, Some(usize::MAX));
+    assert_eq!(bounded.result, unbounded.result);
+    assert!(bounded.memo.peak_bytes <= 4 * 1024 * 1024);
+    assert!(bounded.memo.evictions > 0);
+    assert!(unbounded.memo.peak_bytes > bounded.memo.peak_bytes);
+    println!("retention count=6000 bounded_us={} unbounded_us={} bounded_peak_bytes={} unbounded_peak_bytes={} evictions={} static_producers={}/{}",
+        bounded.elapsed.as_micros(), unbounded.elapsed.as_micros(), bounded.memo.peak_bytes,
+        unbounded.memo.peak_bytes, bounded.memo.evictions, bounded.static_producers, bounded.producers);
 }

@@ -246,7 +246,7 @@ operation join(parts) = match (isPresent(parts[0])) {
 
 A selector that is pending keeps the match pending. Explicit alternative values distribute over Cartesian selector combinations, retaining branch-local selections. Function parameters establish fresh lexical evaluation frames; a recursive call cannot accidentally inherit its caller's parameter-specific branch choices.
 
-Recursive computations cannot contribute facts, emit diagnostics, or invoke native lifecycle effects. Unused definitions are checked too. Effectful operations remain separately discovered actions. Pure-call memoization is isolated to an evaluation and its order/hypothetical context, with dependency observations retained. Revisited argument cycles report `query.recursion`; bounded work, depth, value sizes, and a cumulative 16 MiB function-allocation budget report `query.resource`.
+Recursive computations cannot contribute facts, emit diagnostics, or invoke native lifecycle effects. Unused definitions are checked too. Effectful operations remain separately discovered actions. Pure-call memoization is analysis-local and distinguishes order, branch and hypothetical contexts, with dependency observations retained. Store-dependent answers are invalidated before the producer snapshot changes; query-free answers can survive propagation passes. Revisited argument cycles report `query.recursion`; bounded work, depth, value sizes, and a cumulative 16 MiB function-allocation budget report `query.resource`.
 
 See the [structural types tutorial](/tutorials/compound-types) for recursive comparisons and source-aware diagnostic type contributions implemented in YL.
 
@@ -276,7 +276,10 @@ After discovering concrete syntax occurrences, the engine specializes the plan:
 The budget accounts for retained keys and estimated owned payloads; it is not a
 process-memory limit. Existing evaluation depth, work and allocation limits
 still apply. These caches belong to one analysis; they never share mutable
-values between different documents or hypothetical evaluation contexts.
+values between different documents. Each isolated hypothetical calculation owns
+its function memo store; the bounded hypothetical-result store is shared by
+contexts whose complete assumption/origin keys match. Several bounded stores
+can therefore coexist during nested hypothetical evaluation.
 
 A finalized fact is not automatically dead: `AnalysisResult.graph.query_entries`
 exposes all authored contributions, and diagnostics and backend consumers may

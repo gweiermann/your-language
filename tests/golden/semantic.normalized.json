@@ -1316,6 +1316,73 @@
           }
         }
       ]
+    },
+    "lifetimes": {
+      "reads": [
+        4,
+        8,
+        30
+      ],
+      "writes": [
+        16,
+        20,
+        26,
+        30,
+        16,
+        20,
+        35,
+        38,
+        38
+      ],
+      "store_dependent_functions": {},
+      "store_dependent_expressions": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        true,
+        true,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        false,
+        false
+      ]
     }
   },
   "semantics": {
