@@ -98,6 +98,8 @@ All newly compiled languages use format `10`. Formats `1` through `9` are retire
 
 The image format is versioned but experimental. Long-term binary compatibility, a memory-mapped layout, and an ABI are not promised. An eventual binary encoding can represent these same tables without changing YL syntax.
 
+Backend reachability pruning changes table contents, not format `10`. Existing format `10` artifacts remain loadable and retain their stored hook requirements; recompile them to remove requirements emitted by an older compiler for unused declarations.
+
 ## Native semantics
 
 [Native semantic interfaces](/api/native-semantics) retain external operation contracts and lifecycle scheduling metadata. `SemanticEngine::load` additionally verifies compatibility with the host's registered operations. Artifact files remain optional: compilation and analysis can run entirely in memory.

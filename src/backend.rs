@@ -218,6 +218,8 @@ pub struct BackendProgram<'language> {
 }
 static NEXT_PROGRAM: AtomicU64 = AtomicU64::new(1);
 impl CompiledLanguage {
+    /// The host contracts stored in this language image. New compilation keeps
+    /// only hooks referenced by entry-reachable backend mappings.
     pub fn required_hooks(&self) -> &[HookContract] {
         &self.executable_image().backend.hooks
     }
