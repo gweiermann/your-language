@@ -42,8 +42,9 @@ The server uses the buffer formatter directly. Diagnostics appear as underlines 
 
 ## Declaration documentation
 
-Write `///` comments immediately above a declaration and hover its name to read
-them alongside its definition signature. Paragraphs use an empty `///` line.
+Write `/** ... */` documentation immediately above a declaration and hover its
+name to read it alongside its definition signature. Conventional leading `*`
+margins and blank paragraph lines are supported. `///` comments also work.
 This works for local, exported, and nested declarations; reference and imported-name
 hover resolution is not implemented. See [documentation comments](../reference/lexical-syntax#documentation-comments).
 

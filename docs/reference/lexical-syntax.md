@@ -58,31 +58,53 @@ Comments in YL files do not configure comments in target source. Declare target 
 
 ### Documentation comments
 
-Use `///` on its own line immediately before a declaration to document it:
+Prefer `/** ... */` to document a declaration:
 
 ```yl
-/// Matches a decimal integer.
-///
-/// The captured text is retained in the AST.
+/**
+ * Matches a decimal integer.
+ *
+ * The captured text is retained in the AST.
+ */
 export node Number = value: /[0-9]+/
 ```
 
-Consecutive documentation lines attach to the following declaration, including
-local or nested nodes, patterns, operations, hooks, symbols, and enums. The
-frontend exposes `Declaration.documentation` with its text and original source
-span. Each line loses its `///` prefix and at most one following space; remaining
-text and paragraph breaks are preserved. Use an empty `///` line for a paragraph.
+Line documentation using `///` is also supported:
 
-A blank source line, ordinary comment, or other token breaks attachment. Trailing
-inline or dangling `///` comments remain ordinary unattached comments. They do
-not cause errors or attach to an earlier declaration. `/** ... */` remains an
-ordinary block comment.
+```yl
+/// Matches a decimal integer.
+export pattern Integer = /[0-9]+/
+```
 
-The formatter preserves documentation text and attachment. The language server
-shows documentation when hovering the declaration's name in a YL definition.
-Hovering references or imported names is not supported yet. Documentation is
-frontend authoring metadata, not a target AST field, parser rule, or `.ylc`
-execution instruction; existing artifact versions remain unchanged.
+Documentation attaches to the following declaration, including local or nested
+nodes, patterns, operations, hooks, symbols, and enums. A block can appear on the
+same line before its declaration (`/** A key. */ export symbol key`) or on the
+preceding line. Each documentation comment must start on its own source line,
+with only indentation before its opening delimiter. Consecutive block and line
+documentation comments are combined in source order with a newline between them.
+
+The frontend exposes `Declaration.documentation` with its normalized text and
+original span, including the delimiters. Block text loses its opening and closing
+delimiters, conventional leading `*` margins and one following space, common
+indentation, trailing line whitespace, and blank opening/closing lines. Interior
+paragraph breaks and relative indentation are retained. `/**/` and `/***/` are
+empty documentation blocks. Line text loses its `///` prefix and at most one
+following space; remaining text is preserved. Use an empty `///` line or a blank
+line inside a block for a paragraph.
+
+A blank source line between comments or before the declaration, an ordinary
+comment, or another token breaks attachment. Trailing inline and dangling
+documentation comments remain ordinary unattached comments. They do not cause
+errors or attach to an earlier declaration. Ordinary `/* ... */` comments do not
+provide declaration documentation. An unterminated block of either kind reports
+`yl.unterminated_comment`.
+
+The formatter preserves original documentation spelling, style, text, and
+attachment. The language server shows documentation when hovering the
+declaration's name in a YL definition. Hovering references or imported names is
+not supported yet. Documentation is frontend authoring metadata, not a target AST
+field, parser rule, or `.ylc` execution instruction; existing artifact versions
+remain unchanged.
 
 ## String literals
 

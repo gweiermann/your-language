@@ -1,11 +1,14 @@
 //! Token-based recursive descent for declarations, Pratt-style grammar precedence.
 use crate::diagnostic::{CompileResult, Diagnostic, Span};
-use crate::lexer::{lex, lex_with_comments, Token, TokenKind};
+use crate::lexer::{documentation_text, lex, lex_with_comments, Token, TokenKind};
 use crate::syntax::*;
 use std::collections::BTreeSet;
 
 pub fn parse_yl(file: &str, source: &str) -> CompileResult<Module> {
-    let tokens = lex(file, source).map_err(|e| vec![e])?;
+    let (comments, tokens): (Vec<Token>, Vec<Token>) = lex_with_comments(file, source)
+        .map_err(|error| vec![error])?
+        .into_iter()
+        .partition(|token| matches!(token.kind, TokenKind::Comment));
     let diagnostic_paths = imported_diagnostic_paths(&tokens);
     let mut parser = Parser {
         diagnostic_paths,
@@ -17,7 +20,6 @@ pub fn parse_yl(file: &str, source: &str) -> CompileResult<Module> {
     while !matches!(parser.token().kind, TokenKind::End) {
         declarations.push(parser.declaration().map_err(|e| vec![e])?);
     }
-    let comments = lex_with_comments(file, source).map_err(|error| vec![error])?;
     attach_documentation(&mut declarations, &comments, source);
     Ok(Module {
         declarations,
@@ -37,15 +39,14 @@ fn attach_documentation(declarations: &mut [Declaration], tokens: &[Token], sour
             let gap = &source[token.span.end..end];
             let line_start = source[..token.span.start].rfind('\n').map_or(0, |i| i + 1);
             if !matches!(token.kind, TokenKind::Comment)
-                || !raw.starts_with("///")
+                || !(raw.starts_with("///") || raw.starts_with("/**"))
                 || !gap.chars().all(char::is_whitespace)
-                || gap.bytes().filter(|&byte| byte == b'\n').count() != 1
+                || gap.bytes().filter(|&byte| byte == b'\n').count() > 1
                 || !source[line_start..token.span.start].trim().is_empty()
             {
                 break;
             }
-            let text = &raw[3..];
-            lines.push(text.strip_prefix(' ').unwrap_or(text));
+            lines.push(documentation_text(raw).unwrap_or_default());
             first = token.span.start;
             end = first;
         }

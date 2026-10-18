@@ -2,7 +2,7 @@
 use crate::{
     diagnostic::{CompileResult, Diagnostic, Span},
     frontend::parse_yl,
-    lexer::{lex_with_comments, Token, TokenKind},
+    lexer::{is_documentation_comment, lex_with_comments, Token, TokenKind},
     syntax::*,
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -615,7 +615,7 @@ impl Layout {
                 unreachable!()
             };
             if matches!(comment.kind, TokenKind::Comment)
-                && source[comment.span.start..comment.span.end].starts_with("///")
+                && is_documentation_comment(&source[comment.span.start..comment.span.end])
                 && (source[comment.span.end..next.span.start]
                     .bytes()
                     .filter(|&byte| byte == b'\n')
