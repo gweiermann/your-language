@@ -23,6 +23,9 @@ struct Study {
     static_producers: usize,
     producers: usize,
     retired: usize,
+    scheduled_skips: usize,
+    index_bytes: usize,
+    observation_bytes: usize,
 }
 
 fn run(language: &CompiledLanguage, source: &str, enabled: bool) -> Study {
@@ -35,13 +38,30 @@ fn run_with_budget(
     enabled: bool,
     budget: Option<usize>,
 ) -> Study {
+    run_with_partial_policy(language, source, enabled, budget, true)
+}
+
+fn run_with_partial_policy(
+    language: &CompiledLanguage,
+    source: &str,
+    enabled: bool,
+    budget: Option<usize>,
+    partial: bool,
+) -> Study {
     let (parsed, occurrences) = crate::runtime::parse_occurrences(language, "study", source);
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
     let ranks = super::super::scheduler::query_group_ranks(language, &occurrences).unwrap();
     let image = &language.image.as_ref().unwrap().queries;
     let started = Instant::now();
-    let mut engine =
-        Engine::new_with_policy(language, image, &occurrences, source, &ranks, enabled);
+    let mut engine = Engine::new_with_partial_policy(
+        language,
+        image,
+        &occurrences,
+        source,
+        &ranks,
+        enabled,
+        partial,
+    );
     if let Some(budget) = budget {
         engine.function_cache = RefCell::new(memo::Memo::new(budget));
     }
@@ -78,6 +98,17 @@ fn run_with_budget(
         static_producers: engine.store_free_producers.len(),
         producers: engine.producers.len(),
         retired: engine.retired_evaluations.len(),
+        scheduled_skips: engine.scheduled_skips.get(),
+        index_bytes: engine
+            .structural_templates
+            .as_ref()
+            .map_or(0, |index| index.bytes)
+            + engine
+                .candidate_index
+                .as_ref()
+                .and_then(|index| index.structural.as_ref())
+                .map_or(0, |index| index.bytes),
+        observation_bytes: engine.observed_bytes(),
     }
 }
 
@@ -107,6 +138,8 @@ fn caches_and_collection_preserve_real_query_results_and_dependencies() {
             let source = std::fs::read_to_string(&file).unwrap();
             let baseline = run(&language, &source, false);
             let collected = run(&language, &source, true);
+            let exact = run_with_partial_policy(&language, &source, true, None, false);
+            assert_eq!(baseline.result, exact.result, "exact {}", file.display());
             assert_eq!(baseline.result, collected.result, "{}", file.display());
             assert!(collected.memo.peak_bytes <= 4 * 1024 * 1024);
             assert!(collected.hypothetical.peak_bytes <= 4 * 1024 * 1024);
@@ -311,4 +344,167 @@ fn query_lifetime_study_retention() {
     println!("retention count=6000 bounded_us={} unbounded_us={} bounded_peak_bytes={} unbounded_peak_bytes={} evictions={} static_producers={}/{}",
         bounded.elapsed.as_micros(), unbounded.elapsed.as_micros(), bounded.memo.peak_bytes,
         unbounded.memo.peak_bytes, bounded.memo.evictions, bounded.static_producers, bounded.producers);
+}
+
+#[test]
+fn partial_holes_refine_without_waiting_for_unrelated_tuple_positions() {
+    let language = compile_text(
+        r#"
+        import { contribute, get, isPresent } from "core/query"
+        symbol blocked
+        symbol scope
+        symbol declaration
+        symbol unrelated
+        symbol output
+        node Program = "x" {
+            semantics {
+                when isPresent(get((self, blocked))) {
+                    contribute((self, blocked), "cycle")
+                }
+                contribute(((get((self, blocked)), declaration), "alpha"), "blocked")
+                contribute(((get((self, scope)), declaration), "beta"), "ready")
+                contribute((self, scope), self)
+                contribute((self, output), get(((self, declaration), "beta")))
+                when !isPresent(get(((self, unrelated), "alpha"))) {
+                    contribute("independent", "settled")
+                }
+            }
+        }
+        entry Program
+    "#,
+    );
+    let reference = run(&language, "x", false);
+    let exact = run_with_partial_policy(&language, "x", true, None, false);
+    let partial = run(&language, "x", true);
+    assert_eq!(reference.result, exact.result);
+    assert_eq!(reference.result, partial.result);
+    assert!(partial.result.states.iter().any(|state| matches!(state,
+        ProducerState::Contribution(QueryKey::Text(key), SemanticValue::Text(value))
+        if key == "independent" && value == "settled")));
+    assert!(partial.result.states.iter().any(|state| matches!(state,
+        ProducerState::Contribution(_, SemanticValue::Text(value)) if value == "ready")));
+    assert!(partial.scheduled_skips > 0);
+}
+
+#[test]
+fn guarded_new_candidates_and_ordered_contexts_wake_readers() {
+    let language = compile_text(
+        r#"
+        import { contribute, get, getEarlier, facts, isPresent, equal } from "core/query"
+        symbol chosen
+        symbol key
+        symbol result
+        symbol slot
+        node Program = "x" {
+            semantics {
+                contribute("first", getEarlier((self, slot)))
+                contribute((self, slot), "earlier")
+                contribute("second", getEarlier((self, slot)))
+                when equal(get((self, chosen)), true) {
+                    contribute((get((self, key)), slot), "later")
+                }
+                contribute((self, chosen), true)
+                contribute((self, key), "different")
+                contribute((self, result), get(("different", slot)))
+            }
+        }
+        entry Program
+    "#,
+    );
+    let reference = run(&language, "x", false);
+    let exact = run_with_partial_policy(&language, "x", true, None, false);
+    let partial = run(&language, "x", true);
+    assert_eq!(reference.result, exact.result);
+    assert_eq!(reference.result, partial.result);
+    assert!(partial.result.states.iter().any(|state| matches!(state,
+        ProducerState::Contribution(QueryKey::Text(key), SemanticValue::Text(value))
+        if key == "second" && value == "earlier")));
+}
+
+#[test]
+#[ignore = "release-mode partial structural key study"]
+fn query_lifetime_study_partial_keys() {
+    let opaque = structural::StructuralIndex::new((0..500).map(|id| {
+        (
+            id,
+            Pattern::Tuple(vec![
+                Pattern::Any,
+                Pattern::Exact(QueryKey::Symbol(format!("family{id}"))),
+            ]),
+        )
+    }));
+    let retained = opaque.candidates(&Pattern::Any).len();
+    assert_eq!(retained, 500);
+    println!("opaque-reader conservative_candidates=500 indexed_candidates={retained} index_bytes={} pruning_gain=0", opaque.bytes);
+    let language = compile_text(
+        r#"
+        import { contribute, get, isPresent, text } from "core/query"
+        symbol blocked
+        symbol owner
+        symbol declaration
+        symbol value
+        node Item = name: /[a-z]+/ {
+            semantics {
+                when isPresent(get((self, blocked))) {
+                    contribute((self, blocked), "cycle")
+                }
+                contribute((get((self, blocked)), declaration, text(name)), "unresolved")
+                contribute((self, owner), self)
+                contribute((get((self, owner)), value, text(name)), "ready")
+                contribute((self, value), get((self, value, text(name))))
+            }
+        }
+        node Program = items: Item*
+        trivia Whitespace = /\s+/
+        entry Program { trivia Whitespace }
+    "#,
+    );
+    for count in [50, 200, 500] {
+        let source = (0..count)
+            .map(|number| {
+                let mut number = number;
+                let mut result = "name".to_owned();
+                loop {
+                    result.push((b'a' + (number % 26) as u8) as char);
+                    number /= 26;
+                    if number == 0 {
+                        break;
+                    }
+                }
+                result
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        let conservative = run(&language, &source, false);
+        let exact = run_with_partial_policy(&language, &source, true, None, false);
+        let sparse = run(&language, &source, true);
+        assert_eq!(conservative.result, exact.result);
+        assert_eq!(conservative.result, sparse.result);
+        println!("partial count={count} conservative_us={} exact_us={} sparse_us={} conservative_checks={} exact_checks={} sparse_checks={} sparse_skips={} memo_peak_bytes={} index_bytes={} observation_bytes={}",
+            conservative.elapsed.as_micros(), exact.elapsed.as_micros(), sparse.elapsed.as_micros(),
+            conservative.candidate_checks, exact.candidate_checks, sparse.candidate_checks,
+            sparse.scheduled_skips, sparse.memo.peak_bytes, sparse.index_bytes, sparse.observation_bytes);
+    }
+}
+
+#[test]
+fn wakeup_observation_budget_falls_back_to_evaluation() {
+    let language = compile_text(
+        r#"
+        import { contribute, get } from "core/query"
+        node Program = "x" { semantics {
+            contribute("answer", get("seed"))
+            contribute("seed", "ready")
+        } }
+        entry Program
+    "#,
+    );
+    let (_, occurrences) = crate::runtime::parse_occurrences(&language, "study", "x");
+    let ranks = super::super::scheduler::query_group_ranks(&language, &occurrences).unwrap();
+    let image = &language.image.as_ref().unwrap().queries;
+    let engine = Engine::new(&language, image, &occurrences, "x", &ranks);
+    let reads = BTreeSet::from([QueryKey::Text("seed".into())]);
+    assert!(engine.retain_observation(&reads).is_some());
+    engine.observation_budget.set(4 * 1024 * 1024);
+    assert!(engine.retain_observation(&reads).is_none());
 }

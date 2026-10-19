@@ -2,6 +2,10 @@
 use super::*;
 #[path = "queries/memo.rs"]
 mod memo;
+#[path = "queries/refinement.rs"]
+mod refinement;
+#[path = "queries/structural.rs"]
+mod structural;
 use crate::image::query::{Action, ActionId, Case, Expr, ExprId, MessagePart, Opcode, QueryImage};
 use std::collections::BTreeSet;
 use std::{cell::RefCell, rc::Rc};
@@ -244,9 +248,14 @@ impl Pattern {
 struct CandidateIndex {
     exact: BTreeMap<QueryKey, Vec<usize>>,
     residual: Vec<usize>,
+    structural: Option<structural::StructuralIndex>,
 }
 impl CandidateIndex {
+    #[cfg(test)]
     fn new(producers: &[Producer<'_>]) -> Self {
+        Self::with_partial_keys(producers, true)
+    }
+    fn with_partial_keys(producers: &[Producer<'_>], partial: bool) -> Self {
         let mut index = Self::default();
         for (id, producer) in producers.iter().enumerate() {
             if !matches!(
@@ -261,11 +270,23 @@ impl CandidateIndex {
                 _ => index.residual.push(id),
             }
         }
+        if partial && !index.residual.is_empty() {
+            index.structural = Some(structural::StructuralIndex::new(
+                index
+                    .residual
+                    .iter()
+                    .map(|id| (*id, producers[*id].footprint.clone())),
+            ));
+        }
         index
     }
     fn candidates(&self, key: &QueryKey) -> Vec<usize> {
         let mut ids = self.exact.get(key).cloned().unwrap_or_default();
-        ids.extend(&self.residual);
+        if let Some(index) = &self.structural {
+            ids.extend(index.candidates(&Pattern::Exact(key.clone())));
+        } else {
+            ids.extend(&self.residual);
+        }
         ids.sort_unstable();
         ids
     }
@@ -330,6 +351,14 @@ struct Engine<'a> {
     lifetime_plan: crate::image::query::lifetimes::QueryPlan,
     last_readers: BTreeMap<usize, BTreeSet<String>>,
     candidate_index: Option<CandidateIndex>,
+    structural_templates: Option<Rc<structural::StructuralIndex>>,
+    producer_versions: Vec<u64>,
+    observations: Vec<Option<refinement::ObservedInputs>>,
+    observation_budget: std::cell::Cell<usize>,
+    #[cfg(test)]
+    exact_only: bool,
+    #[cfg(test)]
+    scheduled_skips: std::cell::Cell<usize>,
     store_free_producers: BTreeSet<usize>,
     retired_evaluations: BTreeSet<usize>,
     #[cfg(test)]
@@ -795,6 +824,26 @@ impl<'a> Engine<'a> {
         ranks: &BTreeMap<(usize, usize), usize>,
         cache_enabled: bool,
     ) -> Self {
+        Self::new_with_partial_policy(
+            language,
+            image,
+            occurrences,
+            source,
+            ranks,
+            cache_enabled,
+            true,
+        )
+    }
+
+    fn new_with_partial_policy(
+        language: &CompiledLanguage,
+        image: &'a QueryImage,
+        occurrences: &'a [Occurrence],
+        source: &'a str,
+        ranks: &BTreeMap<(usize, usize), usize>,
+        cache_enabled: bool,
+        partial_keys: bool,
+    ) -> Self {
         fn visit<'a>(
             owner: &'a Occurrence,
             parent: Option<usize>,
@@ -836,6 +885,14 @@ impl<'a> Engine<'a> {
                 .unwrap_or_else(|| crate::image::query::lifetimes::QueryPlan::compile(image)),
             last_readers: BTreeMap::new(),
             candidate_index: None,
+            structural_templates: None,
+            producer_versions: vec![],
+            observations: vec![],
+            observation_budget: std::cell::Cell::new(0),
+            #[cfg(test)]
+            exact_only: !partial_keys,
+            #[cfg(test)]
+            scheduled_skips: std::cell::Cell::new(0),
             store_free_producers: BTreeSet::new(),
             retired_evaluations: BTreeSet::new(),
             #[cfg(test)]
@@ -892,6 +949,11 @@ impl<'a> Engine<'a> {
             }
         }
         engine.plan_last_readers();
+        engine.producer_versions = vec![0; engine.producers.len()];
+        engine.observations = vec![None; engine.producers.len()];
+        if partial_keys {
+            engine.prepare_structural_templates();
+        }
         engine.infer_footprints();
         engine
     }
@@ -1150,6 +1212,11 @@ impl<'a> Engine<'a> {
             .candidate_index
             .as_ref()
             .map(|index| index.candidates(key))
+            .or_else(|| {
+                self.structural_templates
+                    .as_ref()
+                    .map(|index| index.candidates(&Pattern::Exact(key.clone())))
+            })
             .unwrap_or_else(|| (0..self.producers.len()).collect());
         #[cfg(test)]
         self.lookup_candidates
@@ -1992,12 +2059,21 @@ impl<'a> Engine<'a> {
                 args,
             } => {
                 let key = self.abstract_expr(&args[0], owner, locals, depth + 1);
-                let candidates = self.producers.iter().filter(|producer| {
-                    matches!(
-                        producer.effect,
-                        Effect::Contribution(..) | Effect::Contributions(..)
-                    ) && key.overlaps(&producer.footprint)
-                });
+                let candidates = self
+                    .structural_templates
+                    .as_ref()
+                    .map(|index| index.candidates(&key))
+                    .unwrap_or_else(|| (0..self.producers.len()).collect::<Vec<_>>());
+                let candidates =
+                    candidates
+                        .into_iter()
+                        .map(|id| &self.producers[id])
+                        .filter(|producer| {
+                            matches!(
+                                producer.effect,
+                                Effect::Contribution(..) | Effect::Contributions(..)
+                            ) && key.overlaps(&producer.footprint)
+                        });
                 let mut possibilities = vec![];
                 for producer in candidates {
                     if let Effect::Contribution(_, value) = &producer.effect {
@@ -2081,7 +2157,12 @@ impl<'a> Engine<'a> {
         let index_enabled = !self.cache_disabled;
         #[cfg(not(test))]
         let index_enabled = true;
-        self.candidate_index = index_enabled.then(|| CandidateIndex::new(&self.producers));
+        #[cfg(test)]
+        let partial = !self.exact_only;
+        #[cfg(not(test))]
+        let partial = true;
+        self.candidate_index =
+            index_enabled.then(|| CandidateIndex::with_partial_keys(&self.producers, partial));
         changed
     }
 
@@ -2578,33 +2659,42 @@ impl<'a> Engine<'a> {
         let mut failures = BTreeMap::new();
         let limit = (self.producers.len() + 1).saturating_mul(8).max(32);
         for _ in 0..limit {
+            self.observation_budget.set(self.observed_bytes());
             let states = self
                 .producers
                 .iter()
                 .enumerate()
                 .map(|(id, producer)| {
-                    if self.retired_evaluations.contains(&id) {
+                    if self.retired_evaluations.contains(&id) || self.inputs_unchanged(id) {
+                        self.collect_after_reader(id);
+                        #[cfg(test)]
+                        self.scheduled_skips.set(self.scheduled_skips.get() + 1);
                         return None;
                     }
                     let mut trace = Trace::default();
+                    let mut success = true;
                     let state = match self.evaluate_producer(producer, &mut trace) {
                         Ok(state) => {
                             failures.remove(&id);
                             state
                         }
                         Err(error) => {
+                            success = false;
                             failures.insert(id, error);
                             ProducerState::Absent
                         }
                     };
+                    let observation = success
+                        .then(|| self.retain_observation(&trace.reads))
+                        .flatten();
                     self.collect_after_reader(id);
-                    Some((state, trace))
+                    Some((state, trace, observation))
                 })
                 .collect::<Vec<_>>();
             self.collect_snapshot_memos();
             let mut changed = false;
             for (id, (producer, update)) in self.producers.iter_mut().zip(states).enumerate() {
-                let Some((state, trace)) = update else {
+                let Some((state, trace, observation)) = update else {
                     continue;
                 };
                 #[cfg(test)]
@@ -2617,6 +2707,10 @@ impl<'a> Engine<'a> {
                 {
                     self.retired_evaluations.insert(id);
                 }
+                if producer.state != state || producer.approximate != trace.approximate {
+                    self.producer_versions[id] = self.producer_versions[id].wrapping_add(1);
+                }
+                self.observations[id] = observation;
                 changed |= producer.state != state;
                 producer.state = state;
                 producer.reads = trace.reads;
@@ -2681,6 +2775,14 @@ impl<'a> Engine<'a> {
             lifetime_plan: self.lifetime_plan.clone(),
             last_readers: self.last_readers.clone(),
             candidate_index: None,
+            structural_templates: self.structural_templates.clone(),
+            producer_versions: vec![0; self.producers.len()],
+            observations: vec![None; self.producers.len()],
+            observation_budget: std::cell::Cell::new(0),
+            #[cfg(test)]
+            exact_only: self.exact_only,
+            #[cfg(test)]
+            scheduled_skips: std::cell::Cell::new(0),
             store_free_producers: self.store_free_producers.clone(),
             retired_evaluations: BTreeSet::new(),
             #[cfg(test)]
