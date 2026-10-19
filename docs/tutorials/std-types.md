@@ -1,14 +1,14 @@
 # Build type inference with std/types
 
-`std/types` is an ordinary YL module built on attachment queries. It supplies type type contributions, compatibility checks, and hypothetical evaluation. Your language supplies the type symbols, the meaning of each operator, and the representation of function signatures. No native helper recognizes Mini TypeScript node names or primitive types.
+`std/types` is an ordinary YL module built on attachment queries. It supplies type contributions, compatibility checks, and hypothetical evaluation. Your language supplies the type symbols, the meaning of each operator, and the representation of function signatures. No native helper recognizes Mini TypeScript node names or primitive types.
 
 This tutorial follows the checked-in [Mini TypeScript definition](https://github.com/gweiermann/your-language/tree/main/examples/08-mini-typescript/definition). It is an experimental language, not a complete implementation of TypeScript.
 
-## Start with identities and type type contributions
+## Start with identities and type contributions
 
 Inside a node or pattern's `semantics` block, `self` identifies the current node or pattern occurrence. A capture identifies the captured syntax occurrence directly; neither requires a syntax-identity wrapper. Repeated captures are lists, and optional captures may be `absent`.
 
-Declare the primitive types in your language, then annotateWithType literal occurrences:
+Declare the primitive types in your language, then annotate literal occurrences:
 
 ```yl
 import { annotateWithType } from "std/types"
@@ -26,7 +26,7 @@ node Number = value: /[0-9]+/ {
 }
 ```
 
-`annotateWithType(key, value)` records possible types through the standard library. Repeating the same type contribution has no effect; distinct contributions form alternatives. `types::typeOf(key)` reads those alternatives, or the library's `unknown` symbol for an existing occurrence with no type contribution. `types::typeOf(absent)` returns `absent`, so optional missing syntax does not contribute an unknown type. Pending queries are an evaluation state, not another type symbol. `unknown` does not erase known type contributions.
+`annotateWithType(key, value)` records possible types through the standard library. Repeating the same type contribution has no effect; distinct contributions form alternatives. `typeOf(key)` reads those alternatives, or the library's `unknown` symbol for an existing occurrence with no type contribution. `typeOf(absent)` returns `absent`, so optional missing syntax does not contribute an unknown type. Pending queries are an evaluation state, not another type symbol. `unknown` does not erase known type contributions.
 
 The standard library does not export `number`, `string`, `boolean`, or a function-type marker. These are language-owned values. Documentation uses descriptive direct exports consistently; import renaming is not required.
 
@@ -54,7 +54,7 @@ Here `Name` is the language's imported name pattern. The complete example define
 
 `restrictTypeTo(key, expected, target = key, related = absent)` checks compatibility and reports a diagnostic. It does not replace the type contributions at `key` or contribute `expected` automatically. The default compatibility policy accepts every known actual candidate only if it is among the expected candidates; `unknown` is permissive. A language can author a different policy using generic data queries.
 
-An initializer contributes actual type contributions. An explicit binding annotation imposes a restriction on that type contributions:
+An initializer contributes actual type contributions. An explicit binding annotation imposes a restriction on those type contributions:
 
 ```yl
 operation bindingType(name, initializer, annotation) {
@@ -69,7 +69,7 @@ operation bindingType(name, initializer, annotation) {
 }
 ```
 
-No presence guard is needed: an absent annotation ends only the dependent restriction, while initializer type contributions still contributes. In this example, `annotation` is an optional `Annotation` node whose `value` capture contains the type word. `initializer` is the expression following `=`. The third argument chooses the primary diagnostic location; the fourth supplies a related location, excluding the colon and whitespace.
+No presence guard is needed: an absent annotation ends only the dependent restriction, while initializer type contributions still apply. In this example, `annotation` is an optional `Annotation` node whose `value` capture contains the type word. `initializer` is the expression following `=`. The third argument chooses the primary diagnostic location; the fourth supplies a related location, excluding the colon and whitespace.
 
 For `let count: number = "wrong";`, the check reports incompatible type contributions and marks `"wrong"` as the primary location. An annotation expresses a requirement; it does not retroactively change a string expression into a number.
 
@@ -121,7 +121,7 @@ For a parameter named `value`, Mini TypeScript uses these logical type keys:
 (functionIdentity, returnType)
 ```
 
-The type library stores type contributions in its own channel, so the corresponding physical attachment keys also include `types::type`. Authored operations normally use the logical keys and let `std/types` add that channel.
+The type library stores type contributions in its own channel, so the corresponding physical attachment keys also include the `type` symbol exported by `std/types`. Authored operations normally use the logical keys and let `std/types` add that channel.
 
 The body describes its return separately from its own type:
 
@@ -138,7 +138,7 @@ annotateWithType(
 )
 ```
 
-This does not give the block itself a type. A language with expression-valued blocks could instead annotateWithType the block's `self` directly. Lists and tuples are ordinary compound values; a list is not automatically a union. Use `map(parameters, parameter => types::typeOf(parameter))` when a positional list of types is needed.
+This does not give the block itself a type. A language with expression-valued blocks could instead annotate the block's `self` directly. Lists and tuples are ordinary compound values; a list is not automatically a union. Use `map(parameters, parameter => typeOf(parameter))` when a positional list of types is needed.
 
 ## Infer each call under temporary assumptions
 

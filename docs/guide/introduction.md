@@ -1,11 +1,13 @@
 # Introduction
 
-Your Language (YL) describes the syntax of another language. Its compiler resolves a graph of `.yl` modules and produces a reusable `.ylc` artifact. Its runtime executes that artifact against source text, producing an abstract syntax tree (AST) and structured diagnostics.
+Your Language (YL) describes the syntax, static analysis, editor roles, and host hook connections of another language. Its compiler resolves a graph of `.yl` modules and produces a reusable `.ylc` artifact. Its runtime executes that artifact against source text, producing an abstract syntax tree (AST) and structured diagnostics.
 
 ## The language pipeline
 
 ```text
-YL modules → compiler → .ylc artifact → runtime + source → AST and diagnostics
+YL modules → compiler → .ylc artifact
+source + artifact → syntax and static analysis → AST, semantic graph, diagnostics
+checked syntax + host hooks → runtime values or generated code
 ```
 
 A language definition contains grammar, AST identities, captures, trivia policy, and syntax-local checks. It can be used for a configuration format, a domain-specific expression language, or programming-language syntax. Parsing does not execute the resulting program.
@@ -41,6 +43,7 @@ The host owns runtime values and control flow. Flow analysis, ownership, and
 broader inference remain [roadmap](/roadmap) directions.
 
 Continue with [installation](/guide/installation), the
-[learning path](/tutorials/language-curriculum), the
-[first-language tutorial](/tutorials/first-language), or the
-[language reference](/reference/lexical-syntax).
+[start-to-finish course](/tutorials/course/), or the
+[capabilities and limits](/guide/capabilities). The
+[concept guides](/guide/syntax-and-values) explain individual ideas separately
+from the course and the exact language reference.

@@ -106,18 +106,10 @@ Backend reachability pruning changes table contents, not format `10`. Existing f
 
 ## Compiled pure functions
 
-Format `8` adds a pure-function table and indexed `Invoke` and value-`Match` instructions. Function bodies bind explicit parameters; calls reference the compiled function table rather than resolving YL modules at runtime. Instruction containment remains acyclic, while function calls may recurse through table references. The loader validates function addresses, arities, local bindings, pattern constants, and purity before execution. Mutable memoization, active-call guards, dependency observations, and hypothetical overlays remain analysis state rather than artifact data.
+The image includes a pure-function table and indexed `Invoke` and value-`Match` instructions. Function bodies bind explicit parameters; calls reference the compiled function table rather than resolving YL modules at runtime. Instruction containment remains acyclic, while function calls may recurse through table references. The loader validates function addresses, arities, local bindings, pattern constants, and purity before execution. Mutable memoization, active-call guards, dependency observations, and hypothetical overlays remain analysis state rather than artifact data.
 
-## Query lifetime plans
+## Analysis metadata
 
-New format `10` images include optional `queries.lifetimes` optimization metadata:
-indexed read/write key expressions, transitive store-read flags for expressions,
-and function summaries. The loader recomputes and compares these summaries with
-the executable tables before accepting them. A mismatched plan is an artifact
-error. Existing format `10` files without this field remain valid and derive it
-from their indexed code during session preparation; no YL source is required.
-
-This plan does not contain live attachments or actual target-program scopes.
-Concrete last-reader schedules and conservative producer indexes are prepared
-from committed syntax in each analysis. Mutable cache entries and their eviction
-state never enter the artifact.
+Format `10` permits optional validated query-analysis metadata. Older format `10`
+images without it remain loadable. Caches, live query values, and editor sessions
+are not serialized; loading an artifact does not restore another program's state.
