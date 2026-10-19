@@ -237,6 +237,38 @@
         ],
         "body": 20
       }
+    },
+    "lifetimes": {
+      "reads": [],
+      "writes": [
+        2
+      ],
+      "store_dependent_functions": {
+        "recursive.yl#join": false
+      },
+      "store_dependent_expressions": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
     }
   },
   "semantics": {
