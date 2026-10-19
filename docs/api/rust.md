@@ -143,7 +143,7 @@ cargo doc --no-deps --open
 pub fn format_yl(file: &str, source: &str) -> CompileResult<String>;
 ```
 
-Formats a YL definition module from memory. The file label is used only in diagnostic spans; the function does not read or write files or resolve imports. A future editor integration can replace its document with the returned string.
+Formats a YL definition module from memory. The file label is used only in diagnostic spans; the function does not read or write files or resolve imports. The editor uses this formatter to replace a definition document with the returned text.
 
 ```rust
 let formatted = your_language::format_yl("language.yl", "node Name=/[a-z]+/ entry Name")?;

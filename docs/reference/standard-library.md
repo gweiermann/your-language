@@ -13,37 +13,13 @@ import { boundedBy, separatedBy, Trailing } from "std/parser"
 
 ## Core parser
 
-### `notAhead(grammar)`
-
-Negative lookahead succeeds when the supplied grammar does not match at the current source position. It consumes no source and produces no value.
-
-```yl
-import { notAhead } from "core/parser"
-
-pattern Keyword = "let" notAhead(/[_a-zA-Z0-9]/)
-node Declaration = Keyword name: /[a-z]+/
-```
-
-The boundary check prevents the keyword from matching the beginning of a longer identifier such as `letter`. Add explicit trivia selection if whitespace should be accepted between the keyword and name.
-
-Lookaround observes the actual current source boundary; it is not an ordinary consuming grammar term that first skips trivia.
-
-### `notBehind(grammar)`
-
-Negative lookbehind succeeds when the supplied grammar does not match source immediately before the current position. It consumes no source and produces no value.
-
-```yl
-import { notBehind, notAhead } from "core/parser"
-
-pattern IdentifierPart = /[_a-zA-Z0-9]/
-pattern Keyword = notBehind(IdentifierPart) "let" notAhead(IdentifierPart)
-```
-
-Both sides now require an identifier boundary. Assertions retain the original source context for regex anchors and word boundaries.
-
-The argument is a grammar expression, so these primitives can check reusable patterns as well as regexes and literals.
+`notAhead(grammar)` and `notBehind(grammar)` are engine primitives. Their complete
+contract and examples are in [the core library reference](/api/core#core-parser).
+The authored parser helpers below compose them rather than replacing them.
 
 ## Standard parser
+
+The module ID is `std/parser`; these are its three exports.
 
 ### `boundedBy(boundary)`
 
@@ -110,6 +86,8 @@ The `names` field remains a list of `Name` nodes. Commas and optional trailing c
 | `Name+` | `.optional` | `a`; `a,`; `a,b,` |
 | `Name+` | `.required` | `a,`; `a,b,` |
 
+Projection collects only the bound item values. Empty star lists become `[]`; tuple/list-valued items retain their element boundaries.
+
 The separator can be any compatible grammar argument, not only a literal. The default is `.none`. Named syntax is `trailing=.optional`, using `=` rather than `:`.
 
 The implementation consists of six ordinary rewrite cases:
@@ -129,6 +107,72 @@ export pipe separatedBy(separator, trailing: Trailing = .none) {
     }
 }
 ```
+
+## std/references
+
+This authored module connects syntax identities to declarations in lexical scopes.
+It does not implement a runtime variable map or choose target-language types.
+
+```yl
+import { createLexicalScope, declareName, connectReference, referenceOf } from "std/references"
+```
+
+| Export | Parameters and behavior |
+| --- | --- |
+| `createLexicalScope(target)` | Attach a scope identity to the supplied syntax occurrence. Operations have no implicit `self`; pass the current occurrence explicitly. |
+| `enclosingScope(value)` | Find the nearest ancestor carrying a lexical scope; terminal captures begin with their containing occurrence. |
+| `declareName(target, name, reassignable = true)` | Register `text(name)` in its enclosing scope, associate the name and declaration occurrence with `target`, and diagnose duplicates or a missing scope. `name` should exclude punctuation such as a dollar-sign prefix. |
+| `resolve(name)` | Read the nearest visible declaration identity, without creating associations or reporting an unknown name. |
+| `connectReference(target, name)` | Resolve the name, attach its declaration identity to both syntax arguments, report an unknown name when absent, and return the declaration identity. |
+| `referenceOf(value)` | Read an existing association; unassociated syntax returns `absent`. |
+| `scope`, `declarations`, `referenceIdentity` | Exported symbols naming scope, name-table, and association channels. |
+| `reassignableSymbol`, `nameSymbol` | Exported metadata symbols for a declaration's mutability flag and source name. |
+
+Declaration visibility follows the semantic schedule: source order, named groups,
+explicit precedence, and boundaries. Pending visible inner declarations are
+resolved before considering an outer binding. Same-scope duplicates are errors;
+inner declarations can shadow outer names. Explicit function registration can be
+hoisted before body analysis. A self-initializer is rejected by the composed
+language's visibility rules. See [references](/guide/references) and
+[semantic ordering](/reference/meaning-libraries).
+
+## std/types
+
+This target-neutral annotation library exports only `unknown` as a type sentinel.
+Your language supplies primitive symbols, enum variants, signature keys, and
+operator policy. It does not depend on `std/references`; the language connects
+syntax and declaration identities explicitly.
+
+```yl
+import { annotateWithType, typeOf, restrictTypeTo } from "std/types"
+```
+
+| Export | Parameters and behavior |
+| --- | --- |
+| `annotateWithType(key, value)` | Add possible types at an identity or tuple key. Repeated candidates are deduplicated; distinct candidates form alternatives. `unknown` does not erase known candidates. |
+| `candidates(key)` | Read currently available distinct candidates as a list; this is an approximation for accumulation. |
+| `typeOf(key)` | Read a type or alternatives; an existing key with no candidate has type `unknown`. An absent key returns `absent`. |
+| `compatible(actual, expected)` | Require every actual candidate to be among the expected candidates. `unknown` is permissive; this is membership policy, not structural comparison. |
+| `restrictTypeTo(key, expected, target = key, related = absent)` | Validate the observed type without adding the expected type. Underline `target`, optionally relating an annotation at `related`. |
+| `resolveTypeWith(result, assumptions)` | Read a result under isolated temporary assignments. Each assumption is `(logicalTypeKey, temporaryType)` or `(logicalTypeKey, temporaryType, originSyntax)`. Forward demanded authored diagnostics without mutating the original assignments. |
+| `unknown`, `type` | The unresolved-type sentinel and exported annotation-channel symbol. |
+
+For a binding, annotate its declaration identity from the initializer, then check
+an optional annotation. Do not contribute the declared type as if it were inferred
+from the initializer:
+
+```yl
+operation bindingType(name, initializer, annotation) {
+    annotateWithType(referenceOf(name), typeOf(initializer))
+    restrictTypeTo(referenceOf(name), typeOf(annotation), initializer, annotation.value)
+}
+```
+
+This fragment additionally imports `referenceOf` from `std/references`. Its
+`annotation` is an optional syntax node capturing the type word as `value`.
+Absence suppresses only the dependent restriction. The complete
+[type-inference walkthrough](/tutorials/std-types) defines those nodes and
+explains per-parameter function keys and independent calls.
 
 ## Opt-in type policies
 
@@ -179,7 +223,10 @@ This preset owns a complete descriptor model and its own annotation channel:
 | `restrictWritesTo(target, value)`, `writeTypeOf(target)` | Keep the declared write contract separate from inferred initializer types. |
 | `compareTypes(actual, expected, mode)`, `isIdenticalTo(left, right)`, `isAssignableTo(left, right)` | Recursive comparison; the worker returns structural differences. |
 | `genericType(parameters, body)`, `instantiateType(generic, arguments)` | Explicit parameter identities and isolated descriptor substitution. |
-| `describeType(value)`, `describeDifference(item)`, `reportDifference(item, target)` | Pure descriptions and optional source-linked reporting. |
+| `describeType(value)`, `describeDifference(item)`, `reportDifference(item, target)` | Pure descriptions; report one difference at the supplied syntax target. |
+| `typeAnnotations`, `writeRestriction` | Exported symbols naming this preset's annotation and declared-write channels. |
+
+`compareTypes` returns a list of `(path, actual, expected, reason)` differences; an empty list means success. Paths contain field names and tuple-position labels. The preset deliberately keeps source origins separate; the diagnostic-origins example adds them.
 
 Objects are structural: assignment permits additional fields; identity requires
 the same field names regardless of order. Tuple positions and lengths matter.
@@ -226,7 +273,6 @@ The [checked backend capstone](/tutorials/backends) composes this contract with
 static references and type checking, then executes the same `.ylc` using three
 independent hosts.
 
-Projection collects only the bound `item` values. An empty star list becomes `[]`. Tuple-valued or list-valued items preserve their boundaries as individual elements.
 
 ## Defining language-specific helpers
 

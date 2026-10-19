@@ -1,195 +1,130 @@
 # Your Language
 
-**Define syntax. Compose meaning. Build language tools.**
+**Define syntax. Compose semantics. Choose your backend.**
 
-Your Language is a declarative language for building parsers, structured abstract syntax trees, and precise diagnostics. Describe a language's syntax in YL, compile it into a reusable `.ylc` artifact, and parse source through the CLI or Rust API.
+Your Language (YL) is a declarative toolkit for building languages. Describe the
+grammar and AST, connect names and types through authored libraries, add precise
+diagnostics and editor roles, then compile the definition into a reusable `.ylc`.
+A Rust consumer can interpret, transpile, or compile the resulting programs through
+host-controlled hooks.
 
-## From syntax to an AST
-
-Define a grammar with named captures:
-
-```yl
-node Declaration =
-    "let" name: /[A-Za-z_][A-Za-z_0-9]*/ "=" value: /[0-9]+/
-
-trivia Whitespace = /[ \t\r\n]+/
-
-entry Declaration {
-    trivia Whitespace
-}
-```
-
-Parse a source file written in that language:
-
-```text
-let answer = 42
-```
-
-Get a structured tree:
-
-```json
-{
-  "type": "Declaration",
-  "fields": {
-    "name": "answer",
-    "value": "42"
-  }
-}
-```
-
-Source spans are omitted here for brevity.
-
-Reusable pipes make comma-separated lists just as straightforward:
+## A definition connects syntax and meaning
 
 ```yl
-import { separatedBy } from "std/parser"
+import { annotateWithType } from "std/types"
 
-pattern Arguments = Expression* |> separatedBy(",")
-```
-
-Syntax-local constraints can also add errors, warnings, and help messages to a language. Explore the [MiniJS example](./examples/03-mini-js/) for expressions, functions, calls, precedence, and comments working together.
-
-## Compose meaning
-
-Language-authored semantics connect syntax to reusable libraries for scopes, references, and type inference. The [Mini TypeScript example](./examples/08-mini-typescript/) demonstrates scopes, resolved bindings and inferred types through ordinary imported operations:
-
-```yl
-import { annotateWithType } from "./typing"
-import { number } from "./types"
+enum Type { number }
 
 node Number = value: /[0-9]+/ {
+    ide {
+        example "42"
+        highlightAs "number"
+    }
     semantics {
-        annotateWithType(self, number)
+        annotateWithType(self, Type::number)
     }
 }
+
+entry Number
 ```
 
-The language owns its primitive type symbols and operator rules; the engine supplies generic identity-keyed queries. Run the complete example from the repository root:
+Captures shape the AST. Semantic operations attach information to syntax or
+resolved declaration identities. The language owns its types and operator rules;
+`std/references` and `std/types` supply composable mechanisms written in YL.
+Imports such as `std/types` are bundled module names, with no repository-relative paths.
 
-```sh
-cargo run --example mini_typescript_host -- addition
+The examples build beyond primitive annotations:
+
+```text
+interface Box<T> {
+    value: T;
+}
+
+let box: Box<string> = { value: "hello" };
+let message: string = box.value;
 ```
 
-It reports `numberSum: number`, `stringSum: string` and the types of the other bindings. The authored `std/types` library tracks type contributions and restrictions through generic queries. Function calls infer independent results under temporary parameter assignments. See the [std/types tutorial](https://gweiermann.github.io/your-language/tutorials/std-types) for the full workflow and limits.
+The [compound-data example](examples/11-compound-types/) implements structural
+interfaces, tuples, lists, explicit generics, property/index access, and assignment
+checks. [Mini TypeScript](examples/08-mini-typescript/) separately demonstrates
+function signatures and per-call inference. These are focused language subsets,
+not a complete TypeScript implementation. Optional
+[diagnostic origins](examples/12-diagnostic-origins/) trace a nested mismatch back
+to its incompatible literal and group related source locations.
 
-The [compound-types example](./examples/11-compound-types/) adds structural interfaces, tuples, lists, and explicit generic arguments. Its constructors and recursive comparison are implemented in YL; see the [compound types tutorial](https://gweiermann.github.io/your-language/tutorials/compound-types). A separate [diagnostic-origins example](./examples/12-diagnostic-origins/) adds optional source tracking so a mismatch discovered through several declarations can underline the original incompatible literal.
-
-## Interpret, transpile, and compile
-
-Map syntax to host hooks without choosing a runtime value representation:
+## One language, different consumers
 
 ```yl
 export hook add(left, right)
 
-node Addition = left: Expression "+" right: Expression {
-    backend {
-        add(left, right)
-    }
+node Addition = left: Number "+" right: Number {
+    backend { add(left, right) }
 }
+
+node Number = /[0-9]+/
+entry Addition
 ```
 
-Hooks receive unevaluated syntax. A Rust consumer decides what to visit and what to produce: runtime values, generated source, or compiled instructions. The [backend example](./examples/14-backend-hooks/) uses one reloaded `.ylc` for an interpreter, JavaScript transpiler, and WebAssembly binary compiler.
+Hooks receive **unevaluated syntax**. The host decides which children to visit,
+how values and scopes work, and whether to return a runtime value, generated
+source, or compiled instructions. Static checking does not execute the program.
+The [backend capstone](examples/14-backend-hooks/) uses one reloaded language for
+three independent Rust hosts: an interpreter, JavaScript transpiler, and WebAssembly compiler.
+
+## Try the examples
+
+From a cloned repository with Rust installed:
 
 ```sh
+cargo run --example 01-getting-started
+cargo run --example 08-mini-typescript
+cargo run --example mini_typescript_host -- addition
 cargo run --example backend_interpret
-cargo run --example backend_javascript > target/backend.js
-node target/backend.js
-cargo run --example backend_wasm -- examples/14-backend-hooks/programs/control-flow.txt target/backend.wasm
 ```
 
-The interpreter and executed JavaScript print `42`; the Wasm compiler writes a module exporting `run() -> i32`. See the [backend tutorial](https://gweiermann.github.io/your-language/tutorials/backends) for executing the module and implementing a consumer.
+Project runners check positive and intentional-error fixtures. The inference host
+reports values including `numberSum: Type::number`; the interpreter prints `42`.
+Each [numbered project](examples/README.md) has a `yl.json`, readable definitions,
+and `.txt` target programs.
 
-## Editor support
-
-The VS Code extension provides live diagnostics, formatting and composed syntax examples for YL definitions. A project-local `yl.json` also enables diagnostics and highlighting for programs written in your language. Visual roles stay beside the grammar:
-
-```yl
-pattern FunctionName = Name {
-    ide {
-        highlightAs "function"
-    }
-}
-```
-
-See the [editor guide](https://gweiermann.github.io/your-language/guide/editor) and [IDE metadata reference](https://gweiermann.github.io/your-language/reference/ide).
-
-## Run a language
-
-Install the CLI from the repository:
+Install the CLI and inspect a project:
 
 ```sh
 cargo install --path . --locked
+yl project list examples
+yl project check examples/08-mini-typescript/programs/program.txt
+yl project ast examples/08-mini-typescript/programs/program.txt
 ```
 
-Check and compile the MiniJS definition:
+Or persist a language for another application:
 
 ```sh
-yl check examples/03-mini-js/definition/minijs.yl
 yl compile examples/03-mini-js/definition/minijs.yl -o minijs.ylc
-```
-
-Format YL definition files or check their layout:
-
-```sh
-yl fmt examples/01-getting-started/definition/language.yl
-yl fmt --check examples/01-getting-started/definition/language.yl
-```
-
-Generate an AST or check a source file for diagnostics:
-
-```sh
 yl language minijs.ylc ast examples/03-mini-js/programs/program.txt
-yl language minijs.ylc check examples/03-mini-js/programs/invalid.txt
 yl language minijs.ylc check examples/03-mini-js/programs/invalid.txt --json
 ```
 
-`ast` writes JSON. `check` shows source snippets and colored underlines; `--json` provides diagnostics for tools. Clean checks are silent, and errors produce a nonzero exit code. Commands also work through `cargo run -- <command>`.
+The final command intentionally reports errors and exits nonzero. Human checks
+show source snippets and colored underlines; JSON exposes the same structured
+diagnostics. `yl fmt` formats YL definitions.
 
-## Documentation
+## Editor and documentation
 
-The [VS Code extension](./editors/vscode/) provides highlighting, live definition diagnostics, formatting and copyable example previews through the Rust language server. See the [editor setup guide](https://gweiermann.github.io/your-language/guide/editor) for installation and configuration.
+The [VS Code extension](editors/vscode/) provides definition formatting, hover,
+example previews, and live diagnostics. Project discovery activates diagnostics
+and contextual highlighting for matching target programs. Language definitions
+choose roles; the editor theme chooses colors.
 
-Visit the [Your Language documentation](https://gweiermann.github.io/your-language/) for tutorials, the language reference, and CLI and Rust API guides.
+Read the [documentation](https://gweiermann.github.io/your-language/):
 
-- [Build your first language](https://gweiermann.github.io/your-language/tutorials/first-language)
-- [Language reference](https://gweiermann.github.io/your-language/reference/lexical-syntax)
-- [CLI reference](https://gweiermann.github.io/your-language/api/cli)
-- [Rust API](https://gweiermann.github.io/your-language/api/rust)
-
-To run the documentation locally:
-
-```sh
-npm ci
-npm run docs:dev
-```
-
-## Explore the examples
-
-Follow the [learning path](https://gweiermann.github.io/your-language/tutorials/language-curriculum)
-from core queries and local YL implementations to reusable type policies and a
-checked language with three backends. The opt-in standard presets keep those
-policies separate from the generic engine and libraries.
-
-The [numbered example projects](examples/README.md) progress from syntax and
-references to type inference, compound types, source diagnostics, and host
-backends. Each has a `yl.json` entrypoint and `.txt` programs with project-specific
-editor support.
-
-```powershell
-cargo run -- project list examples
-cargo run -- project check examples/11-compound-types
-cargo run -- project check examples/12-diagnostic-origins/programs/invalid-scattered.txt
-```
-
-The last command intentionally reports a nested type error and exits with status 1.
+- [Build a TypeScript-like language, from the first grammar to host backends](https://gweiermann.github.io/your-language/tutorials/course/).
+- [Concepts and capabilities](https://gweiermann.github.io/your-language/guide/capabilities).
+- [Language reference](https://gweiermann.github.io/your-language/reference/lexical-syntax), [core library](https://gweiermann.github.io/your-language/api/core), and [authored standard library](https://gweiermann.github.io/your-language/reference/standard-library).
+- [CLI](https://gweiermann.github.io/your-language/api/cli), [Rust API](https://gweiermann.github.io/your-language/api/rust), and [editor setup](https://gweiermann.github.io/your-language/guide/editor).
 
 ## Roadmap
 
-Planned development extends the syntax, AST, and diagnostic foundation across four areas:
-
-- **Language analysis:** generalize the experimental native semantic libraries with richer type inference, flow analysis and reusable analysis protocols.
-- **Developer tooling:** extend the YL language server with navigation and completion, then explore tooling for languages defined in YL and incremental analysis.
-- **Execution and integration:** parser generation, runtime performance, and bindings for additional host environments.
-- **Language authoring:** expand grammar inspection, reusable libraries and parser-validated examples.
-
-See the [roadmap](https://gweiermann.github.io/your-language/roadmap) for more detail.
+Next directions include literal types and flow-sensitive narrowing, typed
+heuristics, richer reusable policies and hosts, navigation and completion, and
+incremental analysis. Ownership is a longer-term analysis stress test. See the
+[roadmap](https://gweiermann.github.io/your-language/roadmap) for boundaries and priorities.

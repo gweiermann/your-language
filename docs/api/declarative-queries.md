@@ -119,7 +119,7 @@ They emit errors, warnings, and informational hints respectively. There are no i
 | --- | --- |
 | `contribute(key, value)` | Register one tracked contribution. An absent key or value contributes nothing. |
 | `contributeAll(key, values)` | Register each distinct element of a list from one producer. |
-| `get(key)` | Wait for relevant producers, then return the unique value or `absent`. Multiple contributions produce a conflict diagnostic. |
+| `get(key)` | Wait for relevant producers, then return the unique value or `absent`. Two different producers conflict even when their values are equal. |
 | `getEarlier(key)` | Read the unique contribution scheduled before the current action, applying the same source order, named groups, precedence and boundaries as host scheduling. |
 | `getAll(key)` | Wait for relevant producers, then return all contributed values in deterministic producer order. |
 | `facts(key)` | Read the currently available distinct values during fixed-point propagation. This is an approximation, not a final lookup. |
@@ -153,7 +153,7 @@ operation requireName(name) {
 }
 ```
 
-`when` requires a boolean condition and supports an optional `else`. A pending condition keeps its possible contributions pending. A settled false condition rules its branch out. `match` selects the first matching case for each Cartesian combination of explicit alternative values and requires a final wildcard case. Branches may contribute values or emit diagnostics. Rereading a matched expression inside its branch yields that combination's selected member, including inside nested matches; unmatched alternatives do not become type contributions through a branch reread.
+`when` requires a boolean condition and supports an optional `else`. A pending condition keeps its possible contributions pending. A settled false condition rules its branch out. `match` selects the first matching case for each Cartesian combination of explicit alternative values and requires a final wildcard case in action blocks. Value-producing matches may omit the wildcard when their boolean or enum cases are exhaustive; open domains need a fallback. Branches may contribute values or emit diagnostics. Rereading a matched expression inside its branch yields that combination's selected member, including inside nested matches; unmatched alternatives do not become type contributions through a branch reread.
 
 The optional second diagnostic argument selects source syntax to underline; a third argument selects a related source location. Diagnostic messages can interpolate semantic expressions; pending interpolation values delay emission. Diagnostics belong to the evaluating occurrence and reflect its settled branch, so intermediate diagnostics do not accumulate across propagation rounds.
 
@@ -188,17 +188,15 @@ Original contributions and diagnostics remain unchanged. Pure YL operations comp
 
 ## Producer discovery and cycles
 
-Compilation lowers authored operations into normalized actions and compiled pure-function bodies. Analysis discovers every producer in the committed occurrence forest, including guarded branches, before lookup can report final absence. Internal structural key-footprint analysis narrows candidate producers by known tuple components and propagates possible scope identities through composed lookups. Unknown components remain conservative.
+Lookup considers contributions in guarded branches before reporting final absence. Language authors describe the contributions and their dependencies; they do not enumerate producers or schedule retries.
 
 `get` and `getAll` await final results. A cycle that depends on final presence or absence produces a dependency diagnostic. Positive accumulation can use `facts` with `contributeAll` and reach a fixed point. `facts` must not be mistaken for a completed lookup; negative or oscillating equations are rejected when propagation fails to converge. Hypothetical evaluation has the same convergence requirement.
-
-The implementation favors correctness over optimization: reads inspect candidate producers, propagation reevaluates producers, and hypothetical calculations clone analysis-local producer state. Settled hypothetical results are memoized within one analysis by the requested key and complete explicit assumption overlay. Recorded dependencies are available in `SemanticGraph.query_dependencies`; this does not provide incremental parsing or multithreaded execution.
 
 ## Rust and compiled artifacts
 
 Use `SemanticEngine::compile`, optional `.ylc` serialization/reload, and `SemanticEngine::analyze`. Results include syntax occurrences, structured diagnostics, and `SemanticGraph.query_entries`, with normalized keys, values, producer IDs, and original source spans.
 
-Declarative artifacts use format version `5`, preventing older runtimes from silently discarding query definitions. Syntax-only artifacts remain version `1`, and native lifecycle artifacts remain version `2`. Reload validates callback bindings, captures, primitive arities, branch structure, owner references, and resource limits.
+All newly compiled languages use the format described in [compiled artifacts](/api/artifacts). Reload validates bindings, captures, primitive arities, branch structure, owner references, and resource limits.
 
 The CLI's `yl language <language.ylc> check <source> [--json]` evaluates declarative semantics and supports both source-underlined diagnostics and machine-readable diagnostics. `parse_named` remains the syntax-only Rust API; use `SemanticEngine` for semantics.
 
@@ -246,92 +244,22 @@ operation join(parts) = match (isPresent(parts[0])) {
 
 A selector that is pending keeps the match pending. Explicit alternative values distribute over Cartesian selector combinations, retaining branch-local selections. Function parameters establish fresh lexical evaluation frames; a recursive call cannot accidentally inherit its caller's parameter-specific branch choices.
 
-Recursive computations cannot contribute facts, emit diagnostics, or invoke native lifecycle effects. Unused definitions are checked too. Effectful operations remain separately discovered actions. Pure-call memoization is analysis-local and distinguishes order, branch and hypothetical contexts, with dependency observations retained. Store-dependent answers are invalidated before the producer snapshot changes; query-free answers can survive propagation passes. Revisited argument cycles report `query.recursion`; bounded work, depth, value sizes, and a cumulative 16 MiB function-allocation budget report `query.resource`.
+Recursive computations cannot contribute facts, emit diagnostics, or invoke native lifecycle effects. Unused definitions are checked too. Effectful operations remain separately discovered actions. Pure calls preserve their order, branch, and hypothetical contexts. Revisited argument cycles report `query.recursion`; bounded work, depth, and value sizes can report `query.resource`.
 
 See the [structural types tutorial](/tutorials/compound-types) for recursive comparisons and source-aware diagnostic type contributions implemented in YL.
 
-## Query caching and reclamation
+## Authoring reliable queries
 
-Caching changes execution cost, never query visibility. The compiler records the
-read/write key expressions and transitive store-read effects of pure functions
-in the executable image. These summaries include inactive branches, callbacks
-and recursive calls. Loading an image checks the summaries against its code;
-older format `10` images without the optional plan derive the same information.
+Use structured tuple keys with stable namespace symbols, for example
+`(declaration, typeSlot)`, instead of encoding several identities into one string.
+Keep the same key shape in writers and readers. Pass captures and context into
+operations explicitly, and extract repeated pure expressions into reusable
+operations. These conventions make dependencies visible and definitions easier
+to compose; they do not guarantee a particular execution time.
 
-After discovering concrete syntax occurrences, the engine specializes the plan:
-
-- Contributions with exact keys use a direct producer index. Partially known
-  keys keep conservative candidate checks; discovery still includes pending
-  and guarded producers.
-- Query-free producers finish once. Their results remain available to readers
-  and public output, but later propagation passes do not recompute them.
-- Function results can be reused across expressions. Store-dependent results
-  are collected after their last possible consumer in a pass, and always before
-  the producer snapshot changes. Query-free results may survive those changes.
-- Function and hypothetical-result memo stores each have a 4 MiB accounted
-  payload budget and evict their least recently used answers. An evicted answer
-  is recomputed when needed. Hypothetical assumptions and diagnostic origins
-  are part of the cache key, and cache hits retain dependency receipts.
-
-The budget accounts for retained keys and estimated owned payloads; it is not a
-process-memory limit. Existing evaluation depth, work and allocation limits
-still apply. These caches belong to one analysis; they never share mutable
-values between different documents. Each isolated hypothetical calculation owns
-its function memo store; the bounded hypothetical-result store is shared by
-contexts whose complete assumption/origin keys match. Several bounded stores
-can therefore coexist during nested hypothetical evaluation.
-
-A finalized fact is not automatically dead: `AnalysisResult.graph.query_entries`
-exposes all authored contributions, and diagnostics and backend consumers may
-read them after analysis. Final results move into that graph without making a
-second attachment-store copy. They remain alive until their owning result is
-released. Temporary memo entries can be reclaimed earlier because they are
-recomputable; deleting authored facts would change the public result contract.
-
-The [lifetime study](/design/query-lifetimes-research) describes the static proofs,
-runtime fallback, authoring conventions, reproducible measurements and limitations.
-
-## Partial tuple key refinement
-
-Dependency matching uses every known structural position in a tuple, including
-nested positions. Unknown components remain holes, rather than forcing matching
-to stop at the first unknown component.
-
-```yl
-import { get, text } from "core/query"
-
-symbol scope
-symbol declarations
-
-operation resolveIn(target, name) =
-    get((get((target, scope)), declarations, text(name)))
-```
-
-While the scope lookup is pending, the fixed `declarations` slot and known name
-text can already rule out incompatible writer families. Once the scope identity
-settles, matching narrows again. The name text is lookup material; declarations
-with the same spelling in different scopes retain distinct identities.
-
-The engine indexes known scalar values and tuple arities at arbitrary nested
-paths. Unconstrained paths remain compatible. Union summaries preserve every
-possible branch; complete structural matching checks correlations that the
-index intentionally leaves conservative. Immutable template bounds remain valid
-while runtime footprints change.
-
-A reader can reuse its previous evaluation while its compatible candidate set
-and those producers' versions remain unchanged. Changes to values, partial-fact
-status or candidate membership wake it again. Guarded writers remain potential
-candidates even before their guards settle. This is dependency readiness, not a
-whole-statement barrier or a change to source-order visibility.
-
-A key containing a pending component still stays pending. Refinement does not
-invent a scope, choose a declaration by text alone, or turn an unresolved key
-into absence. Closed discovery of potential producers/readers is required before
-absence or last-use claims; current analyses discover the full committed syntax
-forest before evaluating queries. Hypothetical contexts remain isolated.
-
-Structural index metadata and retained wakeup observations each use conservative
-accounted budgets. On exhaustion the engine scans broader candidate sets or
-reevaluates the reader. It preserves results and exported fact roots. The
-[lifetime study](/design/query-lifetimes-research) compares these policies and
-records their memory/performance tradeoffs.
+Queries preserve pending inputs and do not mistake them for absence. Guarded
+contributions remain possible until their conditions settle. Hypothetical
+assumptions remain isolated from the original analysis. Caching and scheduling
+are engine responsibilities and do not change these guarantees. Dynamic keys
+are supported conservatively; a language should not rely on them being as cheap
+as a direct lookup. Source edits currently require complete program analysis.

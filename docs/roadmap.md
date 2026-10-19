@@ -1,23 +1,33 @@
 # Roadmap
 
-Your Language brings grammar, AST structure, and diagnostics into a shared language definition. Development extends that foundation in four areas. The following capabilities are planned directions, not APIs or delivery commitments.
+YL already composes parsing, authored references and type analysis, IDE metadata,
+and host-controlled execution through reusable language artifacts. See
+[capabilities and boundaries](/guide/capabilities) for the implemented contract.
+The following are development directions, not delivery commitments.
 
-## Language analysis
+## Flow-sensitive analysis
 
-Native semantic libraries already provide experimental lexical scopes, declaration/reference identity and type constraints. Further work will develop composable analysis protocols, union-producing annotations, directional compatibility and per-call generic inference, followed by flow-sensitive narrowing and ownership experiments. These analyses remain separate from grammar matching and syntax-local constraints.
+Extend the current inference and restriction model with literal types, branch-local
+narrowing, assignment flow, reachability, and loop analysis. Once these facts are
+reliable, explore typed heuristics and optimization rules. Ownership and borrowing
+are longer-term stress tests for composable analysis libraries.
 
-## Developer tooling
+## Language authoring and libraries
 
-The YL language server supplies live definition diagnostics, formatting and composed example previews. Next steps include completion, navigation and rename with explicit semantic contracts. Target-language servers and incremental analysis will extend tooling beyond full-graph YL authoring.
+Expand explicit opt-in policies and compose them in the existing learning course.
+Improve grammar inspection, reusable diagnostics, generic/structural type coverage,
+and examples without hiding target-language decisions inside the engine.
+
+## Editor tools
+
+Build on project discovery, live diagnostics, highlighting, hover, and formatting
+with definition/reference navigation, completion, rename, and incremental analysis.
+Target-language formatting needs an explicit contract rather than assumptions
+about whitespace inferred from parsing.
 
 ## Execution and integration
 
-Host-controlled backend hooks already support reusable Rust consumers; the examples interpret, transpile to JavaScript, and emit WebAssembly binaries from one language artifact. Further work will develop richer backends and consumer interfaces. Parser generation and runtime optimization will address execution cost while preserving language behavior. Additional host bindings, including a C ABI, will broaden embedding options. Compilation strategies such as JIT execution will be evaluated against measured needs.
-
-## Language authoring
-
-Parser-validated `example` metadata and bounded generation already provide representative syntax for nodes and parameterless patterns. Further grammar inspection and reusable library mechanisms will support larger definitions. Additional metadata must define its syntax and composition rules before introduction.
-
-## Design principles
-
-Changes should preserve explicit language policy, structured diagnostics, and the relationship between grammar values and ASTs. Language-design decisions are made before introducing observable behavior. Runtime and tooling improvements must remain general rather than relying on individual example grammars.
+Broaden host hook presets and backend examples beyond the current integer subset.
+Explore additional bindings, generated parsers, and portable artifact encodings
+while retaining source-linked diagnostics and host ownership of runtime state.
+Long-term binary compatibility and a C ABI require separate stable contracts.

@@ -11,3 +11,7 @@ implementation states; their status statements are not the current contract.
 
 Consult a record only when investigating the history of that feature. Verify
 current behavior in the relevant public reference, implementation, and tests.
+
+For query-cache, candidate-index, or analysis-lifetime implementation changes, consult
+[the query lifetime study](research/query-lifetimes.md). Its measurements describe
+particular workloads; the public query reference remains the semantic contract.
