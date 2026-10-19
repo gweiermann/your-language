@@ -25,11 +25,26 @@ for (const page of pages) {
       target = candidates.find(existsSync) || target
     }
     if (!existsSync(target)) {
-      errors.push(`${relative(root, page)} → missing ${raw}`)
+      errors.push(`${relative(root, page)} â†’ missing ${raw}`)
     } else if (anchor && target.endsWith('.html') && !readFileSync(target, 'utf8').includes(`id="${decodeURIComponent(anchor)}"`)) {
-      errors.push(`${relative(root, page)} → missing anchor ${raw}`)
+      errors.push(`${relative(root, page)} â†’ missing anchor ${raw}`)
     }
   }
 }
 if (errors.length) throw new Error(errors.join('\n'))
-console.log(`Checked internal links and anchors across ${pages.length} HTML pages.`)
+// Fence metadata is not rendered by VitePress. Require real, adjacent filename
+// content in built pages so source-only checks cannot miss invisible captions.
+for (const name of readdirSync('docs/tutorials/course').filter(name => /^\d.*\.md$/.test(name))) {
+  const markdown = readFileSync(resolve('docs/tutorials/course', name), 'utf8')
+  const html = readFileSync(resolve(root, 'tutorials/course', name.replace(/\.md$/, '.html')), 'utf8')
+  for (const match of markdown.matchAll(/(?:```(?:yl|json|text) (?:file|source)=(\S+)|^<<< \.\.\/\.\.\/\.\.\/(\S+))/gm)) {
+    const path = (match[1] || match[2]).split('#')[0]
+    const prefix = markdown.slice(0, match.index).trimEnd()
+    const caption = prefix.match(/<p class="course-file" data-file="([^"]+)">[^\n]*<\/code><\/p>$/)
+    if (caption?.[1] !== path) throw new Error(`Missing visible filename before ${name}: ${path}`)
+    const escaped = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const rendered = new RegExp(String.raw`<p class="course-file" data-file="${escaped}">[\s\S]*?<code>${escaped}</code></p>\s*<div class="language-`)
+    if (!rendered.test(html)) throw new Error(`Filename not rendered next to code: ${name}: ${path}`)
+  }
+}
+console.log(`Checked visible course filenames, internal links and anchors across ${pages.length} HTML pages.`)

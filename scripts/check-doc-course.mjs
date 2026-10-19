@@ -1,5 +1,6 @@
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, dirname, resolve, sep } from 'node:path'
+import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 
 // Materialize the actual full-file fences in chapter order. Every checkpoint
@@ -10,18 +11,44 @@ mkdirSync(runs, { recursive: true })
 const output = mkdtempSync(resolve(runs, 'run-'))
 const chapters = resolve('docs/tutorials/course')
 const cargo = process.platform === 'win32' ? 'cargo.exe' : 'cargo'
-function run(args, expected = 0) {
-  const result = spawnSync(cargo, ['run', '--quiet', '--locked', '--', ...args], { encoding: 'utf8' })
+function execute(args, expected = 0, cwd = repository) {
+  const result = spawnSync(cargo, ['run', '--quiet', '--locked', '--manifest-path', resolve(repository, 'Cargo.toml'), '--', ...args], { encoding: 'utf8', cwd })
   if (result.error || result.status !== expected) {
     throw new Error(`yl ${args.join(' ')}: expected ${expected}, got ${result.status}\n${result.error || ''}\n${result.stdout}\n${result.stderr}`)
   }
-  return result.stdout
+  return result
+}
+function run(args, expected = 0, cwd = repository) {
+  return execute(args, expected, cwd).stdout
+}
+function inspectEarlyStep(label, directory) {
+  run(['compile', 'definition/language.yl', '-o', 'language.ylc'], 0, directory)
+  if (label === 'rejected-number') {
+    const result = execute(['language', 'language.ylc', 'check', 'programs/program.txt'], 1, directory)
+    assert.match(result.stderr, /Error\[parse.unexpected_token\]: Expected \/\[0-9\]\+\//)
+    assert.match(result.stderr, /1 \| hello/)
+    return
+  }
+  const ast = JSON.parse(run(['language', 'language.ylc', 'ast', 'programs/program.txt'], 0, directory))
+  assert.deepEqual(ast, { type: 'Number', fields: label === 'number' ? {} : {value: '42'},
+    span: { file: 'programs/program.txt', start: 0, end: 2 } })
 }
 function write(directory, name, text) {
   const path = resolve(directory, name)
   if (!path.startsWith(directory + sep)) throw new Error(`Invalid course path: ${name}`)
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, text)
+}
+function exercise(directory, name, change, expected, message) {
+  const path = resolve(directory, name)
+  const original = readFileSync(path, 'utf8')
+  const modified = change(original)
+  assert.notEqual(modified, original, `Exercise did not change ${name}`)
+  try {
+    writeFileSync(path, modified)
+    const diagnostics = JSON.parse(run(['project', 'check', name, '--json'], expected, directory))
+    if (message) assert.match(diagnostics.map(item => item.message).join('\n'), message)
+  } finally { writeFileSync(path, original) }
 }
 let previous
 let expectedErrors = new Set()
@@ -37,9 +64,13 @@ for (const file of readdirSync(chapters).filter(name => /^\d.*\.md$/.test(name))
     for (const name of ['definition', 'programs', 'yl.json']) cpSync(resolve(source, name), resolve(directory, name), { recursive: true })
     expectedErrors = new Set(JSON.parse(readFileSync(resolve(directory, 'yl.json'), 'utf8')).expectErrors || [])
   } else if (previous) cpSync(previous, directory, { recursive: true })
-  for (const [, name, negative, text] of markdown.matchAll(/```(?:yl|json|text) file=(\S+)( expect-error)?\r?\n([\s\S]*?)```/g)) {
+  const events = /```(?:yl|json|text) file=(\S+)([^\n]*)\r?\n([\s\S]*?)```|<!-- course:checkpoint=(\S+) -->/g
+  for (const match of markdown.matchAll(events)) {
+    if (match[4]) { inspectEarlyStep(match[4], directory); continue }
+    const [, name, metadata, body] = match
+    const text = metadata.includes('no-final-newline') ? body.replace(/\r?\n$/, '') : body
     write(directory, name, text)
-    if (negative) expectedErrors.add(name)
+    if (metadata.includes('expect-error')) expectedErrors.add(name)
     else expectedErrors.delete(name)
   }
   const config = JSON.parse(readFileSync(resolve(directory, 'yl.json'), 'utf8'))
@@ -53,11 +84,32 @@ for (const file of readdirSync(chapters).filter(name => /^\d.*\.md$/.test(name))
     const name = `programs/${program}`
     const diagnostics = JSON.parse(run(['project', 'check', resolve(directory, name), '--json'], expectedErrors.has(name) ? 1 : 0))
     if (!Array.isArray(diagnostics)) throw new Error(`Expected diagnostic array for ${file}/${program}`)
+    if (program === 'invalid.txt' && count === 2) {
+      assert.equal(diagnostics.length, 1)
+      const diagnostic = diagnostics[0]
+      assert.match(diagnostic.message, /Choose a name other than 'reserved'/)
+      assert.equal(diagnostic.primary.start, 4)
+      assert.equal(diagnostic.primary.end, 12)
+      const human = execute(['project', 'check', name], 1, directory).stderr
+      assert.match(human, /let reserved = 42;/)
+      assert.match(human, /\^{8}/)
+    }
+    if (program === 'invalid.txt' && count === 4) {
+      assert.match(diagnostics[0].message, /Type .*string.* does not match .*number/)
+    }
   }
   if (count === 0) {
     const artifact = resolve(directory, 'language.ylc')
     run(['compile', resolve(directory, config.entry), '-o', artifact])
     JSON.parse(run(['language', artifact, 'ast', resolve(directory, 'programs/program.txt')]))
+  }
+  if (count === 2) exercise(directory, 'programs/invalid.txt', text => text.replace('reserved', 'available'), 0)
+  if (count === 3) exercise(directory, 'programs/program.txt', text => text.replace('count +', 'missing +'), 1, /Unknown name/)
+  if (count === 4) exercise(directory, 'programs/invalid.txt', text => text.replace(': number', ': string'), 0)
+  if (count === 5) exercise(directory, 'programs/course-inference.txt', text => text.replace('identity(42)', 'identity(42, 1)'), 1, /argument/i)
+  if (count === 6) {
+    exercise(directory, 'programs/course-structure.txt', text => text.replace('box.value', 'box.missing'), 1, /property|field/i)
+    exercise(directory, 'programs/invalid-course.txt', text => text.replace('value: 42', 'value: "hello"'), 0)
   }
   previous = directory
   count++
