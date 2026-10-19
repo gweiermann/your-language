@@ -7,6 +7,9 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+#[path = "query/lifetimes.rs"]
+pub mod lifetimes;
+
 pub type ExprId = u32;
 pub type ActionId = u32;
 
@@ -260,6 +263,9 @@ pub struct QueryImage {
     pub groups: BTreeMap<String, Vec<ImageGroup>>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub functions: BTreeMap<String, Function>,
+    /// Optional optimization metadata; older images derive it from indexed code.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lifetimes: Option<lifetimes::QueryPlan>,
 }
 fn bad(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error("yl.artifact", message, Span::default())
@@ -491,11 +497,19 @@ impl QueryImage {
                 },
             );
         }
+        if !builder.image.groups.is_empty() {
+            builder.image.lifetimes = Some(lifetimes::QueryPlan::compile(&builder.image));
+        }
         builder.image.validate()?;
         Ok(builder.image)
     }
     pub fn validate(&self) -> Result<(), Diagnostic> {
         self.validate_structure()?;
+        if let Some(plan) = &self.lifetimes {
+            if plan != &lifetimes::QueryPlan::compile(self) {
+                return Err(bad("Query lifetime plan differs from executable code"));
+            }
+        }
         self.validate_context(&[], true)?;
         for groups in self.groups.values() {
             let actions = groups
@@ -1042,6 +1056,7 @@ mod tests {
             expressions,
             actions,
             functions: BTreeMap::new(),
+            lifetimes: None,
             groups: BTreeMap::from([(
                 "test#Root".into(),
                 vec![ImageGroup {

@@ -246,6 +246,92 @@ operation join(parts) = match (isPresent(parts[0])) {
 
 A selector that is pending keeps the match pending. Explicit alternative values distribute over Cartesian selector combinations, retaining branch-local selections. Function parameters establish fresh lexical evaluation frames; a recursive call cannot accidentally inherit its caller's parameter-specific branch choices.
 
-Recursive computations cannot contribute facts, emit diagnostics, or invoke native lifecycle effects. Unused definitions are checked too. Effectful operations remain separately discovered actions. Pure-call memoization is isolated to an evaluation and its order/hypothetical context, with dependency observations retained. Revisited argument cycles report `query.recursion`; bounded work, depth, value sizes, and a cumulative 16 MiB function-allocation budget report `query.resource`.
+Recursive computations cannot contribute facts, emit diagnostics, or invoke native lifecycle effects. Unused definitions are checked too. Effectful operations remain separately discovered actions. Pure-call memoization is analysis-local and distinguishes order, branch and hypothetical contexts, with dependency observations retained. Store-dependent answers are invalidated before the producer snapshot changes; query-free answers can survive propagation passes. Revisited argument cycles report `query.recursion`; bounded work, depth, value sizes, and a cumulative 16 MiB function-allocation budget report `query.resource`.
 
 See the [structural types tutorial](/tutorials/compound-types) for recursive comparisons and source-aware diagnostic type contributions implemented in YL.
+
+## Query caching and reclamation
+
+Caching changes execution cost, never query visibility. The compiler records the
+read/write key expressions and transitive store-read effects of pure functions
+in the executable image. These summaries include inactive branches, callbacks
+and recursive calls. Loading an image checks the summaries against its code;
+older format `10` images without the optional plan derive the same information.
+
+After discovering concrete syntax occurrences, the engine specializes the plan:
+
+- Contributions with exact keys use a direct producer index. Partially known
+  keys keep conservative candidate checks; discovery still includes pending
+  and guarded producers.
+- Query-free producers finish once. Their results remain available to readers
+  and public output, but later propagation passes do not recompute them.
+- Function results can be reused across expressions. Store-dependent results
+  are collected after their last possible consumer in a pass, and always before
+  the producer snapshot changes. Query-free results may survive those changes.
+- Function and hypothetical-result memo stores each have a 4 MiB accounted
+  payload budget and evict their least recently used answers. An evicted answer
+  is recomputed when needed. Hypothetical assumptions and diagnostic origins
+  are part of the cache key, and cache hits retain dependency receipts.
+
+The budget accounts for retained keys and estimated owned payloads; it is not a
+process-memory limit. Existing evaluation depth, work and allocation limits
+still apply. These caches belong to one analysis; they never share mutable
+values between different documents. Each isolated hypothetical calculation owns
+its function memo store; the bounded hypothetical-result store is shared by
+contexts whose complete assumption/origin keys match. Several bounded stores
+can therefore coexist during nested hypothetical evaluation.
+
+A finalized fact is not automatically dead: `AnalysisResult.graph.query_entries`
+exposes all authored contributions, and diagnostics and backend consumers may
+read them after analysis. Final results move into that graph without making a
+second attachment-store copy. They remain alive until their owning result is
+released. Temporary memo entries can be reclaimed earlier because they are
+recomputable; deleting authored facts would change the public result contract.
+
+The [lifetime study](/design/query-lifetimes-research) describes the static proofs,
+runtime fallback, authoring conventions, reproducible measurements and limitations.
+
+## Partial tuple key refinement
+
+Dependency matching uses every known structural position in a tuple, including
+nested positions. Unknown components remain holes, rather than forcing matching
+to stop at the first unknown component.
+
+```yl
+import { get, text } from "core/query"
+
+symbol scope
+symbol declarations
+
+operation resolveIn(target, name) =
+    get((get((target, scope)), declarations, text(name)))
+```
+
+While the scope lookup is pending, the fixed `declarations` slot and known name
+text can already rule out incompatible writer families. Once the scope identity
+settles, matching narrows again. The name text is lookup material; declarations
+with the same spelling in different scopes retain distinct identities.
+
+The engine indexes known scalar values and tuple arities at arbitrary nested
+paths. Unconstrained paths remain compatible. Union summaries preserve every
+possible branch; complete structural matching checks correlations that the
+index intentionally leaves conservative. Immutable template bounds remain valid
+while runtime footprints change.
+
+A reader can reuse its previous evaluation while its compatible candidate set
+and those producers' versions remain unchanged. Changes to values, partial-fact
+status or candidate membership wake it again. Guarded writers remain potential
+candidates even before their guards settle. This is dependency readiness, not a
+whole-statement barrier or a change to source-order visibility.
+
+A key containing a pending component still stays pending. Refinement does not
+invent a scope, choose a declaration by text alone, or turn an unresolved key
+into absence. Closed discovery of potential producers/readers is required before
+absence or last-use claims; current analyses discover the full committed syntax
+forest before evaluating queries. Hypothetical contexts remain isolated.
+
+Structural index metadata and retained wakeup observations each use conservative
+accounted budgets. On exhaustion the engine scans broader candidate sets or
+reevaluates the reader. It preserves results and exported fact roots. The
+[lifetime study](/design/query-lifetimes-research) compares these policies and
+records their memory/performance tradeoffs.

@@ -233,6 +233,33 @@
           }
         }
       ]
+    },
+    "lifetimes": {
+      "reads": [
+        7
+      ],
+      "writes": [
+        2,
+        13
+      ],
+      "store_dependent_functions": {},
+      "store_dependent_expressions": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        true
+      ]
     }
   },
   "semantics": {
